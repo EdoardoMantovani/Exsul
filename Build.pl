@@ -8,6 +8,7 @@ use Term::ANSIColor qw(color);
 use Getopt::Long;
 
 my $ls = `which ls`;
+my $rm = `which rm`;
 my $sed = `which sed`;
 my $grep = `which grep`;
 my $find = `which find`;
@@ -43,6 +44,7 @@ my $iterator = undef;
 
 my $compiler = undef;
 my $pahole_kernel = undef;
+my $clean = undef;
 my $help = undef;
 
 my @gcc_params = ("-O2", "-w", "-I$include", "-I$arch", "-march=native", "-mtune=native");
@@ -61,6 +63,7 @@ my %struct_whitelist = (
 );
 
 chomp($ls);
+chomp($rm);
 chomp($sed);
 chomp($grep);
 chomp($find);
@@ -68,11 +71,19 @@ chomp($find);
 GetOptions(
 	"compiler=s"		=> \$compiler,
 	"pahole_kernel=s"	=> \$pahole_kernel,
+	"clean"			=> \$clean,
 	"help"			=> \$help,
 );
 
 if($help){
 	print("helper\n");
+	exit(0);
+}
+
+if($clean){
+	#delete every compiled file and quit
+	`$rm $build/*.o`;
+	`$rm $bin/$final_program`;
 	exit(0);
 }
 
