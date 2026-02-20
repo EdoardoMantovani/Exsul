@@ -344,7 +344,6 @@ out:										\
 #define ELF64_ST_BIND(x)        ELF_ST_BIND(x)
 #define ELF64_ST_TYPE(x)        ELF_ST_TYPE(x)
 
-
 /**
  * list_entry - get the struct for this entry
  * @ptr:	the &struct list_head pointer.
@@ -623,14 +622,16 @@ static inline int isdigit(int c){
 }
 
 static inline unsigned char __tolower(unsigned char c){
-	if (isupper(c))
+	if (isupper(c)){
 		c -= 'A'-'a';
+	}
 	return c;
 }
 
 static inline unsigned char __toupper(unsigned char c){
-	if (islower(c))
+	if (islower(c)){
 		c -= 'a'-'A';
+	}
 	return c;
 }
 
@@ -641,7 +642,17 @@ static uint64_t nsec_now_monotonic(void){
 	return (uint64_t)ts.tv_sec * NSEC_PER_SEC + (uint64_t)ts.tv_nsec;
 }
 
-/* convert_usb_pipe_to_ep: */
+static inline struct timespec timespec_add_ms(struct timespec t, unsigned long ms){
+	t.tv_sec += (time_t)(ms / 1000);
+	t.tv_nsec += (long)(ms % 1000) * 1000000L;
+	if (t.tv_nsec >= 1000000000L) {
+		t.tv_sec++;
+		t.tv_nsec -= 1000000000L;
+	}
+	return t;
+}
+
+/* convert_usb_pipe_to_ep: convert a kernel pipe into an usb endpoint for using it with libusb */
 static unsigned char convert_usb_pipe_to_ep(unsigned char pipe){
 	unsigned char ep_num = 0;
 	unsigned char epaddr = 0;

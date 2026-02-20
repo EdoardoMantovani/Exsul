@@ -763,6 +763,57 @@ static inline void kref_get(struct kref *kref){
 	refcount_inc(&kref->refcount);
 }
 
+static inline struct timespec wq_now(struct workqueue_struct *wq){
+        struct timespec now = {};
+        clock_gettime(wq->clock_id, &now);
+        return now;
+}
+
+static inline long work_encode(struct workqueue_struct *wq, long flags){
+	return ((long)(uintptr_t)wq) | (flags & (long)WORK_STRUCT_FLAG_MASK);
+}
+
+static inline struct workqueue_struct *work_wq(struct work_struct *work){
+	long v = atomic_load_explicit(&work->data, memory_order_relaxed);
+	return (struct workqueue_struct *)(uintptr_t)(v & ~(long)WORK_STRUCT_FLAG_MASK);
+}
+
+static inline long work_flags(struct work_struct *work){
+	return atomic_load_explicit(&work->data, memory_order_relaxed) & (long)WORK_STRUCT_FLAG_MASK;
+}
+
+static inline bool work_is_linked(struct work_struct *work){
+        return !list_empty(&work->entry);
+}
+
+static inline bool wq_in_worker(struct workqueue_struct *wq){
+        return pthread_equal(pthread_self(), wq->thread);
+}
+
+static inline int timespec_cmp(const struct timespec *a, const struct timespec *b){
+	if (a->tv_sec != b->tv_sec){
+		return (a->tv_sec > b->tv_sec) - (a->tv_sec < b->tv_sec);
+	}
+	return (a->tv_nsec > b->tv_nsec) - (a->tv_nsec < b->tv_nsec);
+}
+
+static void delayed_list_insert_sorted(struct workqueue_struct *wq, struct delayed_work *dwork){
+	struct work_struct *w = NULL;
+	struct delayed_work *dw = NULL;
+	struct list_head *pos = NULL;
+	struct list_head *n = NULL;
+
+	list_for_each_safe(pos, n, &wq->delayed_list) {
+		w = container_of(pos, struct work_struct, entry);
+		dw = container_of(w, struct delayed_work, work);
+		if (timespec_cmp(&dwork->expires, &dw->expires) < 0) {
+			__list_add(&dwork->work.entry, pos->prev, pos);
+			return;
+		}
+	}
+	list_add_tail(&dwork->work.entry, &wq->delayed_list);
+}
+
 /* taken from 'https://android.googlesource.com/platform/external/mtools/+/8c780b311a17226862cbfd6ae6fafda2f09d50d7/strtonum.c#35' */
 static unsigned long strtoul_with_range(const char *nptr, char **endptr,
 					int base, unsigned long max) {
