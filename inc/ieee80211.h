@@ -260,10 +260,57 @@ enum environment_cap {
 	ENVIRON_OUTDOOR,
 };
 
+/**
+ * enum rfkill_type - type of rfkill switch.
+ *
+ * @RFKILL_TYPE_ALL: toggles all switches (requests only - not a switch type)
+ * @RFKILL_TYPE_WLAN: switch is on a 802.11 wireless network device.
+ * @RFKILL_TYPE_BLUETOOTH: switch is on a bluetooth device.
+ * @RFKILL_TYPE_UWB: switch is on a ultra wideband device.
+ * @RFKILL_TYPE_WIMAX: switch is on a WiMAX device.
+ * @RFKILL_TYPE_WWAN: switch is on a wireless WAN device.
+ * @RFKILL_TYPE_GPS: switch is on a GPS device.
+ * @RFKILL_TYPE_FM: switch is on a FM radio device.
+ * @RFKILL_TYPE_NFC: switch is on an NFC device.
+ * @NUM_RFKILL_TYPES: number of defined rfkill types
+ */
+enum rfkill_type {
+	RFKILL_TYPE_ALL = 0,
+	RFKILL_TYPE_WLAN,
+	RFKILL_TYPE_BLUETOOTH,
+	RFKILL_TYPE_UWB,
+	RFKILL_TYPE_WIMAX,
+	RFKILL_TYPE_WWAN,
+	RFKILL_TYPE_GPS,
+	RFKILL_TYPE_FM,
+	RFKILL_TYPE_NFC,
+	NUM_RFKILL_TYPES,
+};
+
+struct wiphy;
 struct napi_struct;
 struct ieee80211_hw;
+struct cfg80211_ops;
 struct ieee80211_chanctx_conf;
 struct ieee80211_vif_chanctx_switch;
+
+struct rfkill {
+	enum rfkill_type	type;
+
+	unsigned long		state;
+	unsigned long		hard_block_reasons;
+
+	u32			idx;
+
+	bool			registered;
+	bool			persistent;
+	bool			polling_paused;
+	bool			suspended;
+	bool			need_sync;
+
+	const struct rfkill_ops	*ops;
+	void			*data;
+};
 
 struct element {
         u8 id;
@@ -442,6 +489,39 @@ struct regulatory_request {
 	bool processed;
 	enum environment_cap country_ie_env;
 	struct list_head list;
+};
+
+/**
+ * struct rfkill_ops - rfkill driver methods
+ *
+ * @poll: poll the rfkill block state(s) -- only assign this method
+ *	when you need polling. When called, simply call one of the
+ *	rfkill_set{,_hw,_sw}_state family of functions. If the hw
+ *	is getting unblocked you need to take into account the return
+ *	value of those functions to make sure the software block is
+ *	properly used.
+ * @query: query the rfkill block state(s) and call exactly one of the
+ *	rfkill_set{,_hw,_sw}_state family of functions. Assign this
+ *	method if input events can cause hardware state changes to make
+ *	the rfkill core query your driver before setting a requested
+ *	block.
+ * @set_block: turn the transmitter on (blocked == false) or off
+ *	(blocked == true) -- ignore and return 0 when hard blocked.
+ *	This callback must be assigned.
+ */
+struct rfkill_ops {
+	void	(*poll)(struct rfkill *rfkill, void *data);
+	void	(*query)(struct rfkill *rfkill, void *data);
+	int	(*set_block)(void *data, bool blocked);
+};
+
+/* first field of the struct associated with the rfkill and cfg80211_ops callbacks */
+struct cfg80211_registered_device {
+	const struct cfg80211_ops *ops;
+	struct list_head list;
+
+	/* rfkill support */
+	struct rfkill_ops rfkill_ops;
 };
 
 /**

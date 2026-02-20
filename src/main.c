@@ -8,6 +8,38 @@
 
 struct module_controller director;
 
+void *search_similar_function(unsigned char *function_name){
+	int n = 0;
+	void *fn = NULL;
+	void *strtab = NULL;
+	Elf(Sym) *sym = NULL;
+	Elf(Shdr) *symsect = NULL;
+	struct load_info *info = NULL;
+	unsigned char *cur_name = NULL;
+
+	info = &director.info;
+
+	symsect = &info->sechdrs[info->index.sym];
+	sym = (void *)symsect->sh_addr;
+        strtab = (void *)info->sechdrs[info->index.str].sh_addr;
+        n = symsect->sh_size / sizeof(*sym);
+
+        for (unsigned int i = 0; i < n; i++) {
+		cur_name = &strtab[sym[i].st_name];
+
+		if (cur_name == NULL || cur_name[0] == '\0'){
+			continue;
+		}
+
+		if (strstr((char *)function_name, cur_name) != NULL) {
+			fn = (void *)sym[i].st_value;
+			return fn;
+		}
+	}
+	return fn;
+}
+
+/* */
 unsigned char *module_next_tag_pair(char *string, unsigned long *secsize) {
 	while (string[0]) {
 		string++;
@@ -684,7 +716,7 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 	int		      ret	 = 0;
 	struct kernel_symbol *ksym	 = NULL;
 	void		     *dlopen_ctx = NULL;
-	void		     *target	 = NULL;
+	void                 *trampoline = NULL;
 	unsigned char	     *name	 = NULL;
 
 	for (i = 1; i < symsec->sh_size / sizeof(Elf(Sym)); i++) {
@@ -696,8 +728,6 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 				break;
 			}
 			printf("Common symbol: %s\n", name);
-			printf("%s: please compile with -fno-common\n",
-			       mod->name);
 			ret = -ENOEXEC;
 			break;
 		case SHN_ABS:
@@ -705,6 +735,7 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 			       (long)sym[i].st_value, name);
 			break;
 		case SHN_UNDEF:
+			void *target = NULL;
 			for (int j = 0; sym_table[j].function_ptr != NULL;
 			     j++) {
 				if (strcmp(
@@ -715,11 +746,11 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 					break;
 				}
 			}
-			if (!target) {
+			if (target == NULL) {
 				dlopen_ctx = dlopen(NULL, 0);
 				target	   = dlsym(dlopen_ctx, (char *)name);
 			}
-			if (!target) {
+			if (target == NULL) {
 				printf("missing function: %s\n", name);
 				ret = -ENOEXEC;
 				break;
@@ -728,18 +759,18 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 			/* only trampoline functions; objects are another story
 			 */
 			if (ELF64_ST_TYPE(sym[i].st_info) == STT_FUNC) {
-				void *tr = x86_64_make_trampoline(target);
-				if (!tr) {
+				trampoline = x86_64_make_trampoline(target);
+				if (trampoline == NULL) {
 					printf(
 					    "trampoline alloc failed for %s\n",
 					    name);
 					ret = -ENOMEM;
 					break;
 				}
-				sym[i].st_value = (Elf64_Addr)(uintptr_t)tr;
+				sym[i].st_value = (Elf64_Addr)(uintptr_t)trampoline;
 #ifdef ENABLE_DBG_PRINT
 				printf("resolved %-24s target=%p tramp=%p\n",
-				       name, target, tr);
+				       name, target, trampoline);
 #endif
 			} else {
 				sym[i].st_value = (Elf64_Addr)(uintptr_t)target;
@@ -1133,11 +1164,8 @@ static int call_final_function(struct module *mod, struct load_info *info,
 	int (*fn)(void) = NULL;
 	Elf(Shdr) *symsect = &info->sechdrs[info->index.sym];
 
-	/* runtime symtab (simplify_symbols() already updated st_value to
-	 * absolute addrs) */
 	Elf(Sym) *sym = (void *)symsect->sh_addr;
 
-	/* runtime strtab */
 	strtab = (void *)info->sechdrs[info->index.str].sh_addr;
 	n = symsect->sh_size / sizeof(*sym);
 
@@ -1169,7 +1197,7 @@ static int call_final_function(struct module *mod, struct load_info *info,
 	return -ENOENT;
 }
 
-int module_init(unsigned char *file_name, unsigned char *function_name) {
+int module_init(unsigned char *file_name, unsigned char *function_name, struct load_info *info) {
 	int	       fd		= 0;
 	long	       err		= 0;
 	unsigned int   file_size	= 0;
@@ -1178,7 +1206,6 @@ int module_init(unsigned char *file_name, unsigned char *function_name) {
 	char	      *after_dashes	= NULL;
 	unsigned char *mapped_file	= NULL;
 	unsigned char *tmp_mapped_file	= NULL;
-	struct load_info *info = NULL;
 	struct stat    file_stats	= {};
 
 	if (file_name == NULL || function_name == NULL) {
@@ -1299,7 +1326,7 @@ void display_usage(unsigned char *argv[]) {
 	printf("./%s <lkm_name> <function_name> !\n", argv[0]);
 }
 
-int initialize_director(struct module_controller *director) {
+int initialize_director(struct module_controller *director, struct load_info *info) {
 	int ret		     = 0;
 	director->libusb_ret = libusb_init(NULL);
 	if (director->libusb_ret < 0) {
@@ -1308,6 +1335,7 @@ int initialize_director(struct module_controller *director) {
 	}
 
 	director->internal_cb_table = &sym_table;
+	director->info = info;
 out:
 	return ret;
 }
@@ -1316,6 +1344,7 @@ int main(int argc, char *argv[], char *envp[]) {
 	int	       ret	     = 0;
 	unsigned char *lkm_name	     = NULL;
 	unsigned char *function_name = NULL;
+	struct load_info load_info = {};
 
 	if (argv[1] == NULL || argv[2] == NULL) {
 		display_usage(argv);
@@ -1345,11 +1374,11 @@ int main(int argc, char *argv[], char *envp[]) {
 		function_name = argv[2];
 	}
 
-	ret = initialize_director(&director);
+	ret = initialize_director(&director, &load_info);
 	if (ret) {
 		return ret;
 	}
 
-	ret = module_init(lkm_name, function_name);
+	ret = module_init(lkm_name, function_name, &load_info);
 	return ret;
 }

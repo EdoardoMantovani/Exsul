@@ -53,8 +53,6 @@
         #error NO UINTPTR???
 #endif
 
-#include "utils.h"
-
 #define u8 uint8_t
 #define u16 uint16_t
 #define u32 uint32_t
@@ -75,6 +73,8 @@
 #define __s32 s32
 #define __s64 s64
 
+#include "utils.h"
+
 /* define the number of maximun lkm which can be loaded in memory for one istance of this application */
 #define MAX_ALLOCATED_LKM_NUMBER 12
 
@@ -94,6 +94,11 @@
 #define TIMER_INIT_FLAGS	(TIMER_DEFERRABLE | TIMER_PINNED | TIMER_IRQSAFE)
 #define TIMER_ARRAYSHIFT	22
 #define TIMER_ARRAYMASK		0xFFC00000
+
+#define WORK_STRUCT_FLAG_MASK	0xFUL
+#define WORK_STRUCT_PENDING	0x1UL
+#define WORK_STRUCT_RUNNING	0x2UL
+#define WORK_STRUCT_DELAYED	0x4UL
 
 /* for knowing the vid/pid of the usb device associated to a loaded lkm, we can read the data pointed by the symbol 'usb_device_id' */
 #define USB_TABLE_SYM_NAME	"__mod_device_table__usb__"
@@ -163,6 +168,10 @@ struct device;
 struct pci_dev;
 struct net_device;
 struct pci_driver;
+struct work_struct;
+
+/* callbacks used in the 'work_struct' */
+typedef void (*work_func_t)(struct work_struct *work);
 
 /* unused function callback used in IRQ context with sdio/pcie devices */
 typedef enum irqreturn irqreturn_t;
@@ -210,6 +219,52 @@ struct sk_buff_head {
 	struct sk_buff	*prev;
 
 	__u32		qlen;
+};
+
+struct work_struct {
+	atomic_long data;
+	struct list_head entry;
+	work_func_t func;
+};
+
+struct delayed_work {
+	struct work_struct work;
+	struct timespec expires;
+};
+
+struct workqueue_struct {
+	char name[64];
+
+	pthread_mutex_t lock;
+	pthread_cond_t  cond;
+	clockid_t       clock_id;
+
+	struct list_head work_list;
+	struct list_head delayed_list;
+
+	int stop;
+	int nr_active;
+
+	pthread_t thread;
+};
+
+struct usb_anchor {
+	struct list_head urb_list;
+	/* don't count the other fields for now */
+};
+
+struct urb {
+	/* the order of the first elements isn't important, luckily */
+	struct kref kref;		/* reference count of the URB */
+	int unlinked;			/* unlink error code */
+	void *hcpriv;			/* private data for host controller */
+	atomic_uint use_count;		/* concurrent submissions counter */
+	atomic_uint reject;		/* submissions will fail */
+
+	struct list_head urb_list;	/* list head for use by the urb's current owner */
+	struct list_head anchor_list;	/* the URB may be anchored */
+	struct usb_anchor *anchor;
+	/* ... */
 };
 
 /* Tasklets --- multithreaded analogue of BHs.
@@ -480,29 +535,233 @@ struct internal_cb_table{
 	void *function_ptr;
 };
 
-struct module_controller {
-        char module_name[16];
-        unsigned char *trampoline_area;
-	int trampoline_used;
-	int libusb_ret;
-        struct module *mod;
-	struct load_info info;
-	struct internal_cb_table *internal_cb_table;
-	/* libusb data */
-	libusb_device_handle *usb_dev;
-
-	/* data gathered when the usb device is attached to the host system */
-	u8                                usb_interface_number;
-	u8                                usb_endpoint_num;
-	struct libusb_endpoint_descriptor usb_ep[USB_MAX_ENDPOINT_NUM];
-	struct libusb_device_descriptor   usb_dev_desc;
-
-	/* provide the support for loading multiple lkm, permitting thus to reuse the functions from every lkm loaded */
-	u8 loaded_lkm_num;
-	void *lkm_current_area[MAX_ALLOCATED_LKM_NUMBER];
-};
-
+struct module_controller;
 extern struct module_controller director;
+
+/**
+ * INIT_LIST_HEAD - Initialize a list_head structure
+ * @list: list_head structure to be initialized.
+ *
+ * Initializes the list_head to point to itself.  If it is a list header,
+ * the result is an empty list.
+ */
+static inline void INIT_LIST_HEAD(struct list_head *list){
+	WRITE_ONCE(list->next, list);
+	WRITE_ONCE(list->prev, list);
+}
+
+/**
+ * list_is_first -- tests whether @list is the first entry in list @head
+ * @list: the entry to test
+ * @head: the head of the list
+ */
+static inline int list_is_first(const struct list_head *list, const struct list_head *head){
+	return list->prev == head;
+}
+
+/**
+ * list_is_last - tests whether @list is the last entry in list @head
+ * @list: the entry to test
+ * @head: the head of the list
+ */
+static inline int list_is_last(const struct list_head *list, const struct list_head *head){
+	return list->next == head;
+}
+
+/**
+ * list_is_head - tests whether @list is the list @head
+ * @list: the entry to test
+ * @head: the head of the list
+ */
+static inline int list_is_head(const struct list_head *list, const struct list_head *head){
+	return list == head;
+}
+
+/**
+ * list_empty - tests whether a list is empty
+ * @head: the list to test.
+ */
+static inline int list_empty(const struct list_head *head){
+	return READ_ONCE(head->next) == head;
+}
+
+/*
+ * Performs list corruption checks before __list_add(). Returns false if a
+ * corruption is detected, true otherwise.
+ *
+ * With CONFIG_LIST_HARDENED only, performs minimal list integrity checking
+ * inline to catch non-faulting corruptions, and only if a corruption is
+ * detected calls the reporting function __list_add_valid_or_report().
+ */
+static inline bool __list_add_valid(struct list_head *new, struct list_head *prev, struct list_head *next){
+	bool ret = true;
+
+	if (likely(next->prev == prev && prev->next == next && new != prev && new != next)){
+		return ret;
+	}else{
+		ret = false;
+		return false;
+	}
+}
+
+/*
+ * Performs list corruption checks before __list_del_entry(). Returns false if a
+ * corruption is detected, true otherwise.
+ *
+ * With CONFIG_LIST_HARDENED only, performs minimal list integrity checking
+ * inline to catch non-faulting corruptions, and only if a corruption is
+ * detected calls the reporting function __list_del_entry_valid_or_report().
+ */
+static inline bool __list_del_entry_valid(struct list_head *entry){
+	bool ret = true;
+	struct list_head *prev = entry->prev;
+	struct list_head *next = entry->next;
+
+	if (likely(prev->next == entry && next->prev == entry)){
+		return ret;
+	}else{
+		ret = false;
+		return ret;
+	}
+}
+
+/*
+ * Insert a new entry between two known consecutive entries.
+ *
+ * This is only for internal list manipulation where we know
+ * the prev/next entries already!
+ */
+static inline void __list_add(struct list_head *new, struct list_head *prev, struct list_head *next){
+	if (!__list_add_valid(new, prev, next)){
+		return;
+	}
+
+	next->prev = new;
+	new->next = next;
+	new->prev = prev;
+	WRITE_ONCE(prev->next, new);
+}
+
+/**
+ * list_add - add a new entry
+ * @new: new entry to be added
+ * @head: list head to add it after
+ *
+ * Insert a new entry after the specified head.
+ * This is good for implementing stacks.
+ */
+static inline void list_add(struct list_head *new, struct list_head *head){
+	__list_add(new, head, head->next);
+}
+
+/**
+ * list_add_tail - add a new entry
+ * @new: new entry to be added
+ * @head: list head to add it before
+ *
+ * Insert a new entry before the specified head.
+ * This is useful for implementing queues.
+ */
+static inline void list_add_tail(struct list_head *new, struct list_head *head){
+	__list_add(new, head->prev, head);
+}
+
+/*
+ * Delete a list entry by making the prev/next entries
+ * point to each other.
+ *
+ * This is only for internal list manipulation where we know
+ * the prev/next entries already!
+ */
+static inline void __list_del(struct list_head * prev, struct list_head * next){
+	next->prev = prev;
+	WRITE_ONCE(prev->next, next);
+}
+
+/*
+ * Delete a list entry and clear the 'prev' pointer.
+ *
+ * This is a special-purpose list clearing method used in the networking code
+ * for lists allocated as per-cpu, where we don't want to incur the extra
+ * WRITE_ONCE() overhead of a regular list_del_init(). The code that uses this
+ * needs to check the node 'prev' pointer instead of calling list_empty().
+ */
+static inline void __list_del_clearprev(struct list_head *entry){
+	__list_del(entry->prev, entry->next);
+	entry->prev = NULL;
+}
+
+static inline void __list_del_entry(struct list_head *entry){
+	if (!__list_del_entry_valid(entry)){
+		return;
+	}
+	__list_del(entry->prev, entry->next);
+}
+
+/**
+ * list_del - deletes entry from list.
+ * @entry: the element to delete from the list.
+ * Note: list_empty() on entry does not return true after this, the entry is
+ * in an undefined state.
+ */
+static inline void list_del(struct list_head *entry){
+	__list_del_entry(entry);
+	entry->next = (void *)0x100;
+	entry->prev = (void *)0x122;
+}
+
+/**
+ * list_del_init - deletes entry from list and reinitialize it.
+ * @entry: the element to delete from the list.
+ */
+static inline void list_del_init(struct list_head *entry){
+	__list_del_entry(entry);
+	INIT_LIST_HEAD(entry);
+}
+
+/**
+ * list_move - delete from one list and add as another's head
+ * @list: the entry to move
+ * @head: the head that will precede our entry
+ */
+static inline void list_move(struct list_head *list, struct list_head *head){
+	__list_del_entry(list);
+	list_add(list, head);
+}
+
+/**
+ * list_replace - replace old entry by new one
+ * @old : the element to be replaced
+ * @new : the new element to insert
+ *
+ * If @old was empty, it will be overwritten.
+ */
+static inline void list_replace(struct list_head *old, struct list_head *new){
+	new->next = old->next;
+	new->next->prev = new;
+	new->prev = old->prev;
+	new->prev->next = new;
+}
+
+static inline void __refcount_add(int i, refcount_t *r, int *oldp){
+	int old = atomic_fetch_add_explicit(&r->refs, i, memory_order_relaxed);
+
+	if (oldp){
+		*oldp = old;
+	}
+}
+
+static inline void __refcount_inc(refcount_t *r, int *oldp){
+	__refcount_add(1, r, oldp);
+}
+
+static inline void refcount_inc(refcount_t *r){
+	__refcount_inc(r, NULL);
+}
+
+static inline void kref_get(struct kref *kref){
+	refcount_inc(&kref->refcount);
+}
 
 /* taken from 'https://android.googlesource.com/platform/external/mtools/+/8c780b311a17226862cbfd6ae6fafda2f09d50d7/strtonum.c#35' */
 static unsigned long strtoul_with_range(const char *nptr, char **endptr,
@@ -547,9 +806,75 @@ static u32 pcg32_random_r(void *arg){
 	return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
 }
 
-#include "module.h"
-#include "skb.h"
-#include "ieee80211.h"
-#include "prototypes.h"
+/**
+ * worker_thread - the worker thread function
+ * @__worker: self
+ *
+ * The worker thread function.  All workers belong to a worker_pool -
+ * either a per-cpu one or dynamic unbound one.  These workers process all
+ * work items regardless of their specific target workqueue.  The only
+ * exception is work items which belong to workqueues with a rescuer which
+ * will be explained in rescuer_thread().
+ *
+ * Return: 0
+ */
+static void *worker_thread(void *arg){
+	struct work_struct *work = NULL;
+	struct workqueue_struct *wq = NULL;
+
+	wq = (struct workqueue_struct *)arg;
+
+	pthread_mutex_lock(&wq->lock);
+
+	for (;;) {
+		if (wq->stop && list_empty(&wq->work_list) && list_empty(&wq->delayed_list) && wq->nr_active == 0){
+			break;
+		}
+		delayed_work_timer_fn(wq);
+
+		if (!list_empty(&wq->work_list)) {
+			work = list_first_entry(&wq->work_list, struct work_struct, entry);
+			list_del_init(&work->entry);
+
+			atomic_store_explicit(&work->data, work_encode(wq, WORK_STRUCT_RUNNING), memory_order_relaxed);
+			wq->nr_active++;
+
+			pthread_mutex_unlock(&wq->lock);
+			work->func(work);
+			pthread_mutex_lock(&wq->lock);
+
+			wq->nr_active--;
+			atomic_store_explicit(&work->data, 0, memory_order_release);
+			pthread_cond_broadcast(&wq->cond);
+			continue;
+		}
+
+		if (wq->stop) {
+			pthread_cond_wait(&wq->cond, &wq->lock);
+			continue;
+		}
+
+		if (list_empty(&wq->delayed_list)) {
+			pthread_cond_wait(&wq->cond, &wq->lock);
+		}else{
+			struct delayed_work *dw = NULL;
+			struct work_struct *w = NULL;
+
+			w = list_first_entry(&wq->delayed_list, struct work_struct, entry);
+			dw = container_of(w, struct delayed_work, work);
+
+			pthread_cond_timedwait(&wq->cond, &wq->lock, &dw->expires);
+		}
+	}
+
+	pthread_mutex_unlock(&wq->lock);
+	return NULL;
+}
+
+#include <module.h>
+#include <skb.h>
+#include <ieee80211.h>
+#include <prototypes.h>
+#include <mod_controller.h>
 
 #endif

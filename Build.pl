@@ -47,7 +47,7 @@ my $pahole_kernel = undef;
 my $clean = undef;
 my $help = undef;
 
-my @gcc_params = ("-O2", "-w", "-I$include", "-I$arch", "-march=native", "-mtune=native");
+my @gcc_params = ("-DENABLE_DBG_PRINT", "-O2", "-w", "-I$include", "-I$arch", "-march=native", "-mtune=native");
 my @gcc_final_params = ("-fno-pie", "-no-pie", "-rdynamic");
 my @gcc_final_linkkings = ("-lusb-1.0");
 
@@ -59,6 +59,7 @@ my %struct_whitelist = (
 	"wiphy" => "wiphy",
 	"udev" => "usb_device",
 	"hw" => "ieee80211_hw",
+	"urb" => "urb",
 	"rate" => "rate_info"
 );
 
