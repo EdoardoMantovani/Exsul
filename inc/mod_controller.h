@@ -22,4 +22,9 @@ struct module_controller {
 
         struct rfkill rfkill;
         struct cfg80211_registered_device rdev;
+
+	/* array of pointers which emulates the functions 'devm_kxxx', when the driver will quit, every element of the array will be freed */
+	void *kmem_array[MAX_KMEM_ARRAY_SIZE];
+
+	struct usb_dev_tuple usb_dev_list[MAX_USB_DEV_LIST];
 };

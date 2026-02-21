@@ -12,6 +12,7 @@ my $rm = `which rm`;
 my $sed = `which sed`;
 my $grep = `which grep`;
 my $find = `which find`;
+my $make = `which make`;
 
 my $arch   = "./arch";
 my $source = "./src";
@@ -19,6 +20,7 @@ my $include = "./inc";
 my $stubs = "./stubs";
 my $build = "./build";
 my $bin   = "./bin";
+my $example = "./example";
 
 my $final_program = "translator";
 
@@ -47,8 +49,34 @@ my $pahole_kernel = undef;
 my $clean = undef;
 my $help = undef;
 
-my @gcc_params = ("-DENABLE_DBG_PRINT", "-O2", "-w", "-I$include", "-I$arch", "-march=native", "-mtune=native");
-my @gcc_final_params = ("-fno-pie", "-no-pie", "-rdynamic");
+my @gcc_params = (
+	"-DENABLE_DBG_PRINT",
+	"-O2",
+	"-g",
+	"-w",
+	"-I$include",
+	"-I$arch",
+	"-march=native",
+	"-mtune=native",
+	"-mstackrealign",
+	"-mincoming-stack-boundary=3",
+);
+my @gcc_stub_params = (
+	"-mno-sse",
+	"-mno-mmx",
+	"-mno-sse2",
+	"-mno-3dnow",
+	"-mno-avx",
+	"-mno-sse4a",
+	"-mno-red-zone",
+	" -mpreferred-stack-boundary=3",
+	"-fno-omit-frame-pointer"
+);
+my @gcc_final_params = (
+	"-fno-pie",
+	"-no-pie",
+	"-rdynamic"
+);
 my @gcc_final_linkkings = ("-lusb-1.0");
 
 my %struct_whitelist = (
@@ -68,6 +96,7 @@ chomp($rm);
 chomp($sed);
 chomp($grep);
 chomp($find);
+chomp($make);
 
 GetOptions(
 	"compiler=s"		=> \$compiler,
@@ -85,6 +114,18 @@ if($clean){
 	#delete every compiled file and quit
 	`$rm $build/*.o`;
 	`$rm $bin/$final_program`;
+
+	# clean every compiled lkm in the example folder
+	chdir($example);
+	foreach(`$find -type d`){
+		$iterator = $_;
+		chomp($iterator);
+		chdir($iterator);
+		print("current folder: " . `pwd`);
+#		`$make clean`;
+		chdir("../");
+                print("current folder 2: " . `pwd`);
+	}	
 	exit(0);
 }
 
@@ -167,7 +208,7 @@ foreach(`$ls $stubs/$functions`){
         $final_stub = $current_stub;
         $final_stub =~ s/\..*$/.o/;
         $stub_name = $final_stub;
-	system("$compiler @gcc_params -include $include/$win_layer -c $stubs/$functions/$current_stub -o $build/$final_stub");
+	system("$compiler @gcc_params @gcc_stub_params -include $include/$win_layer -c $stubs/$functions/$current_stub -o $build/$final_stub");
 	print("[*] compiling $final_stub\n");
 }
 

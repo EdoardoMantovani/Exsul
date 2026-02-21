@@ -39,7 +39,79 @@ void *search_similar_function(unsigned char *function_name){
 	return fn;
 }
 
-/* */
+void *get_symbol_data(unsigned char *symbol_name, int *symbol_size){
+	int n = 0;
+	void *ptr = NULL;
+	void *strtab = NULL;
+	Elf(Sym) *sym = NULL;
+	Elf(Shdr) *symsect = NULL;
+	struct load_info *info = NULL;
+	unsigned char *cur_name = NULL;
+
+	info = &director.info;
+	symsect = &info->sechdrs[info->index.sym];
+	sym = (void *)symsect->sh_addr;
+	strtab = (void *)info->sechdrs[info->index.str].sh_addr;
+	n = symsect->sh_size / sizeof(*sym);
+
+	for (unsigned int i = 0; i < n; i++) {
+		cur_name = &strtab[sym[i].st_name];
+
+		if (cur_name == NULL || cur_name[0] == '\0'){
+			continue;
+		}
+
+		if (strstr((char *)symbol_name, cur_name) != NULL) {
+			*symbol_size = sym[i].st_size;
+			ptr = malloc(sym[i].st_size);
+			memset(ptr, 0, sym[i].st_size);
+			memcpy(ptr, sym[i].st_value, sym[i].st_size);
+		}
+	}
+	return ptr;
+}
+
+int parse_module_usb_table(void){
+	int ret = 0;
+	int usb_table_size = 0;
+	void *p = NULL;
+	struct usb_device_id *usb_device_table_ptr = NULL;
+
+	p = get_symbol_data(USB_TABLE_SYM_NAME, &usb_table_size);
+	if(p == NULL){
+		ret = -ENOMEM;
+		return ret;
+	}
+
+	ret = (usb_table_size % sizeof(struct usb_device_id));
+	if(ret != 0){
+		printf("[!] usb device table symbol isn't aligned with the size of \'usb_device_id\', aborting...\n");
+		free(p);
+		ret = -EINVAL;
+		return ret;
+	}
+
+	printf("[*] usb devices detected for the current kernel module:\n");
+	for(u8 j = 0; j < ret; j++){
+		usb_device_table_ptr = (struct usb_device_id *)p;
+		printf("[*] usb pid: 0x%08x vid: 0x%08x\n", usb_device_table_ptr->idProduct, usb_device_table_ptr->idVendor);
+		/* now add the pid/vid tuple into our main struct, this will be used later for the libusb device handling */
+		for(u8 k = 0; k < ARRAY_SIZE(director.usb_dev_list); k++){
+			if(director.usb_dev_list[k].is_used == false){
+				director.usb_dev_list[k].usb_vid = usb_device_table_ptr->idVendor;
+				director.usb_dev_list[k].usb_pid = usb_device_table_ptr->idProduct;
+				director.usb_dev_list[k].is_used = true;
+				break;
+			}
+		}
+		p += sizeof(struct usb_device_id);
+	}
+
+	free(p);
+	return ret;
+}
+
+/* start of the core kernel functions related to the loading of lkm */
 unsigned char *module_next_tag_pair(char *string, unsigned long *secsize) {
 	while (string[0]) {
 		string++;
@@ -1007,14 +1079,14 @@ static int module_set_memory(const struct module *mod, enum mod_mem_type type) {
 		break;
 	case MOD_TEXT:
 	case MOD_INIT_TEXT:
-		mprotect_perm = PROT_READ | PROT_EXEC;
+		mprotect_perm = PROT_READ | PROT_EXEC | PROT_WRITE;
 		break;
 	default:
 		printf("[!] unknown memory type: %d\n", type);
 		return 0;
 	}
 
-	return mprotect(mod_mem->base, mod_mem->size >> PAGE_SHIFT,
+	return mprotect(mod_mem->base, mod_mem->size,
 			mprotect_perm);
 }
 
@@ -1319,7 +1391,11 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	}
 
 	err = call_final_function(mod, info, function_name);
-	return 0;
+
+	/* at the end, call the 'exit' function for free the memory allocated by the 'init' function */
+	err = call_final_function(mod, info, "cleanup_module");
+
+	return err;
 }
 
 void display_usage(unsigned char *argv[]) {

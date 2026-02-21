@@ -1,6 +1,12 @@
 #ifndef __UTILS_H__
 #define __UTILS_H__
 
+#if defined(__x86_64__)
+#define KABI_ENTRY __attribute__((force_align_arg_pointer))
+#else
+#define KABI_ENTRY
+#endif
+
 #define MODULE_INPUT_MIN_LEN 4
 
 #define UL(x) (_UL(x))
@@ -15,7 +21,7 @@
 #define BITS_PER_BYTE 8
 #define BITS_PER_TYPE(type) (sizeof(type) * BITS_PER_BYTE)
 
-#define ARRAY_SIZE(array) (sizeof(array)/sizeof(array[0])
+#define ARRAY_SIZE(array) (sizeof(array)/sizeof(array[0]))
 
 /**
  * LIST_HEAD_INIT - initialize a &struct list_head's links to point to itself
@@ -445,6 +451,17 @@ out:										\
 	(list_is_first(&(pos)->member, head) ? \
 	list_last_entry(head, typeof(*(pos)), member) : list_prev_entry(pos, member))
 
+
+
+/**
+ * list_entry_is_head - test if the entry points to the head of the list
+ * @pos:	the type * to cursor
+ * @head:	the head for your list.
+ * @member:	the name of the list_head within the struct.
+ */
+#define list_entry_is_head(pos, head, member)				\
+	list_is_head(&pos->member, (head))
+
 /**
  * list_for_each	-	iterate over a list
  * @pos:	the &struct list_head to use as a loop cursor.
@@ -492,6 +509,20 @@ out:										\
 	for (pos = (head)->prev, n = pos->prev; \
 	     !list_is_head(pos, (head)); \
 	     pos = n, n = pos->prev)
+
+/**
+ * list_for_each_entry_safe - iterate over list of given type safe against removal of list entry
+ * @pos:	the type * to use as a loop cursor.
+ * @n:		another type * to use as temporary storage
+ * @head:	the head for your list.
+ * @member:	the name of the list_head within the struct.
+ */
+#define list_for_each_entry_safe(pos, n, head, member)			\
+	for (pos = list_first_entry(head, typeof(*pos), member),	\
+		n = list_next_entry(pos, member);			\
+	     !list_entry_is_head(pos, head, member); 			\
+	     pos = n, n = list_next_entry(n, member))
+
 
 #define struct_group_tagged(TAG, NAME, MEMBERS...)                             \
         __struct_group(TAG, NAME, /* no attrs */, MEMBERS)
@@ -612,6 +643,16 @@ struct word_at_a_time {
 	const unsigned long one_bits;
 	const unsigned long high_bits;
 };
+
+/* suggested by gpt 5.2, hopefully */
+static inline void align_rsp16_before_glibc_call(void){
+#if defined(__x86_64__)
+	uintptr_t sp;
+	__asm__ volatile("mov %%rsp, %0" : "=r"(sp));
+	/* If sp is 8 mod 16 (or anything nonzero), alloca(sp & 0xf) makes it 0 mod 16. */
+	alloca(sp & 0xf);
+#endif
+}
 
 static inline bool strstarts(const char *str, const char *prefix){
         return strncmp(str, prefix, strlen(prefix)) == 0;

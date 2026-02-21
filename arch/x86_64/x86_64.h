@@ -42,7 +42,7 @@ int module_frob_arch_sections(Elf(Ehdr) *hdr, Elf(Shdr) *sechdrs, char *secstrin
 }
 
 static inline void alternatives_smp_module_add(struct module *mod, char *name, void *locks, void *locks_end, void *text, void *text_end) {
-
+	/* do nothing here */
 }
 
 static unsigned long zero_bytemask(unsigned long bits){

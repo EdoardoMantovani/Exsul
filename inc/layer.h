@@ -6,6 +6,7 @@
 #include <asm-generic/param.h>
 #include <sys/syscall.h>
 #include <linux/futex.h>
+#include <alloca.h>
 #include <stdarg.h>
 #include <errno.h>
 #include <signal.h>
@@ -75,8 +76,16 @@
 
 #include "utils.h"
 
+/* defines the maximun number of usb devices which can be present in the current kernel module */
+#define MAX_USB_DEV_LIST	36
+
+/* array size of the module memory allocated by the functions 'kmem_xxx' */
+#define MAX_KMEM_ARRAY_SIZE	36
+
 /* define the number of maximun lkm which can be loaded in memory for one istance of this application */
 #define MAX_ALLOCATED_LKM_NUMBER 12
+
+#define NR_KMALLOC_TYPES	8
 
 /* Hard limit */
 #define USB_MAXENDPOINTS	30
@@ -100,8 +109,21 @@
 #define WORK_STRUCT_RUNNING	0x2UL
 #define WORK_STRUCT_DELAYED	0x4UL
 
+#define WQ_FLAG_EXCLUSIVE	0x01
+#define WQ_FLAG_WOKEN		0x02
+#define WQ_FLAG_CUSTOM		0x04
+#define WQ_FLAG_DONE		0x08
+#define WQ_FLAG_PRIORITY	0x10
+#define TASK_RUNNING		0x00000000
+#define TASK_INTERRUPTIBLE	0x00000001
+#define TASK_UNINTERRUPTIBLE	0x00000002
+#define TASK_NORMAL		(TASK_INTERRUPTIBLE | TASK_UNINTERRUPTIBLE)
+
 /* for knowing the vid/pid of the usb device associated to a loaded lkm, we can read the data pointed by the symbol 'usb_device_id' */
 #define USB_TABLE_SYM_NAME	"__mod_device_table__usb__"
+
+/* macro used for getting the current 'task_struct' */
+#define current (current_thread_info())
 
 enum {
 	DUMP_PREFIX_NONE,
@@ -184,13 +206,15 @@ typedef void (*swap_func_t)(void *a, void *b, int size);
 typedef int (*cmp_r_func_t)(const void *a, const void *b, const void *priv);
 typedef int (*cmp_func_t)(const void *a, const void *b);
 
+struct wait_queue_entry;
+typedef int (*wait_queue_func_t)(struct wait_queue_entry *wq_entry, unsigned mode, int flags, void *key);
+
+struct wait_queue_head;
+typedef struct wait_queue_head wait_queue_head_t;
+
 typedef struct {
 	int counter;
 } atomic_t;
-
-struct completion {
-	atomic_int done;
-};
 
 struct list_head {
         struct list_head *next;
@@ -204,6 +228,43 @@ struct hlist_head {
 struct hlist_node {
 	struct hlist_node *next;
 	struct hlist_node **pprev;
+};
+
+/*
+ * A single wait-queue entry structure:
+ */
+struct wait_queue_entry {
+	unsigned int		flags;
+	void			*private;
+	wait_queue_func_t	func;
+	struct list_head	entry;
+};
+
+/* custom task_struct, this can be possible to use because the kernel programming style uses those structs as opaque objects */
+struct task_struct {
+	pthread_t tid;			/* pthread id associated with the task_struct, this is used for the coordination between the pthread and the kthread_xx API */
+	pthread_mutex_t lock;		/* lock variable used for concurrency */
+	pthread_cond_t  cond;		/* condition variable used for the thread synchronization */
+
+	atomic_int  __state;		/* task_state, used for declaring if a task is running or not */
+	atomic_bool started;		/* emulate "stopped state" until wake_up_process() */
+	atomic_bool should_stop;	/* used for indicating that the pthread had been killed or is almost killed */
+
+	int (*threadfn)(void *data);	/* pthread callback */
+	void *data;			/* pthread callback arg */
+
+	int exit_code;			/* exit code of the pthread callback */
+	char name[64];			/* thread name */
+};
+
+struct wait_queue_head {
+	int32_t			lock;
+	struct list_head	head;
+};
+
+struct completion {
+        atomic_int done;
+        wait_queue_head_t wait;
 };
 
 struct timer_list {
@@ -379,6 +440,11 @@ struct usb_device_id {
 	unsigned long	driver_info __attribute__((aligned(sizeof(unsigned long))));
 };
 
+struct usb_dev_tuple {
+	__u16 usb_pid;
+	__u16 usb_vid;
+	bool is_used;
+};
 
 /**
  * struct usb_host_endpoint - host-side endpoint descriptor and queue
@@ -763,6 +829,35 @@ static inline void kref_get(struct kref *kref){
 	refcount_inc(&kref->refcount);
 }
 
+/**
+ * ERR_PTR - Create an error pointer.
+ * @error: A negative error code.
+ *
+ * Encodes @error into a pointer value. Users should consider the result
+ * opaque and not assume anything about how the error is encoded.
+ *
+ * Return: A pointer with @error encoded within its value.
+ */
+static inline void *ERR_PTR(long error){
+	return (void *)(intptr_t)error;
+}
+
+static inline long PTR_ERR(const void *ptr){
+	return (long)(intptr_t)ptr;
+}
+
+static inline spin_lock_init(pthread_mutex_t *lock){
+	pthread_mutex_init(lock, NULL);
+}
+
+static inline spin_lock(pthread_mutex_t *lock){
+	pthread_mutex_lock(lock);
+}
+
+static inline spin_unlock(pthread_mutex_t *lock){
+	pthread_mutex_unlock(lock);
+}
+
 static inline struct timespec wq_now(struct workqueue_struct *wq){
         struct timespec now = {};
         clock_gettime(wq->clock_id, &now);
@@ -857,6 +952,8 @@ static u32 pcg32_random_r(void *arg){
 	return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
 }
 
+static struct task_struct *tls_current;
+
 /**
  * worker_thread - the worker thread function
  * @__worker: self
@@ -919,6 +1016,72 @@ static void *worker_thread(void *arg){
 	}
 
 	pthread_mutex_unlock(&wq->lock);
+	return NULL;
+}
+
+static struct task_struct *current_thread_info(void){
+	struct task_struct *current_task = NULL;
+	pthread_condattr_t current_condition_attr = {};
+
+	if (tls_current != NULL){
+		return tls_current;
+	}
+
+	current_task = (struct task_struct *)malloc(sizeof(struct task_struct));
+
+	if(current_task == NULL){
+		return NULL;
+	}
+
+	pthread_mutex_init(&current_task->lock, NULL);
+
+	pthread_condattr_init(&current_condition_attr);
+	pthread_condattr_setclock(&current_condition_attr, CLOCK_MONOTONIC);
+	pthread_cond_init(&current_task->cond, &current_condition_attr);
+	pthread_condattr_destroy(&current_condition_attr);
+
+	atomic_store(&current_task->__state, TASK_RUNNING);
+	atomic_store(&current_task->started, true);
+	atomic_store(&current_task->should_stop, false);
+
+	current_task->tid = pthread_self();
+	snprintf(current_task->name, sizeof(current_task->name), "main");
+
+	tls_current = current_task;
+	return current_task;
+}
+
+static inline bool wq_entry_is_linked(const struct wait_queue_entry *wq_entry){
+	return !(wq_entry->entry.next == &wq_entry->entry && wq_entry->entry.prev == &wq_entry->entry);
+}
+
+/* kthread_trampoline: main function used for invoking the kthread cb */
+static void *kthread_trampoline(void *arg){
+	int ret = 0;
+	struct task_struct *current_thread = NULL;
+	current_thread = (struct task_struct *)arg;
+	tls_current = current_thread;
+
+	pthread_mutex_lock(&current_thread->lock);
+
+	/* wait until the 'current_thread' has the 'started' flag set and the 'should_stop' flag isn't set */
+	while (!atomic_load(&current_thread->started) && !atomic_load(&current_thread->should_stop)){
+		pthread_cond_wait(&current_thread->cond, &current_thread->lock);
+	}
+	pthread_mutex_unlock(&current_thread->lock);
+
+	if (!atomic_load(&current_thread->should_stop) && current_thread->threadfn){
+		/* invoke the real thread callback */
+		ret = current_thread->threadfn(current_thread->data);
+	}
+	/* set the exit code of the thread callback */
+	current_thread->exit_code = ret;
+
+	atomic_store(&current_thread->__state, TASK_RUNNING);
+	pthread_mutex_lock(&current_thread->lock);
+	pthread_cond_broadcast(&current_thread->cond);
+	pthread_mutex_unlock(&current_thread->lock);
+
 	return NULL;
 }
 
