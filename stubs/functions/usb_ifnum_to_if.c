@@ -1,5 +1,5 @@
-struct usb_interface *usb_ifnum_to_if(const struct usb_device *dev, unsigned ifnum){
-	struct usb_host_config *config = NULL; //dev->actconfig;
+struct usb_interface *usb_ifnum_to_if(const struct usb_device *udev, unsigned ifnum){
+	struct usb_host_config *config = NULL; //udev->actconfig;
 	int i = 0;
 
 	if (!config){

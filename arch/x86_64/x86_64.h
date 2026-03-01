@@ -37,6 +37,14 @@ struct callthunk_sites {
 	struct alt_instr          *alt_end;
 };
 
+#if 0
+struct exception_table_entry {
+	int insn;
+	int fixup;
+	int data;
+};
+#endif
+
 int module_frob_arch_sections(Elf(Ehdr) *hdr, Elf(Shdr) *sechdrs, char *secstrings, struct module *mod){
 	return 0;
 }

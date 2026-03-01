@@ -8,6 +8,209 @@
 
 struct module_controller director;
 
+int dwarf_search_field(unsigned char *field_input_name, Dwarf_Debug dbg, Dwarf_Die struct_die){
+    int rc = 0;
+    int sibling = 0;
+    Dwarf_Unsigned field_offset = 0;
+    char *block = NULL;
+    char *field_name = NULL;
+    Dwarf_Error err = 0;
+    Dwarf_Die cur = 0, sib = 0, child = 0;
+    Dwarf_Half tag = 0;
+    Dwarf_Attribute attr = 0;
+    Dwarf_Unsigned exprlen = 0;
+
+    rc = dwarf_child(struct_die, &child, &err);
+    if (rc != DW_DLV_OK)
+        return -ENOENT;
+
+    cur = child;
+    for (;;) {
+        tag = 0;
+        rc = dwarf_tag(cur, &tag, &err);
+        if (rc == DW_DLV_OK && tag == DW_TAG_member) {
+
+            rc = dwarf_diename(cur, &field_name, &err);
+            if (rc == DW_DLV_OK && field_name && strcmp(field_name, (char *)field_input_name) == 0) {
+
+                field_offset = 0;
+
+                rc = dwarf_attr(cur, DW_AT_data_member_location, &attr, &err);
+                if (rc == DW_DLV_OK) {
+                    if (dwarf_formudata(attr, &field_offset, &err) != DW_DLV_OK) {
+                        if (dwarf_formexprloc(attr, &exprlen, &block, &err) == DW_DLV_OK &&
+                            exprlen > 0 && block) {
+                            if (block[0] == DW_OP_plus_uconst || block[0] == DW_OP_constu)
+                                field_offset = read_uleb128(block + 1, (size_t)exprlen - 1);
+                        }
+                    }
+                    dwarf_dealloc(dbg, attr, DW_DLA_ATTR);
+                }
+
+                /* MATCH: return the offset immediately */
+                return (int)field_offset;
+            }
+        }
+
+        sibling = dwarf_siblingof(dbg, cur, &sib, &err);
+        dwarf_dealloc(dbg, cur, DW_DLA_DIE);
+        if (sibling != DW_DLV_OK)
+            break;
+        cur = sib;
+    }
+
+    return -ENOENT;
+}
+
+int dwarf_detect_struct(Dwarf_Debug dbg, Dwarf_Die die,
+                        unsigned char *struct_to_search, Dwarf_Die *struct_found)
+{
+    int rc = 0;
+    Dwarf_Error err = 0;
+    Dwarf_Half tag = 0;
+    Dwarf_Die child = 0, cur = 0, sib = 0;
+    char *die_name = NULL;
+
+    rc = dwarf_tag(die, &tag, &err);
+    if (rc != DW_DLV_OK)
+        return 0;
+
+    if (tag == DW_TAG_structure_type) {
+        rc = dwarf_diename(die, &die_name, &err);
+        if (rc == DW_DLV_OK && die_name && strcmp(die_name, (char *)struct_to_search) == 0) {
+            *struct_found = die;
+            return 1;
+        }
+    }
+
+    rc = dwarf_child(die, &child, &err);
+    if (rc != DW_DLV_OK)
+        return 0;
+
+    cur = child;
+    for (;;) {
+        int r = dwarf_detect_struct(dbg, cur, struct_to_search, struct_found);
+        if (r == 1) {
+            /* if the match is not exactly 'cur', we can dealloc cur; the found DIE is separate */
+            if (*struct_found != cur)
+                dwarf_dealloc(dbg, cur, DW_DLA_DIE);
+            return 1;
+        }
+        if (r < 0) {
+            dwarf_dealloc(dbg, cur, DW_DLA_DIE);
+            return r;
+        }
+
+        rc = dwarf_siblingof(dbg, cur, &sib, &err);
+        dwarf_dealloc(dbg, cur, DW_DLA_DIE);
+        if (rc != DW_DLV_OK)
+            break;
+        cur = sib;
+    }
+
+    return 0;
+}
+
+int dwarf_loader_parser(unsigned char *struct_to_search,
+                        unsigned char *field_to_search,
+                        unsigned short *field_offset)
+{
+    int ret = 0;
+    int fd = -1;
+    Dwarf_Debug dbg = 0;
+    Dwarf_Error err = 0;
+
+    Dwarf_Unsigned cu_header_len = 0;
+    Dwarf_Unsigned abbrev_off = 0;
+    Dwarf_Unsigned next_cu = 0;
+    Dwarf_Half version = 0;
+    Dwarf_Half addr_size = 0;
+
+    Dwarf_Die found = 0;
+    Dwarf_Die cu_die = 0;
+
+    /* fresh session so CU iteration starts from the beginning every time */
+    fd = dup(director.fd);
+    if (fd < 0)
+        return -EINVAL;
+
+    ret = dwarf_init(fd, DW_DLC_READ, NULL, NULL, &dbg, &err);
+    if (ret != DW_DLV_OK) {
+        close(fd);
+        return -EINVAL;
+    }
+
+    while (dwarf_next_cu_header(dbg, &cu_header_len, &version, &abbrev_off,
+                                &addr_size, &next_cu, &err) == DW_DLV_OK) {
+
+        cu_die = 0;
+        ret = dwarf_siblingof(dbg, NULL, &cu_die, &err);
+        if (ret != DW_DLV_OK)
+            continue;
+
+        if (dwarf_detect_struct(dbg, cu_die, struct_to_search, &found)) {
+            dwarf_dealloc(dbg, cu_die, DW_DLA_DIE);
+            break;
+        }
+        dwarf_dealloc(dbg, cu_die, DW_DLA_DIE);
+    }
+
+    if (found == 0) {
+        printf("[!] struct %s not found, switching to the backup plan!\n",
+               struct_to_search);
+        goto out;
+    }
+
+    ret = dwarf_search_field(field_to_search, dbg, found);
+    if (ret >= 0)
+        *field_offset = (unsigned short)ret;
+
+out:
+    if (found)
+        dwarf_dealloc(dbg, found, DW_DLA_DIE);
+
+    dwarf_finish(dbg, &err);
+    close(fd);
+    return ret;
+}
+
+int dwarf_load_struct(Dwarf_Debug dbg, Dwarf_Error err, unsigned char *struct_to_search){
+	int ret = 0;
+	Dwarf_Unsigned cu_header_len = 0;
+	Dwarf_Unsigned abbrev_off = 0;
+	Dwarf_Unsigned next_cu = 0;
+	Dwarf_Half version = 0;
+	Dwarf_Half addr_size = 0;
+	Dwarf_Die found = 0;
+	Dwarf_Die cu_die = 0;
+
+	/* iterate for every 'compilation unit' inside the dwarf section */
+	while (dwarf_next_cu_header(dbg, &cu_header_len, &version, &abbrev_off, &addr_size, &next_cu, &err) == DW_DLV_OK) {
+		cu_die = 0;
+		ret = dwarf_siblingof(dbg, NULL, &cu_die, &err);
+		if(ret != DW_DLV_OK){
+			continue;
+		}
+		ret = dwarf_detect_struct(dbg, cu_die, struct_to_search, &found);
+		if(ret){
+			dwarf_dealloc(dbg, cu_die, DW_DLA_DIE);
+			break;
+		}
+		dwarf_dealloc(dbg, cu_die, DW_DLA_DIE);
+	}
+
+	if(found == 0){
+		printf("[!] struct %s not found, switching to the backup plan!\n", struct_to_search);
+		goto backup_plan;
+	}
+
+	backup_plan:
+	/* if for any reason the .ko hasn't any dwarf/btf debug information, use a precomputed kernel offset table generated during the build time. */
+
+	end:
+	return ret;
+}
+
 void *search_similar_function(unsigned char *function_name){
 	int n = 0;
 	void *fn = NULL;
@@ -69,6 +272,42 @@ void *get_symbol_data(unsigned char *symbol_name, int *symbol_size){
 		}
 	}
 	return ptr;
+}
+
+int parse_module_offset_table(void){
+	int ret = 0;
+	u8 counter = 0;
+	struct runtime_struct *runtime_generated_structs = NULL;
+	struct runtime_struct_layout *runtime_struct_layout = NULL;
+	struct struct_field *current_struct_fields = NULL;
+	runtime_generated_structs = director.runtime_generated_structs;
+
+	for (counter = 0; ; counter++) {
+		runtime_struct_layout = &runtime_generated_structs->structs[counter];
+		if (runtime_struct_layout->struct_name == NULL){
+			break;
+		}
+		if(runtime_struct_layout->struct_field_num == 0){
+			continue;
+		}
+		current_struct_fields = runtime_struct_layout->fields;
+		//dwarf_load_struct(director.dbg, director.err, runtime_struct_layout->struct_name);
+		for (u8 k = 0; k < runtime_struct_layout->struct_field_num; k++) {
+			if(current_struct_fields[k].field_name == NULL){
+				break;
+			}
+			dwarf_loader_parser(runtime_struct_layout->struct_name, current_struct_fields[k].field_name, &current_struct_fields[k].field_offset);
+			printf("  - %s->%s offset: %d\n",
+				runtime_struct_layout->struct_name,
+				current_struct_fields[k].field_name,
+				current_struct_fields[k].field_offset);
+		}
+	}
+        /* deinit libdwarf */
+	//dwarf_dealloc(director.dbg, found, DW_DLA_DIE);
+	dwarf_finish(director.dbg, &director.err);
+
+	return ret;
 }
 
 int parse_module_usb_table(void){
@@ -716,6 +955,7 @@ out_enomem:
 }
 
 static int find_module_sections(struct module *mod, struct load_info *info) {
+	int ret = 0;
 	mod->kp = section_objs(info, "__param", sizeof(*mod->kp), &mod->num_kp);
 	mod->syms =
 	    section_objs(info, "__ksymtab", sizeof(*mod->syms), &mod->num_syms);
@@ -732,7 +972,8 @@ static int find_module_sections(struct module *mod, struct load_info *info) {
 					  sizeof(*mod->ctors), &mod->num_ctors);
 	} else if (find_sec(info, ".init_array")) {
 		printf("%s: has both .ctors and .init_array.\n", mod->name);
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 #endif
 
@@ -746,13 +987,15 @@ static int find_module_sections(struct module *mod, struct load_info *info) {
 		printf("%s: Ignoring obsolete parameters\n", mod->name);
 	}
 
+	#ifdef ENABLE_DYNDBG
 	mod->dyndbg_info.descs =
 	    section_objs(info, "__dyndbg", sizeof(*mod->dyndbg_info.descs),
 			 &mod->dyndbg_info.num_descs);
 	mod->dyndbg_info.classes = section_objs(
 	    info, "__dyndbg_classes", sizeof(*mod->dyndbg_info.classes),
 	    &mod->dyndbg_info.num_classes);
-	return 0;
+	#endif
+	return ret;
 }
 
 uint64_t find_runtime_relocation_by_name(struct module	  *mod,
@@ -967,12 +1210,12 @@ void add_kallsyms(struct module *mod, const struct load_info *info) {
 
 	mod->kallsyms = (void *)init_data_base + info->mod_kallsyms_init_off;
 
-	rcu_dereference(mod->kallsyms)->symtab = (void *)symsec->sh_addr;
-	rcu_dereference(mod->kallsyms)->num_symtab =
+	((struct mod_kallsyms *)rcu_dereference(mod->kallsyms))->symtab = (void *)symsec->sh_addr;
+	((struct mod_kallsyms *)rcu_dereference(mod->kallsyms))->num_symtab =
 	    symsec->sh_size / sizeof(Elf(Sym));
-	rcu_dereference(mod->kallsyms)->strtab =
+	((struct mod_kallsyms *)rcu_dereference(mod->kallsyms))->strtab =
 	    (void *)info->sechdrs[info->index.str].sh_addr;
-	rcu_dereference(mod->kallsyms)->typetab =
+	((struct mod_kallsyms *)rcu_dereference(mod->kallsyms))->typetab =
 	    init_data_base + info->init_typeoffs;
 
 	mod->core_kallsyms.symtab = dst = data_base + info->symoffs;
@@ -981,9 +1224,9 @@ void add_kallsyms(struct module *mod, const struct load_info *info) {
 	strtab_size		      = info->core_typeoffs - info->stroffs;
 	src			      = rcu_dereference(mod->kallsyms)->symtab;
 
-	for (ndst = i = 0; i < rcu_dereference(mod->kallsyms)->num_symtab;
+	for (ndst = i = 0; i < ((struct mod_kallsyms *)rcu_dereference(mod->kallsyms))->num_symtab;
 	     i++) {
-		rcu_dereference(mod->kallsyms)->typetab[i] =
+		((struct mod_kallsyms *)rcu_dereference(mod->kallsyms))->typetab[i] =
 		    elf_type(src + i, info);
 		if (i == 0 ||
 		    is_core_symbol(src + i, info->sechdrs, info->hdr->e_shnum,
@@ -991,12 +1234,12 @@ void add_kallsyms(struct module *mod, const struct load_info *info) {
 			ret = 0;
 
 			mod->core_kallsyms.typetab[ndst] =
-			    rcu_dereference(mod->kallsyms)->typetab[i];
+			    ((struct mod_kallsyms *)rcu_dereference(mod->kallsyms))->typetab[i];
 			dst[ndst]	    = src[i];
 			dst[ndst++].st_name = s - mod->core_kallsyms.strtab;
 
 			ret = strscpy(s,
-				      &rcu_dereference(mod->kallsyms)
+				      &((struct mod_kallsyms *)rcu_dereference(mod->kallsyms))
 					   ->strtab[src[i].st_name],
 				      strtab_size);
 
@@ -1192,17 +1435,17 @@ static inline bool within_module_init(unsigned long	   addr,
 	return false;
 }
 
-void trim_init_extable(struct module *m) {
-	while (m->num_exentries &&
-	       within_module_init(ex_to_insn(&m->extable[0]), m)) {
-		m->extable++;
-		m->num_exentries--;
+void trim_init_extable(struct module *mod) {
+	while (mod->num_exentries &&
+	       within_module_init(ex_to_insn(&mod->extable[0]), mod)) {
+		mod->extable++;
+		mod->num_exentries--;
 	}
 
-	while (m->num_exentries &&
-	       within_module_init(ex_to_insn(&m->extable[m->num_exentries - 1]),
-				  m)) {
-		m->num_exentries--;
+	while (mod->num_exentries &&
+	       within_module_init(ex_to_insn(&mod->extable[mod->num_exentries - 1]),
+				  mod)) {
+		mod->num_exentries--;
 	}
 }
 
@@ -1318,6 +1561,14 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	memcpy(mapped_file, tmp_mapped_file, file_size);
 	munmap(tmp_mapped_file, file_size);
 
+	director.fd = fd;
+	err = dwarf_init(director.fd, DW_DLC_READ, NULL, NULL, &director.dbg, &director.err);
+	if(err != DW_DLV_OK){
+		printf("[!] failed to initialize libdwarf!\n");
+		close(director.fd);
+		return err;
+	}
+	parse_module_offset_table();
 	close(fd);
 
 	info = (struct load_info *)malloc(sizeof(struct load_info));
@@ -1411,6 +1662,7 @@ int initialize_director(struct module_controller *director, struct load_info *in
 	}
 
 	director->internal_cb_table = &sym_table;
+	director->runtime_generated_structs = &runtime_generated_structs;
 	director->info = info;
 out:
 	return ret;
@@ -1422,10 +1674,15 @@ int main(int argc, char *argv[], char *envp[]) {
 	unsigned char *function_name = NULL;
 	struct load_info load_info = {};
 
-	if (argv[1] == NULL || argv[2] == NULL) {
+	if (argv[1] == NULL && argv[2] == NULL) {
 		display_usage(argv);
 		ret = -EINVAL;
 		return ret;
+	}
+
+	/* assume that if we give only the .ko path, we will call the 'init_module' function */
+	if(argv[2] == NULL){
+		argv[2] = "init_module";
 	}
 
 	if (strlen(argv[1]) < MODULE_INPUT_MIN_LEN ||

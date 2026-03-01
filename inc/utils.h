@@ -1,11 +1,7 @@
 #ifndef __UTILS_H__
 #define __UTILS_H__
 
-#if defined(__x86_64__)
-#define KABI_ENTRY __attribute__((force_align_arg_pointer))
-#else
-#define KABI_ENTRY
-#endif
+#define OFFSET_TABLE_SECTION	__attribute__((section(".offset")))
 
 #define MODULE_INPUT_MIN_LEN 4
 
@@ -879,5 +875,36 @@ static inline unsigned long _usecs_to_jiffies(const unsigned int u){
 	return (USEC_TO_HZ_MUL32 * u + USEC_TO_HZ_ADJ32) >> USEC_TO_HZ_SHR32;
 }
 #endif
+
+static bool is_a_number(unsigned char character){
+	bool ret = false;
+	if(character <= '1' && character >= '9'){
+		ret = true;
+	}
+	return ret;
+}
+
+/*
+ * simple function which converts the vermagic into a series of numbers
+ * example of a vermagic: vermagic=6.14.0-36-generic
+ */
+static int convert_vermagic(unsigned char *vermagic_string, u8 *version, u8 *subversion, u8 *modification){
+	int ret = 0;
+	unsigned char current_ver = NULL;
+
+	if(vermagic_string == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	current_ver = strtok(vermagic_string, '.');
+	if(current_ver != NULL){
+		*version = atoi(current_ver);
+	}else{
+		*version = 0;
+	}
+
+	return ret;
+}
 
 #endif

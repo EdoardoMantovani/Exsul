@@ -1,12 +1,13 @@
 struct module_controller {
         char module_name[16];
+	int fd;
         unsigned char *trampoline_area;
         int trampoline_used;
         int libusb_ret;
         struct module *mod;
         struct load_info *info;
         struct internal_cb_table *internal_cb_table;
-
+	struct runtime_struct *runtime_generated_structs;
         /* libusb data */
         libusb_device_handle *usb_dev;
 
@@ -27,4 +28,11 @@ struct module_controller {
 	void *kmem_array[MAX_KMEM_ARRAY_SIZE];
 
 	struct usb_dev_tuple usb_dev_list[MAX_USB_DEV_LIST];
+
+	u8 debugfs_buffer[MAX_DEBUGFS_SIZE];
+
+	Dwarf_Debug dbg;
+	Dwarf_Error err;
+
+	struct runtime_single_fields runtime_single_fields;
 };

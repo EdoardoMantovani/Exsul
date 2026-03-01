@@ -43,7 +43,7 @@ static inline struct sk_buff *__skb_peek(const struct sk_buff_head *list_){
  *	reference is therefore volatile. Use with caution.
  */
 static inline struct sk_buff *skb_peek_next(struct sk_buff *skb, const struct sk_buff_head *list_){
-	struct sk_buff *next; // = skb->next;
+	struct sk_buff *next = skb->next;
 
 	if (next == (struct sk_buff *)list_){
 		next = NULL;
@@ -110,7 +110,6 @@ static inline void __skb_queue_head_init(struct sk_buff_head *list){
 	list->qlen = 0;
 }
 
-
 /*
  * This function creates a split out lock class for each invocation;
  * this is needed for now since a whole lot of users of the skb-queue
@@ -121,6 +120,56 @@ static inline void __skb_queue_head_init(struct sk_buff_head *list){
  */
 static inline void skb_queue_head_init(struct sk_buff_head *list){
 	__skb_queue_head_init(list);
+}
+
+static inline void __skb_insert(struct sk_buff *newsk,
+				struct sk_buff *prev, struct sk_buff *next,
+				struct sk_buff_head *list){
+	/* See skb_queue_empty_lockless() and skb_peek_tail()
+	 * for the opposite READ_ONCE()
+	 */
+	WRITE_ONCE(newsk->next, next);
+	WRITE_ONCE(newsk->prev, prev);
+	WRITE_ONCE(((struct sk_buff_list *)next)->prev, newsk);
+	WRITE_ONCE(((struct sk_buff_list *)prev)->next, newsk);
+	WRITE_ONCE(list->qlen, list->qlen + 1);
+}
+
+static inline void __skb_queue_before(struct sk_buff_head *list,
+				      struct sk_buff *next,
+				      struct sk_buff *newsk){
+	__skb_insert(newsk, ((struct sk_buff_list *)next)->prev, next, list);
+}
+
+static inline void __skb_queue_tail(struct sk_buff_head *list, struct sk_buff *newsk){
+	__skb_queue_before(list, (struct sk_buff *)list, newsk);
+}
+
+static void skb_queue_tail(struct sk_buff_head *list, struct sk_buff *newsk){
+	__skb_queue_tail(list, newsk);
+}
+
+static void skb_panic(struct sk_buff *skb, unsigned int sz, void *addr, const char msg[]){
+	printf("%s: text:%px len:%d put:%d head:%px data:%px tail:%#lx end:%#lx dev:%s\n",
+		msg,
+		addr,
+		skb->len,
+		sz,
+		skb->head,
+		skb->data,
+		(unsigned long)skb->tail,
+		(unsigned long)skb->end,
+		skb->dev ? skb->dev->name : "<NULL>"
+	);
+}
+
+
+static void skb_over_panic(struct sk_buff *skb, unsigned int sz, void *addr){
+	skb_panic(skb, sz, addr, __func__);
+}
+
+static void skb_under_panic(struct sk_buff *skb, unsigned int sz, void *addr){
+	skb_panic(skb, sz, addr, __func__);
 }
 
 #endif

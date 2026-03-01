@@ -35,6 +35,8 @@
 #include <unistd.h>
 #include <stdatomic.h>
 #include <netinet/ether.h>
+#include <dwarf.h>
+#include <libdwarf/libdwarf.h>
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #include <linux/byteorder/little_endian.h>
@@ -75,6 +77,9 @@
 #define __s64 s64
 
 #include "utils.h"
+
+/* defines the maximun size of the buffer data which can be transferred from the user to the kernel stub */
+#define MAX_DEBUGFS_SIZE	128
 
 /* defines the maximun number of usb devices which can be present in the current kernel module */
 #define MAX_USB_DEV_LIST	36
@@ -276,8 +281,10 @@ struct timer_list {
 
 struct sk_buff_head {
 	/* These two members must be first. */
-	struct sk_buff	*next;
-	struct sk_buff	*prev;
+	struct_group_tagged(sk_buff_list, list,
+		struct sk_buff	*next;
+		struct sk_buff	*prev;
+	);
 
 	__u32		qlen;
 };
@@ -363,6 +370,12 @@ struct tasklet_struct {
 	unsigned long data;
 };
 
+/* this represent the global tasklet queue */
+struct tasklet_head {
+	struct tasklet_struct *head;
+	struct tasklet_struct **tail;
+};
+
 struct load_info {
 	const char *name;
 	struct module *mod;
@@ -390,6 +403,15 @@ struct load_info {
 struct kernel_param {
 	const char *name;
 	struct module *mod;
+	const struct kernel_param_ops *ops;
+	const u16 perm;
+	s8 level;
+	u8 flags;
+	union {
+		void *arg;
+		const struct kparam_string *str;
+		const struct kparam_array *arr;
+	};
 };
 
 struct firmware {
@@ -596,7 +618,7 @@ struct mod_kallsyms {
 	char *typetab;
 };
 
-struct internal_cb_table{
+struct internal_cb_table {
 	unsigned char *function_name;
 	void *function_ptr;
 };
@@ -952,7 +974,26 @@ static u32 pcg32_random_r(void *arg){
 	return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
 }
 
+static u64 read_uleb128(u8 *p, int len){
+	int counter = 0;
+	u8 b = 0;
+	u64 v = 0;
+	u32 shift = 0;
+
+	while (counter < len) {
+		b = p[counter++];
+		v |= (u64)(b & 0x7f) << shift;
+		if (!(b & 0x80)){
+			break;
+		}
+		shift += 7;
+	}
+
+	return v;
+}
+
 static struct task_struct *tls_current;
+static struct tasklet_head tasklet_global_queue;
 
 /**
  * worker_thread - the worker thread function
@@ -1089,6 +1130,8 @@ static void *kthread_trampoline(void *arg){
 #include <skb.h>
 #include <ieee80211.h>
 #include <prototypes.h>
+#include <single_offset.h>
+#include <struct_offset.h>
 #include <mod_controller.h>
 
 #endif
