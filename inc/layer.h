@@ -91,6 +91,7 @@
 #define MAX_ALLOCATED_LKM_NUMBER 12
 
 #define NR_KMALLOC_TYPES	8
+#define	NUMA_NO_NODE		(-1)
 
 /* Hard limit */
 #define USB_MAXENDPOINTS	30
@@ -191,6 +192,7 @@ enum irqreturn {
 	IRQ_WAKE_THREAD		= (1 << 1),
 };
 
+struct sock;
 struct device;
 struct pci_dev;
 struct net_device;

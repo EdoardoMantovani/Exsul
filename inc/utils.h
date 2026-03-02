@@ -55,6 +55,7 @@
 /* define the function attributes macro in the linux kernel as empty macro here */
 #define __must_check
 #define __signed_wrap
+#define __fix_address
 
 #define __packed __attribute__((packed))
 #define __force __attribute__((force))

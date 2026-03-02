@@ -252,7 +252,7 @@ foreach(keys %struct_whitelist){
 				$word_processor = $line;
 				#$line =~ s/$iterator->/(char *)$iterator + director.$struct_whitelist{$iterator}./;
 				$line =~ s/\b\Q$iterator\E->/(char *)$iterator + director.$struct_whitelist{$iterator}./;
-				if($word_processor =~ /$iterator->(\w+)/){
+				if($word_processor =~ /$iterator->(\w+)/g){
 					push(@struct_fields, $1);
 				}
 			}

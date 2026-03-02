@@ -16,53 +16,6 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 	.structs = {
 			[0] = {
 				.struct_size = 0,
-				.struct_name =  "sk_buff",
-				.struct_field_num = 9,
-				.fields = {
-					[0] = {
-						.field_name = "len",
-						.field_offset = 0,
-					},
-					[1] = {
-						.field_name = "data",
-						.field_offset = 0,
-					},
-					[2] = {
-						.field_name = "data_len",
-						.field_offset = 0,
-					},
-					[3] = {
-						.field_name = "next",
-						.field_offset = 0,
-					},
-					[4] = {
-						.field_name = "prev",
-						.field_offset = 0,
-					},
-					[5] = {
-						.field_name = "head",
-						.field_offset = 0,
-					},
-					[6] = {
-						.field_name = "tail",
-						.field_offset = 0,
-					},
-					[7] = {
-						.field_name = "end",
-						.field_offset = 0,
-					},
-					[8] = {
-						.field_name = "users",
-						.field_offset = 0,
-					},
-					[10] = {
-						.field_name = NULL,
-						.field_offset = 0,
-					},
-				},
-        		},
-			[1] = {
-				.struct_size = 0,
 				.struct_name =  "module",
 				.struct_field_num = 19,
 				.fields = {
@@ -148,10 +101,115 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
         		},
+			[1] = {
+				.struct_size = 0,
+				.struct_name =  "usb_device",
+				.struct_field_num = 1,
+				.fields = {
+					[0] = {
+						.field_name = "actconfig",
+						.field_offset = 0,
+					},
+					[2] = {
+						.field_name = NULL,
+						.field_offset = 0,
+					},
+				},
+        		},
 			[2] = {
 				.struct_size = 0,
-				.struct_name =  "wiphy",
-				.struct_field_num = 0,
+				.struct_name =  "sk_buff",
+				.struct_field_num = 21,
+				.fields = {
+					[0] = {
+						.field_name = "len",
+						.field_offset = 0,
+					},
+					[1] = {
+						.field_name = "data",
+						.field_offset = 0,
+					},
+					[2] = {
+						.field_name = "head",
+						.field_offset = 0,
+					},
+					[3] = {
+						.field_name = "end",
+						.field_offset = 0,
+					},
+					[4] = {
+						.field_name = "tail",
+						.field_offset = 0,
+					},
+					[5] = {
+						.field_name = "next",
+						.field_offset = 0,
+					},
+					[6] = {
+						.field_name = "prev",
+						.field_offset = 0,
+					},
+					[7] = {
+						.field_name = "unreadable",
+						.field_offset = 0,
+					},
+					[8] = {
+						.field_name = "data_len",
+						.field_offset = 0,
+					},
+					[9] = {
+						.field_name = "users",
+						.field_offset = 0,
+					},
+					[10] = {
+						.field_name = "inner_protocol",
+						.field_offset = 0,
+					},
+					[11] = {
+						.field_name = "inner_protocol_type",
+						.field_offset = 0,
+					},
+					[12] = {
+						.field_name = "inner_ipproto",
+						.field_offset = 0,
+					},
+					[13] = {
+						.field_name = "inner_mac_header",
+						.field_offset = 0,
+					},
+					[14] = {
+						.field_name = "inner_network_header",
+						.field_offset = 0,
+					},
+					[15] = {
+						.field_name = "inner_transport_header",
+						.field_offset = 0,
+					},
+					[16] = {
+						.field_name = "mac_header",
+						.field_offset = 0,
+					},
+					[17] = {
+						.field_name = "ip_summed",
+						.field_offset = 0,
+					},
+					[18] = {
+						.field_name = "csum_start",
+						.field_offset = 0,
+					},
+					[19] = {
+						.field_name = "transport_header",
+						.field_offset = 0,
+					},
+					[20] = {
+						.field_name = "network_header",
+						.field_offset = 0,
+					},
+					[22] = {
+						.field_name = NULL,
+						.field_offset = 0,
+					},
+				},
         		},
 			[3] = {
 				.struct_size = 0,
@@ -159,6 +217,11 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 				.struct_field_num = 0,
         		},
 			[4] = {
+				.struct_size = 0,
+				.struct_name =  "wiphy",
+				.struct_field_num = 0,
+        		},
+			[5] = {
 				.struct_size = 0,
 				.struct_name =  "urb",
 				.struct_field_num = 3,
@@ -176,21 +239,6 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[4] = {
-						.field_name = NULL,
-						.field_offset = 0,
-					},
-				},
-        		},
-			[5] = {
-				.struct_size = 0,
-				.struct_name =  "usb_device",
-				.struct_field_num = 1,
-				.fields = {
-					[0] = {
-						.field_name = "actconfig",
-						.field_offset = 0,
-					},
-					[2] = {
 						.field_name = NULL,
 						.field_offset = 0,
 					},
