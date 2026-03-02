@@ -847,6 +847,44 @@ static inline void refcount_inc(refcount_t *r){
 	__refcount_inc(r, NULL);
 }
 
+static inline void __refcount_dec(refcount_t *r, int *oldp){
+        int old = 0;
+
+        old = atomic_fetch_sub_explicit(&r->refs, 1, memory_order_release);
+
+        if (oldp){
+                *oldp = old;
+        }
+}
+
+static inline bool __refcount_sub_and_test(int i, refcount_t *r, int *oldp){
+	int old = 0;
+
+	old = atomic_fetch_sub_explicit(&r->refs, i, memory_order_release);
+
+	if (oldp){
+		*oldp = old;
+	}
+
+	if (old > 0 && old == i) {
+		return true;
+	}
+
+	return false;
+}
+
+static inline bool refcount_sub_and_test(int i, refcount_t *r){
+	return __refcount_sub_and_test(i, r, NULL);
+}
+
+static inline bool __refcount_dec_and_test(refcount_t *r, int *oldp){
+	return __refcount_sub_and_test(1, r, oldp);
+}
+
+static inline bool refcount_dec_and_test(refcount_t *r){
+	return __refcount_dec_and_test(r, NULL);
+}
+
 static inline void kref_get(struct kref *kref){
 	refcount_inc(&kref->refcount);
 }

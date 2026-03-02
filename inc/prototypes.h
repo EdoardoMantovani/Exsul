@@ -5,6 +5,7 @@
 
 /** automatically generated file, don't edit! **/
 
+void consume_skb(struct sk_buff *skb);
 void __fentry__(void);
 void wait_for_completion(struct completion *x);
 void *skb_put(struct sk_buff *skb, unsigned int len);

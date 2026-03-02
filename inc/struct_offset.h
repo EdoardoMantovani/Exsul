@@ -16,69 +16,52 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 	.structs = {
 			[0] = {
 				.struct_size = 0,
-				.struct_name =  "usb_device",
-				.struct_field_num = 1,
+				.struct_name =  "sk_buff",
+				.struct_field_num = 9,
 				.fields = {
 					[0] = {
-						.field_name = "actconfig",
+						.field_name = "len",
+						.field_offset = 0,
+					},
+					[1] = {
+						.field_name = "data",
 						.field_offset = 0,
 					},
 					[2] = {
+						.field_name = "data_len",
+						.field_offset = 0,
+					},
+					[3] = {
+						.field_name = "next",
+						.field_offset = 0,
+					},
+					[4] = {
+						.field_name = "prev",
+						.field_offset = 0,
+					},
+					[5] = {
+						.field_name = "head",
+						.field_offset = 0,
+					},
+					[6] = {
+						.field_name = "tail",
+						.field_offset = 0,
+					},
+					[7] = {
+						.field_name = "end",
+						.field_offset = 0,
+					},
+					[8] = {
+						.field_name = "users",
+						.field_offset = 0,
+					},
+					[10] = {
 						.field_name = NULL,
 						.field_offset = 0,
 					},
 				},
         		},
 			[1] = {
-				.struct_size = 0,
-				.struct_name =  "rate_info",
-				.struct_field_num = 0,
-        		},
-			[2] = {
-				.struct_size = 0,
-				.struct_name =  "sk_buff",
-				.struct_field_num = 7,
-				.fields = {
-					[0] = {
-						.field_name = "next",
-						.field_offset = 0,
-					},
-					[1] = {
-						.field_name = "prev",
-						.field_offset = 0,
-					},
-					[2] = {
-						.field_name = "len",
-						.field_offset = 0,
-					},
-					[3] = {
-						.field_name = "head",
-						.field_offset = 0,
-					},
-					[4] = {
-						.field_name = "data",
-						.field_offset = 0,
-					},
-					[5] = {
-						.field_name = "tail",
-						.field_offset = 0,
-					},
-					[6] = {
-						.field_name = "end",
-						.field_offset = 0,
-					},
-					[8] = {
-						.field_name = NULL,
-						.field_offset = 0,
-					},
-				},
-        		},
-			[3] = {
-				.struct_size = 0,
-				.struct_name =  "wiphy",
-				.struct_field_num = 0,
-        		},
-			[4] = {
 				.struct_size = 0,
 				.struct_name =  "module",
 				.struct_field_num = 19,
@@ -165,7 +148,17 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
         		},
-			[5] = {
+			[2] = {
+				.struct_size = 0,
+				.struct_name =  "wiphy",
+				.struct_field_num = 0,
+        		},
+			[3] = {
+				.struct_size = 0,
+				.struct_name =  "rate_info",
+				.struct_field_num = 0,
+        		},
+			[4] = {
 				.struct_size = 0,
 				.struct_name =  "urb",
 				.struct_field_num = 3,
@@ -183,6 +176,21 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[4] = {
+						.field_name = NULL,
+						.field_offset = 0,
+					},
+				},
+        		},
+			[5] = {
+				.struct_size = 0,
+				.struct_name =  "usb_device",
+				.struct_field_num = 1,
+				.fields = {
+					[0] = {
+						.field_name = "actconfig",
+						.field_offset = 0,
+					},
+					[2] = {
 						.field_name = NULL,
 						.field_offset = 0,
 					},

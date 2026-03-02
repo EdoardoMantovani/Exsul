@@ -11,6 +11,15 @@ typedef unsigned int sk_buff_data_t;
 typedef unsigned char *sk_buff_data_t;
 #endif
 
+static inline bool skb_is_nonlinear(const struct sk_buff *skb){
+	return skb->data_len;
+}
+
+static inline unsigned int skb_headlen(const struct sk_buff *skb){
+	return skb->len - skb->data_len;
+}
+
+
 /**
  *	skb_peek - peek at the head of an &sk_buff_head
  *	@list_: list to peek at
@@ -180,6 +189,22 @@ static void skb_over_panic(struct sk_buff *skb, unsigned int sz, void *addr){
 
 static void skb_under_panic(struct sk_buff *skb, unsigned int sz, void *addr){
 	skb_panic(skb, sz, addr, __func__);
+}
+
+static inline bool skb_unref(struct sk_buff *skb){
+	int ret = 0;
+	if (unlikely(skb == NULL)){
+		ret = false;
+		return ret;
+	}
+
+	if (likely(!refcount_dec_and_test(skb->users))){
+		ret = false;
+		return ret;
+	}
+
+	ret = true;
+	return ret;
 }
 
 #endif

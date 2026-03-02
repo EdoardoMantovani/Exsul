@@ -52,6 +52,10 @@
 #define __fls(word) generic___fls(word)
 #define find_zero(bits) (__ffs(bits) >> 3)
 
+/* define the function attributes macro in the linux kernel as empty macro here */
+#define __must_check
+#define __signed_wrap
+
 #define __packed __attribute__((packed))
 #define __force __attribute__((force))
 #define __aligned(x) __attribute__((aligned(x)))

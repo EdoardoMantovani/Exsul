@@ -31,7 +31,7 @@ my $example = "./example";
 
 my $final_program = "translator";
 
-my $main      = "main1.c";
+my $main      = "main.c";
 my $win_layer = "layer.h";
 my $proto_gen = "prototypes.h";
 my $cb_table  = "cb_table.h";
@@ -152,6 +152,10 @@ if($help){
 	exit(0);
 }
 
+if($generate_offset_file){
+        $offset_generation_file = "required_offsets.json";
+}
+
 if($clean){
 	# delete every compiled file and quit
 	`$rm $build/*.o 2>/dev/null`;
@@ -160,15 +164,16 @@ if($clean){
 	# delete also the "out_xxx" subdirs
 	`$rm -rf out_* 2>/dev/null`;
 
+	if($offset_generation_file){
+		`$rm $offset_generation_file 2>/dev/null`;
+	}else{
+		`$rm required_offsets.json 2>/dev/null`;
+	}
 	chdir($example);
 	# taken from 'https://askubuntu.com/questions/700933/make-clean-in-several-subdirectories'
 	`for d in */; do (cd "\$d" && make clean); done`;
 
 	exit(0);
-}
-
-if($generate_offset_file){
-	$offset_generation_file = "required_offsets.json";
 }
 
 if($make_examples){
@@ -321,7 +326,7 @@ print OFFSETS "};\n";
 if($generate_offset_file){
 	# add a last NULL entry
 	print OFFSET_GEN "		{\n";
-	print OFFSET_GEN "			\"name\":NULL,\n";
+	print OFFSET_GEN "			\"name\":\"NULL\",\n";
 	print OFFSET_GEN "			\"fields\": []\n";
 	print OFFSET_GEN "		}\n";
 	print OFFSET_GEN "	]\n";
