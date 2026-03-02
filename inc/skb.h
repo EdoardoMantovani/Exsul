@@ -1,6 +1,16 @@
 #ifndef __SKB_H__
 #define __SKB_H__
 
+#if BITS_PER_LONG > 32
+#define NET_SKBUFF_DATA_USES_OFFSET 1
+#endif
+
+#ifdef NET_SKBUFF_DATA_USES_OFFSET
+typedef unsigned int sk_buff_data_t;
+#else
+typedef unsigned char *sk_buff_data_t;
+#endif
+
 /**
  *	skb_peek - peek at the head of an &sk_buff_head
  *	@list_: list to peek at
@@ -122,16 +132,16 @@ static inline void skb_queue_head_init(struct sk_buff_head *list){
 	__skb_queue_head_init(list);
 }
 
-static inline void __skb_insert(struct sk_buff *newsk,
+static inline void __skb_insert(struct sk_buff *skb,
 				struct sk_buff *prev, struct sk_buff *next,
 				struct sk_buff_head *list){
 	/* See skb_queue_empty_lockless() and skb_peek_tail()
 	 * for the opposite READ_ONCE()
 	 */
-	WRITE_ONCE(newsk->next, next);
-	WRITE_ONCE(newsk->prev, prev);
-	WRITE_ONCE(((struct sk_buff_list *)next)->prev, newsk);
-	WRITE_ONCE(((struct sk_buff_list *)prev)->next, newsk);
+//	WRITE_ONCE(skb->next, next);
+//	WRITE_ONCE(skb->prev, prev);
+//	WRITE_ONCE(((struct sk_buff_list *)next)->prev, skb);
+//	WRITE_ONCE(((struct sk_buff_list *)prev)->next, skb);
 	WRITE_ONCE(list->qlen, list->qlen + 1);
 }
 
@@ -159,7 +169,7 @@ static void skb_panic(struct sk_buff *skb, unsigned int sz, void *addr, const ch
 		skb->data,
 		(unsigned long)skb->tail,
 		(unsigned long)skb->end,
-		skb->dev ? skb->dev->name : "<NULL>"
+		"<NULL>"
 	);
 }
 

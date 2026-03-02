@@ -6,12 +6,15 @@ use strict;
 use warnings;
 use Getopt::Long;
 use Cwd qw(getcwd);
+use File::Copy qw(move);
 use List::Util qw(uniq);
-use File::Temp qw(tempfile tempdir);
 use Term::ANSIColor qw(color);
+use File::Temp qw(tempfile tempdir);
+use File::Basename qw(dirname basename);
 
 my $ls = `which ls`;
 my $cd = `which cd`;
+my $cp = `which cp`;
 my $rm = `which rm`;
 my $sed = `which sed`;
 my $grep = `which grep`;
@@ -19,10 +22,10 @@ my $find = `which find`;
 my $make = `which make`;
 
 my $arch   = "./arch";
-my $source = "./src";
-my $include = "./inc";
-my $stubs = "./stubs";
-my $build = "./build";
+my $source = "src";
+my $include = "inc";
+my $stubs = "stubs";
+my $build = "build";
 my $bin   = "./bin";
 my $example = "./example";
 
@@ -37,7 +40,7 @@ my $functions = "functions";
 my $variables = "variables";
 
 my $function_proto_regex = q{^\h*[_A-Za-z]\w*(?:[\w\h\*]*\h+)+[_A-Za-z]\w*\h*\([^;{}]*\)\h*(?=\{)};
-my $find_command_arg = q{\( -path "*/inc*" -name "*.h" \)};
+my $find_command_arg = q{-type f -not -path "out_*" -name "*.c" -or -name "*.h"};
 
 my $final_obj_line = undef;
 my $proto = undef;
@@ -80,7 +83,6 @@ my @gcc_params = (
 	"-DENABLE_DBG_PRINT",
 	"-O2",
 	"-w",
-	"-I$include",
 	"-I$arch",
 	"-march=native",
 	"-mtune=native",
@@ -110,7 +112,6 @@ my @gcc_final_linkkings = (
 );
 my %struct_whitelist = (
 	"skb" => "sk_buff",
-	"newsk" => "sk_buff",
 	"mod" => "module",
 	"wiphy" => "wiphy",
 	"udev" => "usb_device",
@@ -121,6 +122,7 @@ my %struct_whitelist = (
 
 chomp($ls);
 chomp($cd);
+chomp($cp);
 chomp($rm);
 chomp($sed);
 chomp($grep);
@@ -152,8 +154,11 @@ if($help){
 
 if($clean){
 	# delete every compiled file and quit
-	`$rm $build/*.o`;
-	`$rm $bin/$final_program`;
+	`$rm $build/*.o 2>/dev/null`;
+	`$rm $bin/$final_program 2>/dev/null`;
+
+	# delete also the "out_xxx" subdirs
+	`$rm -rf out_* 2>/dev/null`;
 
 	chdir($example);
 	# taken from 'https://askubuntu.com/questions/700933/make-clean-in-several-subdirectories'
@@ -297,7 +302,7 @@ foreach(keys %struct_whitelist){
 		# add a last NULL entry for the parsing phase
 		$struct_field_counter++;
 		print OFFSETS "					[$struct_field_counter] = {\n";
-		print OFFSETS "						.field_name = \"NULL\",\n";
+		print OFFSETS "						.field_name = NULL,\n";
 		print OFFSETS "						.field_offset = 0,\n";
 		print OFFSETS "					},\n";
 		print OFFSETS"				},\n";
@@ -316,7 +321,7 @@ print OFFSETS "};\n";
 if($generate_offset_file){
 	# add a last NULL entry
 	print OFFSET_GEN "		{\n";
-	print OFFSET_GEN "			\"name\":\"NULL\",\n";
+	print OFFSET_GEN "			\"name\":NULL,\n";
 	print OFFSET_GEN "			\"fields\": []\n";
 	print OFFSET_GEN "		}\n";
 	print OFFSET_GEN "	]\n";
@@ -337,46 +342,63 @@ $process_step++;
 
 $virtual_compilation_folder = tempdir("out_XXXX", CLEANUP => 0);
 
-foreach(uniq(@sources)){
-	open my $source, $_ or die $!;
-	while(my $line = <$source>){
-		foreach(keys %struct_whitelist){
-			$iterator = $_;
-			if($line =~ "$iterator->"){
-				my $current_struct_idx = 0;
-				my $current_field_idx = 0;
-				$current_struct_idx = get_struct_index($struct_whitelist{$iterator});
-				if($line =~ /$iterator->(\w+)/){
-					$current_field_idx = get_field_index($struct_whitelist{$iterator}, $1);
-				}
-				$line =~ s/$iterator->(\w+)/((char *)$iterator + director.runtime_generated_structs->structs[$current_struct_idx].fields[$current_field_idx].field_offset)/g;
-				$modified = 1;
-				print($line);
-			}
-			if($line =~ "].base"){
-				$line =~ s/].base/]+ 0/;
-				$modified = 1;
-			}
-			if($line =~ "].size"){
-				$line =~ s/].size/] + director.runtime_single_fields.module_mem_size_offset/;
-				$modified = 1;
-			}
-			if($line =~ "[type]"){
-				$line =~ s/\[type\]/ + (type * director.runtime_generated_structs->structs[0].struct_size)/;
-				$modified = 1;
-			}
-		}
-		if($modified == 1){
-			$modified = 0;
-		}
-		last if eof($source);
-	}
-
-	@crafted_source_lines = ();
-	close($source) or die $!;
+# create the subdir, in this case inc, src and stubs/*
+foreach(qw(inc stubs)){
+	`$cp -R $_ $virtual_compilation_folder/$_`;
 }
 
-sleep(10);
+@sources = ();
+
+foreach(`$find $virtual_compilation_folder`){
+	$iterator = $_;
+	chomp($iterator);
+	if($iterator =~ /\.(c|h)\z/){
+		push(@sources, $iterator);
+	}
+}
+
+foreach(uniq(@sources)){
+	my $in_path = $_;
+
+	open(my $in, '<', $in_path) or die $!;
+
+	my $dir = dirname($in_path);
+	my ($out, $tmp_path) = tempfile(".tmp_XXXX", DIR => $dir, UNLINK => 0);
+
+	while(my $line = <$in>){
+		foreach(keys %struct_whitelist){
+			$iterator = $_;
+
+			if($line =~ /\b\Q$iterator\E->/){
+				my $current_struct_idx = get_struct_index($struct_whitelist{$iterator});
+
+				$line =~ s/\b\Q$iterator\E->([A-Za-z_]\w*)/
+					my $field = $1;
+					my $current_field_idx = get_field_index($struct_whitelist{$iterator}, $field);
+					"((char *)$iterator + director.runtime_generated_structs->structs[$current_struct_idx].fields[$current_field_idx].field_offset)"
+				/gex;
+			}
+		}
+
+		if($line =~ /\]\.base\b/){
+			$line =~ s/\]\.base\b/]+ 0/g;
+		}
+		if($line =~ /\]\.size\b/){
+			$line =~ s/\]\.size\b/] + director.runtime_single_fields.module_mem_size_offset/g;
+		}
+		if($line =~ /\[type\]/){
+			$line =~ s/\[type\]/ + (type * director.runtime_generated_structs->structs[0].struct_size)/g;
+		}
+
+		print $out $line;
+		last if eof($in);
+	}
+
+	close($out) or die $!;
+	close($in)  or die $!;
+
+	move($tmp_path, $in_path) or die $!;
+}
 
 $cb_header = "$include/$cb_table";
 
@@ -399,35 +421,38 @@ print PROTO "*/\n\n";
 
 print PROTO "/** automatically generated file, don't edit! **/\n\n";
 
-foreach(`$ls $stubs/$functions`){
+$find_command_arg = q{-name "*.c"};
+foreach(`$find $virtual_compilation_folder/$stubs/$functions/ $find_command_arg`){
 	$current_stub = $_;
 	chomp($current_stub);
 	$final_stub = $current_stub;
 	$final_stub =~ s/\..*$/.o/;
 	$stub_name = $final_stub;
 	$stub_name =~ s/\..*$//;
-	print FH "    [$cb_counter] = { .function_name = \"$stub_name\", .function_ptr = $stub_name },\n";
+	$iterator = (((split("/", $stub_name))[-1]));
+	print FH "    [$cb_counter] = { .function_name = \"$iterator\", .function_ptr = $iterator },\n";
 	$cb_counter++;
-	$proto = `grep -oP '$function_proto_regex' $stubs/$functions/$current_stub`;
+	$proto = `grep -oP '$function_proto_regex' $current_stub`;
 	chomp($proto);
 	if(length($proto) == 0){
-		$proto = `cat $stubs/$functions/$current_stub | head -n 1`;
+		$proto = `cat $current_stub | head -n 1`;
 		chomp($proto);
 		$proto =~ s/{//;
 	}
 	print PROTO "$proto;\n";
 }
 
-foreach(`$ls $stubs/$variables`){
+foreach(`$find $virtual_compilation_folder/$stubs/$variables/ $find_command_arg`){
         $current_stub = $_;
         chomp($current_stub);
         $final_stub = $current_stub;
         $final_stub =~ s/\..*$/.o/;
         $stub_name = $final_stub;
         $stub_name =~ s/\..*$//;
-        print FH "    [$cb_counter] = { .function_name = \"$stub_name\", .function_ptr = &$stub_name },\n";
+	$iterator = (((split("/", $stub_name))[-1]));
+        print FH "    [$cb_counter] = { .function_name = \"$iterator\", .function_ptr = &$iterator },\n";
         $cb_counter++;
-	$proto = `cat $stubs/$variables/$current_stub | head -n 1`;
+	$proto = `cat $current_stub | head -n 1`;
 	chomp($proto);
 	$proto =~ s/=//;
 	$proto =~ s/{//;
@@ -441,29 +466,32 @@ print FH "};\n\n";
 close(FH) or die $!;
 close(PROTO) or die $!;
 
-foreach(`$ls $stubs/$functions`){
+# copy the protocol header again...
+`$cp $proto_header $virtual_compilation_folder/$include`; 
+`$cp $cb_header $virtual_compilation_folder/$include`;
+
+foreach(`$ls $virtual_compilation_folder/$stubs/$functions`){
         $current_stub = $_;
         chomp($current_stub);
         $final_stub = $current_stub;
         $final_stub =~ s/\..*$/.o/;
         $stub_name = $final_stub;
-	system("$compiler @gcc_params @gcc_stub_params -include $include/$win_layer -c $stubs/$functions/$current_stub -o $build/$final_stub");
+	system("$compiler @gcc_params -I$virtual_compilation_folder/$include @gcc_stub_params -include $virtual_compilation_folder/$include/$win_layer -c $virtual_compilation_folder/$stubs/$functions/$current_stub -o $build/$final_stub");
 	print("[*] compiling $final_stub\n");
 }
 
-foreach(`$ls $stubs/$variables`){
+foreach(`$ls $virtual_compilation_folder/$stubs/$variables`){
 	$current_stub = $_;
 	chomp($current_stub);
 	$final_stub = $current_stub;
 	$final_stub =~ s/\..*$/.o/;
 	$stub_name = $final_stub;
 	$stub_name =~ s/\..*$//;
-	system("$compiler @gcc_params -include $include/$win_layer -c $stubs/$variables/$current_stub -o $build/$final_stub");
+	system("$compiler @gcc_params -I$virtual_compilation_folder/$include -include $virtual_compilation_folder/$include/$win_layer -c $virtual_compilation_folder/$stubs/$variables/$current_stub -o $build/$final_stub");
 	print("[*] compiling $final_stub\n");
 }
 
 # last step: compile the main application
-
 foreach(`$ls $build`){
 	$current_stub = $_;
 	chomp($current_stub);
@@ -473,7 +501,7 @@ foreach(`$ls $build`){
 print(color("red"));
 print("[*] compiling $final_program\n");
 print(color("reset"));
-system("$compiler @gcc_params @gcc_final_params $source/$main -o $bin/$final_program $final_obj_line @gcc_final_linkkings");
+system("$compiler @gcc_params @gcc_final_params -I$virtual_compilation_folder/$include $source/$main -o $bin/$final_program $final_obj_line @gcc_final_linkkings");
 
 undef(@struct_fields);
 undef(@gcc_params);

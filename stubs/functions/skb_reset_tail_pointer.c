@@ -1,7 +1,7 @@
 void skb_reset_tail_pointer(struct sk_buff *skb){
 	#if BITS_PER_LONG > 32
-	skb->tail = skb->data - skb->head;
+	*(sk_buff_data_t *)skb->tail = *(unsigned char *)skb->data - *(unsigned char *)skb->head;
 	#else
-	skb->tail = skb->data;
+	*(sk_buff_data_t *)skb->tail = *(unsigned char *)skb->data;
 	#endif
 }

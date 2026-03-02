@@ -1,4 +1,4 @@
-void __dynamic_pr_debug(struct _ddebug *descriptor, const char *fmt, ...){
+void __dynamic_pr_debug(void *descriptor, const char *fmt, ...){
 	va_list ap;
 
 	va_start(ap, fmt);

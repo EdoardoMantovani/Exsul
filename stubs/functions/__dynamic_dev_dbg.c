@@ -1,4 +1,4 @@
-void __dynamic_dev_dbg(struct _ddebug *descriptor, const struct device *dev, const char *fmt, ...){
+void __dynamic_dev_dbg(void *descriptor, void *dev, const char *fmt, ...){
 	va_list ap;
 
 	va_start(ap, fmt);

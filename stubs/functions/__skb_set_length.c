@@ -2,6 +2,6 @@
 	if ((skb_is_nonlinear(skb))){
 		return;
 	}
-	skb->len = len;
+	*(int *)skb->len = len;
 	skb_set_tail_pointer(skb, len);
 }

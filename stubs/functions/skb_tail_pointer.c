@@ -1,8 +1,8 @@
 unsigned char *skb_tail_pointer(const struct sk_buff *skb){
 	#if BITS_PER_LONG > 32
-	return skb->head + skb->tail;
+	return *(unsigned char *)skb->head + *(sk_buff_data_t *)skb->tail;
 	#else
-	return skb->tail;
+	return *(sk_buff_data_t *)skb->tail;
 	#endif
 }
 

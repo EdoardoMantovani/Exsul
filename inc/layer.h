@@ -1126,12 +1126,12 @@ static void *kthread_trampoline(void *arg){
 	return NULL;
 }
 
-#include <module.h>
-#include <skb.h>
 #include <ieee80211.h>
 #include <prototypes.h>
 #include <single_offset.h>
 #include <struct_offset.h>
 #include <mod_controller.h>
+#include <module.h>
+#include <skb.h>
 
 #endif
