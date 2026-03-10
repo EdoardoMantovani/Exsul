@@ -2,22 +2,50 @@
 #define __UTILS_H__
 
 #define OFFSET_TABLE_SECTION	__attribute__((section(".offset")))
+#define MODULE_INPUT_MIN_LEN 	4
 
-#define MODULE_INPUT_MIN_LEN 4
+#define UL(x)			(_UL(x))
+#define ULL(x)			(_ULL(x))
+#define BIT(nr)			(UL(1) << (nr))
+#define BIT_ULL(nr)		(ULL(1) << (nr))
 
-#define UL(x) (_UL(x))
-#define ULL(x) (_ULL(x))
-#define BIT(nr) (UL(1) << (nr))
-#define BIT_ULL(nr) (ULL(1) << (nr))
+#define BIT_MASK(nr)		(UL(1) << ((nr) % BITS_PER_LONG))
+#define BIT_WORD(nr)		((nr) / BITS_PER_LONG)
+#define BIT_ULL_MASK(nr)	(ULL(1) << ((nr) % BITS_PER_LONG_LONG))
+#define BIT_ULL_WORD(nr)	((nr) / BITS_PER_LONG_LONG)
+#define BITS_PER_BYTE		8
+#define BITS_PER_TYPE(type)	(sizeof(type) * BITS_PER_BYTE)
 
-#define BIT_MASK(nr) (UL(1) << ((nr) % BITS_PER_LONG))
-#define BIT_WORD(nr) ((nr) / BITS_PER_LONG)
-#define BIT_ULL_MASK(nr) (ULL(1) << ((nr) % BITS_PER_LONG_LONG))
-#define BIT_ULL_WORD(nr) ((nr) / BITS_PER_LONG_LONG)
-#define BITS_PER_BYTE 8
-#define BITS_PER_TYPE(type) (sizeof(type) * BITS_PER_BYTE)
+#define DIV_ROUND_UP(n,d)	(((n) + (d) - 1) / (d))
+#define BITS_TO_LONGS(nr)	__KERNEL_DIV_ROUND_UP(nr, BITS_PER_TYPE(long))
+#define BITS_TO_U64(nr)		__KERNEL_DIV_ROUND_UP(nr, BITS_PER_TYPE(u64))
+#define BITS_TO_U32(nr)		__KERNEL_DIV_ROUND_UP(nr, BITS_PER_TYPE(u32))
+#define BITS_TO_BYTES(nr)	__KERNEL_DIV_ROUND_UP(nr, BITS_PER_TYPE(char))
 
-#define ARRAY_SIZE(array) (sizeof(array)/sizeof(array[0]))
+#define _MAX(a, b)		(((a)>(b))?(a):(b))
+
+#define ARRAY_SIZE(array)	(sizeof(array)/sizeof(array[0]))
+
+#define offsetof(TYPE, MEMBER)	__builtin_offsetof(TYPE, MEMBER)
+
+/* The "volatile" is due to gcc bugs */
+# define barrier()		__asm__ __volatile__("": : :"memory")
+
+/**
+ * sizeof_field() - Report the size of a struct field in bytes
+ *
+ * @TYPE: The structure containing the field of interest
+ * @MEMBER: The field to return the size of
+ */
+#define sizeof_field(TYPE, MEMBER) sizeof((((TYPE *)0)->MEMBER))
+
+/**
+ * offsetofend() - Report the offset of a struct field within the struct
+ *
+ * @TYPE: The type of the structure
+ * @MEMBER: The member within the structure to get the end offset of
+ */
+#define offsetofend(TYPE, MEMBER) (offsetof(TYPE, MEMBER) + sizeof_field(TYPE, MEMBER))
 
 /**
  * LIST_HEAD_INIT - initialize a &struct list_head's links to point to itself
@@ -41,26 +69,108 @@
 #define PIPE_CONTROL			2
 #define PIPE_BULK			3
 
+#define NULLS_MARKER(value) (1UL | (((long)value) << 1))
+#define INIT_HLIST_NULLS_HEAD(ptr, nulls) ((ptr)->first = (struct hlist_nulls_node *) NULLS_MARKER(nulls))
+#define HLIST_NULLS_HEAD_INIT(nulls) {.first = (struct hlist_nulls_node *)NULLS_MARKER(nulls)}
+
+/*
+ * small_const_nbits(n) is true precisely when it is known at compile-time
+ * that BITMAP_SIZE(n) is 1, i.e. 1 <= n <= BITS_PER_LONG. This allows
+ * various bit/bitmap APIs to provide a fast inline implementation. Bitmaps
+ * of size 0 are very rare, and a compile-time-known-size 0 is most likely
+ * a sign of error. They will be handled correctly by the bit/bitmap APIs,
+ * but using the out-of-line functions, so that the inline implementations
+ * can unconditionally dereference the pointer(s).
+ */
+#define small_const_nbits(nbits) (__builtin_constant_p(nbits) && (nbits) <= BITS_PER_LONG && (nbits) > 0)
+
+#define hlist_nulls_entry(ptr, type, member) container_of(ptr,type,member)
+
+#define hlist_nulls_entry_safe(ptr, type, member) \
+	({ typeof(ptr) ____ptr = (ptr); \
+	   !is_a_nulls(____ptr) ? hlist_nulls_entry(____ptr, type, member) : NULL; \
+	})
+
+/*
+ * NULLS_MARKER() expects a hash value with the low
+ * bits mostly likely to be significant, and it discards
+ * the msb.
+ * We give it an address, in which the bottom bit is
+ * always 0, and the msb might be significant.
+ * So we shift the address down one bit to align with
+ * expectations and avoid losing a significant bit.
+ *
+ * We never store the NULLS_MARKER in the hash table
+ * itself as we need the lsb for locking.
+ * Instead we store a NULL
+ */
+#define	RHT_NULLS_MARKER(ptr)		((void *)NULLS_MARKER(((unsigned long) (ptr)) >> 1))
+#define INIT_RHT_NULLS_HEAD(ptr)	((ptr) = NULL)
+
 /*
  *       even if it isn't "correct", let's simplify 'usleep_range' in this way
  */
-#define usleep_range(min_sleep, max_sleep) usleep((min_sleep + max_sleep) / 2)
+#define usleep_range(min_sleep, max_sleep)	usleep((min_sleep + max_sleep) / 2)
 
-#define ms_to_us(ms) ((useconds_t)((ms) * 1000))
-#define udelay(us) usleep(us)
-#define prep_zero_mask(a, bits, c) (bits)
-#define __fls(word) generic___fls(word)
-#define find_zero(bits) (__ffs(bits) >> 3)
+#define ms_to_us(ms)				((useconds_t)((ms) * 1000))
+#define udelay(us)				usleep(us)
+#define prep_zero_mask(a, bits, c)		(bits)
+#define __fls(word)				generic___fls(word)
+#define find_zero(bits)				(__ffs(bits) >> 3)
+
+#define copy_from_user				_copy_from_user
+#define copy_to_user				_copy_to_user
+
+#define linkmode_test_bit			test_bit
+#define linkmode_set_bit			__set_bit
+#define linkmode_clear_bit			__clear_bit
+#define linkmode_mod_bit			__assign_bit
+
+/* pr_xxx functions */
+#define pr_fmt(fmt)        	fmt
+#define pr_notice(fmt, ...)	printk(pr_fmt(fmt), ##__VA_ARGS__)
+#define pr_warn(fmt, ...)	printk(pr_fmt(fmt), ##__VA_ARGS__)
+#define pr_err(fmt, ...)	printk(pr_fmt(fmt), ##__VA_ARGS__)
+#define pr_crit(fmt, ...)	printk(pr_fmt(fmt), ##__VA_ARGS__)
+#define pr_info(fmt, ...)	printk(pr_fmt(fmt), ##__VA_ARGS__)
+#define pr_debug(fmt, ...)	printk(pr_fmt(fmt), ##__VA_ARGS__)
+#define pr_alert(fmt, ...)	printk(pr_fmt(fmt), ##__VA_ARGS__)
+
+#define kobj_to_dev(__kobj)	container_of_const(__kobj, struct device, kobj)
 
 /* define the function attributes macro in the linux kernel as empty macro here */
 #define __must_check
 #define __signed_wrap
 #define __fix_address
+#define __kernel
+#define __user
+#define __iomem
+#define __percpu
+#define __rcu
 
 #define __packed __attribute__((packed))
 #define __force __attribute__((force))
 #define __aligned(x) __attribute__((aligned(x)))
 #define fallthrough __attribute__((fallthrough))
+
+/*
+ * Optional: only supported since gcc >= 15
+ * Optional: only supported since clang >= 18
+ *
+ *   gcc: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=108896
+ * clang: https://github.com/llvm/llvm-project/pull/76348
+ *
+ * __bdos on clang < 19.1.2 can erroneously return 0:
+ * https://github.com/llvm/llvm-project/pull/110497
+ *
+ * __bdos on clang < 19.1.3 can be off by 4:
+ * https://github.com/llvm/llvm-project/pull/112636
+ */
+#ifdef CONFIG_CC_HAS_COUNTED_BY
+#define __counted_by(member)		__attribute__((__counted_by__(member)))
+#else
+#define __counted_by(member)
+#endif
 
 /* macro for translating a pipe (used only in the linux kernel) into an endpoint (used in libusb) */
 #define usb_pipeendpoint(pipe)	(((pipe) >> 15) & 0xf)
@@ -111,6 +221,25 @@
 #endif
 #endif
 
+#define RB_ROOT (struct rb_root) { NULL, }
+#define RB_ROOT_CACHED (struct rb_root_cached) { {NULL, }, NULL }
+
+#define rcu_assign_pointer(p, v)					      \
+do {									      \
+	uintptr_t _r_a_p__v = (uintptr_t)(v);				      \
+									      \
+	if (__builtin_constant_p(v) && (_r_a_p__v) == (uintptr_t)NULL)	      \
+		WRITE_ONCE((p), (typeof(p))(_r_a_p__v));		      \
+} while (0)
+
+/**
+ * rcu_dereference_all() - fetch RCU-all-protected pointer for dereferencing
+ * @p: The pointer to read, prior to dereferencing
+ *
+ * Makes rcu_dereference_check() do the dirty work.
+ */
+#define rcu_dereference_all(p) rcu_dereference_all_check(p, 0)
+
 /*
  * Prefer C11 _Generic for better compile-times and simpler code. Note: 'char'
  * is not type-compatible with 'signed char', and we define a separate case.
@@ -154,12 +283,80 @@ do {									\
                 (type *)((char *)__mptr - offsetof(type, member));             \
         })
 
+/**
+ * container_of_const - cast a member of a structure out to the containing
+ *			structure and preserve the const-ness of the pointer
+ * @ptr:		the pointer to the member
+ * @type:		the type of the container struct this is embedded in.
+ * @member:		the name of the member within the struct.
+ *
+ * Always prefer container_of_const() instead of container_of() in new code.
+ */
+#define container_of_const(ptr, type, member)				\
+	_Generic(ptr,							\
+		const typeof(*(ptr)) *: ((const type *)container_of(ptr, type, member)),\
+		default: ((type *)container_of(ptr, type, member))	\
+	)
+
 #define __branch_check__(x, expect, is_constant)                               \
         ({                                                                     \
                 long ______r;                                                  \
                 ______r = __builtin_expect(!!(x), expect);                     \
                 ______r;                                                       \
         })
+
+/*
+ * Check at compile time that something is of a particular type.
+ * Always evaluates to 1 so you may use it easily in comparisons.
+ */
+#define typecheck(type,x) \
+({	type __dummy; \
+	typeof(x) __dummy2; \
+	(void)(&__dummy == &__dummy2); \
+	1; \
+})
+
+/*
+ * Check at compile time that 'function' is a certain type, or is a pointer
+ * to that type (needs to use typedef for the function type.)
+ */
+#define typecheck_fn(type,function) \
+({	typeof(type) __tmp = function; \
+	(void)__tmp; \
+})
+
+/*
+ * Check at compile time that something is a pointer type.
+ */
+#define typecheck_pointer(x) \
+({	typeof(x) __dummy; \
+	(void)sizeof(*__dummy); \
+	1; \
+})
+
+/**
+ * time_after - returns true if the time a is after time b.
+ * @a: first comparable as unsigned long
+ * @b: second comparable as unsigned long
+ *
+ * Do this with "<0" and ">=0" to only test the sign of the result. A
+ * good compiler would generate better code (and a really good compiler
+ * wouldn't care). Gcc is currently neither.
+ *
+ * Return: %true is time a is after time b, otherwise %false.
+ */
+#define time_after(a,b)		\
+	(typecheck(unsigned long, a) && \
+	 typecheck(unsigned long, b) && \
+	 ((long)((b) - (a)) < 0))
+/**
+ * time_before - returns true if the time a is before time b.
+ * @a: first comparable as unsigned long
+ * @b: second comparable as unsigned long
+ *
+ * Return: %true is time a is before time b, otherwise %false.
+ */
+#define time_before(a,b)	time_after(b,a)
 
 #ifndef likely
 #define likely(x) (__branch_check__(x, 1, __builtin_constant_p(x)))
@@ -174,11 +371,11 @@ do {									\
         __pptr->x;                                                                              \
 })
 
-#define REPEAT_BYTE(x)	((~0ul / 0xff) * (x))
+#define REPEAT_BYTE(x)		((~0ul / 0xff) * (x))
 #define WORD_AT_A_TIME_CONSTANTS { REPEAT_BYTE(0x01), REPEAT_BYTE(0x80) }
 
-#define hex_asc_lo(x)	hex_asc[((x) & 0x0f)]
-#define hex_asc_hi(x)	hex_asc[((x) & 0xf0) >> 4]
+#define hex_asc_lo(x)		hex_asc[((x) & 0x0f)]
+#define hex_asc_hi(x)		hex_asc[((x) & 0xf0) >> 4]
 
 #define get_unaligned(ptr)      __get_unaligned_t(typeof(*(ptr)), (ptr))
 #define __get_next(t, insn)     ({ t r = get_unaligned((t *)(insn)->next_byte); (insn)->next_byte += sizeof(t); leXX_to_cpu(t, r); })
@@ -214,14 +411,12 @@ do {									\
         (mod_mem_type_is_core(type) &&                  \
          mod_mem_type_is_data(type))
 
-
 #define mod_mem_type_is_init(type)      \
         ((type) == MOD_INIT_TEXT ||     \
          (type) == MOD_INIT_DATA ||     \
          (type) == MOD_INIT_RODATA)
 
 #define mod_mem_type_is_core(type) (!mod_mem_type_is_init(type))
-
 
 #define mod_mem_type_is_text(type)      \
          ((type) == MOD_TEXT ||         \
@@ -322,8 +517,16 @@ out:										\
 	sz;									\
 })
 
+/**
+ * time_is_after_jiffies - return true if a is after jiffies
+ * @a: time (unsigned long) to compare to jiffies
+ *
+ * Return: %true is time a is after jiffies, otherwise %false.
+ */
+#define time_is_after_jiffies(a) time_before(jiffies, a)
+
 #ifndef PAGE_SHIFT
-        #define PAGE_SHIFT 12
+#define PAGE_SHIFT 12
 #endif
 
 #undef  SHF_WRITE
@@ -452,8 +655,6 @@ out:										\
 	(list_is_first(&(pos)->member, head) ? \
 	list_last_entry(head, typeof(*(pos)), member) : list_prev_entry(pos, member))
 
-
-
 /**
  * list_entry_is_head - test if the entry points to the head of the list
  * @pos:	the type * to cursor
@@ -524,6 +725,45 @@ out:										\
 	     !list_entry_is_head(pos, head, member); 			\
 	     pos = n, n = list_next_entry(n, member))
 
+#define rht_dereference(p, ht) \
+	rcu_dereference_protected(p, lockdep_rht_mutex_is_held(ht))
+
+#define rht_dereference_rcu(p, ht) \
+	rcu_dereference_all_check(p, lockdep_rht_mutex_is_held(ht))
+
+#define rht_dereference_bucket(p, tbl, hash) \
+	rcu_dereference_protected(p, lockdep_rht_bucket_is_held(tbl, hash))
+
+#define rht_dereference_bucket_rcu(p, tbl, hash) \
+	rcu_dereference_all_check(p, lockdep_rht_bucket_is_held(tbl, hash))
+
+#define rht_entry(tpos, pos, member) \
+	({ tpos = container_of(pos, typeof(*tpos), member); 1; })
+
+/**
+ * rhl_for_each_rcu - iterate over rcu hash table list
+ * @pos:	the &struct rlist_head to use as a loop cursor.
+ * @list:	the head of the list
+ *
+ * This hash chain list-traversal primitive should be used on the
+ * list returned by rhltable_lookup.
+ */
+#define rhl_for_each_rcu(pos, list)					\
+	for (pos = list; pos; pos = rcu_dereference_all(pos->next))
+
+/**
+ * rhl_for_each_entry_rcu - iterate over rcu hash table list of given type
+ * @tpos:	the type * to use as a loop cursor.
+ * @pos:	the &struct rlist_head to use as a loop cursor.
+ * @list:	the head of the list
+ * @member:	name of the &struct rlist_head within the hashable struct.
+ *
+ * This hash chain list-traversal primitive should be used on the
+ * list returned by rhltable_lookup.
+ */
+#define rhl_for_each_entry_rcu(tpos, pos, list, member)			\
+	for (pos = list; pos && rht_entry(tpos, pos, member);		\
+	     pos = rcu_dereference_all(pos->next))
 
 #define struct_group_tagged(TAG, NAME, MEMBERS...)                             \
         __struct_group(TAG, NAME, /* no attrs */, MEMBERS)
@@ -553,20 +793,29 @@ out:										\
         __READ_ONCE(x);                                                 		\
 })
 
-#define __rcu_dereference_check(p, local)	 					\
-({ 											\
-	typeof(*p) *local = (typeof(*p) *__force)READ_ONCE(p); 				\
-	((typeof(*p) __force  *)(local)); 						\
-})
-
 #define ___PASTE(a,b) 			a##b
 #define __PASTE(a,b) 			___PASTE(a,b)
 
 #define __UNIQUE_ID(prefix) 		__PASTE(__PASTE(__UNIQUE_ID_, prefix), __COUNTER__)
 
-#define rcu_dereference_check(p, c) 	__rcu_dereference_check((p), __UNIQUE_ID(rcu))
+#define rcu_check_sparse(p, space)
+#define __rcu_dereference_check(p, local, c, space) \
+({ \
+	/* Dependency order vs. p above. */ \
+	typeof(*p) *local = (typeof(*p) *__force)READ_ONCE(p); \
+	rcu_check_sparse(p, space); \
+	((typeof(*p) __force __kernel *)(local)); \
+})
+#define __rcu_dereference_protected(p, local, c, space) \
+({ \
+	rcu_check_sparse(p, space); \
+	((typeof(*p) __force __kernel *)(p)); \
+})
+
+#define rcu_dereference_check(p, c) 	__rcu_dereference_check((p), __UNIQUE_ID(rcu), c || 0, __rcu)
 
 #define rcu_dereference(p)		rcu_dereference_check(p, 0)
+#define rcu_dereference_protected(p, c)	__rcu_dereference_protected((p), __UNIQUE_ID(rcu), (c), __rcu)
 
 #define __COUNT_ARGS(_0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _n, X...) _n
 
@@ -577,32 +826,79 @@ out:										\
 #define strscpy(dst, src, ...)		CONCATENATE(__strscpy, COUNT_ARGS(__VA_ARGS__))(dst, src, __VA_ARGS__)
 #define __strscpy1(dst, src, size)	sized_strscpy(dst, src, size)
 
-#define tolower(c) __tolower(c)
-#define toupper(c) __toupper(c)
+#define tolower(c)			__tolower(c)
+#define toupper(c)			__toupper(c)
 
-#define __ismask(x) (_ctype[(int)(unsigned char)(x)])
+#define __ismask(x)			(_ctype[(int)(unsigned char)(x)])
 
-#define isalnum(c)	((__ismask(c)&(_U|_L|_D)) != 0)
-#define isalpha(c)	((__ismask(c)&(_U|_L)) != 0)
-#define iscntrl(c)	((__ismask(c)&(_C)) != 0)
+#define isalnum(c)			((__ismask(c)&(_U|_L|_D)) != 0)
+#define isalpha(c)			((__ismask(c)&(_U|_L)) != 0)
+#define iscntrl(c)			((__ismask(c)&(_C)) != 0)
 
-#define isgraph(c)	((__ismask(c)&(_P|_U|_L|_D)) != 0)
-#define islower(c)	((__ismask(c)&(_L)) != 0)
-#define isprint(c)	((__ismask(c)&(_P|_U|_L|_D|_SP)) != 0)
-#define ispunct(c)	((__ismask(c)&(_P)) != 0)
+#define isgraph(c)			((__ismask(c)&(_P|_U|_L|_D)) != 0)
+#define islower(c)			((__ismask(c)&(_L)) != 0)
+#define isprint(c)			((__ismask(c)&(_P|_U|_L|_D|_SP)) != 0)
+#define ispunct(c)			((__ismask(c)&(_P)) != 0)
+
 /* Note: isspace() must return false for %NUL-terminator */
-#define isspace(c)	((__ismask(c)&(_S)) != 0)
-#define isupper(c)	((__ismask(c)&(_U)) != 0)
-#define isxdigit(c)	((__ismask(c)&(_D|_X)) != 0)
+#define isspace(c)			((__ismask(c)&(_S)) != 0)
+#define isupper(c)			((__ismask(c)&(_U)) != 0)
+#define isxdigit(c)			((__ismask(c)&(_D|_X)) != 0)
 
-#define _U	0x01	/* upper */
-#define _L	0x02	/* lower */
-#define _D	0x04	/* digit */
-#define _C	0x08	/* cntrl */
-#define _P	0x10	/* punct */
-#define _S	0x20	/* white space (space/lf/tab) */
-#define _X	0x40	/* hex digit */
-#define _SP	0x80	/* hard space (0x20) */
+#define _U				0x01	/* upper */
+#define _L				0x02	/* lower */
+#define _D				0x04	/* digit */
+#define _C				0x08	/* cntrl */
+#define _P				0x10	/* punct */
+#define _S				0x20	/* white space (space/lf/tab) */
+#define _X				0x40	/* hex digit */
+#define _SP				0x80	/* hard space (0x20) */
+
+/*
+ * Many architecture-specific non-atomic bitops contain inline asm code and due
+ * to that the compiler can't optimize them to compile-time expressions or
+ * constants. In contrary, generic_*() helpers are defined in pure C and
+ * compilers optimize them just well.
+ * Therefore, to make `unsigned long foo = 0; __set_bit(BAR, &foo)` effectively
+ * equal to `unsigned long foo = BIT(BAR)`, pick the generic C alternative when
+ * the arguments can be resolved at compile time. That expression itself is a
+ * constant and doesn't bring any functional changes to the rest of cases.
+ * The casts to `uintptr_t` are needed to mitigate `-Waddress` warnings when
+ * passing a bitmap from .bss or .data (-> `!!addr` is always true).
+ */
+#define bitop(op, nr, addr)						\
+	((__builtin_constant_p(nr) &&					\
+	  __builtin_constant_p((uintptr_t)(addr) != (uintptr_t)NULL) &&	\
+	  (uintptr_t)(addr) != (uintptr_t)NULL &&			\
+	  __builtin_constant_p(*(const unsigned long *)(addr))) ?	\
+	 const##op(nr, addr) : op(nr, addr))
+
+/*
+ * The following macros are non-atomic versions of their non-underscored
+ * counterparts.
+ */
+#define __set_bit(nr, addr)		bitop(___set_bit, nr, addr)
+#define __clear_bit(nr, addr)		bitop(___clear_bit, nr, addr)
+#define __change_bit(nr, addr)		bitop(___change_bit, nr, addr)
+#define __test_and_set_bit(nr, addr)	bitop(___test_and_set_bit, nr, addr)
+#define __test_and_clear_bit(nr, addr)	bitop(___test_and_clear_bit, nr, addr)
+#define __test_and_change_bit(nr, addr)	bitop(___test_and_change_bit, nr, addr)
+
+#define test_bit(nr, addr)		bitop(_test_bit, nr, addr)
+#define test_bit_acquire(nr, addr)	bitop(_test_bit_acquire, nr, addr)
+
+/* Nanosecond scalar representation for kernel time values */
+typedef s64	ktime_t;
+
+/**
+ * The type used for indexing onto a disc or disc partition.
+ *
+ * Linux always considers sectors to be 512 bytes long independently
+ * of the devices real block size.
+ *
+ * blkcnt_t is the type of the inode's block count.
+ */
+typedef u64 sector_t;
 
 typedef struct refcount_struct {
 	atomic_uint refs;
@@ -645,7 +941,6 @@ struct word_at_a_time {
 	const unsigned long high_bits;
 };
 
-/* suggested by gpt 5.2, hopefully */
 static inline void align_rsp16_before_glibc_call(void){
 #if defined(__x86_64__)
 	uintptr_t sp;
@@ -653,6 +948,140 @@ static inline void align_rsp16_before_glibc_call(void){
 	/* If sp is 8 mod 16 (or anything nonzero), alloca(sp & 0xf) makes it 0 mod 16. */
 	alloca(sp & 0xf);
 #endif
+}
+
+static inline int ilog2(u64 n){
+	return n ? (63 - __builtin_clzll(n)) : -1;
+}
+
+/**
+ * generic___set_bit - Set a bit in memory
+ * @nr: the bit to set
+ * @addr: the address to start counting from
+ *
+ * Unlike set_bit(), this function is non-atomic and may be reordered.
+ * If it's called on the same region of memory simultaneously, the effect
+ * may be that only one operation succeeds.
+ */
+static inline void generic___set_bit(unsigned long nr, volatile unsigned long *addr){
+	unsigned long mask = BIT_MASK(nr);
+	unsigned long *p = ((unsigned long *)addr) + BIT_WORD(nr);
+
+	*p  |= mask;
+}
+
+static inline void generic___clear_bit(unsigned long nr, volatile unsigned long *addr){
+	unsigned long mask = BIT_MASK(nr);
+	unsigned long *p = ((unsigned long *)addr) + BIT_WORD(nr);
+
+	*p &= ~mask;
+}
+
+/**
+ * generic___change_bit - Toggle a bit in memory
+ * @nr: the bit to change
+ * @addr: the address to start counting from
+ *
+ * Unlike change_bit(), this function is non-atomic and may be reordered.
+ * If it's called on the same region of memory simultaneously, the effect
+ * may be that only one operation succeeds.
+ */
+static inline void generic___change_bit(unsigned long nr, volatile unsigned long *addr){
+	unsigned long mask = BIT_MASK(nr);
+	unsigned long *p = ((unsigned long *)addr) + BIT_WORD(nr);
+
+	*p ^= mask;
+}
+
+/**
+ * generic___test_and_set_bit - Set a bit and return its old value
+ * @nr: Bit to set
+ * @addr: Address to count from
+ *
+ * This operation is non-atomic and can be reordered.
+ * If two examples of this operation race, one can appear to succeed
+ * but actually fail.  You must protect multiple accesses with a lock.
+ */
+static inline bool generic___test_and_set_bit(unsigned long nr, volatile unsigned long *addr){
+	unsigned long mask = BIT_MASK(nr);
+	unsigned long *p = ((unsigned long *)addr) + BIT_WORD(nr);
+	unsigned long old = *p;
+
+	*p = old | mask;
+	return (old & mask) != 0;
+}
+
+/**
+ * generic___test_and_clear_bit - Clear a bit and return its old value
+ * @nr: Bit to clear
+ * @addr: Address to count from
+ *
+ * This operation is non-atomic and can be reordered.
+ * If two examples of this operation race, one can appear to succeed
+ * but actually fail.  You must protect multiple accesses with a lock.
+ */
+static inline bool generic___test_and_clear_bit(unsigned long nr, volatile unsigned long *addr){
+	unsigned long mask = BIT_MASK(nr);
+	unsigned long *p = ((unsigned long *)addr) + BIT_WORD(nr);
+	unsigned long old = *p;
+
+	*p = old & ~mask;
+	return (old & mask) != 0;
+}
+
+/* WARNING: non atomic and it can be reordered! */
+static inline bool generic___test_and_change_bit(unsigned long nr, volatile unsigned long *addr){
+	unsigned long mask = BIT_MASK(nr);
+	unsigned long *p = ((unsigned long *)addr) + BIT_WORD(nr);
+	unsigned long old = *p;
+
+	*p = old ^ mask;
+	return (old & mask) != 0;
+}
+
+/**
+ * generic_test_bit - Determine whether a bit is set
+ * @nr: bit number to test
+ * @addr: Address to start counting from
+ */
+static inline bool generic_test_bit(unsigned long nr, const volatile unsigned long *addr){
+	/*
+	 * Unlike the bitops with the '__' prefix above, this one *is* atomic,
+	 * so `volatile` must always stay here with no cast-aways. See
+	 * `Documentation/atomic_bitops.txt` for the details.
+	 */
+	return 1UL & (addr[BIT_WORD(nr)] >> (nr & (BITS_PER_LONG-1)));
+}
+
+/**
+ * ror32 - rotate a 32-bit value right
+ * @word: value to rotate
+ * @shift: bits to roll
+ */
+static inline __u32 ror32(__u32 word, unsigned int shift){
+	return (word >> (shift & 31)) | (word << ((-shift) & 31));
+}
+
+/**
+ * rol32 - rotate a 32-bit value left
+ * @word: value to rotate
+ * @shift: bits to roll
+ */
+static inline u32 rol32(__u32 word, unsigned int shift){
+	return (word << (shift & 31)) | (word >> ((-shift) & 31));
+}
+
+static inline __sum16 csum_fold(__wsum csum){
+        u32 sum = (__force u32)csum;
+        return (__force __sum16)((~sum - ror32(sum, 16)) >> 16);
+}
+
+static inline int lockdep_rht_mutex_is_held(struct rhashtable *ht){
+	return 1;
+}
+
+static inline int lockdep_rht_bucket_is_held(const struct bucket_table *tbl, u32 hash){
+	return 1;
 }
 
 static inline bool strstarts(const char *str, const char *prefix){

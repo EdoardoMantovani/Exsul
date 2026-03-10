@@ -1,30 +1,42 @@
 struct sk_buff *skb_copy(const struct sk_buff *skb, int gfp_mask){
-	int headerlen = 0;
-	unsigned int size = 0;
-	struct sk_buff *n = NULL;
+	unsigned int tail_off = 0;
+	unsigned int headroom = 0;
+	unsigned int data_capacity = 0;
+	struct sk_buff *copied_skb = NULL;
+
+	if (skb == NULL){
+		return NULL;
+	}
 
 	if (!skb_frags_readable(skb)){
 		return NULL;
 	}
 
-	//if (skb_shinfo(skb)->gso_type & SKB_GSO_FRAGLIST)){
-	//	return NULL;
-	//}
-
-	headerlen = skb_headroom(skb);
-	size = skb_end_offset(skb) + skb->data_len;
-	n = __alloc_skb(size, gfp_mask, skb_alloc_rx_flag(skb), NUMA_NO_NODE);
-	if (!n){
+	if (skb->data_len != 0 || skb_is_nonlinear(skb)){
 		return NULL;
 	}
 
-	/* Set the data pointer */
-	skb_reserve(n, headerlen);
-	/* Set the tail pointer and length */
-	skb_put(n, skb->len);
+	headroom      = skb_headroom(skb);
+	data_capacity = skb_end_offset(skb);
+	tail_off      = skb_tail_offset(skb);
 
-	//(skb_copy_bits(skb, -headerlen, n->head, headerlen + skb->len));
+	/* always ignore the last argument of '__alloc_skb' */
+	copied_skb = __alloc_skb(data_capacity, gfp_mask, skb_alloc_rx_flag(skb), 0);
+	if (copied_skb == NULL){
+		return NULL;
+	}
+	memcpy(copied_skb->head, skb->head, tail_off);
+	copied_skb->data = copied_skb->head + headroom;
+	skb_set_tail_offset(copied_skb, tail_off);
+	copied_skb->len      = skb->len;
+	copied_skb->data_len = 0;
+	skb_copy_header(copied_skb, skb);
+	copied_skb->cloned = 0;
+	copied_skb->nohdr = 0;
+	copied_skb->data = copied_skb->head + headroom;
+	skb_set_tail_offset(copied_skb, tail_off);
+	skb_set_end_offset(copied_skb, data_capacity);
+	atomic_store(&skb_shinfo(copied_skb)->dataref, 1);
 
-	skb_copy_header(n, skb);
-	return n;
+	return copied_skb;
 }

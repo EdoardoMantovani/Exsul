@@ -7,9 +7,9 @@ void wiphy_rfkill_start_polling(struct wiphy *wiphy){
 		return;
 	}
 
-	director.rdev.rfkill_ops.poll = rfkill_poll_cb;
-	director.rfkill.polling_paused = false;
-	if (director.rfkill.suspended == true){
+	director.rdev->rfkill_ops.poll = rfkill_poll_cb;
+	director.rfkill->polling_paused = false;
+	if (director.rfkill->suspended == true){
 		return;
 	}
 	//director.rdev->rfkill_ops.poll();

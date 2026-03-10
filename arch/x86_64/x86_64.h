@@ -45,15 +45,34 @@ struct exception_table_entry {
 };
 #endif
 
+bool constant_test_bit(int nr, const void *addr){
+	const u32 *p = addr;
+	return ((1UL << (nr & 31)) & (p[nr >> 5])) != 0;
+}
+
+bool variable_test_bit(int nr, const void *addr){
+	bool v = false;
+	const u32 *p = addr;
+
+	asm("btl %2,%1" : "=@ccc" (v) : "m" (*p), "Ir" (nr));
+	return v;
+}
+
+#define test_bit(nr,addr) (__builtin_constant_p(nr) ? constant_test_bit((nr),(addr)) : variable_test_bit((nr),(addr)))
+
+void set_bit(int nr, void *addr){
+	asm("btsl %1,%0" : "+m" (*(u32 *)addr) : "Ir" (nr));
+}
+
 int module_frob_arch_sections(Elf(Ehdr) *hdr, Elf(Shdr) *sechdrs, char *secstrings, struct module *mod){
 	return 0;
 }
 
-static inline void alternatives_smp_module_add(struct module *mod, char *name, void *locks, void *locks_end, void *text, void *text_end) {
+void alternatives_smp_module_add(struct module *mod, char *name, void *locks, void *locks_end, void *text, void *text_end) {
 	/* do nothing here */
 }
 
-static unsigned long zero_bytemask(unsigned long bits){
+unsigned long zero_bytemask(unsigned long bits){
 	return bits;
 }
 
@@ -94,7 +113,7 @@ void arch__const_udelay(unsigned long xloops){
 	__delay(++xloops);
 }
 
-static void *x86_64_make_trampoline(void *target_stub){
+void *x86_64_make_trampoline(void *target_stub){
 	unsigned char *current_stub = NULL;
 
 	if(director.trampoline_area == NULL){
@@ -366,7 +385,7 @@ int module_finalize(const Elf(Ehdr) *hdr, const Elf(Shdr) *sechdrs, struct modul
         return 0;
 }
 
-static int __write_relocate_add(Elf(Shdr) *sechdrs, const char *strtab, unsigned int symindex, unsigned int relsec,  struct module *me, void *(*write)(void *dest, const void *src, size_t len), bool apply){
+int __write_relocate_add(Elf(Shdr) *sechdrs, const char *strtab, unsigned int symindex, unsigned int relsec,  struct module *me, void *(*write)(void *dest, const void *src, size_t len), bool apply){
         unsigned int i                                  = 0;
         Elf(Rela) *rel                                  = (void *)sechdrs[relsec].sh_addr;
         Elf(Sym) *sym                                   = NULL;
@@ -438,7 +457,7 @@ overflow:
         return -ENOEXEC;
 }
 
-static int write_relocate_add(Elf(Shdr) *sechdrs, const char *strtab, unsigned int symindex, unsigned int relsec, struct module *me, bool apply){
+int write_relocate_add(Elf(Shdr) *sechdrs, const char *strtab, unsigned int symindex, unsigned int relsec, struct module *me, bool apply){
         signed int ret                                  = 0;
         bool early                                      = me->state == MODULE_STATE_UNFORMED;
         void *(*write)(void *, const void *, size_t)    = memcpy;

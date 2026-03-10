@@ -13,11 +13,15 @@
 #include <elf.h>
 #include <fcntl.h>
 #include <libusb-1.0/libusb.h>
+#include <linux/udp.h>
+#include <linux/in.h>
+#include <linux/in6.h>
 #include <linux/const.h>
 #include <linux/if_ether.h>
 #include <linux/nl80211.h>
 #include <linux/swab.h>
 #include <linux/types.h>
+#include <linux/ethtool.h>
 #include <linux/usb/ch9.h>
 #include <pthread.h>
 #include <signal.h>
@@ -76,7 +80,14 @@
 #define __s32 s32
 #define __s64 s64
 
-#include "utils.h"
+#define be8  __be8
+#define be16 __be16
+#define be32 __be32
+#define be64 __be64
+
+#include <utils.h>
+#include <jhash.h>
+#include <struct_definition.h>
 
 /* defines the maximun size of the buffer data which can be transferred from the user to the kernel stub */
 #define MAX_DEBUGFS_SIZE	128
@@ -90,6 +101,12 @@
 /* define the number of maximun lkm which can be loaded in memory for one istance of this application */
 #define MAX_ALLOCATED_LKM_NUMBER 12
 
+/* size for the sk_buff struct, usually is around 384 bytes */
+#define SK_BUFF_STRUCT_SIZE	512
+
+/* maximun number of files that can be opened by the kernel module */
+#define MAX_FILE_IDX		32
+
 #define NR_KMALLOC_TYPES	8
 #define	NUMA_NO_NODE		(-1)
 
@@ -98,8 +115,23 @@
 /* this maximum is arbitrary */
 #define USB_MAXINTERFACES	32
 #define USB_MAXIADS		(USB_MAXINTERFACES/2)
-#define USB_MAX_ENDPOINT_NUM 12
+#define USB_MAX_ENDPOINT_NUM	12
 
+#define GFP_KERNEL		0
+#define GFP_ATOMIC		0
+#define __GFP_NOWARN		0
+#define __GFP_ZERO		0
+
+#define L1_CACHE_SHIFT		5
+#define L1_CACHE_BYTES		(1 << L1_CACHE_SHIFT)
+
+#define PAGE_SIZE		4096
+#define SMP_CACHE_BYTES		L1_CACHE_BYTES
+
+#define WHITEOUT_MODE		0
+#define WHITEOUT_DEV		0
+
+#define CSUM_MANGLED_0		((__force __sum16)0xffff)
 #define TIMER_CPUMASK		0x0003FFFF
 #define TIMER_MIGRATING		0x00040000
 #define TIMER_BASEMASK		(TIMER_CPUMASK | TIMER_MIGRATING)
@@ -127,6 +159,9 @@
 
 /* for knowing the vid/pid of the usb device associated to a loaded lkm, we can read the data pointed by the symbol 'usb_device_id' */
 #define USB_TABLE_SYM_NAME	"__mod_device_table__usb__"
+
+#define MAX_DRIVER_TO_USERSPACE_IO_SIZE	256
+#define MAX_USERSPACE_TO_DRIVER_IO_SIZE	256
 
 /* macro used for getting the current 'task_struct' */
 #define current (current_thread_info())
@@ -192,13 +227,6 @@ enum irqreturn {
 	IRQ_WAKE_THREAD		= (1 << 1),
 };
 
-struct sock;
-struct device;
-struct pci_dev;
-struct net_device;
-struct pci_driver;
-struct work_struct;
-
 /* callbacks used in the 'work_struct' */
 typedef void (*work_func_t)(struct work_struct *work);
 
@@ -212,6 +240,8 @@ typedef void (*swap_func_t)(void *a, void *b, int size);
 
 typedef int (*cmp_r_func_t)(const void *a, const void *b, const void *priv);
 typedef int (*cmp_func_t)(const void *a, const void *b);
+
+typedef unsigned long __bitwise netmem_ref;
 
 struct wait_queue_entry;
 typedef int (*wait_queue_func_t)(struct wait_queue_entry *wq_entry, unsigned mode, int flags, void *key);
@@ -235,6 +265,36 @@ struct hlist_head {
 struct hlist_node {
 	struct hlist_node *next;
 	struct hlist_node **pprev;
+};
+
+struct kobject {
+	const char		*name;
+	struct list_head	entry;
+	struct kobject		*parent;
+	struct kset		*kset;
+	const struct kobj_type	*ktype;
+	struct kernfs_node	*sd; /* sysfs directory entry */
+	struct kref		kref;
+
+	unsigned int state_initialized:1;
+	unsigned int state_in_sysfs:1;
+	unsigned int state_add_uevent_sent:1;
+	unsigned int state_remove_uevent_sent:1;
+	unsigned int uevent_suppress:1;
+
+	/* 'CONFIG_DEBUG_KOBJECT_RELEASE' usually isn't enabled in most kernels... */
+#ifdef CONFIG_DEBUG_KOBJECT_RELEASE
+	struct delayed_work	release;
+#endif
+};
+
+struct cdev {
+	struct kobject kobj;
+	struct module *owner;
+	const struct file_operations *ops;
+	struct list_head list;
+	u32 dev;
+	unsigned int count;
 };
 
 /*
@@ -281,15 +341,56 @@ struct timer_list {
 	u32			flags;
 };
 
-struct sk_buff_head {
-	/* These two members must be first. */
-	struct_group_tagged(sk_buff_list, list,
-		struct sk_buff	*next;
-		struct sk_buff	*prev;
-	);
+struct rb_node {
+	unsigned long  __rb_parent_color;
+	struct rb_node *rb_right;
+	struct rb_node *rb_left;
+} __attribute__((aligned(sizeof(long))));
+/* The alignment might seem pointless, but allegedly CRIS needs it */
 
-	__u32		qlen;
+struct rb_root {
+	struct rb_node *rb_node;
 };
+
+/*
+ * Leftmost-cached rbtrees.
+ *
+ * We do not cache the rightmost node based on footprint
+ * size vs number of potential users that could benefit
+ * from O(1) rb_last(). Just not worth it, users that want
+ * this feature can always implement the logic explicitly.
+ * Furthermore, users that want to cache both pointers may
+ * find it a bit asymmetric, but that's ok.
+ */
+struct rb_root_cached {
+	struct rb_root rb_root;
+	struct rb_node *rb_leftmost;
+};
+
+/**
+ * struct callback_head - callback structure for use with RCU and task_work
+ * @next: next update requests in a list
+ * @func: actual update function to call after the grace period.
+ *
+ * The struct is aligned to size of pointer. On most architectures it happens
+ * naturally due ABI requirements, but some architectures (like CRIS) have
+ * weird ABI and we need to ask it explicitly.
+ *
+ * The alignment is required to guarantee that bit 0 of @next will be
+ * clear under normal conditions -- as long as we use call_rcu() or
+ * call_srcu() to queue the callback.
+ *
+ * This guarantee is important for few reasons:
+ *  - future call_rcu_lazy() will make use of lower bits in the pointer;
+ *  - the structure shares storage space in struct page with @compound_head,
+ *    which encode PageTail() in bit 0. The guarantee is needed to avoid
+ *    false-positive PageTail().
+ */
+struct callback_head {
+	struct callback_head *next;
+	void (*func)(struct callback_head *head);
+} __attribute__((aligned(sizeof(void *))));
+#define rcu_head callback_head
 
 struct work_struct {
 	atomic_long data;
@@ -335,6 +436,52 @@ struct urb {
 	struct list_head anchor_list;	/* the URB may be anchored */
 	struct usb_anchor *anchor;
 	/* ... */
+};
+
+/**
+ * struct wakeup_source - Representation of wakeup sources
+ *
+ * @name: Name of the wakeup source
+ * @id: Wakeup source id
+ * @entry: Wakeup source list entry
+ * @lock: Wakeup source lock
+ * @wakeirq: Optional device specific wakeirq
+ * @timer: Wakeup timer list
+ * @timer_expires: Wakeup timer expiration
+ * @total_time: Total time this wakeup source has been active.
+ * @max_time: Maximum time this wakeup source has been continuously active.
+ * @last_time: Monotonic clock when the wakeup source's was touched last time.
+ * @prevent_sleep_time: Total time this source has been preventing autosleep.
+ * @event_count: Number of signaled wakeup events.
+ * @active_count: Number of times the wakeup source was activated.
+ * @relax_count: Number of times the wakeup source was deactivated.
+ * @expire_count: Number of times the wakeup source's timeout has expired.
+ * @wakeup_count: Number of times the wakeup source might abort suspend.
+ * @dev: Struct device for sysfs statistics about the wakeup source.
+ * @active: Status of the wakeup source.
+ * @autosleep_enabled: Autosleep is active, so update @prevent_sleep_time.
+ */
+struct wakeup_source {
+	const char 		*name;
+	int			id;
+	struct list_head	entry;
+	u32			lock;
+	struct wake_irq		*wakeirq;
+	struct timer_list	timer;
+	unsigned long		timer_expires;
+	ktime_t total_time;
+	ktime_t max_time;
+	ktime_t last_time;
+	ktime_t start_prevent_time;
+	ktime_t prevent_sleep_time;
+	unsigned long		event_count;
+	unsigned long		active_count;
+	unsigned long		relax_count;
+	unsigned long		expire_count;
+	unsigned long		wakeup_count;
+	struct device		*dev;
+	bool			active:1;
+	bool			autosleep_enabled:1;
 };
 
 /* Tasklets --- multithreaded analogue of BHs.
@@ -435,6 +582,47 @@ struct kernel_param_ops {
 	void (*free)(void *arg);
 };
 
+struct seq_operations {
+	void * (*start) (struct seq_file *m, int *pos);
+	void (*stop) (struct seq_file *m, void *v);
+	void * (*next) (struct seq_file *m, void *v, int *pos);
+	int (*show) (struct seq_file *m, void *v);
+};
+
+struct seq_file {
+	char *buf;
+	size_t size;
+	size_t from;
+	size_t count;
+	size_t pad_until;
+	int index;
+	int read_pos;
+	pthread_mutex_t lock;
+	const struct seq_operations *op;
+	int poll_event;
+	const struct file *file;
+	void *private;
+};
+
+struct seq_list {
+	int seq_list_entries;
+	struct seq_file *next;
+	struct seq_file *prev;
+};
+
+/* 'struct file' transation layer */
+struct file_layer {
+	/* play with the file pointer, associate a fd with an file pointer used by the kernel module */
+	void *original_file_ptr;
+	int actual_fd;
+	int actual_offset;
+};
+
+struct file_list {
+	int file_list_entries;
+	struct file_layer *elem;
+};
+
 struct usb_device;
 
 struct usb_device_id {
@@ -491,11 +679,11 @@ struct usb_host_endpoint {
 	struct usb_endpoint_descriptor		desc;
 	struct usb_ss_ep_comp_descriptor	ss_ep_comp;
 	struct usb_ssp_isoc_ep_comp_descriptor	ssp_isoc_ep_comp;
-	struct list_head		urb_list;
-	void				*hcpriv;
-	struct ep_device		*ep_dev;	/* For sysfs info */
+	struct list_head			urb_list;
+	void					*hcpriv;
+	struct ep_device			*ep_dev;	/* For sysfs info */
 
-	unsigned char *extra;   /* Extra descriptors */
+	unsigned char				*extra;   /* Extra descriptors */
 	int extralen;
 	int enabled;
 	int streams;
@@ -627,6 +815,25 @@ struct internal_cb_table {
 
 struct module_controller;
 extern struct module_controller director;
+
+/**
+ * refcount_set - set a refcount's value
+ * @r: the refcount
+ * @n: value to which the refcount will be set
+ */
+static inline void refcount_set(refcount_t *r, int n){
+	atomic_store(&r->refs, n);
+}
+
+/**
+ * refcount_read - get a refcount's value
+ * @r: the refcount
+ *
+ * Return: the refcount's value
+ */
+static inline unsigned int refcount_read(const refcount_t *r){
+	return atomic_load(&r->refs);
+}
 
 /**
  * INIT_LIST_HEAD - Initialize a list_head structure
@@ -831,6 +1038,62 @@ static inline void list_replace(struct list_head *old, struct list_head *new){
 	new->next->prev = new;
 	new->prev = old->prev;
 	new->prev->next = new;
+}
+
+/*
+ * Insert a new entry between two known consecutive entries.
+ *
+ * This is only for internal list manipulation where we know
+ * the prev/next entries already!
+ */
+static inline void __list_add_rcu(struct list_head *new, struct list_head *prev, struct list_head *next){
+	if (!__list_add_valid(new, prev, next)){
+		return;
+	}
+	new->next = next;
+	new->prev = prev;
+//	rcu_assign_pointer(list_next_rcu(prev), new);
+	next->prev = new;
+}
+
+/**
+ * list_add_rcu - add a new entry to rcu-protected list
+ * @new: new entry to be added
+ * @head: list head to add it after
+ *
+ * Insert a new entry after the specified head.
+ * This is good for implementing stacks.
+ *
+ * The caller must take whatever precautions are necessary
+ * (such as holding appropriate locks) to avoid racing
+ * with another list-mutation primitive, such as list_add_rcu()
+ * or list_del_rcu(), running on this same list.
+ * However, it is perfectly legal to run concurrently with
+ * the _rcu list-traversal primitives, such as
+ * list_for_each_entry_rcu().
+ */
+static inline void list_add_rcu(struct list_head *new, struct list_head *head){
+	__list_add_rcu(new, head, head->next);
+}
+
+/**
+ * list_add_tail_rcu - add a new entry to rcu-protected list
+ * @new: new entry to be added
+ * @head: list head to add it before
+ *
+ * Insert a new entry before the specified head.
+ * This is useful for implementing queues.
+ *
+ * The caller must take whatever precautions are necessary
+ * (such as holding appropriate locks) to avoid racing
+ * with another list-mutation primitive, such as list_add_tail_rcu()
+ * or list_del_rcu(), running on this same list.
+ * However, it is perfectly legal to run concurrently with
+ * the _rcu list-traversal primitives, such as
+ * list_for_each_entry_rcu().
+ */
+static inline void list_add_tail_rcu(struct list_head *new, struct list_head *head){
+	__list_add_rcu(new, head->prev, head);
 }
 
 static inline void __refcount_add(int i, refcount_t *r, int *oldp){
@@ -1166,12 +1429,52 @@ static void *kthread_trampoline(void *arg){
 	return NULL;
 }
 
-#include <ieee80211.h>
+static unsigned long round_jiffies_common(unsigned long j, int cpu, bool force_up){
+	int rem = 0;
+	unsigned long original = j;
+
+	/*
+	 * We don't want all cpus firing their timers at once hitting the
+	 * same lock or cachelines, so we skew each extra cpu with an extra
+	 * 3 jiffies. This 3 jiffies came originally from the mm/ code which
+	 * already did this.
+	 * The skew is done by adding 3*cpunr, then round, then subtract this
+	 * extra offset again.
+	 */
+	j += cpu * 3;
+
+	rem = j % HZ;
+
+	/*
+	 * If the target jiffy is just after a whole second (which can happen
+	 * due to delays of the timer irq, long irq off times etc etc) then
+	 * we should round down to the whole second, not up. Use 1/4th second
+	 * as cutoff for this rounding as an extreme upper bound for this.
+	 * But never round down if @force_up is set.
+	 */
+	if (rem < HZ/4 && !force_up){ /* round down */
+		j = j - rem;
+	}else{ /* round up */
+		j = j - rem + HZ;
+	}
+	/* now that we have rounded, subtract the extra skew again */
+	j -= cpu * 3;
+
+	/*
+	 * Make sure j is still in the future. Otherwise return the
+	 * unmodified value.
+	 */
+//	return time_is_after_jiffies(j) ? j : original;
+}
+
 #include <prototypes.h>
 #include <single_offset.h>
 #include <struct_offset.h>
 #include <mod_controller.h>
-#include <module.h>
+#include <hashtable.h>
+#include <bits.h>
 #include <skb.h>
+#include <ieee80211.h>
+#include <module.h>
 
 #endif

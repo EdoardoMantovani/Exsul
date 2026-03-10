@@ -53,9 +53,8 @@ void thread_start(void)
 	void *ptr = NULL;
 	//init_waitqueue_head(&wqueue);
 	pr_info("initialized waitqueue head\n");
-	//msleep(10000);
+
 	struct task_struct *str = NULL;
-	printk("hello\n");
 	printk("wait_thread is %p\n", wait_thread);
 	wait_thread = __kmalloc_noprof(800, GFP_KERNEL);
 	memset(wait_thread, 'A', 800);

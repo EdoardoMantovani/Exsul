@@ -86,11 +86,13 @@ static int __init skb_sandbox_init(void)
 	 * Make an independent copy (deep copy). Editing the copy will not
 	 * affect the original.
 	 */
+	printk("skb copy ongoing..\n");
 	skb_copy2 = skb_copy(skb, GFP_KERNEL);
 	if (!skb_copy2) {
 		kfree_skb(skb);
 		return -ENOMEM;
 	}
+	printk("copied skb!\n");
 
 	/* Mutate the copy: flip one byte in the payload area. */
 	if (skb_copy2->len >= ETH_HLEN + sizeof(*iph) + 1) {
@@ -99,8 +101,9 @@ static int __init skb_sandbox_init(void)
 	}
 
 	/* Trim the copy to remove the last 8 bytes (if possible). */
-	if (skb_copy2->len > 8)
+	if (skb_copy2->len > 8){
 		skb_trim(skb_copy2, skb_copy2->len - 8);
+	}
 
 	dump_skb("copied/edited skb: ", skb_copy2);
 

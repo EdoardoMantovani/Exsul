@@ -686,16 +686,17 @@ static void __layout_sections(struct module *mod, struct load_info *info,
 			    is_init != module_init_layout_section(sname)) {
 				continue;
 			}
-
 			if ((type == MOD_INVALID)) {
 				continue;
 			}
 
 			s->sh_entsize =
 			    module_get_offset_and_type(mod, type, s, i);
-			printf("\t%s\n", sname);
+			printf("%s\n", sname);
 		}
+
 	}
+
 }
 
 static void layout_sections(struct module *mod, struct load_info *info) {
@@ -1101,7 +1102,7 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 			} else {
 				sym[i].st_value = (Elf64_Addr)(uintptr_t)target;
 #ifdef ENABLE_DBG_PRINT
-				printf("resolved %-24s target=%p (no tramp)\n",
+				printf("resolved %-24s target=%p\n",
 				       name, target);
 #endif
 			}
