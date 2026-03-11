@@ -1,6 +1,13 @@
 #ifndef __UTILS_H__
 #define __UTILS_H__
 
+#ifndef SPEED_1600000
+#define SPEED_1600000		1600000
+#endif
+
+#define	RB_RED			0
+#define	RB_BLACK		1
+
 #define OFFSET_TABLE_SECTION	__attribute__((section(".offset")))
 #define MODULE_INPUT_MIN_LEN 	4
 
@@ -72,6 +79,9 @@
 #define NULLS_MARKER(value) (1UL | (((long)value) << 1))
 #define INIT_HLIST_NULLS_HEAD(ptr, nulls) ((ptr)->first = (struct hlist_nulls_node *) NULLS_MARKER(nulls))
 #define HLIST_NULLS_HEAD_INIT(nulls) {.first = (struct hlist_nulls_node *)NULLS_MARKER(nulls)}
+
+#define DECLARE_BITMAP(name,bits)		unsigned long name[BITS_TO_LONGS(bits)]
+#define __ETHTOOL_DECLARE_LINK_MODE_MASK(name)	DECLARE_BITMAP(name, __ETHTOOL_LINK_MODE_MASK_NBITS)
 
 /*
  * small_const_nbits(n) is true precisely when it is known at compile-time
@@ -213,6 +223,28 @@
 #define le64_to_cpu __le64_to_cpu
 #endif
 
+/**
+ * do_div - returns 2 values: calculate remainder and update new dividend
+ * @n: uint64_t dividend (will be updated)
+ * @base: uint32_t divisor
+ *
+ * Summary:
+ * ``uint32_t remainder = n % base;``
+ * ``n = n / base;``
+ *
+ * Return: (uint32_t)remainder
+ *
+ * NOTE: macro parameter @n is evaluated multiple times,
+ * beware of side effects!
+ */
+# define do_div(n,base) ({					\
+	uint32_t __base = (base);				\
+	uint32_t __rem;						\
+	__rem = ((uint64_t)(n)) % __base;			\
+	(n) = ((uint64_t)(n)) / __base;				\
+	__rem;							\
+ })
+
 #ifndef htonl
 #if __BYTE_ORDER == __BIG_ENDIAN
 #define htonl(x) x
@@ -221,8 +253,17 @@
 #endif
 #endif
 
+#define rb_parent(r)   ((struct rb_node *)((r)->__rb_parent_color & ~3))
+#define	rb_entry(ptr, type, member) container_of(ptr, type, member)
 #define RB_ROOT (struct rb_root) { NULL, }
 #define RB_ROOT_CACHED (struct rb_root_cached) { {NULL, }, NULL }
+
+#define __rb_color(pc)     ((pc) & 1)
+#define __rb_is_black(pc)  __rb_color(pc)
+#define __rb_is_red(pc)    (!__rb_color(pc))
+#define rb_color(rb)       __rb_color((rb)->__rb_parent_color)
+#define rb_is_red(rb)      __rb_is_red((rb)->__rb_parent_color)
+#define rb_is_black(rb)    __rb_is_black((rb)->__rb_parent_color)
 
 #define rcu_assign_pointer(p, v)					      \
 do {									      \
@@ -401,7 +442,6 @@ do {									\
 #define for_each_mod_mem_type(type)                     \
         for (enum mod_mem_type (type) = 0;              \
              (type) < MOD_MEM_NUM_TYPES; (type)++)
-
 
 #define for_class_mod_mem_type(type, class)             \
         for_each_mod_mem_type(type)                     \
@@ -713,6 +753,17 @@ out:										\
 	     pos = n, n = pos->prev)
 
 /**
+ * list_for_each_entry	-	iterate over list of given type
+ * @pos:	the type * to use as a loop cursor.
+ * @head:	the head for your list.
+ * @member:	the name of the list_head within the struct.
+ */
+#define list_for_each_entry(pos, head, member)				\
+	for (pos = list_first_entry(head, typeof(*pos), member);	\
+	     !list_entry_is_head(pos, head, member);			\
+	     pos = list_next_entry(pos, member))
+
+/**
  * list_for_each_entry_safe - iterate over list of given type safe against removal of list entry
  * @pos:	the type * to use as a loop cursor.
  * @n:		another type * to use as temporary storage
@@ -906,6 +957,30 @@ typedef struct refcount_struct {
 
 struct kref {
 	refcount_t refcount;
+};
+
+enum {
+	LINK_CAPA_10HD = 0,
+	LINK_CAPA_10FD,
+	LINK_CAPA_100HD,
+	LINK_CAPA_100FD,
+	LINK_CAPA_1000HD,
+	LINK_CAPA_1000FD,
+	LINK_CAPA_2500FD,
+	LINK_CAPA_5000FD,
+	LINK_CAPA_10000FD,
+	LINK_CAPA_20000FD,
+	LINK_CAPA_25000FD,
+	LINK_CAPA_40000FD,
+	LINK_CAPA_50000FD,
+	LINK_CAPA_56000FD,
+	LINK_CAPA_100000FD,
+	LINK_CAPA_200000FD,
+	LINK_CAPA_400000FD,
+	LINK_CAPA_800000FD,
+	LINK_CAPA_1600000FD,
+
+	__LINK_CAPA_MAX,
 };
 
 static const unsigned char _ctype[] = {
@@ -1316,6 +1391,33 @@ static bool is_a_number(unsigned char character){
 		ret = true;
 	}
 	return ret;
+}
+
+static int speed_duplex_to_capa(int speed, unsigned int duplex){
+	if (duplex == DUPLEX_UNKNOWN || (speed > SPEED_1000 && duplex != DUPLEX_FULL)){
+		return -EINVAL;
+	}
+
+	switch (speed) {
+		case SPEED_10: return duplex == DUPLEX_FULL ? LINK_CAPA_10FD : LINK_CAPA_10HD;
+		case SPEED_100: return duplex == DUPLEX_FULL ? LINK_CAPA_100FD : LINK_CAPA_100HD;
+		case SPEED_1000: return duplex == DUPLEX_FULL ? LINK_CAPA_1000FD : LINK_CAPA_1000HD;
+		case SPEED_2500: return LINK_CAPA_2500FD;
+		case SPEED_5000: return LINK_CAPA_5000FD;
+		case SPEED_10000: return LINK_CAPA_10000FD;
+		case SPEED_20000: return LINK_CAPA_20000FD;
+		case SPEED_25000: return LINK_CAPA_25000FD;
+		case SPEED_40000: return LINK_CAPA_40000FD;
+		case SPEED_50000: return LINK_CAPA_50000FD;
+		case SPEED_56000: return LINK_CAPA_56000FD;
+		case SPEED_100000: return LINK_CAPA_100000FD;
+		case SPEED_200000: return LINK_CAPA_200000FD;
+		case SPEED_400000: return LINK_CAPA_400000FD;
+		case SPEED_800000: return LINK_CAPA_800000FD;
+		case SPEED_1600000: return LINK_CAPA_1600000FD;
+	}
+
+	return -EINVAL;
 }
 
 /*

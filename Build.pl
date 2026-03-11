@@ -2,7 +2,7 @@
 
 # Made by Edoardo Mantovani, 2026
 # Rewritten with safer local alias inference and guarded field replacement.
-# version 1.0.1 (7 March 2026)
+# version 1.0.2 (11 March 2026)
 
 use strict;
 use warnings;
@@ -129,6 +129,7 @@ my %struct_whitelist = (
 	"hw"		=> "ieee80211_hw",
 	"urb"		=> "urb",
 	"fops"		=> "file_operations",
+	"netdev"	=> "net_device",
 );
 
 my %field_ctype = (
@@ -220,6 +221,18 @@ my %field_ctype = (
 		"features"		=> "u32",
 		"ext_features"		=> "u8",
 		"priv"			=> "char",
+	},
+	net_device => {
+		"name"			=> "char",
+		"mem_end"		=> "unsigned long",
+		"mem_start"		=> "unsigned long",
+		"base_addr"		=> "unsigned long",
+		"irq"			=> "int",
+		"dev_list"		=> "struct list_head",
+		"napi_list"		=> "struct list_head",
+		"unreg_list"		=> "struct list_head",
+		"ptype_all"		=> "struct list_head",
+		"ptype_specific"	=> "struct list_head",
 	},
 );
 

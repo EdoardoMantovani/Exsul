@@ -5,6 +5,13 @@
 #define IFNAMSIZ 16
 #endif
 
+/*
+ * The maximum number of IPv4 addresses listed for ARP filtering. If the number
+ * of addresses for an interface increase beyond this value, hardware ARP
+ * filtering will be disabled.
+ */
+#define IEEE80211_BSS_ARP_ADDR_LIST_LEN 4
+
 #define NUM_DEFAULT_KEYS 4
 #define NUM_DEFAULT_MGMT_KEYS 2
 #define NUM_DEFAULT_BEACON_KEYS 2
@@ -659,6 +666,36 @@
 	rhl_for_each_entry_rcu(_sta, _tmp,				\
 			       link_sta_info_hash_lookup(local, _addr),	\
 			       link_hash_node)
+
+
+/* flags used in struct ieee80211_if_managed.flags */
+enum ieee80211_sta_flags {
+	IEEE80211_STA_CONNECTION_POLL	= BIT(1),
+	IEEE80211_STA_CONTROL_PORT	= BIT(2),
+	IEEE80211_STA_MFP_ENABLED	= BIT(6),
+	IEEE80211_STA_UAPSD_ENABLED	= BIT(7),
+	IEEE80211_STA_NULLFUNC_ACKED	= BIT(8),
+	IEEE80211_STA_ENABLE_RRM	= BIT(15),
+};
+
+enum ieee80211_conn_mode {
+	IEEE80211_CONN_MODE_S1G,
+	IEEE80211_CONN_MODE_LEGACY,
+	IEEE80211_CONN_MODE_HT,
+	IEEE80211_CONN_MODE_VHT,
+	IEEE80211_CONN_MODE_HE,
+	IEEE80211_CONN_MODE_EHT,
+};
+
+#define IEEE80211_CONN_MODE_HIGHEST	IEEE80211_CONN_MODE_EHT
+
+enum ieee80211_conn_bw_limit {
+	IEEE80211_CONN_BW_LIMIT_20,
+	IEEE80211_CONN_BW_LIMIT_40,
+	IEEE80211_CONN_BW_LIMIT_80,
+	IEEE80211_CONN_BW_LIMIT_160, /* also 80+80 */
+	IEEE80211_CONN_BW_LIMIT_320,
+};
 
 /**
  * enum ieee80211_max_queues - maximum number of queues
@@ -2224,6 +2261,15 @@ enum cfg80211_event_type {
 	EVENT_PORT_AUTHORIZED,
 };
 
+struct wiphy_work;
+typedef void (*wiphy_work_func_t)(struct wiphy *, struct wiphy_work *);
+
+struct wiphy_work {
+	struct list_head entry;
+	wiphy_work_func_t func;
+};
+
+
 struct rfkill {
 	enum rfkill_type	type;
 
@@ -2246,6 +2292,159 @@ struct element {
         u8 id;
         u8 datalen;
         u8 data[];
+} __packed;
+
+/**
+ * struct ieee80211_mcs_info - Supported MCS Set field
+ * @rx_mask: RX mask
+ * @rx_highest: highest supported RX rate. If set represents
+ *	the highest supported RX data rate in units of 1 Mbps.
+ *	If this field is 0 this value should not be used to
+ *	consider the highest RX data rate supported.
+ * @tx_params: TX parameters
+ * @reserved: Reserved bits
+ *
+ * This structure represents the "Supported MCS Set field" as
+ * described in IEEE Std 802.11-2020 section 9.4.2.55.4.
+ */
+struct ieee80211_mcs_info {
+	u8 rx_mask[IEEE80211_HT_MCS_MASK_LEN];
+	__le16 rx_highest;
+	u8 tx_params;
+	u8 reserved[3];
+} __packed;
+
+/**
+ * struct ieee80211_sta_ht_cap - STA's HT capabilities
+ *
+ * This structure describes most essential parameters needed
+ * to describe 802.11n HT capabilities for an STA.
+ *
+ * @ht_supported: is HT supported by the STA
+ * @cap: HT capabilities map as described in 802.11n spec
+ * @ampdu_factor: Maximum A-MPDU length factor
+ * @ampdu_density: Minimum A-MPDU spacing
+ * @mcs: Supported MCS rates
+ */
+struct ieee80211_sta_ht_cap {
+	u16 cap; /* use IEEE80211_HT_CAP_ */
+	bool ht_supported;
+	u8 ampdu_factor;
+	u8 ampdu_density;
+	struct ieee80211_mcs_info mcs;
+};
+
+/**
+ * struct ieee80211_vht_mcs_info - VHT MCS information
+ * @rx_mcs_map: RX MCS map 2 bits for each stream, total 8 streams
+ * @rx_highest: Indicates highest long GI VHT PPDU data rate
+ *	STA can receive. Rate expressed in units of 1 Mbps.
+ *	If this field is 0 this value should not be used to
+ *	consider the highest RX data rate supported.
+ *	The top 3 bits of this field indicate the Maximum NSTS,total
+ *	(a beamformee capability.)
+ * @tx_mcs_map: TX MCS map 2 bits for each stream, total 8 streams
+ * @tx_highest: Indicates highest long GI VHT PPDU data rate
+ *	STA can transmit. Rate expressed in units of 1 Mbps.
+ *	If this field is 0 this value should not be used to
+ *	consider the highest TX data rate supported.
+ *	The top 2 bits of this field are reserved, the
+ *	3rd bit from the top indiciates VHT Extended NSS BW
+ *	Capability.
+ */
+struct ieee80211_vht_mcs_info {
+	__le16 rx_mcs_map;
+	__le16 rx_highest;
+	__le16 tx_mcs_map;
+	__le16 tx_highest;
+} __packed;
+
+/**
+ * struct ieee80211_vht_cap - VHT capabilities
+ *
+ * This structure is the "VHT capabilities element" as
+ * described in 802.11ac D3.0 8.4.2.160
+ * @vht_cap_info: VHT capability info
+ * @supp_mcs: VHT MCS supported rates
+ */
+struct ieee80211_vht_cap {
+	__le32 vht_cap_info;
+	struct ieee80211_vht_mcs_info supp_mcs;
+} __packed;
+
+
+/**
+ * struct ieee80211_sta_vht_cap - STA's VHT capabilities
+ *
+ * This structure describes most essential parameters needed
+ * to describe 802.11ac VHT capabilities for an STA.
+ *
+ * @vht_supported: is VHT supported by the STA
+ * @cap: VHT capabilities map as described in 802.11ac spec
+ * @vht_mcs: Supported VHT MCS rates
+ */
+struct ieee80211_sta_vht_cap {
+	bool vht_supported;
+	u32 cap; /* use IEEE80211_VHT_CAP_ */
+	struct ieee80211_vht_mcs_info vht_mcs;
+};
+
+/**
+ * struct ieee80211_sta_s1g_cap - STA's S1G capabilities
+ *
+ * This structure describes most essential parameters needed
+ * to describe 802.11ah S1G capabilities for a STA.
+ *
+ * @s1g: is STA an S1G STA
+ * @cap: S1G capabilities information
+ * @nss_mcs: Supported NSS MCS set
+ */
+struct ieee80211_sta_s1g_cap {
+	bool s1g;
+	u8 cap[10]; /* use S1G_CAPAB_ */
+	u8 nss_mcs[5];
+};
+
+/**
+ * struct ieee80211_he_mcs_nss_supp - HE Tx/Rx HE MCS NSS Support Field
+ *
+ * This structure holds the data required for the Tx/Rx HE MCS NSS Support Field
+ * described in P802.11ax_D2.0 section 9.4.2.237.4
+ *
+ * @rx_mcs_80: Rx MCS map 2 bits for each stream, total 8 streams, for channel
+ *     widths less than 80MHz.
+ * @tx_mcs_80: Tx MCS map 2 bits for each stream, total 8 streams, for channel
+ *     widths less than 80MHz.
+ * @rx_mcs_160: Rx MCS map 2 bits for each stream, total 8 streams, for channel
+ *     width 160MHz.
+ * @tx_mcs_160: Tx MCS map 2 bits for each stream, total 8 streams, for channel
+ *     width 160MHz.
+ * @rx_mcs_80p80: Rx MCS map 2 bits for each stream, total 8 streams, for
+ *     channel width 80p80MHz.
+ * @tx_mcs_80p80: Tx MCS map 2 bits for each stream, total 8 streams, for
+ *     channel width 80p80MHz.
+ */
+struct ieee80211_he_mcs_nss_supp {
+	__le16 rx_mcs_80;
+	__le16 tx_mcs_80;
+	__le16 rx_mcs_160;
+	__le16 tx_mcs_160;
+	__le16 rx_mcs_80p80;
+	__le16 tx_mcs_80p80;
+} __packed;
+
+/**
+ * struct ieee80211_he_cap_elem - HE capabilities element
+ * @mac_cap_info: HE MAC Capabilities Information
+ * @phy_cap_info: HE PHY Capabilities Information
+ *
+ * This structure represents the fixed fields of the payload of the
+ * "HE capabilities element" as described in IEEE Std 802.11ax-2021
+ * sections 9.4.2.248.2 and 9.4.2.248.3.
+ */
+struct ieee80211_he_cap_elem {
+	u8 mac_cap_info[6];
+	u8 phy_cap_info[11];
 } __packed;
 
 /**
@@ -2621,6 +2820,88 @@ struct ps_data {
 	int sb_count; /* num short beacons til next long beacon */
 };
 
+struct ieee80211_conn_settings {
+	enum ieee80211_conn_mode mode;
+	enum ieee80211_conn_bw_limit bw_limit;
+};
+
+struct ieee80211_mgd_auth_data {
+	struct cfg80211_bss *bss;
+	unsigned long timeout;
+	int tries;
+	u16 algorithm;
+	u16 expected_transaction;
+
+	unsigned long userspace_selectors[BITS_TO_LONGS(128)];
+
+	u8 key[WLAN_KEY_LEN_WEP104];
+	u8 key_len;
+	u8 key_idx;
+	bool done;
+	bool waiting;
+	bool peer_confirmed;
+	bool timeout_started;
+	int link_id;
+
+	u8 ap_addr[ETH_ALEN] __aligned(2);
+
+	u16 sae_trans;
+	u16 sae_status;
+	size_t data_len;
+	u8 data[];
+};
+
+struct ieee80211_mgd_assoc_data {
+	struct {
+		struct cfg80211_bss *bss;
+
+		u8 addr[ETH_ALEN] __aligned(2);
+
+		u8 ap_ht_param;
+
+		struct ieee80211_vht_cap ap_vht_cap;
+
+		size_t elems_len;
+		u8 *elems; /* pointing to inside ie[] below */
+
+		struct ieee80211_conn_settings conn;
+
+		u16 status;
+	} link[IEEE80211_MLD_MAX_NUM_LINKS];
+
+	u8 ap_addr[ETH_ALEN] __aligned(2);
+
+	/* this is for a workaround, so we use it only for non-MLO */
+	const u8 *supp_rates;
+	u8 supp_rates_len;
+
+	unsigned long timeout;
+	int tries;
+
+	u8 prev_ap_addr[ETH_ALEN];
+	u8 ssid[IEEE80211_MAX_SSID_LEN];
+	u8 ssid_len;
+	bool wmm, uapsd;
+	bool need_beacon;
+	bool synced;
+	bool timeout_started;
+	bool comeback; /* whether the AP has requested association comeback */
+	bool s1g;
+	bool spp_amsdu;
+
+	s8 assoc_link_id;
+
+	__le16 ext_mld_capa_ops;
+
+	u8 fils_nonces[2 * FILS_NONCE_LEN];
+	u8 fils_kek[FILS_MAX_KEK_LEN];
+	size_t fils_kek_len;
+
+	size_t ie_len;
+	u8 *ie_pos; /* used to fill ie[] with link[].elems */
+	u8 ie[];
+};
+
 struct ieee80211_if_ap {
 	struct list_head vlans; /* write-protected with RTNL and local->mtx */
 
@@ -2639,6 +2920,66 @@ struct ieee80211_if_vlan {
 	atomic_uint num_mcast_sta; /* number of stations receiving multicast */
 };
 
+struct ieee80211_if_managed {
+	unsigned long beacon_timeout;
+	unsigned long probe_timeout;
+	int probe_send_count;
+	bool nullfunc_failed;
+	u8 connection_loss:1;
+	u8 driver_disconnect:1;
+	u8 reconnect:1;
+	u8 associated:1;
+
+	struct ieee80211_mgd_auth_data  auth_data;
+	struct ieee80211_mgd_assoc_data assoc_data;
+
+	unsigned long userspace_selectors[BITS_TO_LONGS(128)];
+
+	bool powersave; /* powersave requested for this iface */
+	bool broken_ap; /* AP is broken -- turn off powersave */
+
+	unsigned int flags;
+
+	u16 mcast_seq_last;
+
+	bool status_acked;
+	bool status_received;
+	__le16 status_fc;
+
+	/*
+	 * Bitmask of enabled u-apsd queues,
+	 * IEEE80211_WMM_IE_STA_QOSINFO_AC_BE & co. Needs a new association
+	 * to take effect.
+	 */
+	unsigned int uapsd_queues;
+
+	/*
+	 * Maximum number of buffered frames AP can deliver during a
+	 * service period, IEEE80211_WMM_IE_STA_QOSINFO_SP_ALL or similar.
+	 * Needs a new association to take effect.
+	 */
+	unsigned int uapsd_max_sp_len;
+
+	u8 use_4addr;
+
+	/*
+	 * State variables for keeping track of RSSI of the AP currently
+	 * connected to and informing driver when RSSI has gone
+	 * below/above a certain threshold.
+	 */
+	int rssi_min_thold;
+	int rssi_max_thold;
+
+	/* Information elements from the last transmitted (Re)Association
+	 * Request frame.
+	 */
+	u8 *assoc_req_ies;
+	size_t assoc_req_ies_len;
+
+	u16 removed_links;
+	u8 dialog_token_alloc;
+};
+
 struct ieee80211_sub_if_data {
 	struct list_head list;
 
@@ -2651,7 +2992,6 @@ struct ieee80211_sub_if_data {
 
 	struct net_device *dev;
 	struct ieee80211_local *local;
-
 	unsigned int flags;
 	unsigned long state;
 
@@ -2695,6 +3035,478 @@ struct ieee80211_sub_if_data {
 	/* Beacon frame (non-MCS) rate (as a bitmap) */
 	u32 beacon_rateidx_mask[NUM_NL80211_BANDS];
 	bool beacon_rate_set;
+
+	union {
+		struct ieee80211_if_ap ap;
+		struct ieee80211_if_vlan vlan;
+		struct ieee80211_if_managed mgd;
+	} u;
+
+	u32 tx_handlers_drop;
+	/* must be last, dynamically sized area in this! */
+	struct ieee80211_vif *vif;
+};
+
+/**
+ * struct ieee80211_edmg - EDMG configuration
+ *
+ * This structure describes most essential parameters needed
+ * to describe 802.11ay EDMG configuration
+ *
+ * @channels: bitmap that indicates the 2.16 GHz channel(s)
+ *	that are allowed to be used for transmissions.
+ *	Bit 0 indicates channel 1, bit 1 indicates channel 2, etc.
+ *	Set to 0 indicate EDMG not supported.
+ * @bw_config: Channel BW Configuration subfield encodes
+ *	the allowed channel bandwidth configurations
+ */
+struct ieee80211_edmg {
+	u8 channels;
+	enum ieee80211_edmg_bw_config bw_config;
+};
+
+/**
+ * struct cfg80211_chan_def - channel definition
+ * @chan: the (control) channel
+ * @width: channel width
+ * @center_freq1: center frequency of first segment
+ * @center_freq2: center frequency of second segment
+ *	(only with 80+80 MHz)
+ * @edmg: define the EDMG channels configuration.
+ *	If edmg is requested (i.e. the .channels member is non-zero),
+ *	chan will define the primary channel and all other
+ *	parameters are ignored.
+ * @freq1_offset: offset from @center_freq1, in KHz
+ * @punctured: mask of the punctured 20 MHz subchannels, with
+ *	bits turned on being disabled (punctured); numbered
+ *	from lower to higher frequency (like in the spec)
+ * @s1g_primary_2mhz: Indicates if the control channel pointed to
+ *	by 'chan' exists as a 1MHz primary subchannel within an
+ *	S1G 2MHz primary channel.
+ */
+struct cfg80211_chan_def {
+	struct ieee80211_channel *chan;
+	enum nl80211_chan_width width;
+	u32 center_freq1;
+	u32 center_freq2;
+	struct ieee80211_edmg edmg;
+	u16 freq1_offset;
+	u16 punctured;
+	bool s1g_primary_2mhz;
+};
+
+/**
+ * struct ieee80211_chan_req - A channel "request"
+ * @oper: channel definition to use for operation
+ * @ap: the channel definition of the AP, if any
+ *	(otherwise the chan member is %NULL)
+ */
+struct ieee80211_chan_req {
+	struct cfg80211_chan_def oper;
+	struct cfg80211_chan_def ap;
+};
+
+/**
+ * struct ieee80211_bss_conf - holds the BSS's changing parameters
+ *
+ * This structure keeps information about a BSS (and an association
+ * to that BSS) that can change during the lifetime of the BSS.
+ *
+ * @vif: reference to owning VIF
+ * @bss: the cfg80211 bss descriptor. Valid only for a station, and only
+ *	when associated. Note: This contains information which is not
+ *	necessarily authenticated. For example, information coming from probe
+ *	responses.
+ * @addr: (link) address used locally
+ * @link_id: link ID, or 0 for non-MLO
+ * @htc_trig_based_pkt_ext: default PE in 4us units, if BSS supports HE
+ * @uora_exists: is the UORA element advertised by AP
+ * @uora_ocw_range: UORA element's OCW Range field
+ * @frame_time_rts_th: HE duration RTS threshold, in units of 32us
+ * @he_support: does this BSS support HE
+ * @twt_requester: does this BSS support TWT requester (relevant for managed
+ *	mode only, set if the AP advertises TWT responder role)
+ * @twt_responder: does this BSS support TWT requester (relevant for managed
+ *	mode only, set if the AP advertises TWT responder role)
+ * @twt_protected: does this BSS support protected TWT frames
+ * @twt_broadcast: does this BSS support broadcast TWT
+ * @use_cts_prot: use CTS protection
+ * @use_short_preamble: use 802.11b short preamble
+ * @use_short_slot: use short slot time (only relevant for ERP)
+ * @dtim_period: num of beacons before the next DTIM, for beaconing,
+ *	valid in station mode only if after the driver was notified
+ *	with the %BSS_CHANGED_BEACON_INFO flag, will be non-zero then.
+ * @sync_tsf: last beacon's/probe response's TSF timestamp (could be old
+ *	as it may have been received during scanning long ago). If the
+ *	HW flag %IEEE80211_HW_TIMING_BEACON_ONLY is set, then this can
+ *	only come from a beacon, but might not become valid until after
+ *	association when a beacon is received (which is notified with the
+ *	%BSS_CHANGED_DTIM flag.). See also sync_dtim_count important notice.
+ * @sync_device_ts: the device timestamp corresponding to the sync_tsf,
+ *	the driver/device can use this to calculate synchronisation
+ *	(see @sync_tsf). See also sync_dtim_count important notice.
+ * @sync_dtim_count: Only valid when %IEEE80211_HW_TIMING_BEACON_ONLY
+ *	is requested, see @sync_tsf/@sync_device_ts.
+ *	IMPORTANT: These three sync_* parameters would possibly be out of sync
+ *	by the time the driver will use them. The synchronized view is currently
+ *	guaranteed only in certain callbacks.
+ *	Note also that this is not used with MLD associations, mac80211 doesn't
+ *	know how to track beacons for all of the links for this.
+ * @beacon_int: beacon interval
+ * @assoc_capability: capabilities taken from assoc resp
+ * @basic_rates: bitmap of basic rates, each bit stands for an
+ *	index into the rate table configured by the driver in
+ *	the current band.
+ * @beacon_rate: associated AP's beacon TX rate
+ * @mcast_rate: per-band multicast rate index + 1 (0: disabled)
+ * @bssid: The BSSID for this BSS
+ * @enable_beacon: whether beaconing should be enabled or not
+ * @chanreq: Channel request for this BSS -- the hardware might be
+ *	configured a higher bandwidth than this BSS uses, for example.
+ * @mu_group: VHT MU-MIMO group membership data
+ * @ht_operation_mode: HT operation mode like in &struct ieee80211_ht_operation.
+ *	This field is only valid when the channel is a wide HT/VHT channel.
+ *	Note that with TDLS this can be the case (channel is HT, protection must
+ *	be used from this field) even when the BSS association isn't using HT.
+ * @cqm_rssi_thold: Connection quality monitor RSSI threshold, a zero value
+ *	implies disabled. As with the cfg80211 callback, a change here should
+ *	cause an event to be sent indicating where the current value is in
+ *	relation to the newly configured threshold.
+ * @cqm_rssi_low: Connection quality monitor RSSI lower threshold, a zero value
+ *	implies disabled.  This is an alternative mechanism to the single
+ *	threshold event and can't be enabled simultaneously with it.
+ * @cqm_rssi_high: Connection quality monitor RSSI upper threshold.
+ * @cqm_rssi_hyst: Connection quality monitor RSSI hysteresis
+ * @qos: This is a QoS-enabled BSS.
+ * @hidden_ssid: The SSID of the current vif is hidden. Only valid in AP-mode.
+ * @txpower: TX power in dBm.  INT_MIN means not configured.
+ * @txpower_type: TX power adjustment used to control per packet Transmit
+ *	Power Control (TPC) in lower driver for the current vif. In particular
+ *	TPC is enabled if value passed in %txpower_type is
+ *	NL80211_TX_POWER_LIMITED (allow using less than specified from
+ *	userspace), whereas TPC is disabled if %txpower_type is set to
+ *	NL80211_TX_POWER_FIXED (use value configured from userspace)
+ * @p2p_noa_attr: P2P NoA attribute for P2P powersave
+ * @allow_p2p_go_ps: indication for AP or P2P GO interface, whether it's allowed
+ *	to use P2P PS mechanism or not. AP/P2P GO is not allowed to use P2P PS
+ *	if it has associated clients without P2P PS support.
+ * @max_idle_period: the time period during which the station can refrain from
+ *	transmitting frames to its associated AP without being disassociated.
+ *	In units of 1000 TUs. Zero value indicates that the AP did not include
+ *	a (valid) BSS Max Idle Period Element.
+ * @protected_keep_alive: if set, indicates that the station should send an RSN
+ *	protected frame to the AP to reset the idle timer at the AP for the
+ *	station.
+ * @ftm_responder: whether to enable or disable fine timing measurement FTM
+ *	responder functionality.
+ * @ftmr_params: configurable lci/civic parameter when enabling FTM responder.
+ * @nontransmitted: this BSS is a nontransmitted BSS profile
+ * @tx_bss_conf: Pointer to the BSS configuration of transmitting interface
+ *	if MBSSID is enabled. This pointer is RCU-protected due to CSA finish
+ *	and BSS color change flows accessing it.
+ * @transmitter_bssid: the address of transmitter AP
+ * @bssid_index: index inside the multiple BSSID set
+ * @bssid_indicator: 2^bssid_indicator is the maximum number of APs in set
+ * @ema_ap: AP supports enhancements of discovery and advertisement of
+ *	nontransmitted BSSIDs
+ * @profile_periodicity: the least number of beacon frames need to be received
+ *	in order to discover all the nontransmitted BSSIDs in the set.
+ * @he_oper: HE operation information of the BSS (AP/Mesh) or of the AP we are
+ *	connected to (STA)
+ * @he_obss_pd: OBSS Packet Detection parameters.
+ * @he_bss_color: BSS coloring settings, if BSS supports HE
+ * @fils_discovery: FILS discovery configuration
+ * @unsol_bcast_probe_resp_interval: Unsolicited broadcast probe response
+ *	interval.
+ * @beacon_tx_rate: The configured beacon transmit rate that needs to be passed
+ *	to driver when rate control is offloaded to firmware.
+ * @power_type: power type of BSS for 6 GHz
+ * @tpe: transmit power envelope information
+ * @pwr_reduction: power constraint of BSS.
+ * @eht_support: does this BSS support EHT
+ * @epcs_support: does this BSS support EPCS
+ * @csa_active: marks whether a channel switch is going on.
+ * @mu_mimo_owner: indicates interface owns MU-MIMO capability
+ * @chanctx_conf: The channel context this interface is assigned to, or %NULL
+ *	when it is not assigned. This pointer is RCU-protected due to the TX
+ *	path needing to access it; even though the netdev carrier will always
+ *	be off when it is %NULL there can still be races and packets could be
+ *	processed after it switches back to %NULL.
+ * @color_change_active: marks whether a color change is ongoing.
+ * @color_change_color: the bss color that will be used after the change.
+ * @ht_ldpc: in AP mode, indicates interface has HT LDPC capability.
+ * @vht_ldpc: in AP mode, indicates interface has VHT LDPC capability.
+ * @he_ldpc: in AP mode, indicates interface has HE LDPC capability.
+ * @vht_su_beamformer: in AP mode, does this BSS support operation as an VHT SU
+ *	beamformer
+ * @vht_su_beamformee: in AP mode, does this BSS support operation as an VHT SU
+ *	beamformee
+ * @vht_mu_beamformer: in AP mode, does this BSS support operation as an VHT MU
+ *	beamformer
+ * @vht_mu_beamformee: in AP mode, does this BSS support operation as an VHT MU
+ *	beamformee
+ * @he_su_beamformer: in AP-mode, does this BSS support operation as an HE SU
+ *	beamformer
+ * @he_su_beamformee: in AP-mode, does this BSS support operation as an HE SU
+ *	beamformee
+ * @he_mu_beamformer: in AP-mode, does this BSS support operation as an HE MU
+ *	beamformer
+ * @he_full_ul_mumimo: does this BSS support the reception (AP) or transmission
+ *	(non-AP STA) of an HE TB PPDU on an RU that spans the entire PPDU
+ *	bandwidth
+ * @eht_su_beamformer: in AP-mode, does this BSS enable operation as an EHT SU
+ *	beamformer
+ * @eht_su_beamformee: in AP-mode, does this BSS enable operation as an EHT SU
+ *	beamformee
+ * @eht_mu_beamformer: in AP-mode, does this BSS enable operation as an EHT MU
+ *	beamformer
+ * @eht_80mhz_full_bw_ul_mumimo: in AP-mode, does this BSS support the
+ *	reception of an EHT TB PPDU on an RU that spans the entire PPDU
+ *	bandwidth
+ * @eht_disable_mcs15: disable EHT-MCS 15 reception capability.
+ * @bss_param_ch_cnt: in BSS-mode, the BSS params change count. This
+ *	information is the latest known value. It can come from this link's
+ *	beacon or from a beacon sent by another link.
+ * @bss_param_ch_cnt_link_id: in BSS-mode, the link_id to which the beacon
+ *	that updated &bss_param_ch_cnt belongs. E.g. if link 1 doesn't hear
+ *	its beacons, and link 2 sent a beacon with an RNR element that updated
+ *	link 1's BSS params change count, then, link 1's
+ *	bss_param_ch_cnt_link_id will be 2. That means that link 1 knows that
+ *	link 2 was the link that updated its bss_param_ch_cnt value.
+ *	In case link 1 hears its beacon again, bss_param_ch_cnt_link_id will
+ *	be updated to 1, even if bss_param_ch_cnt didn't change. This allows
+ *	the link to know that it heard the latest value from its own beacon
+ *	(as opposed to hearing its value from another link's beacon).
+ * @s1g_long_beacon_period: number of beacon intervals between each long
+ *	beacon transmission.
+ */
+struct ieee80211_bss_conf {
+	struct ieee80211_vif *vif;
+	struct cfg80211_bss *bss;
+
+	const u8 *bssid;
+	unsigned int link_id;
+	u8 addr[ETH_ALEN] __aligned(2);
+	u8 htc_trig_based_pkt_ext;
+	bool uora_exists;
+	u8 uora_ocw_range;
+	u16 frame_time_rts_th;
+	bool he_support;
+	bool twt_requester;
+	bool twt_responder;
+	bool twt_protected;
+	bool twt_broadcast;
+	/* erp related data */
+	bool use_cts_prot;
+	bool use_short_preamble;
+	bool use_short_slot;
+	bool enable_beacon;
+	u8 dtim_period;
+	u16 beacon_int;
+	u16 assoc_capability;
+	u64 sync_tsf;
+	u32 sync_device_ts;
+	u8 sync_dtim_count;
+	u32 basic_rates;
+	struct ieee80211_rate *beacon_rate;
+	int mcast_rate[NUM_NL80211_BANDS];
+	u16 ht_operation_mode;
+	s32 cqm_rssi_thold;
+	u32 cqm_rssi_hyst;
+	s32 cqm_rssi_low;
+	s32 cqm_rssi_high;
+	struct ieee80211_chan_req chanreq;
+
+	bool qos;
+	bool hidden_ssid;
+	int txpower;
+	enum nl80211_tx_power_setting txpower_type;
+
+	bool allow_p2p_go_ps;
+	u16 max_idle_period;
+	bool protected_keep_alive;
+	bool ftm_responder;
+	struct ieee80211_ftm_responder_params *ftmr_params;
+	/* Multiple BSSID data */
+	bool nontransmitted;
+	struct ieee80211_bss_conf __rcu *tx_bss_conf;
+	u8 transmitter_bssid[ETH_ALEN];
+	u8 bssid_index;
+	u8 bssid_indicator;
+	bool ema_ap;
+	u8 profile_periodicity;
+	struct {
+		u32 params;
+		u16 nss_set;
+	} he_oper;
+	u32 unsol_bcast_probe_resp_interval;
+
+	u8 pwr_reduction;
+	bool eht_support;
+	bool epcs_support;
+	bool csa_active;
+
+	bool mu_mimo_owner;
+
+	bool color_change_active;
+	u8 color_change_color;
+
+	bool ht_ldpc;
+	bool vht_ldpc;
+	bool he_ldpc;
+	bool vht_su_beamformer;
+	bool vht_su_beamformee;
+	bool vht_mu_beamformer;
+	bool vht_mu_beamformee;
+	bool he_su_beamformer;
+	bool he_su_beamformee;
+	bool he_mu_beamformer;
+	bool he_full_ul_mumimo;
+	bool eht_su_beamformer;
+	bool eht_su_beamformee;
+	bool eht_mu_beamformer;
+	bool eht_80mhz_full_bw_ul_mumimo;
+	bool eht_disable_mcs15;
+
+	u8 bss_param_ch_cnt;
+	u8 bss_param_ch_cnt_link_id;
+
+	u8 s1g_long_beacon_period;
+};
+
+/**
+ * struct ieee80211_vif_cfg - interface configuration
+ * @assoc: association status
+ * @ibss_joined: indicates whether this station is part of an IBSS or not
+ * @ibss_creator: indicates if a new IBSS network is being created
+ * @ps: power-save mode (STA only). This flag is NOT affected by
+ *	offchannel/dynamic_ps operations.
+ * @aid: association ID number, valid only when @assoc is true
+ * @eml_cap: EML capabilities as described in P802.11be_D4.1 Figure 9-1001j.
+ * @eml_med_sync_delay: Medium Synchronization delay as described in
+ *	P802.11be_D4.1 Figure 9-1001i.
+ * @mld_capa_op: MLD Capabilities and Operations per P802.11be_D4.1
+ *	Figure 9-1001k
+ * @arp_addr_list: List of IPv4 addresses for hardware ARP filtering. The
+ *	may filter ARP queries targeted for other addresses than listed here.
+ *	The driver must allow ARP queries targeted for all address listed here
+ *	to pass through. An empty list implies no ARP queries need to pass.
+ * @arp_addr_cnt: Number of addresses currently on the list. Note that this
+ *	may be larger than %IEEE80211_BSS_ARP_ADDR_LIST_LEN (the arp_addr_list
+ *	array size), it's up to the driver what to do in that case.
+ * @ssid: The SSID of the current vif. Valid in AP and IBSS mode.
+ * @ssid_len: Length of SSID given in @ssid.
+ * @s1g: BSS is S1G BSS (affects Association Request format).
+ * @idle: This interface is idle. There's also a global idle flag in the
+ *	hardware config which may be more appropriate depending on what
+ *	your driver/device needs to do.
+ * @ap_addr: AP MLD address, or BSSID for non-MLO connections
+ *	(station mode only)
+ */
+struct ieee80211_vif_cfg {
+	/* association related data */
+	bool assoc, ibss_joined;
+	bool ibss_creator;
+	bool ps;
+	u16 aid;
+	u16 eml_cap;
+	u16 eml_med_sync_delay;
+	u16 mld_capa_op;
+
+	__be32 arp_addr_list[IEEE80211_BSS_ARP_ADDR_LIST_LEN];
+	int arp_addr_cnt;
+	u8 ssid[IEEE80211_MAX_SSID_LEN];
+	size_t ssid_len;
+	bool s1g;
+	bool idle;
+	u8 ap_addr[ETH_ALEN] __aligned(2);
+};
+
+/**
+ * struct ieee80211_vif - per-interface data
+ *
+ * Data in this structure is continually present for driver
+ * use during the life of a virtual interface.
+ *
+ * @type: type of this virtual interface
+ * @cfg: vif configuration, see &struct ieee80211_vif_cfg
+ * @bss_conf: BSS configuration for this interface, either our own
+ *	or the BSS we're associated to
+ * @link_conf: in case of MLD, the per-link BSS configuration,
+ *	indexed by link ID
+ * @valid_links: bitmap of valid links, or 0 for non-MLO.
+ * @active_links: The bitmap of active links, or 0 for non-MLO.
+ *	The driver shouldn't change this directly, but use the
+ *	API calls meant for that purpose.
+ * @dormant_links: subset of the valid links that are disabled/suspended
+ *	due to advertised or negotiated TTLM respectively.
+ *	0 for non-MLO.
+ * @suspended_links: subset of dormant_links representing links that are
+ *	suspended due to negotiated TTLM, and could be activated in the
+ *	future by tearing down the TTLM negotiation.
+ *	0 for non-MLO.
+ * @neg_ttlm: negotiated TID to link mapping info.
+ *	see &struct ieee80211_neg_ttlm.
+ * @addr: address of this interface
+ * @addr_valid: indicates if the address is actively used. Set to false for
+ *	passive monitor interfaces, true in all other cases.
+ * @p2p: indicates whether this AP or STA interface is a p2p
+ *	interface, i.e. a GO or p2p-sta respectively
+ * @netdev_features: tx netdev features supported by the hardware for this
+ *	vif. mac80211 initializes this to hw->netdev_features, and the driver
+ *	can mask out specific tx features. mac80211 will handle software fixup
+ *	for masked offloads (GSO, CSUM)
+ * @driver_flags: flags/capabilities the driver has for this interface,
+ *	these need to be set (or cleared) when the interface is added
+ *	or, if supported by the driver, the interface type is changed
+ *	at runtime, mac80211 will never touch this field
+ * @offload_flags: hardware offload capabilities/flags for this interface.
+ *	These are initialized by mac80211 before calling .add_interface,
+ *	.change_interface or .update_vif_offload and updated by the driver
+ *	within these ops, based on supported features or runtime change
+ *	restrictions.
+ * @hw_queue: hardware queue for each AC
+ * @cab_queue: content-after-beacon (DTIM beacon really) queue, AP mode only
+ * @debugfs_dir: debugfs dentry, can be used by drivers to create own per
+ *	interface debug files. Note that it will be NULL for the virtual
+ *	monitor interface (if that is requested.)
+ * @probe_req_reg: probe requests should be reported to mac80211 for this
+ *	interface.
+ * @rx_mcast_action_reg: multicast Action frames should be reported to mac80211
+ *	for this interface.
+ * @drv_priv: data area for driver use, will always be aligned to
+ *	sizeof(void \*).
+ * @txq: the multicast data TX queue
+ * @offload_flags: 802.3 -> 802.11 enapsulation offload flags, see
+ *	&enum ieee80211_offload_flags.
+ */
+struct ieee80211_vif {
+	enum nl80211_iftype type;
+	struct ieee80211_vif_cfg cfg;
+	struct ieee80211_bss_conf bss_conf;
+	struct ieee80211_bss_conf __rcu *link_conf[IEEE80211_MLD_MAX_NUM_LINKS];
+	u16 valid_links;
+	u16 active_links;
+	u16 dormant_links;
+	u16 suspended_links;
+	u8 addr[ETH_ALEN] __aligned(2);
+	bool addr_valid;
+	bool p2p;
+
+	u8 cab_queue;
+	u8 hw_queue[IEEE80211_NUM_ACS];
+
+	struct ieee80211_txq *txq;
+
+	u64 netdev_features;
+	u32 driver_flags;
+	u32 offload_flags;
+
+	bool probe_req_reg;
+	bool rx_mcast_action_reg;
+
+	/* must be last */
+	u8 drv_priv[] __aligned(sizeof(void *));
 };
 
 /**
@@ -2732,7 +3544,9 @@ struct sta_info {
 	u16 tid_seq[IEEE80211_QOS_CTL_TID_MASK + 1];
 	u16 airtime_weight;
 
-	struct ieee80211_sub_if_data *sdata;
+	struct ieee80211_sub_if_data sdata;
+	struct ieee80211_sta *sta;
+	struct ieee80211_vif vif;
 };
 
 struct regulatory_request {
@@ -3247,54 +4061,6 @@ struct cfg80211_cqm_config {
 };
 
 /**
- * struct ieee80211_edmg - EDMG configuration
- *
- * This structure describes most essential parameters needed
- * to describe 802.11ay EDMG configuration
- *
- * @channels: bitmap that indicates the 2.16 GHz channel(s)
- *	that are allowed to be used for transmissions.
- *	Bit 0 indicates channel 1, bit 1 indicates channel 2, etc.
- *	Set to 0 indicate EDMG not supported.
- * @bw_config: Channel BW Configuration subfield encodes
- *	the allowed channel bandwidth configurations
- */
-struct ieee80211_edmg {
-	u8 channels;
-	enum ieee80211_edmg_bw_config bw_config;
-};
-
-/**
- * struct cfg80211_chan_def - channel definition
- * @chan: the (control) channel
- * @width: channel width
- * @center_freq1: center frequency of first segment
- * @center_freq2: center frequency of second segment
- *	(only with 80+80 MHz)
- * @edmg: define the EDMG channels configuration.
- *	If edmg is requested (i.e. the .channels member is non-zero),
- *	chan will define the primary channel and all other
- *	parameters are ignored.
- * @freq1_offset: offset from @center_freq1, in KHz
- * @punctured: mask of the punctured 20 MHz subchannels, with
- *	bits turned on being disabled (punctured); numbered
- *	from lower to higher frequency (like in the spec)
- * @s1g_primary_2mhz: Indicates if the control channel pointed to
- *	by 'chan' exists as a 1MHz primary subchannel within an
- *	S1G 2MHz primary channel.
- */
-struct cfg80211_chan_def {
-	struct ieee80211_channel *chan;
-	enum nl80211_chan_width width;
-	u32 center_freq1;
-	u32 center_freq2;
-	struct ieee80211_edmg edmg;
-	u16 freq1_offset;
-	u16 punctured;
-	bool s1g_primary_2mhz;
-};
-
-/**
  * struct ieee80211_scan_ies - descriptors for different blocks of IEs
  *
  * This structure is used to point to different blocks of IEs in HW scan
@@ -3498,145 +4264,6 @@ struct ieee80211_scan_request {
 	/* Keep last */
 	struct cfg80211_scan_request req;
 };
-
-/**
- * struct ieee80211_mcs_info - Supported MCS Set field
- * @rx_mask: RX mask
- * @rx_highest: highest supported RX rate. If set represents
- *	the highest supported RX data rate in units of 1 Mbps.
- *	If this field is 0 this value should not be used to
- *	consider the highest RX data rate supported.
- * @tx_params: TX parameters
- * @reserved: Reserved bits
- *
- * This structure represents the "Supported MCS Set field" as
- * described in IEEE Std 802.11-2020 section 9.4.2.55.4.
- */
-struct ieee80211_mcs_info {
-	u8 rx_mask[IEEE80211_HT_MCS_MASK_LEN];
-	__le16 rx_highest;
-	u8 tx_params;
-	u8 reserved[3];
-} __packed;
-
-/**
- * struct ieee80211_sta_ht_cap - STA's HT capabilities
- *
- * This structure describes most essential parameters needed
- * to describe 802.11n HT capabilities for an STA.
- *
- * @ht_supported: is HT supported by the STA
- * @cap: HT capabilities map as described in 802.11n spec
- * @ampdu_factor: Maximum A-MPDU length factor
- * @ampdu_density: Minimum A-MPDU spacing
- * @mcs: Supported MCS rates
- */
-struct ieee80211_sta_ht_cap {
-	u16 cap; /* use IEEE80211_HT_CAP_ */
-	bool ht_supported;
-	u8 ampdu_factor;
-	u8 ampdu_density;
-	struct ieee80211_mcs_info mcs;
-};
-
-/**
- * struct ieee80211_vht_mcs_info - VHT MCS information
- * @rx_mcs_map: RX MCS map 2 bits for each stream, total 8 streams
- * @rx_highest: Indicates highest long GI VHT PPDU data rate
- *	STA can receive. Rate expressed in units of 1 Mbps.
- *	If this field is 0 this value should not be used to
- *	consider the highest RX data rate supported.
- *	The top 3 bits of this field indicate the Maximum NSTS,total
- *	(a beamformee capability.)
- * @tx_mcs_map: TX MCS map 2 bits for each stream, total 8 streams
- * @tx_highest: Indicates highest long GI VHT PPDU data rate
- *	STA can transmit. Rate expressed in units of 1 Mbps.
- *	If this field is 0 this value should not be used to
- *	consider the highest TX data rate supported.
- *	The top 2 bits of this field are reserved, the
- *	3rd bit from the top indiciates VHT Extended NSS BW
- *	Capability.
- */
-struct ieee80211_vht_mcs_info {
-	__le16 rx_mcs_map;
-	__le16 rx_highest;
-	__le16 tx_mcs_map;
-	__le16 tx_highest;
-} __packed;
-
-/**
- * struct ieee80211_sta_vht_cap - STA's VHT capabilities
- *
- * This structure describes most essential parameters needed
- * to describe 802.11ac VHT capabilities for an STA.
- *
- * @vht_supported: is VHT supported by the STA
- * @cap: VHT capabilities map as described in 802.11ac spec
- * @vht_mcs: Supported VHT MCS rates
- */
-struct ieee80211_sta_vht_cap {
-	bool vht_supported;
-	u32 cap; /* use IEEE80211_VHT_CAP_ */
-	struct ieee80211_vht_mcs_info vht_mcs;
-};
-
-/**
- * struct ieee80211_sta_s1g_cap - STA's S1G capabilities
- *
- * This structure describes most essential parameters needed
- * to describe 802.11ah S1G capabilities for a STA.
- *
- * @s1g: is STA an S1G STA
- * @cap: S1G capabilities information
- * @nss_mcs: Supported NSS MCS set
- */
-struct ieee80211_sta_s1g_cap {
-	bool s1g;
-	u8 cap[10]; /* use S1G_CAPAB_ */
-	u8 nss_mcs[5];
-};
-
-/**
- * struct ieee80211_he_mcs_nss_supp - HE Tx/Rx HE MCS NSS Support Field
- *
- * This structure holds the data required for the Tx/Rx HE MCS NSS Support Field
- * described in P802.11ax_D2.0 section 9.4.2.237.4
- *
- * @rx_mcs_80: Rx MCS map 2 bits for each stream, total 8 streams, for channel
- *     widths less than 80MHz.
- * @tx_mcs_80: Tx MCS map 2 bits for each stream, total 8 streams, for channel
- *     widths less than 80MHz.
- * @rx_mcs_160: Rx MCS map 2 bits for each stream, total 8 streams, for channel
- *     width 160MHz.
- * @tx_mcs_160: Tx MCS map 2 bits for each stream, total 8 streams, for channel
- *     width 160MHz.
- * @rx_mcs_80p80: Rx MCS map 2 bits for each stream, total 8 streams, for
- *     channel width 80p80MHz.
- * @tx_mcs_80p80: Tx MCS map 2 bits for each stream, total 8 streams, for
- *     channel width 80p80MHz.
- */
-struct ieee80211_he_mcs_nss_supp {
-	__le16 rx_mcs_80;
-	__le16 tx_mcs_80;
-	__le16 rx_mcs_160;
-	__le16 tx_mcs_160;
-	__le16 rx_mcs_80p80;
-	__le16 tx_mcs_80p80;
-} __packed;
-
-/**
- * struct ieee80211_he_cap_elem - HE capabilities element
- * @mac_cap_info: HE MAC Capabilities Information
- * @phy_cap_info: HE PHY Capabilities Information
- *
- * This structure represents the fixed fields of the payload of the
- * "HE capabilities element" as described in IEEE Std 802.11ax-2021
- * sections 9.4.2.248.2 and 9.4.2.248.3.
- */
-struct ieee80211_he_cap_elem {
-	u8 mac_cap_info[6];
-	u8 phy_cap_info[11];
-} __packed;
 
 /**
  * struct ieee80211_sta_he_cap - STA's HE capabilities
@@ -4167,6 +4794,9 @@ struct ieee80211_local {
 	struct rhltable sta_hash;
 	struct rhltable link_sta_hash;
 
+	struct workqueue_struct system_dfl_wq;
+	struct list_head wiphy_work_list;
+
 	/* include here the crda timeout variable instead of implementing it as a global one */
 	u32 reg_crda_timeouts;
 
@@ -4178,6 +4808,8 @@ struct ieee80211_local {
 	atomic_uint aql_ac_pending_airtime[IEEE80211_NUM_ACS];
 	atomic_uint agg_queue_stop[IEEE80211_MAX_QUEUES];
 	pthread_mutex_t iflist_mtx;
+	pthread_mutex_t bss_lock;
+	pthread_mutex_t wiphy_work_queue_mutex;
 
 	/* protects active_txqs and txqi->schedule_order */
 	pthread_mutex_t regulatory_req_mutex;
@@ -4281,10 +4913,563 @@ struct ieee80211_local {
 
 	/* channel contexts */
 	struct list_head chanctx_list;
-
+	struct ieee80211_sub_if_data *sdata;
 };
 
 const struct element * cfg80211_find_elem_match(u8 eid, const u8 *ies, unsigned int len,  const u8 *match, unsigned int match_len, unsigned int match_offset);
+
+
+static u32 cfg80211_calculate_bitrate_ht(struct rate_info *rate){
+	int modulation = 0;
+	int streams = 0;
+	int bitrate = 0;
+
+	/* the formula below does only work for MCS values smaller than 32 */
+	if (rate->mcs >= 32){
+		return 0;
+	}
+
+	modulation = rate->mcs & 7;
+	streams = (rate->mcs >> 3) + 1;
+
+	bitrate = (rate->bw == RATE_INFO_BW_40) ? 13500000 : 6500000;
+
+	if (modulation < 4){
+		bitrate *= (modulation + 1);
+	}else if (modulation == 4){
+		bitrate *= (modulation + 2);
+	}else{
+		bitrate *= (modulation + 3);
+	}
+
+	bitrate *= streams;
+
+	if (rate->flags & RATE_INFO_FLAGS_SHORT_GI){
+		bitrate = (bitrate / 9) * 10;
+	}
+
+	/* do NOT round down here */
+	return (bitrate + 50000) / 100000;
+}
+
+static u32 cfg80211_calculate_bitrate_dmg(struct rate_info *rate){
+	static const u32 __mcs2bitrate[] = {
+		/* control PHY */
+		[0] =   275,
+		/* SC PHY */
+		[1] =  3850,
+		[2] =  7700,
+		[3] =  9625,
+		[4] = 11550,
+		[5] = 12512, /* 1251.25 mbps */
+		[6] = 15400,
+		[7] = 19250,
+		[8] = 23100,
+		[9] = 25025,
+		[10] = 30800,
+		[11] = 38500,
+		[12] = 46200,
+		/* OFDM PHY */
+		[13] =  6930,
+		[14] =  8662, /* 866.25 mbps */
+		[15] = 13860,
+		[16] = 17325,
+		[17] = 20790,
+		[18] = 27720,
+		[19] = 34650,
+		[20] = 41580,
+		[21] = 45045,
+		[22] = 51975,
+		[23] = 62370,
+		[24] = 67568, /* 6756.75 mbps */
+		/* LP-SC PHY */
+		[25] =  6260,
+		[26] =  8340,
+		[27] = 11120,
+		[28] = 12510,
+		[29] = 16680,
+		[30] = 22240,
+		[31] = 25030,
+	};
+
+	if (rate->mcs >= ARRAY_SIZE(__mcs2bitrate)){
+		return 0;
+	}
+
+	return __mcs2bitrate[rate->mcs];
+}
+
+static u32 cfg80211_calculate_bitrate_extended_sc_dmg(struct rate_info *rate){
+	static const u32 __mcs2bitrate[] = {
+		[6 - 6] = 26950, /* MCS 9.1 : 2695.0 mbps */
+		[7 - 6] = 50050, /* MCS 12.1 */
+		[8 - 6] = 53900,
+		[9 - 6] = 57750,
+		[10 - 6] = 63900,
+		[11 - 6] = 75075,
+		[12 - 6] = 80850,
+	};
+
+	/* Extended SC MCS not defined for base MCS below 6 or above 12 */
+	if (rate->mcs < 6 || rate->mcs > 12){
+		return 0;
+	}
+
+	return __mcs2bitrate[rate->mcs - 6];
+}
+
+static u32 cfg80211_calculate_bitrate_edmg(struct rate_info *rate){
+	static const u32 __mcs2bitrate[] = {
+		/* control PHY */
+		[0] =   275,
+		/* SC PHY */
+		[1] =  3850,
+		[2] =  7700,
+		[3] =  9625,
+		[4] = 11550,
+		[5] = 12512, /* 1251.25 mbps */
+		[6] = 13475,
+		[7] = 15400,
+		[8] = 19250,
+		[9] = 23100,
+		[10] = 25025,
+		[11] = 26950,
+		[12] = 30800,
+		[13] = 38500,
+		[14] = 46200,
+		[15] = 50050,
+		[16] = 53900,
+		[17] = 57750,
+		[18] = 69300,
+		[19] = 75075,
+		[20] = 80850,
+	};
+
+	if (rate->mcs >= ARRAY_SIZE(__mcs2bitrate)){
+		return 0;
+	}
+
+	return __mcs2bitrate[rate->mcs] * rate->n_bonded_ch;
+}
+
+static u32 cfg80211_calculate_bitrate_vht(struct rate_info *rate){
+	static const u32 base[4][12] = {
+		{   6500000,
+		   13000000,
+		   19500000,
+		   26000000,
+		   39000000,
+		   52000000,
+		   58500000,
+		   65000000,
+		   78000000,
+		/* not in the spec, but some devices use this: */
+		   86700000,
+		   97500000,
+		  108300000,
+		},
+		{  13500000,
+		   27000000,
+		   40500000,
+		   54000000,
+		   81000000,
+		  108000000,
+		  121500000,
+		  135000000,
+		  162000000,
+		  180000000,
+		  202500000,
+		  225000000,
+		},
+		{  29300000,
+		   58500000,
+		   87800000,
+		  117000000,
+		  175500000,
+		  234000000,
+		  263300000,
+		  292500000,
+		  351000000,
+		  390000000,
+		  438800000,
+		  487500000,
+		},
+		{  58500000,
+		  117000000,
+		  175500000,
+		  234000000,
+		  351000000,
+		  468000000,
+		  526500000,
+		  585000000,
+		  702000000,
+		  780000000,
+		  877500000,
+		  975000000,
+		},
+	};
+	u32 bitrate = 0;
+	int idx = 0;
+
+	if (rate->mcs > 11){
+		goto warn;
+	}
+
+	switch (rate->bw) {
+	case RATE_INFO_BW_160:
+		idx = 3;
+		break;
+	case RATE_INFO_BW_80:
+		idx = 2;
+		break;
+	case RATE_INFO_BW_40:
+		idx = 1;
+		break;
+	case RATE_INFO_BW_5:
+	case RATE_INFO_BW_10:
+	default:
+		goto warn;
+	case RATE_INFO_BW_20:
+		idx = 0;
+	}
+
+	bitrate = base[idx][rate->mcs];
+	bitrate *= rate->nss;
+
+	if (rate->flags & RATE_INFO_FLAGS_SHORT_GI){
+		bitrate = (bitrate / 9) * 10;
+	}
+
+	/* do NOT round down here */
+	return (bitrate + 50000) / 100000;
+warn:
+	printf("[!] invalid rate bw=%d, mcs=%d, nss=%d\n", rate->bw, rate->mcs, rate->nss);
+	return 0;
+}
+
+static u32 cfg80211_calculate_bitrate_he(struct rate_info *rate){
+#define SCALE 6144
+	u32 mcs_divisors[14] = {
+		102399, /* 16.666666... */
+		 51201, /*  8.333333... */
+		 34134, /*  5.555555... */
+		 25599, /*  4.166666... */
+		 17067, /*  2.777777... */
+		 12801, /*  2.083333... */
+		 11377, /*  1.851725... */
+		 10239, /*  1.666666... */
+		  8532, /*  1.388888... */
+		  7680, /*  1.250000... */
+		  6828, /*  1.111111... */
+		  6144, /*  1.000000... */
+		  5690, /*  0.926106... */
+		  5120, /*  0.833333... */
+	};
+	u32 rates_160M[3] = { 960777777, 907400000, 816666666 };
+	u32 rates_996[3] =  { 480388888, 453700000, 408333333 };
+	u32 rates_484[3] =  { 229411111, 216666666, 195000000 };
+	u32 rates_242[3] =  { 114711111, 108333333,  97500000 };
+	u32 rates_106[3] =  {  40000000,  37777777,  34000000 };
+	u32 rates_52[3]  =  {  18820000,  17777777,  16000000 };
+	u32 rates_26[3]  =  {   9411111,   8888888,   8000000 };
+	u64 tmp = 0;
+	u32 result = 0;
+
+	if (rate->mcs > 13){
+		return 0;
+	}
+
+	if (rate->he_gi > NL80211_RATE_INFO_HE_GI_3_2){
+		return 0;
+	}
+
+	if (rate->he_ru_alloc > NL80211_RATE_INFO_HE_RU_ALLOC_2x996){
+		return 0;
+	}
+
+	if (rate->nss < 1 || rate->nss > 8){
+		return 0;
+	}
+
+	if (rate->bw == RATE_INFO_BW_160 || (rate->bw == RATE_INFO_BW_HE_RU && rate->he_ru_alloc == NL80211_RATE_INFO_HE_RU_ALLOC_2x996)){
+		result = rates_160M[rate->he_gi];
+	}else if (rate->bw == RATE_INFO_BW_80 || (rate->bw == RATE_INFO_BW_HE_RU && rate->he_ru_alloc == NL80211_RATE_INFO_HE_RU_ALLOC_996)){
+		result = rates_996[rate->he_gi];
+	}else if (rate->bw == RATE_INFO_BW_40 || (rate->bw == RATE_INFO_BW_HE_RU && rate->he_ru_alloc == NL80211_RATE_INFO_HE_RU_ALLOC_484)){
+		result = rates_484[rate->he_gi];
+	}else if (rate->bw == RATE_INFO_BW_20 || (rate->bw == RATE_INFO_BW_HE_RU &&  rate->he_ru_alloc == NL80211_RATE_INFO_HE_RU_ALLOC_242)){
+		result = rates_242[rate->he_gi];
+	}else if (rate->bw == RATE_INFO_BW_HE_RU && rate->he_ru_alloc == NL80211_RATE_INFO_HE_RU_ALLOC_106){
+		result = rates_106[rate->he_gi];
+	}else if (rate->bw == RATE_INFO_BW_HE_RU && rate->he_ru_alloc == NL80211_RATE_INFO_HE_RU_ALLOC_52){
+		result = rates_52[rate->he_gi];
+	}else if (rate->bw == RATE_INFO_BW_HE_RU &&  rate->he_ru_alloc == NL80211_RATE_INFO_HE_RU_ALLOC_26){
+		result = rates_26[rate->he_gi];
+	}else{
+		printf("[!] invalid HE MCS: bw:%d, ru:%d\n", rate->bw, rate->he_ru_alloc);
+		return 0;
+	}
+
+	/* now scale to the appropriate MCS */
+	tmp = result;
+	tmp *= SCALE;
+	do_div(tmp, mcs_divisors[rate->mcs]);
+
+	/* and take NSS, DCM into account */
+	tmp *= rate->nss;
+	do_div(tmp, 8);
+	if (rate->he_dcm){
+		do_div(tmp, 2);
+	}
+
+	result = tmp;
+
+	return result / 10000;
+}
+
+static u32 cfg80211_calculate_bitrate_eht(struct rate_info *rate){
+#define SCALE 6144
+	static const u32 mcs_divisors[16] = {
+		102399, /* 16.666666... */
+		 51201, /*  8.333333... */
+		 34134, /*  5.555555... */
+		 25599, /*  4.166666... */
+		 17067, /*  2.777777... */
+		 12801, /*  2.083333... */
+		 11377, /*  1.851725... */
+		 10239, /*  1.666666... */
+		  8532, /*  1.388888... */
+		  7680, /*  1.250000... */
+		  6828, /*  1.111111... */
+		  6144, /*  1.000000... */
+		  5690, /*  0.926106... */
+		  5120, /*  0.833333... */
+		409600, /* 66.666666... */
+		204800, /* 33.333333... */
+	};
+	static const u32 rates_996[3] =  { 480388888, 453700000, 408333333 };
+	static const u32 rates_484[3] =  { 229411111, 216666666, 195000000 };
+	static const u32 rates_242[3] =  { 114711111, 108333333,  97500000 };
+	static const u32 rates_106[3] =  {  40000000,  37777777,  34000000 };
+	static const u32 rates_52[3]  =  {  18820000,  17777777,  16000000 };
+	static const u32 rates_26[3]  =  {   9411111,   8888888,   8000000 };
+	u64 tmp = 0;
+	u32 result = 0;
+
+	if (rate->mcs > 15){
+		return 0;
+	}
+
+	if (rate->eht_gi > NL80211_RATE_INFO_EHT_GI_3_2){
+		return 0;
+	}
+
+	if (rate->eht_ru_alloc > NL80211_RATE_INFO_EHT_RU_ALLOC_4x996){
+		return 0;
+	}
+
+	if (rate->nss < 1 || rate->nss > 8){
+		return 0;
+	}
+
+	/* Bandwidth checks for MCS 14 */
+	if (rate->mcs == 14) {
+		if ((rate->bw != RATE_INFO_BW_EHT_RU &&
+		     rate->bw != RATE_INFO_BW_80 &&
+		     rate->bw != RATE_INFO_BW_160 &&
+		     rate->bw != RATE_INFO_BW_320) ||
+		    (rate->bw == RATE_INFO_BW_EHT_RU &&
+		     rate->eht_ru_alloc != NL80211_RATE_INFO_EHT_RU_ALLOC_996 &&
+		     rate->eht_ru_alloc != NL80211_RATE_INFO_EHT_RU_ALLOC_2x996 &&
+		     rate->eht_ru_alloc != NL80211_RATE_INFO_EHT_RU_ALLOC_4x996)) {
+			printf("[!] invalid EHT BW for MCS 14: bw:%d, ru:%d\n",
+			     rate->bw, rate->eht_ru_alloc);
+			return 0;
+		}
+	}
+
+	if (rate->bw == RATE_INFO_BW_320 ||
+	    (rate->bw == RATE_INFO_BW_EHT_RU &&
+	     rate->eht_ru_alloc == NL80211_RATE_INFO_EHT_RU_ALLOC_4x996))
+		result = 4 * rates_996[rate->eht_gi];
+	else if (rate->bw == RATE_INFO_BW_EHT_RU &&
+		 rate->eht_ru_alloc == NL80211_RATE_INFO_EHT_RU_ALLOC_3x996P484)
+		result = 3 * rates_996[rate->eht_gi] + rates_484[rate->eht_gi];
+	else if (rate->bw == RATE_INFO_BW_EHT_RU &&
+		 rate->eht_ru_alloc == NL80211_RATE_INFO_EHT_RU_ALLOC_3x996)
+		result = 3 * rates_996[rate->eht_gi];
+	else if (rate->bw == RATE_INFO_BW_EHT_RU &&
+		 rate->eht_ru_alloc == NL80211_RATE_INFO_EHT_RU_ALLOC_2x996P484)
+		result = 2 * rates_996[rate->eht_gi] + rates_484[rate->eht_gi];
+	else if (rate->bw == RATE_INFO_BW_160 ||
+		 (rate->bw == RATE_INFO_BW_EHT_RU &&
+		  rate->eht_ru_alloc == NL80211_RATE_INFO_EHT_RU_ALLOC_2x996))
+		result = 2 * rates_996[rate->eht_gi];
+	else if (rate->bw == RATE_INFO_BW_EHT_RU &&
+		 rate->eht_ru_alloc ==
+		 NL80211_RATE_INFO_EHT_RU_ALLOC_996P484P242)
+		result = rates_996[rate->eht_gi] + rates_484[rate->eht_gi]
+			 + rates_242[rate->eht_gi];
+	else if (rate->bw == RATE_INFO_BW_EHT_RU &&
+		 rate->eht_ru_alloc == NL80211_RATE_INFO_EHT_RU_ALLOC_996P484)
+		result = rates_996[rate->eht_gi] + rates_484[rate->eht_gi];
+	else if (rate->bw == RATE_INFO_BW_80 ||
+		 (rate->bw == RATE_INFO_BW_EHT_RU &&
+		  rate->eht_ru_alloc == NL80211_RATE_INFO_EHT_RU_ALLOC_996))
+		result = rates_996[rate->eht_gi];
+	else if (rate->bw == RATE_INFO_BW_EHT_RU &&
+		 rate->eht_ru_alloc == NL80211_RATE_INFO_EHT_RU_ALLOC_484P242)
+		result = rates_484[rate->eht_gi] + rates_242[rate->eht_gi];
+	else if (rate->bw == RATE_INFO_BW_40 ||
+		 (rate->bw == RATE_INFO_BW_EHT_RU &&
+		  rate->eht_ru_alloc == NL80211_RATE_INFO_EHT_RU_ALLOC_484))
+		result = rates_484[rate->eht_gi];
+	else if (rate->bw == RATE_INFO_BW_20 ||
+		 (rate->bw == RATE_INFO_BW_EHT_RU &&
+		  rate->eht_ru_alloc == NL80211_RATE_INFO_EHT_RU_ALLOC_242))
+		result = rates_242[rate->eht_gi];
+	else if (rate->bw == RATE_INFO_BW_EHT_RU &&
+		 rate->eht_ru_alloc == NL80211_RATE_INFO_EHT_RU_ALLOC_106P26)
+		result = rates_106[rate->eht_gi] + rates_26[rate->eht_gi];
+	else if (rate->bw == RATE_INFO_BW_EHT_RU &&
+		 rate->eht_ru_alloc == NL80211_RATE_INFO_EHT_RU_ALLOC_106)
+		result = rates_106[rate->eht_gi];
+	else if (rate->bw == RATE_INFO_BW_EHT_RU &&
+		 rate->eht_ru_alloc == NL80211_RATE_INFO_EHT_RU_ALLOC_52P26)
+		result = rates_52[rate->eht_gi] + rates_26[rate->eht_gi];
+	else if (rate->bw == RATE_INFO_BW_EHT_RU &&
+		 rate->eht_ru_alloc == NL80211_RATE_INFO_EHT_RU_ALLOC_52)
+		result = rates_52[rate->eht_gi];
+	else if (rate->bw == RATE_INFO_BW_EHT_RU &&
+		 rate->eht_ru_alloc == NL80211_RATE_INFO_EHT_RU_ALLOC_26)
+		result = rates_26[rate->eht_gi];
+	else {
+		printf("[!] invalid EHT MCS: bw:%d, ru:%d\n",
+		     rate->bw, rate->eht_ru_alloc);
+		return 0;
+	}
+
+	/* now scale to the appropriate MCS */
+	tmp = result;
+	tmp *= SCALE;
+	do_div(tmp, mcs_divisors[rate->mcs]);
+
+	/* and take NSS */
+	tmp *= rate->nss;
+	do_div(tmp, 8);
+
+	result = tmp;
+
+	return result / 10000;
+}
+
+static u32 cfg80211_calculate_bitrate_s1g(struct rate_info *rate){
+	/* For 1, 2, 4, 8 and 16 MHz channels */
+	static const u32 base[5][11] = {
+		{  300000,
+		   600000,
+		   900000,
+		  1200000,
+		  1800000,
+		  2400000,
+		  2700000,
+		  3000000,
+		  3600000,
+		  4000000,
+		  /* MCS 10 supported in 1 MHz only */
+		  150000,
+		},
+		{  650000,
+		  1300000,
+		  1950000,
+		  2600000,
+		  3900000,
+		  5200000,
+		  5850000,
+		  6500000,
+		  7800000,
+		  /* MCS 9 not valid */
+		},
+		{  1350000,
+		   2700000,
+		   4050000,
+		   5400000,
+		   8100000,
+		  10800000,
+		  12150000,
+		  13500000,
+		  16200000,
+		  18000000,
+		},
+		{  2925000,
+		   5850000,
+		   8775000,
+		  11700000,
+		  17550000,
+		  23400000,
+		  26325000,
+		  29250000,
+		  35100000,
+		  39000000,
+		},
+		{  8580000,
+		  11700000,
+		  17550000,
+		  23400000,
+		  35100000,
+		  46800000,
+		  52650000,
+		  58500000,
+		  70200000,
+		  78000000,
+		},
+	};
+	u32 bitrate;
+	/* default is 1 MHz index */
+	int idx = 0;
+
+	if (rate->mcs >= 11){
+		goto warn;
+	}
+
+	switch (rate->bw) {
+	case RATE_INFO_BW_16:
+		idx = 4;
+		break;
+	case RATE_INFO_BW_8:
+		idx = 3;
+		break;
+	case RATE_INFO_BW_4:
+		idx = 2;
+		break;
+	case RATE_INFO_BW_2:
+		idx = 1;
+		break;
+	case RATE_INFO_BW_1:
+		idx = 0;
+		break;
+	case RATE_INFO_BW_5:
+	case RATE_INFO_BW_10:
+	case RATE_INFO_BW_20:
+	case RATE_INFO_BW_40:
+	case RATE_INFO_BW_80:
+	case RATE_INFO_BW_160:
+	default:
+		goto warn;
+	}
+
+	bitrate = base[idx][rate->mcs];
+	bitrate *= rate->nss;
+
+	if (rate->flags & RATE_INFO_FLAGS_SHORT_GI){
+		bitrate = (bitrate / 9) * 10;
+	}
+	/* do NOT round down here */
+	return (bitrate + 50000) / 100000;
+warn:
+	printf("[!] invalid rate bw=%d, mcs=%d, nss=%d\n", rate->bw, rate->mcs, rate->nss);
+	return 0;
+}
 
 /**
  * wiphy_ext_feature_set - set the extended feature flag
@@ -5357,6 +6542,60 @@ static const struct element *cfg80211_get_profile_continuation(const u8 *ie, siz
 	return next_sub->data[0] == WLAN_EID_NON_TX_BSSID_CAP ? NULL : next_mbssid;
 }
 
+/**
+ * cfg80211_chandef_get_width - return chandef width in MHz
+ * @c: chandef to return bandwidth for
+ * Return: channel width in MHz for the given chandef; note that it returns
+ *	80 for 80+80 configurations
+ */
+static inline int cfg80211_chandef_get_width(const struct cfg80211_chan_def *c){
+	return nl80211_chan_width_to_mhz(c->width);
+}
+
+/*
+ * Checks if center frequency of chan falls with in the bandwidth
+ * range of chandef.
+ */
+static bool cfg80211_is_sub_chan(struct cfg80211_chan_def *chandef, struct ieee80211_channel *chan,  bool primary_only){
+	int width = 0;
+	u32 freq = 0;
+
+	if (!chandef->chan){
+		return false;
+	}
+
+	if (chandef->chan->center_freq == chan->center_freq){
+		return true;
+	}
+
+	if (primary_only){
+		return false;
+	}
+
+	width = cfg80211_chandef_get_width(chandef);
+	if (width <= 20){
+		return false;
+	}
+
+	for (freq = chandef->center_freq1 - width / 2 + 10; freq <= chandef->center_freq1 + width / 2 - 10; freq += 20) {
+		if (chan->center_freq == freq){
+			return true;
+		}
+	}
+
+	if (!chandef->center_freq2){
+		return false;
+	}
+
+	for (freq = chandef->center_freq2 - width / 2 + 10; freq <= chandef->center_freq2 + width / 2 - 10; freq += 20) {
+		if (chan->center_freq == freq){
+			return true;
+		}
+	}
+
+	return false;
+}
+
 static struct rhlist_head *sta_info_hash_lookup(struct ieee80211_local *local, u8 *addr){
 	static const struct rhashtable_params sta_rht_params = {
 		.nelem_hint = 3, /* start small */
@@ -5380,7 +6619,7 @@ static struct sta_info *sta_info_get_bss(struct ieee80211_sub_if_data *sdata, u8
 	struct sta_info *sta = NULL;
 
 	for_each_sta_info(local, addr, sta, tmp) {
-		if (sta->sdata == sdata || (sta->sdata->bss && sta->sdata->bss == sdata->bss)) {
+		if (&sta->sdata == sdata || (sta->sdata.bss && sta->sdata.bss == sdata->bss)) {
 			/* this is safe as the caller must already hold
 			 * another rcu read section or the mutex
 			 */
