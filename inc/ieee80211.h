@@ -49,7 +49,9 @@
 #define IEEE80211_DEFAULT_MAX_SP_LEN		0
 
 /* power level hasn't been configured (or set to automatic) */
-#define IEEE80211_UNSET_POWER_LEVEL	INT_MIN
+#define IEEE80211_UNSET_POWER_LEVEL		INT_MIN
+
+#define IEEE80211_IRQSAFE_QUEUE_LIMIT		128
 
 /*
  * A-MPDU buffer sizes
@@ -678,6 +680,227 @@
 			       link_hash_node)
 
 /**
+ * enum ieee80211_sta_info_flags - Stations flags
+ *
+ * These flags are used with &struct sta_info's @flags member, but
+ * only indirectly with set_sta_flag() and friends.
+ *
+ * @WLAN_STA_AUTH: Station is authenticated.
+ * @WLAN_STA_ASSOC: Station is associated.
+ * @WLAN_STA_PS_STA: Station is in power-save mode
+ * @WLAN_STA_AUTHORIZED: Station is authorized to send/receive traffic.
+ *	This bit is always checked so needs to be enabled for all stations
+ *	when virtual port control is not in use.
+ * @WLAN_STA_SHORT_PREAMBLE: Station is capable of receiving short-preamble
+ *	frames.
+ * @WLAN_STA_WDS: Station is one of our WDS peers.
+ * @WLAN_STA_CLEAR_PS_FILT: Clear PS filter in hardware (using the
+ *	IEEE80211_TX_CTL_CLEAR_PS_FILT control flag) when the next
+ *	frame to this station is transmitted.
+ * @WLAN_STA_MFP: Management frame protection is used with this STA.
+ * @WLAN_STA_BLOCK_BA: Used to deny ADDBA requests (both TX and RX)
+ *	during suspend/resume and station removal.
+ * @WLAN_STA_PS_DRIVER: driver requires keeping this station in
+ *	power-save mode logically to flush frames that might still
+ *	be in the queues
+ * @WLAN_STA_PSPOLL: Station sent PS-poll while driver was keeping
+ *	station in power-save mode, reply when the driver unblocks.
+ * @WLAN_STA_TDLS_PEER: Station is a TDLS peer.
+ * @WLAN_STA_TDLS_PEER_AUTH: This TDLS peer is authorized to send direct
+ *	packets. This means the link is enabled.
+ * @WLAN_STA_TDLS_INITIATOR: We are the initiator of the TDLS link with this
+ *	station.
+ * @WLAN_STA_TDLS_CHAN_SWITCH: This TDLS peer supports TDLS channel-switching
+ * @WLAN_STA_TDLS_OFF_CHANNEL: The local STA is currently off-channel with this
+ *	TDLS peer
+ * @WLAN_STA_TDLS_WIDER_BW: This TDLS peer supports working on a wider bw on
+ *	the BSS base channel.
+ * @WLAN_STA_UAPSD: Station requested unscheduled SP while driver was
+ *	keeping station in power-save mode, reply when the driver
+ *	unblocks the station.
+ * @WLAN_STA_SP: Station is in a service period, so don't try to
+ *	reply to other uAPSD trigger frames or PS-Poll.
+ * @WLAN_STA_4ADDR_EVENT: 4-addr event was already sent for this frame.
+ * @WLAN_STA_INSERTED: This station is inserted into the hash table.
+ * @WLAN_STA_RATE_CONTROL: rate control was initialized for this station.
+ * @WLAN_STA_TOFFSET_KNOWN: toffset calculated for this station is valid.
+ * @WLAN_STA_MPSP_OWNER: local STA is owner of a mesh Peer Service Period.
+ * @WLAN_STA_MPSP_RECIPIENT: local STA is recipient of a MPSP.
+ * @WLAN_STA_PS_DELIVER: station woke up, but we're still blocking TX
+ *	until pending frames are delivered
+ * @WLAN_STA_USES_ENCRYPTION: This station was configured for encryption,
+ *	so drop all packets without a key later.
+ * @WLAN_STA_DECAP_OFFLOAD: This station uses rx decap offload
+ *
+ * @NUM_WLAN_STA_FLAGS: number of defined flags
+ */
+enum ieee80211_sta_info_flags {
+	WLAN_STA_AUTH,
+	WLAN_STA_ASSOC,
+	WLAN_STA_PS_STA,
+	WLAN_STA_AUTHORIZED,
+	WLAN_STA_SHORT_PREAMBLE,
+	WLAN_STA_WDS,
+	WLAN_STA_CLEAR_PS_FILT,
+	WLAN_STA_MFP,
+	WLAN_STA_BLOCK_BA,
+	WLAN_STA_PS_DRIVER,
+	WLAN_STA_PSPOLL,
+	WLAN_STA_TDLS_PEER,
+	WLAN_STA_TDLS_PEER_AUTH,
+	WLAN_STA_TDLS_INITIATOR,
+	WLAN_STA_TDLS_CHAN_SWITCH,
+	WLAN_STA_TDLS_OFF_CHANNEL,
+	WLAN_STA_TDLS_WIDER_BW,
+	WLAN_STA_UAPSD,
+	WLAN_STA_SP,
+	WLAN_STA_4ADDR_EVENT,
+	WLAN_STA_INSERTED,
+	WLAN_STA_RATE_CONTROL,
+	WLAN_STA_TOFFSET_KNOWN,
+	WLAN_STA_MPSP_OWNER,
+	WLAN_STA_MPSP_RECIPIENT,
+	WLAN_STA_PS_DELIVER,
+	WLAN_STA_USES_ENCRYPTION,
+	WLAN_STA_DECAP_OFFLOAD,
+
+	NUM_WLAN_STA_FLAGS,
+};
+
+/**
+ * enum mac80211_tx_info_flags - flags to describe transmission information/status
+ *
+ * These flags are used with the @flags member of &ieee80211_tx_info.
+ *
+ * @IEEE80211_TX_CTL_REQ_TX_STATUS: require TX status callback for this frame.
+ * @IEEE80211_TX_CTL_ASSIGN_SEQ: The driver has to assign a sequence
+ *	number to this frame, taking care of not overwriting the fragment
+ *	number and increasing the sequence number only when the
+ *	IEEE80211_TX_CTL_FIRST_FRAGMENT flag is set. mac80211 will properly
+ *	assign sequence numbers to QoS-data frames but cannot do so correctly
+ *	for non-QoS-data and management frames because beacons need them from
+ *	that counter as well and mac80211 cannot guarantee proper sequencing.
+ *	If this flag is set, the driver should instruct the hardware to
+ *	assign a sequence number to the frame or assign one itself. Cf. IEEE
+ *	802.11-2007 7.1.3.4.1 paragraph 3. This flag will always be set for
+ *	beacons and always be clear for frames without a sequence number field.
+ * @IEEE80211_TX_CTL_NO_ACK: tell the low level not to wait for an ack
+ * @IEEE80211_TX_CTL_CLEAR_PS_FILT: clear powersave filter for destination
+ *	station
+ * @IEEE80211_TX_CTL_FIRST_FRAGMENT: this is a first fragment of the frame
+ * @IEEE80211_TX_CTL_SEND_AFTER_DTIM: send this frame after DTIM beacon
+ * @IEEE80211_TX_CTL_AMPDU: this frame should be sent as part of an A-MPDU
+ * @IEEE80211_TX_CTL_INJECTED: Frame was injected, internal to mac80211.
+ * @IEEE80211_TX_STAT_TX_FILTERED: The frame was not transmitted
+ *	because the destination STA was in powersave mode. Note that to
+ *	avoid race conditions, the filter must be set by the hardware or
+ *	firmware upon receiving a frame that indicates that the station
+ *	went to sleep (must be done on device to filter frames already on
+ *	the queue) and may only be unset after mac80211 gives the OK for
+ *	that by setting the IEEE80211_TX_CTL_CLEAR_PS_FILT (see above),
+ *	since only then is it guaranteed that no more frames are in the
+ *	hardware queue.
+ * @IEEE80211_TX_STAT_ACK: Frame was acknowledged
+ * @IEEE80211_TX_STAT_AMPDU: The frame was aggregated, so status
+ * 	is for the whole aggregation.
+ * @IEEE80211_TX_STAT_AMPDU_NO_BACK: no block ack was returned,
+ * 	so consider using block ack request (BAR).
+ * @IEEE80211_TX_CTL_RATE_CTRL_PROBE: internal to mac80211, can be
+ *	set by rate control algorithms to indicate probe rate, will
+ *	be cleared for fragmented frames (except on the last fragment)
+ * @IEEE80211_TX_INTFL_OFFCHAN_TX_OK: Internal to mac80211. Used to indicate
+ *	that a frame can be transmitted while the queues are stopped for
+ *	off-channel operation.
+ * @IEEE80211_TX_CTL_HW_80211_ENCAP: This frame uses hardware encapsulation
+ *	(header conversion)
+ * @IEEE80211_TX_INTFL_RETRIED: completely internal to mac80211,
+ *	used to indicate that a frame was already retried due to PS
+ * @IEEE80211_TX_INTFL_DONT_ENCRYPT: completely internal to mac80211,
+ *	used to indicate frame should not be encrypted
+ * @IEEE80211_TX_CTL_NO_PS_BUFFER: This frame is a response to a poll
+ *	frame (PS-Poll or uAPSD) or a non-bufferable MMPDU and must
+ *	be sent although the station is in powersave mode.
+ * @IEEE80211_TX_CTL_MORE_FRAMES: More frames will be passed to the
+ *	transmit function after the current frame, this can be used
+ *	by drivers to kick the DMA queue only if unset or when the
+ *	queue gets full.
+ * @IEEE80211_TX_INTFL_RETRANSMISSION: This frame is being retransmitted
+ *	after TX status because the destination was asleep, it must not
+ *	be modified again (no seqno assignment, crypto, etc.)
+ * @IEEE80211_TX_INTFL_MLME_CONN_TX: This frame was transmitted by the MLME
+ *	code for connection establishment, this indicates that its status
+ *	should kick the MLME state machine.
+ * @IEEE80211_TX_INTFL_NL80211_FRAME_TX: Frame was requested through nl80211
+ *	MLME command (internal to mac80211 to figure out whether to send TX
+ *	status to user space)
+ * @IEEE80211_TX_CTL_LDPC: tells the driver to use LDPC for this frame
+ * @IEEE80211_TX_CTL_STBC: Enables Space-Time Block Coding (STBC) for this
+ *	frame and selects the maximum number of streams that it can use.
+ * @IEEE80211_TX_CTL_TX_OFFCHAN: Marks this packet to be transmitted on
+ *	the off-channel channel when a remain-on-channel offload is done
+ *	in hardware -- normal packets still flow and are expected to be
+ *	handled properly by the device.
+ * @IEEE80211_TX_INTFL_TKIP_MIC_FAILURE: Marks this packet to be used for TKIP
+ *	testing. It will be sent out with incorrect Michael MIC key to allow
+ *	TKIP countermeasures to be tested.
+ * @IEEE80211_TX_CTL_NO_CCK_RATE: This frame will be sent at non CCK rate.
+ *	This flag is actually used for management frame especially for P2P
+ *	frames not being sent at CCK rate in 2GHz band.
+ * @IEEE80211_TX_STATUS_EOSP: This packet marks the end of service period,
+ *	when its status is reported the service period ends. For frames in
+ *	an SP that mac80211 transmits, it is already set; for driver frames
+ *	the driver may set this flag. It is also used to do the same for
+ *	PS-Poll responses.
+ * @IEEE80211_TX_CTL_USE_MINRATE: This frame will be sent at lowest rate.
+ *	This flag is used to send nullfunc frame at minimum rate when
+ *	the nullfunc is used for connection monitoring purpose.
+ * @IEEE80211_TX_CTL_DONTFRAG: Don't fragment this packet even if it
+ *	would be fragmented by size (this is optional, only used for
+ *	monitor injection).
+ * @IEEE80211_TX_STAT_NOACK_TRANSMITTED: A frame that was marked with
+ *	IEEE80211_TX_CTL_NO_ACK has been successfully transmitted without
+ *	any errors (like issues specific to the driver/HW).
+ *	This flag must not be set for frames that don't request no-ack
+ *	behaviour with IEEE80211_TX_CTL_NO_ACK.
+ *
+ * Note: If you have to add new flags to the enumeration, then don't
+ *	 forget to update %IEEE80211_TX_TEMPORARY_FLAGS when necessary.
+ */
+enum mac80211_tx_info_flags {
+	IEEE80211_TX_CTL_REQ_TX_STATUS		= BIT(0),
+	IEEE80211_TX_CTL_ASSIGN_SEQ		= BIT(1),
+	IEEE80211_TX_CTL_NO_ACK			= BIT(2),
+	IEEE80211_TX_CTL_CLEAR_PS_FILT		= BIT(3),
+	IEEE80211_TX_CTL_FIRST_FRAGMENT		= BIT(4),
+	IEEE80211_TX_CTL_SEND_AFTER_DTIM	= BIT(5),
+	IEEE80211_TX_CTL_AMPDU			= BIT(6),
+	IEEE80211_TX_CTL_INJECTED		= BIT(7),
+	IEEE80211_TX_STAT_TX_FILTERED		= BIT(8),
+	IEEE80211_TX_STAT_ACK			= BIT(9),
+	IEEE80211_TX_STAT_AMPDU			= BIT(10),
+	IEEE80211_TX_STAT_AMPDU_NO_BACK		= BIT(11),
+	IEEE80211_TX_CTL_RATE_CTRL_PROBE	= BIT(12),
+	IEEE80211_TX_INTFL_OFFCHAN_TX_OK	= BIT(13),
+	IEEE80211_TX_CTL_HW_80211_ENCAP		= BIT(14),
+	IEEE80211_TX_INTFL_RETRIED		= BIT(15),
+	IEEE80211_TX_INTFL_DONT_ENCRYPT		= BIT(16),
+	IEEE80211_TX_CTL_NO_PS_BUFFER		= BIT(17),
+	IEEE80211_TX_CTL_MORE_FRAMES		= BIT(18),
+	IEEE80211_TX_INTFL_RETRANSMISSION	= BIT(19),
+	IEEE80211_TX_INTFL_MLME_CONN_TX		= BIT(20),
+	IEEE80211_TX_INTFL_NL80211_FRAME_TX	= BIT(21),
+	IEEE80211_TX_CTL_LDPC			= BIT(22),
+	IEEE80211_TX_CTL_STBC			= BIT(23) | BIT(24),
+	IEEE80211_TX_CTL_TX_OFFCHAN		= BIT(25),
+	IEEE80211_TX_INTFL_TKIP_MIC_FAILURE	= BIT(26),
+	IEEE80211_TX_CTL_NO_CCK_RATE		= BIT(27),
+	IEEE80211_TX_STATUS_EOSP		= BIT(28),
+	IEEE80211_TX_CTL_USE_MINRATE		= BIT(29),
+	IEEE80211_TX_CTL_DONTFRAG		= BIT(30),
+	IEEE80211_TX_STAT_NOACK_TRANSMITTED	= BIT(31),
+};
+
+/**
  * enum rfkill_hard_block_reasons - hard block reasons
  * @RFKILL_HARD_BLOCK_SIGNAL: the hardware rfkill signal is active
  * @RFKILL_HARD_BLOCK_NOT_OWNER: the NIC is not owned by the host
@@ -716,11 +939,17 @@ enum ieee80211_conn_bw_limit {
 	IEEE80211_CONN_BW_LIMIT_320,
 };
 
+/* management frame protection */
 enum ieee80211_mfp{
 	IEEE80211_MFP_DISABLED = 0,
 	IEEE80211_MFP_OPTIONAL = 1,
 	IEEE80211_MFP_REQUIRED = 2
-}; /* management frame protection */
+};
+
+enum {
+	IEEE80211_RX_MSG	= 1,
+	IEEE80211_TX_STATUS_MSG	= 2,
+};
 
 /**
  * enum ieee80211_max_queues - maximum number of queues
@@ -4900,9 +5129,12 @@ struct ieee80211_local {
 	struct rhltable link_sta_hash;
 
 	struct list_head wiphy_work_list;
+	struct tasklet_struct tasklet;
 
 	/* include here the crda timeout variable instead of implementing it as a global one */
 	u32 reg_crda_timeouts;
+
+	u32 tx_status_drop;
 
 	u16 airtime_flags;
 	u32 aql_txq_limit_low[IEEE80211_NUM_ACS];
@@ -5579,6 +5811,26 @@ warn:
 	return 0;
 }
 
+static inline void set_sta_flag(struct sta_info *sta, enum ieee80211_sta_info_flags flag){
+	set_bit(flag, &sta->_flags);
+}
+
+static inline void clear_sta_flag(struct sta_info *sta, enum ieee80211_sta_info_flags flag){
+	clear_bit(flag, &sta->_flags);
+}
+
+static inline int test_sta_flag(struct sta_info *sta, enum ieee80211_sta_info_flags flag){
+	return test_bit(flag, &sta->_flags);
+}
+
+static inline int test_and_clear_sta_flag(struct sta_info *sta, enum ieee80211_sta_info_flags flag){
+	return test_and_clear_bit(flag, &sta->_flags);
+}
+
+static inline int test_and_set_sta_flag(struct sta_info *sta, enum ieee80211_sta_info_flags flag){
+	return test_and_set_bit(flag, &sta->_flags);
+}
+
 /**
  * wiphy_ext_feature_set - set the extended feature flag
  *
@@ -5591,8 +5843,12 @@ warn:
 static inline void wiphy_ext_feature_set(struct wiphy *wiphy, enum nl80211_ext_feature_index ftidx){
 	u8 *ft_byte = 0;
 
-//	ft_byte = &wiphy->ext_features + (sizeof(u8) * (ftidx / 8));
-//	*ft_byte |= BIT(ftidx % 8);
+	ft_byte = &wiphy->ext_features + (sizeof(u8) * (ftidx / 8));
+	*ft_byte |= BIT(ftidx % 8);
+}
+
+static inline u16 ieee80211_info_get_tx_time_est(struct ieee80211_tx_info *info){
+	return info->tx_time_est << 2;
 }
 
 static inline bool ieee80211_rate_valid(struct ieee80211_tx_rate *rate){
@@ -5625,8 +5881,8 @@ static inline u8 ieee80211_rate_get_vht_nss(const struct ieee80211_tx_rate *rate
 static inline bool wiphy_ext_feature_isset(struct wiphy *wiphy, enum nl80211_ext_feature_index ftidx){
 	u8 ft_byte = 0;
 
-//	ft_byte = wiphy->ext_features + (sizeof(u8) * (ftidx / 8));
-//	return (ft_byte & BIT(ftidx % 8)) != 0;
+	ft_byte = wiphy->ext_features + (sizeof(u8) * (ftidx / 8));
+	return (ft_byte & BIT(ftidx % 8)) != 0;
 }
 
 
@@ -6783,7 +7039,43 @@ static inline struct crypto_aead *ieee80211_aes_gcm_key_setup_encrypt(const u8 k
 	return aead_key_setup_encrypt("gcm(aes)", key, key_len, IEEE80211_GCMP_MIC_LEN);
 }
 
-static struct ieee80211_key * ieee80211_key_alloc(u32 cipher, int idx, size_t key_len, u8 *key_data, size_t seq_len, u8 *seq){
+static void ieee80211_key_iter(struct ieee80211_hw *hw,
+		   struct ieee80211_vif *vif,
+		   struct ieee80211_key *key,
+		   void (*iter)(struct ieee80211_hw *hw,
+				struct ieee80211_vif *vif,
+				struct ieee80211_sta *sta,
+				struct ieee80211_key_conf *key,
+				void *data),
+		   void *iter_data){
+	/* skip keys of station in removal process */
+	if (key->sta && key->sta->removed){
+		return;
+	}
+
+	if (!(key->flags & KEY_FLAG_UPLOADED_TO_HARDWARE)){
+		return;
+	}
+
+	iter(hw, vif, key->sta ? &key->sta->sta : NULL, &key->conf, iter_data);
+}
+
+static void _ieee80211_iter_keys_rcu(struct ieee80211_hw *hw,  struct ieee80211_sub_if_data *sdata,
+			 void (*iter)(struct ieee80211_hw *hw,
+				      struct ieee80211_vif *vif,
+				      struct ieee80211_sta *sta,
+				      struct ieee80211_key_conf *key,
+				      void *data),
+			 void *iter_data){
+	struct ieee80211_key *key = NULL;
+
+	list_for_each_entry_rcu(key, &sdata->key_list, list){
+		ieee80211_key_iter(hw, &sdata->vif, key, iter, iter_data);
+	}
+}
+
+
+static struct ieee80211_key *ieee80211_key_alloc(u32 cipher, int idx, size_t key_len, u8 *key_data, size_t seq_len, u8 *seq){
 	int err = 0;
 	int i = 0;
 	int j = 0;
@@ -6931,6 +7223,101 @@ static struct ieee80211_key * ieee80211_key_alloc(u32 cipher, int idx, size_t ke
 	INIT_LIST_HEAD(&key->list);
 
 	return key;
+}
+
+static void ieee80211_report_used_skb(struct ieee80211_local *local, struct sk_buff *skb, bool dropped, int ack_hwtstamp){
+	bool acked = false;
+	u16 tx_time_est = 0;
+	struct ieee80211_hdr *hdr = NULL;
+	struct ieee80211_tx_info *info = NULL;
+
+	tx_time_est = 0;
+	hdr = (void *)skb->data;
+	acked = info->flags & IEEE80211_TX_STAT_ACK;
+	info = skb->cb;
+
+	tx_time_est = ieee80211_info_get_tx_time_est(info);
+	if (dropped){
+		acked = false;
+	}
+	#if 0
+	if (tx_time_est) {
+		struct sta_info *sta;
+
+		rcu_read_lock();
+
+		sta = sta_info_get_by_addrs(local, hdr->addr1, hdr->addr2);
+		ieee80211_sta_update_pending_airtime(local, sta,
+						     skb_get_queue_mapping(skb),
+						     tx_time_est,
+						     true);
+		rcu_read_unlock();
+	}
+
+	if (info->flags & IEEE80211_TX_INTFL_MLME_CONN_TX) {
+		struct ieee80211_sub_if_data *sdata;
+
+		rcu_read_lock();
+
+		sdata = ieee80211_sdata_from_skb(local, skb);
+
+		if (!sdata) {
+			skb->dev = NULL;
+		} else if (!dropped) {
+			/* Check to see if packet is a TDLS teardown packet */
+			if (ieee80211_is_data(hdr->frame_control) && (ieee80211_get_tdls_action(skb) == WLAN_TDLS_TEARDOWN)) {
+				ieee80211_tdls_td_tx_handle(local, sdata, skb, info->flags);
+			} else if (ieee80211_s1g_is_twt_setup(skb)) {
+				if (!acked) {
+					struct sk_buff *qskb;
+
+					qskb = skb_clone(skb, GFP_ATOMIC);
+					if (qskb) {
+						skb_queue_tail(&sdata->status_queue,  qskb);
+						wiphy_work_queue(local->hw.wiphy, &sdata->work);
+					}
+				}
+			} else {
+				ieee80211_mgd_conn_tx_status(sdata, hdr->frame_control, acked);
+			}
+		}
+
+		rcu_read_unlock();
+	} else if (info->status_data_idr) {
+		ieee80211_report_ack_skb(local, skb, acked, dropped,
+					 ack_hwtstamp);
+	} else if (info->status_data) {
+		struct ieee80211_sub_if_data *sdata;
+
+		rcu_read_lock();
+
+		sdata = ieee80211_sdata_from_skb(local, skb);
+
+		switch (u16_get_bits(info->status_data,
+				     IEEE80211_STATUS_TYPE_MASK)) {
+		case IEEE80211_STATUS_TYPE_SMPS:
+			ieee80211_handle_smps_status(sdata, acked,
+						     info->status_data);
+			break;
+		case IEEE80211_STATUS_TYPE_NEG_TTLM:
+			ieee80211_handle_teardown_ttlm_status(sdata, acked);
+			break;
+		}
+		rcu_read_unlock();
+	}
+
+	if (!dropped && skb->destructor) {
+		skb->wifi_acked_valid = 1;
+		skb->wifi_acked = acked;
+	}
+
+	ieee80211_led_tx(local);
+
+	if (skb_has_frag_list(skb)) {
+		kfree_skb_list(skb_shinfo(skb)->frag_list);
+		skb_shinfo(skb)->frag_list = NULL;
+	}
+	#endif
 }
 
 /* nl80211 based function wrappers (must be working for both Linux and Windows) */

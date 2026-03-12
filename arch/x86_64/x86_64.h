@@ -50,6 +50,7 @@ bool constant_test_bit(int nr, const void *addr){
 	return ((1UL << (nr & 31)) & (p[nr >> 5])) != 0;
 }
 
+#ifndef ARCH_INDEPENDENT_BITOPS
 bool variable_test_bit(int nr, const void *addr){
 	bool v = false;
 	const u32 *p = addr;
@@ -63,6 +64,7 @@ bool variable_test_bit(int nr, const void *addr){
 void set_bit(int nr, void *addr){
 	asm("btsl %1,%0" : "+m" (*(u32 *)addr) : "Ir" (nr));
 }
+#endif
 
 int module_frob_arch_sections(Elf(Ehdr) *hdr, Elf(Shdr) *sechdrs, char *secstrings, struct module *mod){
 	return 0;

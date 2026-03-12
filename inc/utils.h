@@ -605,6 +605,18 @@ out:										\
 	container_of(ptr, type, member)
 
 /**
+ * list_entry_rcu - get the struct for this entry
+ * @ptr:        the &struct list_head pointer.
+ * @type:       the type of the struct this is embedded in.
+ * @member:     the name of the list_head within the struct.
+ *
+ * This primitive may safely run concurrently with the _rcu list-mutation
+ * primitives such as list_add_rcu() as long as it's guarded by rcu_read_lock().
+ */
+#define list_entry_rcu(ptr, type, member) \
+	container_of(READ_ONCE(ptr), type, member)
+
+/**
  * list_first_entry - get the first element from a list
  * @ptr:	the list head to take the element from.
  * @type:	the type of the struct this is embedded in.
@@ -777,6 +789,22 @@ out:										\
 	     !list_entry_is_head(pos, head, member); 			\
 	     pos = n, n = list_next_entry(n, member))
 
+/**
+ * list_for_each_entry_rcu	-	iterate over rcu list of given type
+ * @pos:	the type * to use as a loop cursor.
+ * @head:	the head for your list.
+ * @member:	the name of the list_head within the struct.
+ * @cond:	optional lockdep expression if called from non-RCU protection.
+ *
+ * This list-traversal primitive may safely run concurrently with
+ * the _rcu list-mutation primitives such as list_add_rcu()
+ * as long as the traversal is guarded by rcu_read_lock().
+ */
+#define list_for_each_entry_rcu(pos, head, member, cond...)		\
+	for (pos = list_entry_rcu((head)->next, typeof(*pos), member);	\
+		&pos->member != (head);					\
+		pos = list_entry_rcu(pos->member.next, typeof(*pos), member))
+
 #define rht_dereference(p, ht) \
 	rcu_dereference_protected(p, lockdep_rht_mutex_is_held(ht))
 
@@ -906,6 +934,7 @@ out:										\
 #define _X				0x40	/* hex digit */
 #define _SP				0x80	/* hard space (0x20) */
 
+#ifndef ARCH_INDEPENDENT_BITOPS
 /*
  * Many architecture-specific non-atomic bitops contain inline asm code and due
  * to that the compiler can't optimize them to compile-time expressions or
@@ -938,6 +967,8 @@ out:										\
 
 #define test_bit(nr, addr)		bitop(_test_bit, nr, addr)
 #define test_bit_acquire(nr, addr)	bitop(_test_bit_acquire, nr, addr)
+
+#endif
 
 /* Nanosecond scalar representation for kernel time values */
 typedef s64	ktime_t;
@@ -1016,6 +1047,27 @@ struct word_at_a_time {
 	const unsigned long one_bits;
 	const unsigned long high_bits;
 };
+
+#ifdef ARCH_INDEPENDENT_BITOPS
+/* functions taken from 'https://github.com/chris1111/AppleIntelE1000e/blob/0604bc4bdfb1a12be7af6b7fe2ce5b9ad8582310/kcompat.h#L423-L440C2' */
+static inline int test_bit(int nr, const volatile unsigned long * addr) {
+	return (*addr & (1<<nr)) != 0;
+}
+
+static inline void set_bit(int nr, volatile unsigned long * addr) {
+	*addr |= (1 << nr);
+}
+
+static inline void clear_bit(int nr, volatile unsigned long * addr) {
+	*addr &= ~(1 << nr);
+}
+
+static inline int test_and_set_bit(int nr, volatile unsigned long * addr) {
+	int rc = test_bit(nr,addr);
+	set_bit(nr,addr);
+	return rc;
+}
+#endif
 
 static inline int ilog2(u64 n){
 	return n ? (63 - __builtin_clzll(n)) : -1;

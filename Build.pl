@@ -87,6 +87,7 @@ my %used_fields_by_struct = ();
 
 my @gcc_params = (
 	"-DENABLE_DBG_PRINT",
+	"-DARCH_INDEPENDENT_BITOPS",
 	"-DCONFIG_PM",
 	"-O2",
 	"-w",
@@ -130,6 +131,7 @@ my %struct_whitelist = (
 	"urb"		=> "urb",
 	"fops"		=> "file_operations",
 	"netdev"	=> "net_device",
+	"intf"		=> "usb_interface",
 );
 
 my %field_ctype = (
@@ -233,6 +235,13 @@ my %field_ctype = (
 		"unreg_list"		=> "struct list_head",
 		"ptype_all"		=> "struct list_head",
 		"ptype_specific"	=> "struct list_head",
+	},
+	usb_interface => {
+		"altsetting"		=> "struct usb_host_interface *",
+		"cur_altsetting"	=> "struct usb_host_interface *",
+		"intf_assoc"		=> "struct usb_interface_assoc_descriptor *",
+		"dev"			=> "struct device",
+		"usb_dev"		=> "struct device *",
 	},
 );
 

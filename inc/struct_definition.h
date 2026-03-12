@@ -6,12 +6,21 @@ enum ieee80211_chanctx_switch_mode;
 struct rb_node;
 struct rb_root;
 
+struct module;
+struct list_head;
+
 struct shash_desc;
 struct crypto_tfm;
 struct crypto_alg;
 struct crypto_shash;
 struct crypto_aead;
 struct crypto_type;
+
+struct urb;
+struct usb_driver;
+struct usb_anchor;
+struct usb_interface;
+struct usb_host_config;
 
 struct sock;
 struct rfkill;

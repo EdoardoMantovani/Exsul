@@ -22,6 +22,7 @@ struct module_controller {
         u8                                usb_endpoint_num;
         struct libusb_endpoint_descriptor usb_ep[USB_MAX_ENDPOINT_NUM];
         struct libusb_device_descriptor   usb_dev_desc;
+	pthread_mutex_t			  urb_anchor_mutex;
 
         /* provide the support for loading multiple lkm, permitting thus to reuse the functions from every lkm loaded */
         u8 loaded_lkm_num;

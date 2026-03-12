@@ -110,17 +110,13 @@
 /* maximun number of files that can be opened by the kernel module */
 #define MAX_FILE_IDX		32
 
+/* maximun number of usb endpoints possible */
+#define USB_MAX_ENDPOINT_NUM    12
+
 #define NR_KMALLOC_TYPES	8
 #define	NUMA_NO_NODE		(-1)
 
 #define MAX_ERRNO		4095
-
-/* Hard limit */
-#define USB_MAXENDPOINTS	30
-/* this maximum is arbitrary */
-#define USB_MAXINTERFACES	32
-#define USB_MAXIADS		(USB_MAXINTERFACES/2)
-#define USB_MAX_ENDPOINT_NUM	12
 
 #define GFP_KERNEL		0
 #define GFP_ATOMIC		0
@@ -186,11 +182,9 @@ enum {
 	DUMP_PREFIX_OFFSET
 };
 
-enum usb_interface_condition {
-	USB_INTERFACE_UNBOUND = 0,
-	USB_INTERFACE_BINDING,
-	USB_INTERFACE_BOUND,
-	USB_INTERFACE_UNBINDING,
+enum {
+	TASKLET_STATE_SCHED,	/* Tasklet is scheduled for execution */
+	TASKLET_STATE_RUN	/* Tasklet is running (SMP only) */
 };
 
 enum mod_mem_type {
@@ -302,6 +296,15 @@ struct kobject {
 #endif
 };
 
+struct kobj_type {
+	void (*release)(struct kobject *kobj);
+	const struct sysfs_ops *sysfs_ops;
+	struct attribute **default_attrs;
+	const struct kobj_ns_type_operations *(*child_ns_type)(struct kobject *kobj);
+	const void *(*namespace)(struct kobject *kobj);
+	void (*get_ownership)(struct kobject *kobj, int *uid, int *gid);
+};
+
 struct cdev {
 	struct kobject kobj;
 	struct module *owner;
@@ -309,6 +312,12 @@ struct cdev {
 	struct list_head list;
 	u32 dev;
 	unsigned int count;
+};
+
+struct usb_dev_tuple {
+	__u16 usb_pid;
+	__u16 usb_vid;
+	bool is_used;
 };
 
 /*
@@ -436,25 +445,6 @@ struct workqueue_struct {
 	int nr_active;
 
 	pthread_t thread;
-};
-
-struct usb_anchor {
-	struct list_head urb_list;
-	/* don't count the other fields for now */
-};
-
-struct urb {
-	/* the order of the first elements isn't important, luckily */
-	struct kref kref;		/* reference count of the URB */
-	int unlinked;			/* unlink error code */
-	void *hcpriv;			/* private data for host controller */
-	atomic_uint use_count;		/* concurrent submissions counter */
-	atomic_uint reject;		/* submissions will fail */
-
-	struct list_head urb_list;	/* list head for use by the urb's current owner */
-	struct list_head anchor_list;	/* the URB may be anchored */
-	struct usb_anchor *anchor;
-	/* ... */
 };
 
 /**
@@ -640,178 +630,6 @@ struct file_layer {
 struct file_list {
 	int file_list_entries;
 	struct file_layer *elem;
-};
-
-struct usb_device;
-
-struct usb_device_id {
-	/* which fields to match against? */
-	__u16		match_flags;
-
-	/* Used for product specific matches; range is inclusive */
-	__u16		idVendor;
-	__u16		idProduct;
-	__u16		bcdDevice_lo;
-	__u16		bcdDevice_hi;
-
-	/* Used for device class matches */
-	__u8		bDeviceClass;
-	__u8		bDeviceSubClass;
-	__u8		bDeviceProtocol;
-
-	/* Used for interface class matches */
-	__u8		bInterfaceClass;
-	__u8		bInterfaceSubClass;
-	__u8		bInterfaceProtocol;
-
-	/* Used for vendor-specific interface matches */
-	__u8		bInterfaceNumber;
-
-	/* not matched against */
-	unsigned long	driver_info __attribute__((aligned(sizeof(unsigned long))));
-};
-
-struct usb_dev_tuple {
-	__u16 usb_pid;
-	__u16 usb_vid;
-	bool is_used;
-};
-
-/**
- * struct usb_host_endpoint - host-side endpoint descriptor and queue
- * @desc: descriptor for this endpoint, wMaxPacketSize in native byteorder
- * @ss_ep_comp: SuperSpeed companion descriptor for this endpoint
- * @ssp_isoc_ep_comp: SuperSpeedPlus isoc companion descriptor for this endpoint
- * @urb_list: urbs queued to this endpoint; maintained by usbcore
- * @hcpriv: for use by HCD; typically holds hardware dma queue head (QH)
- *	with one or more transfer descriptors (TDs) per urb
- * @ep_dev: ep_device for sysfs info
- * @extra: descriptors following this endpoint in the configuration
- * @extralen: how many bytes of "extra" are valid
- * @enabled: URBs may be submitted to this endpoint
- * @streams: number of USB-3 streams allocated on the endpoint
- *
- * USB requests are always queued to a given endpoint, identified by a
- * descriptor within an active interface in a given USB configuration.
- */
-struct usb_host_endpoint {
-	struct usb_endpoint_descriptor		desc;
-	struct usb_ss_ep_comp_descriptor	ss_ep_comp;
-	struct usb_ssp_isoc_ep_comp_descriptor	ssp_isoc_ep_comp;
-	struct list_head			urb_list;
-	void					*hcpriv;
-	struct ep_device			*ep_dev;	/* For sysfs info */
-
-	unsigned char				*extra;   /* Extra descriptors */
-	int extralen;
-	int enabled;
-	int streams;
-};
-
-/* host-side wrapper for one interface setting's parsed descriptors */
-struct usb_host_interface {
-	struct usb_interface_descriptor	desc;
-
-	int extralen;
-	unsigned char *extra;   /* Extra descriptors */
-
-	/* array of desc.bNumEndpoints endpoints associated with this
-	 * interface setting.  these will be in no particular order.
-	 */
-	struct usb_host_endpoint *endpoint;
-
-	char *string;		/* iInterface string, if present */
-};
-
-struct usb_interface {
-	/* array of alternate settings for this interface,
-	 * stored in no particular order */
-	struct usb_host_interface *altsetting;
-
-	struct usb_host_interface *cur_altsetting;	/* the currently
-					 * active alternate setting */
-	unsigned num_altsetting;	/* number of alternate settings */
-
-	/* If there is an interface association descriptor then it will list
-	 * the associated interfaces */
-	struct usb_interface_assoc_descriptor *intf_assoc;
-
-	int minor;			/* minor number this interface is
-					 * bound to */
-	enum usb_interface_condition condition;		/* state of binding */
-	unsigned sysfs_files_created:1;	/* the sysfs attributes exist */
-	unsigned ep_devs_created:1;	/* endpoint "devices" exist */
-	unsigned unregistering:1;	/* unregistration is in progress */
-	unsigned needs_remote_wakeup:1;	/* driver requires remote wakeup */
-	unsigned needs_altsetting0:1;	/* switch to altsetting 0 is pending */
-	unsigned needs_binding:1;	/* needs delayed unbind/rebind */
-	unsigned resetting_device:1;	/* true: bandwidth alloc after reset */
-};
-
-/**
- * struct usb_host_config - representation of a device's configuration
- * @desc: the device's configuration descriptor.
- * @string: pointer to the cached version of the iConfiguration string, if
- *	present for this configuration.
- * @intf_assoc: list of any interface association descriptors in this config
- * @interface: array of pointers to usb_interface structures, one for each
- *	interface in the configuration.  The number of interfaces is stored
- *	in desc.bNumInterfaces.  These pointers are valid only while the
- *	configuration is active.
- * @intf_cache: array of pointers to usb_interface_cache structures, one
- *	for each interface in the configuration.  These structures exist
- *	for the entire life of the device.
- * @extra: pointer to buffer containing all extra descriptors associated
- *	with this configuration (those preceding the first interface
- *	descriptor).
- * @extralen: length of the extra descriptors buffer.
- *
- * USB devices may have multiple configurations, but only one can be active
- * at any time.  Each encapsulates a different operational environment;
- * for example, a dual-speed device would have separate configurations for
- * full-speed and high-speed operation.  The number of configurations
- * available is stored in the device descriptor as bNumConfigurations.
- *
- * A configuration can contain multiple interfaces.  Each corresponds to
- * a different function of the USB device, and all are available whenever
- * the configuration is active.  The USB standard says that interfaces
- * are supposed to be numbered from 0 to desc.bNumInterfaces-1, but a lot
- * of devices get this wrong.  In addition, the interface array is not
- * guaranteed to be sorted in numerical order.  Use usb_ifnum_to_if() to
- * look up an interface entry based on its number.
- *
- * Device drivers should not attempt to activate configurations.  The choice
- * of which configuration to install is a policy decision based on such
- * considerations as available power, functionality provided, and the user's
- * desires (expressed through userspace tools).  However, drivers can call
- * usb_reset_configuration() to reinitialize the current configuration and
- * all its interfaces.
- */
-struct usb_host_config {
-	struct usb_config_descriptor	desc;
-
-	char *string;		/* iConfiguration string, if present */
-
-	/* List of any Interface Association Descriptors in this
-	 * configuration. */
-	struct usb_interface_assoc_descriptor *intf_assoc[USB_MAXIADS];
-
-	/* the interfaces associated with this configuration,
-	 * stored in no particular order */
-	struct usb_interface *interface[USB_MAXINTERFACES];
-
-	/* Interface information available even when this is not the
-	 * active configuration */
-	struct usb_interface_cache *intf_cache[USB_MAXINTERFACES];
-
-	unsigned char *extra;   /* Extra descriptors */
-	int extralen;
-};
-
-struct usb_driver {
-	const char *name;
-	int (*probe) (struct usb_interface *intf, const struct usb_device_id *id);
-	void (*disconnect) (struct usb_interface *intf);
 };
 
 struct module_memory {
@@ -1169,8 +987,40 @@ static inline bool refcount_dec_and_test(refcount_t *r){
 	return __refcount_dec_and_test(r, NULL);
 }
 
+/**
+ * kref_init - initialize object.
+ * @kref: object in question.
+ */
+static inline void kref_init(struct kref *kref){
+	__atomic_store_n(&kref->refcount.refs, 1, __ATOMIC_RELEASE);
+}
+
 static inline void kref_get(struct kref *kref){
 	refcount_inc(&kref->refcount);
+}
+
+/**
+ * kref_put - Decrement refcount for object
+ * @kref: Object
+ * @release: Pointer to the function that will clean up the object when the
+ *	     last reference to the object is released.
+ *
+ * Decrement the refcount, and if 0, call @release.  The caller may not
+ * pass NULL or kfree() as the release function.
+ *
+ * Return: 1 if this call removed the object, otherwise return 0.  Beware,
+ * if this function returns 0, another caller may have removed the object
+ * by the time this function returns.  The return value is only certain
+ * if you want to see if the object is definitely released.
+ */
+static inline int kref_put(struct kref *kref, void (*release)(struct kref *kref)){
+	int ret = false;
+	if (refcount_dec_and_test(&kref->refcount)) {
+		release(kref);
+		ret = true;
+		return ret;
+	}
+	return ret;
 }
 
 /**
@@ -1422,6 +1272,47 @@ static inline void __rb_insert(struct rb_node *node, struct rb_root *root, void 
 	}
 }
 
+
+static void __kobject_del(struct kobject *kobj){
+	kobj->state_in_sysfs = 0;
+	list_del_init(&kobj->entry);
+	kobj->parent = NULL;
+}
+
+/*
+ * kobject_cleanup - free kobject resources.
+ * @kobj: object to cleanup
+ */
+static void kobject_cleanup(struct kobject *kobj){
+	struct kobject *parent = kobj->parent;
+	const struct kobj_type *t = kobj->ktype;
+	const char *name = kobj->name;
+
+	/* remove from sysfs if the caller did not do it */
+	if (kobj->state_in_sysfs) {
+		__kobject_del(kobj);
+	} else {
+		/* avoid dropping the parent reference unnecessarily */
+		parent = NULL;
+	}
+
+	if (t && t->release != NULL) {
+		t->release(kobj);
+	}
+
+	/* free name if we allocated it */
+	if (name) {
+		kfree_const(name);
+	}
+
+	kobject_put(parent);
+}
+
+static void kobject_release(struct kref *kref){
+	struct kobject *kobj = container_of(kref, struct kobject, kref);
+	kobject_cleanup(kobj);
+}
+
 static inline spin_lock_init(pthread_mutex_t *lock){
 	pthread_mutex_init(lock, NULL);
 }
@@ -1490,26 +1381,27 @@ static void delayed_list_insert_sorted(struct workqueue_struct *wq, struct delay
 }
 
 /* taken from 'https://android.googlesource.com/platform/external/mtools/+/8c780b311a17226862cbfd6ae6fafda2f09d50d7/strtonum.c#35' */
-static unsigned long strtoul_with_range(const char *nptr, char **endptr,
-					int base, unsigned long max) {
-    unsigned long l = strtoul(nptr, endptr, base);
-    if(l > max) {
-	errno = ERANGE;
-	return max;
-    }
-    return l;
+static unsigned long strtoul_with_range(const char *nptr, char **endptr, int base, unsigned long max) {
+	unsigned long l = strtoul(nptr, endptr, base);
+	if(l > max) {
+		errno = ERANGE;
+		return max;
+	}
+	return l;
 }
 
 static int try_consume_completion(struct completion *x){
-    int v = atomic_load_explicit(&x->done, memory_order_acquire);
-    while (v > 0) {
-        if (atomic_compare_exchange_weak_explicit(
-                &x->done, &v, v - 1,
-                memory_order_acq_rel, memory_order_acquire)) {
-            return 1;
-        }
-    }
-    return 0;
+	int ret = 0;
+	int v = 0;
+	v = atomic_load_explicit(&x->done, memory_order_acquire);
+
+	while (v > 0) {
+		if (atomic_compare_exchange_weak_explicit(&x->done, &v, v - 1, memory_order_acq_rel, memory_order_acquire)) {
+			ret = true;
+			return ret;
+		}
+	}
+	return ret;
 }
 
 /*
@@ -1552,6 +1444,12 @@ static u64 read_uleb128(u8 *p, int len){
 
 static struct task_struct *tls_current;
 static struct tasklet_head tasklet_global_queue;
+
+static inline void tasklet_schedule(struct tasklet_struct *t){
+	if (!test_and_set_bit(TASKLET_STATE_SCHED, &t->state)){
+		__tasklet_schedule(t);
+	}
+}
 
 /**
  * worker_thread - the worker thread function
@@ -1727,6 +1625,7 @@ static unsigned long round_jiffies_common(unsigned long j, int cpu, bool force_u
 #include <struct_offset.h>
 #include <mod_controller.h>
 #include <hashtable.h>
+#include <usb.h>
 #include <bits.h>
 #include <net.h>
 #include <skb.h>
