@@ -1,9 +1,17 @@
 /* header created for avoiding errors during the 'stubs' compilation phase */
 
+enum rfkill_hard_block_reasons;
 enum ieee80211_chanctx_switch_mode;
 
 struct rb_node;
 struct rb_root;
+
+struct shash_desc;
+struct crypto_tfm;
+struct crypto_alg;
+struct crypto_shash;
+struct crypto_aead;
+struct crypto_type;
 
 struct sock;
 struct rfkill;

@@ -36,7 +36,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[1] = {
 				.struct_size = 0,
 				.struct_name = "ieee80211_hw",
-				.struct_field_num = 24,
+				.struct_field_num = 25,
 				.fields = {
 					[0] = {
 						.field_name = "add_chanctx",
@@ -79,58 +79,62 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[10] = {
-						.field_name = "remain_on_channel",
+						.field_name = "priv",
 						.field_offset = 0,
 					},
 					[11] = {
-						.field_name = "remove_chanctx",
+						.field_name = "remain_on_channel",
 						.field_offset = 0,
 					},
 					[12] = {
-						.field_name = "remove_interface",
+						.field_name = "remove_chanctx",
 						.field_offset = 0,
 					},
 					[13] = {
-						.field_name = "set_key",
+						.field_name = "remove_interface",
 						.field_offset = 0,
 					},
 					[14] = {
-						.field_name = "sta_add",
+						.field_name = "set_key",
 						.field_offset = 0,
 					},
 					[15] = {
-						.field_name = "sta_remove",
+						.field_name = "sta_add",
 						.field_offset = 0,
 					},
 					[16] = {
-						.field_name = "sta_state",
+						.field_name = "sta_remove",
 						.field_offset = 0,
 					},
 					[17] = {
-						.field_name = "start",
+						.field_name = "sta_state",
 						.field_offset = 0,
 					},
 					[18] = {
-						.field_name = "stop",
+						.field_name = "start",
 						.field_offset = 0,
 					},
 					[19] = {
-						.field_name = "tx",
+						.field_name = "stop",
 						.field_offset = 0,
 					},
 					[20] = {
-						.field_name = "unassign_vif_chanctx",
+						.field_name = "tx",
 						.field_offset = 0,
 					},
 					[21] = {
-						.field_name = "vif_cfg_changed",
+						.field_name = "unassign_vif_chanctx",
 						.field_offset = 0,
 					},
 					[22] = {
-						.field_name = "wake_tx_queue",
+						.field_name = "vif_cfg_changed",
 						.field_offset = 0,
 					},
 					[23] = {
+						.field_name = "wake_tx_queue",
+						.field_offset = 0,
+					},
+					[24] = {
 						.field_name = "wiphy",
 						.field_offset = 0,
 					},
@@ -667,17 +671,25 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[6] = {
 				.struct_size = 0,
 				.struct_name = "sk_buff_head",
-				.struct_field_num = 3,
+				.struct_field_num = 5,
 				.fields = {
 					[0] = {
-						.field_name = "next",
+						.field_name = "count",
 						.field_offset = 0,
 					},
 					[1] = {
-						.field_name = "prev",
+						.field_name = "list",
 						.field_offset = 0,
 					},
 					[2] = {
+						.field_name = "next",
+						.field_offset = 0,
+					},
+					[3] = {
+						.field_name = "prev",
+						.field_offset = 0,
+					},
+					[4] = {
 						.field_name = "qlen",
 						.field_offset = 0,
 					},

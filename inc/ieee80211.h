@@ -106,20 +106,20 @@
 #define SUITE(oui, id)	(((oui) << 8) | (id))
 
 /* cipher suite selectors */
-#define WLAN_CIPHER_SUITE_USE_GROUP	SUITE(0x000FAC, 0)
-#define WLAN_CIPHER_SUITE_WEP40		SUITE(0x000FAC, 1)
-#define WLAN_CIPHER_SUITE_TKIP		SUITE(0x000FAC, 2)
-/* reserved: 				SUITE(0x000FAC, 3) */
-#define WLAN_CIPHER_SUITE_CCMP		SUITE(0x000FAC, 4)
-#define WLAN_CIPHER_SUITE_WEP104	SUITE(0x000FAC, 5)
-#define WLAN_CIPHER_SUITE_AES_CMAC	SUITE(0x000FAC, 6)
-#define WLAN_CIPHER_SUITE_GCMP		SUITE(0x000FAC, 8)
-#define WLAN_CIPHER_SUITE_GCMP_256	SUITE(0x000FAC, 9)
-#define WLAN_CIPHER_SUITE_CCMP_256	SUITE(0x000FAC, 10)
-#define WLAN_CIPHER_SUITE_BIP_GMAC_128	SUITE(0x000FAC, 11)
-#define WLAN_CIPHER_SUITE_BIP_GMAC_256	SUITE(0x000FAC, 12)
-#define WLAN_CIPHER_SUITE_BIP_CMAC_256	SUITE(0x000FAC, 13)
-#define WLAN_CIPHER_SUITE_SMS4		SUITE(0x001472, 1)
+#define WLAN_CIPHER_SUITE_USE_GROUP		SUITE(0x000FAC, 0)
+#define WLAN_CIPHER_SUITE_WEP40			SUITE(0x000FAC, 1)
+#define WLAN_CIPHER_SUITE_TKIP			SUITE(0x000FAC, 2)
+/* reserved: 					SUITE(0x000FAC, 3) */
+#define WLAN_CIPHER_SUITE_CCMP			SUITE(0x000FAC, 4)
+#define WLAN_CIPHER_SUITE_WEP104		SUITE(0x000FAC, 5)
+#define WLAN_CIPHER_SUITE_AES_CMAC		SUITE(0x000FAC, 6)
+#define WLAN_CIPHER_SUITE_GCMP			SUITE(0x000FAC, 8)
+#define WLAN_CIPHER_SUITE_GCMP_256		SUITE(0x000FAC, 9)
+#define WLAN_CIPHER_SUITE_CCMP_256		SUITE(0x000FAC, 10)
+#define WLAN_CIPHER_SUITE_BIP_GMAC_128		SUITE(0x000FAC, 11)
+#define WLAN_CIPHER_SUITE_BIP_GMAC_256		SUITE(0x000FAC, 12)
+#define WLAN_CIPHER_SUITE_BIP_CMAC_256		SUITE(0x000FAC, 13)
+#define WLAN_CIPHER_SUITE_SMS4			SUITE(0x001472, 1)
 
 /* AKM suite selectors */
 #define WLAN_AKM_SUITE_8021X			SUITE(0x000FAC, 1)
@@ -145,15 +145,15 @@
 
 #define WLAN_AKM_SUITE_WFA_DPP			SUITE(WLAN_OUI_WFA, 2)
 
-#define AVG_PKT_SIZE	1024
+#define AVG_PKT_SIZE				1024
 
 /* Number of bits for an average sized packet */
-#define MCS_NBITS (AVG_PKT_SIZE << 3)
+#define MCS_NBITS				(AVG_PKT_SIZE << 3)
 
 /* Number of kilo-symbols (symbols * 1024) for a packet with (bps) bits per
  * symbol. We use k-symbols to avoid rounding in the _TIME macros below.
  */
-#define MCS_N_KSYMS(bps) DIV_ROUND_UP(MCS_NBITS << 10, (bps))
+#define MCS_N_KSYMS(bps)			DIV_ROUND_UP(MCS_NBITS << 10, (bps))
 
 /* Transmission time (1024 usec) for a packet containing (ksyms) * k-symbols */
 #define HE_SYMBOL_TIME(gi, ksyms)					\
@@ -658,6 +658,16 @@
 #define IEEE80211_6GHZ_CTRL_REG_INDOOR_SP_AP_OLD	4
 #define IEEE80211_6GHZ_CTRL_REG_INDOOR_SP_AP		8
 
+/**
+ * wiphy_dereference - fetch RCU pointer when updates are prevented by wiphy mtx
+ * @wiphy: the wiphy to check the locking on
+ * @p: The pointer to read, prior to dereferencing
+ *
+ * Return: the value of the specified RCU-protected pointer, but omit the
+ * READ_ONCE(), because caller holds the wiphy mutex used for updates.
+ */
+#define wiphy_dereference(wiphy, p)			rcu_dereference_protected(p, 1)
+
 #define for_each_sta_info(local, _addr, _sta, _tmp)			\
 	rhl_for_each_entry_rcu(_sta, _tmp,				\
 			       sta_info_hash_lookup(local, _addr), hash_node)
@@ -667,6 +677,15 @@
 			       link_sta_info_hash_lookup(local, _addr),	\
 			       link_hash_node)
 
+/**
+ * enum rfkill_hard_block_reasons - hard block reasons
+ * @RFKILL_HARD_BLOCK_SIGNAL: the hardware rfkill signal is active
+ * @RFKILL_HARD_BLOCK_NOT_OWNER: the NIC is not owned by the host
+ */
+enum rfkill_hard_block_reasons {
+	RFKILL_HARD_BLOCK_SIGNAL	= 1 << 0,
+	RFKILL_HARD_BLOCK_NOT_OWNER	= 1 << 1,
+};
 
 /* flags used in struct ieee80211_if_managed.flags */
 enum ieee80211_sta_flags {
@@ -696,6 +715,12 @@ enum ieee80211_conn_bw_limit {
 	IEEE80211_CONN_BW_LIMIT_160, /* also 80+80 */
 	IEEE80211_CONN_BW_LIMIT_320,
 };
+
+enum ieee80211_mfp{
+	IEEE80211_MFP_DISABLED = 0,
+	IEEE80211_MFP_OPTIONAL = 1,
+	IEEE80211_MFP_REQUIRED = 2
+}; /* management frame protection */
 
 /**
  * enum ieee80211_max_queues - maximum number of queues
@@ -1779,6 +1804,22 @@ enum wiphy_bss_param_flags {
 	WIPHY_BSS_PARAM_P2P_OPPPS = BIT(7),
 };
 
+enum queue_stop_reason {
+	IEEE80211_QUEUE_STOP_REASON_DRIVER,
+	IEEE80211_QUEUE_STOP_REASON_PS,
+	IEEE80211_QUEUE_STOP_REASON_CSA,
+	IEEE80211_QUEUE_STOP_REASON_AGGREGATION,
+	IEEE80211_QUEUE_STOP_REASON_SUSPEND,
+	IEEE80211_QUEUE_STOP_REASON_SKB_ADD,
+	IEEE80211_QUEUE_STOP_REASON_OFFCHANNEL,
+	IEEE80211_QUEUE_STOP_REASON_FLUSH,
+	IEEE80211_QUEUE_STOP_REASON_TDLS_TEARDOWN,
+	IEEE80211_QUEUE_STOP_REASON_RESERVE_TID,
+	IEEE80211_QUEUE_STOP_REASON_IFTYPE_CHANGE,
+
+	IEEE80211_QUEUE_STOP_REASONS,
+};
+
 /**
  * enum ieee80211_sta_state - station state
  *
@@ -2269,6 +2310,11 @@ struct wiphy_work {
 	wiphy_work_func_t func;
 };
 
+struct wiphy_delayed_work {
+	struct wiphy_work work;
+	struct wiphy *wiphy;
+	struct timer_list timer;
+};
 
 struct rfkill {
 	enum rfkill_type	type;
@@ -2292,6 +2338,40 @@ struct element {
         u8 id;
         u8 datalen;
         u8 data[];
+} __packed;
+
+/* Management MIC information element (IEEE 802.11w) for CMAC */
+struct ieee80211_mmie {
+	u8 element_id;
+	u8 length;
+	__le16 key_id;
+	u8 sequence_number[6];
+	u8 mic[8];
+} __packed;
+
+/* Management MIC information element (IEEE 802.11w) for GMAC and CMAC-256 */
+struct ieee80211_mmie_16 {
+	u8 element_id;
+	u8 length;
+	__le16 key_id;
+	u8 sequence_number[6];
+	u8 mic[16];
+} __packed;
+
+/* Management MIC information element (IEEE 802.11w) for all variants */
+struct ieee80211_mmie_var {
+	u8 element_id;
+	u8 length;
+	__le16 key_id;
+	u8 sequence_number[6];
+	u8 mic[]; /* 8 or 16 bytes */
+} __packed;
+
+struct ieee80211_vendor_ie {
+	u8 element_id;
+	u8 len;
+	u8 oui[3];
+	u8 oui_type;
 } __packed;
 
 /**
@@ -2946,6 +3026,8 @@ struct ieee80211_if_managed {
 	bool status_received;
 	__le16 status_fc;
 
+	enum ieee80211_mfp mfp;
+
 	/*
 	 * Bitmask of enabled u-apsd queues,
 	 * IEEE80211_WMM_IE_STA_QOSINFO_AC_BE & co. Needs a new association
@@ -2980,6 +3062,26 @@ struct ieee80211_if_managed {
 	u8 dialog_token_alloc;
 };
 
+struct ieee80211_link_data {
+	struct ieee80211_sub_if_data *sdata;
+	unsigned int link_id;
+
+	/* multicast keys only */
+	struct ieee80211_key __rcu *gtk[NUM_DEFAULT_KEYS +
+					NUM_DEFAULT_MGMT_KEYS +
+					NUM_DEFAULT_BEACON_KEYS];
+	struct ieee80211_key __rcu *default_multicast_key;
+	struct ieee80211_key __rcu *default_mgmt_key;
+	struct ieee80211_key __rcu *default_beacon_key;
+
+
+	bool operating_11g_mode;
+
+	int user_power_level; /* in dBm */
+	int ap_power_level; /* in dBm */
+
+};
+
 struct ieee80211_sub_if_data {
 	struct list_head list;
 
@@ -3002,9 +3104,6 @@ struct ieee80211_sub_if_data {
 
 	/* bit field of ACM bits (BIT(802.1D tag)) */
 	u8 wmm_acm;
-
-	struct ieee80211_key __rcu *keys[NUM_DEFAULT_KEYS];
-	struct ieee80211_key __rcu *default_unicast_key;
 
 	u16 sequence_number;
 	u16 mld_mcast_seq;
@@ -3041,6 +3140,12 @@ struct ieee80211_sub_if_data {
 		struct ieee80211_if_vlan vlan;
 		struct ieee80211_if_managed mgd;
 	} u;
+
+	struct ieee80211_key __rcu *keys[NUM_DEFAULT_KEYS];
+	struct ieee80211_key __rcu *default_unicast_key;
+
+	struct ieee80211_link_data deflink;
+	struct ieee80211_link_data __rcu *link[IEEE80211_MLD_MAX_NUM_LINKS];
 
 	u32 tx_handlers_drop;
 	/* must be last, dynamically sized area in this! */
@@ -4794,7 +4899,6 @@ struct ieee80211_local {
 	struct rhltable sta_hash;
 	struct rhltable link_sta_hash;
 
-	struct workqueue_struct system_dfl_wq;
 	struct list_head wiphy_work_list;
 
 	/* include here the crda timeout variable instead of implementing it as a global one */
@@ -4914,6 +5018,10 @@ struct ieee80211_local {
 	/* channel contexts */
 	struct list_head chanctx_list;
 	struct ieee80211_sub_if_data *sdata;
+
+	/* workqueues */
+	struct work_struct restart_work;
+
 };
 
 const struct element * cfg80211_find_elem_match(u8 eid, const u8 *ies, unsigned int len,  const u8 *match, unsigned int match_len, unsigned int match_offset);
@@ -6628,6 +6736,201 @@ static struct sta_info *sta_info_get_bss(struct ieee80211_sub_if_data *sdata, u8
 	}
 
 	return NULL;
+}
+
+static inline struct crypto_aead *ieee80211_aes_key_setup_encrypt(const u8 key[], size_t key_len, size_t mic_len){
+	return aead_key_setup_encrypt("ccm(aes)", key, key_len, mic_len);
+}
+
+static struct crypto_shash *ieee80211_aes_cmac_key_setup(const u8 key[], size_t key_len){
+	int err = 0;
+	struct crypto_shash *tfm = NULL;
+
+	tfm = crypto_alloc_shash("cmac(aes)", 0, 0);
+	if (!IS_ERR(tfm)) {
+		err = crypto_shash_setkey(tfm, key, key_len);
+
+		if (err) {
+			crypto_free_shash(tfm);
+			return ERR_PTR(err);
+		}
+	}
+	return tfm;
+}
+
+static struct crypto_aead *ieee80211_aes_gmac_key_setup(const u8 key[], size_t key_len){
+	int ret = 0;
+	struct crypto_aead *tfm = NULL;
+
+	tfm = crypto_alloc_aead("gcm(aes)", 0, CRYPTO_ALG_ASYNC);
+	if (IS_ERR(tfm)){
+		return tfm;
+	}
+
+	ret = crypto_aead_setkey(tfm, key, key_len);
+	if (ret == 0){
+		ret = crypto_aead_setauthsize(tfm, IEEE80211_GMAC_MIC_LEN);
+	}
+	if (ret == 0){
+		return tfm;
+	}
+
+	crypto_free_aead(tfm);
+	return ERR_PTR(ret);
+}
+
+static inline struct crypto_aead *ieee80211_aes_gcm_key_setup_encrypt(const u8 key[], size_t key_len){
+	return aead_key_setup_encrypt("gcm(aes)", key, key_len, IEEE80211_GCMP_MIC_LEN);
+}
+
+static struct ieee80211_key * ieee80211_key_alloc(u32 cipher, int idx, size_t key_len, u8 *key_data, size_t seq_len, u8 *seq){
+	int err = 0;
+	int i = 0;
+	int j = 0;
+	struct ieee80211_key *key = NULL;
+
+	if (idx < 0 || idx >= NUM_DEFAULT_KEYS + NUM_DEFAULT_MGMT_KEYS + NUM_DEFAULT_BEACON_KEYS){
+		return ERR_PTR(-EINVAL);
+	}
+
+	key = malloc(sizeof(struct ieee80211_key) + key_len);
+	if (key == NULL){
+		return ERR_PTR(-ENOMEM);
+	}
+
+	/*
+	 * Default to software encryption; we'll later upload the
+	 * key to the hardware if possible.
+	 */
+	key->conf.flags = 0;
+	key->flags = 0;
+
+	key->conf.link_id = -1;
+	key->conf.cipher = cipher;
+	key->conf.keyidx = idx;
+	key->conf.keylen = key_len;
+	switch (cipher) {
+	case WLAN_CIPHER_SUITE_WEP40:
+	case WLAN_CIPHER_SUITE_WEP104:
+		key->conf.iv_len = IEEE80211_WEP_IV_LEN;
+		key->conf.icv_len = IEEE80211_WEP_ICV_LEN;
+		break;
+	case WLAN_CIPHER_SUITE_TKIP:
+		key->conf.iv_len = IEEE80211_TKIP_IV_LEN;
+		key->conf.icv_len = IEEE80211_TKIP_ICV_LEN;
+		if (seq) {
+			for (i = 0; i < IEEE80211_NUM_TIDS; i++) {
+				key->u.tkip.rx[i].iv32 = get_unaligned_le32(&seq[2]);
+				key->u.tkip.rx[i].iv16 = get_unaligned_le16(seq);
+			}
+		}
+		break;
+	case WLAN_CIPHER_SUITE_CCMP:
+		key->conf.iv_len = IEEE80211_CCMP_HDR_LEN;
+		key->conf.icv_len = IEEE80211_CCMP_MIC_LEN;
+		if (seq) {
+			for (i = 0; i < IEEE80211_NUM_TIDS + 1; i++){
+				for (j = 0; j < IEEE80211_CCMP_PN_LEN; j++){
+					key->u.ccmp.rx_pn[i][j] = seq[IEEE80211_CCMP_PN_LEN - j - 1];
+				}
+			}
+		}
+		/*
+		 * Initialize AES key state here as an optimization so that
+		 * it does not need to be initialized for every packet.
+		 */
+		key->u.ccmp.tfm = ieee80211_aes_key_setup_encrypt(key_data, key_len, IEEE80211_CCMP_MIC_LEN);
+		if (IS_ERR(key->u.ccmp.tfm)) {
+			err = PTR_ERR(key->u.ccmp.tfm);
+			kfree(key);
+			return ERR_PTR(err);
+		}
+		break;
+	case WLAN_CIPHER_SUITE_CCMP_256:
+		key->conf.iv_len = IEEE80211_CCMP_256_HDR_LEN;
+		key->conf.icv_len = IEEE80211_CCMP_256_MIC_LEN;
+		for (i = 0; seq && i < IEEE80211_NUM_TIDS + 1; i++){
+			for (j = 0; j < IEEE80211_CCMP_256_PN_LEN; j++){
+				key->u.ccmp.rx_pn[i][j] = seq[IEEE80211_CCMP_256_PN_LEN - j - 1];
+			}
+		}
+		/* Initialize AES key state here as an optimization so that
+		 * it does not need to be initialized for every packet.
+		 */
+		key->u.ccmp.tfm = ieee80211_aes_key_setup_encrypt(key_data, key_len, IEEE80211_CCMP_256_MIC_LEN);
+		if (IS_ERR(key->u.ccmp.tfm)) {
+			err = PTR_ERR(key->u.ccmp.tfm);
+			kfree(key);
+			return ERR_PTR(err);
+		}
+		break;
+	case WLAN_CIPHER_SUITE_AES_CMAC:
+	case WLAN_CIPHER_SUITE_BIP_CMAC_256:
+		key->conf.iv_len = 0;
+		if (cipher == WLAN_CIPHER_SUITE_AES_CMAC){
+			key->conf.icv_len = sizeof(struct ieee80211_mmie);
+		}else{
+			key->conf.icv_len = sizeof(struct ieee80211_mmie_16);
+		}
+		if (seq){
+			for (j = 0; j < IEEE80211_CMAC_PN_LEN; j++){
+				key->u.aes_cmac.rx_pn[j] = seq[IEEE80211_CMAC_PN_LEN - j - 1];
+			}
+		}
+		/*
+		 * Initialize AES key state here as an optimization so that
+		 * it does not need to be initialized for every packet.
+		 */
+		key->u.aes_cmac.tfm = ieee80211_aes_cmac_key_setup(key_data, key_len);
+		if (IS_ERR(key->u.aes_cmac.tfm)) {
+			err = PTR_ERR(key->u.aes_cmac.tfm);
+			kfree(key);
+			return ERR_PTR(err);
+		}
+		break;
+	case WLAN_CIPHER_SUITE_BIP_GMAC_128:
+	case WLAN_CIPHER_SUITE_BIP_GMAC_256:
+		key->conf.iv_len = 0;
+		key->conf.icv_len = sizeof(struct ieee80211_mmie_16);
+		if (seq){
+			for (j = 0; j < IEEE80211_GMAC_PN_LEN; j++){
+				key->u.aes_gmac.rx_pn[j] = seq[IEEE80211_GMAC_PN_LEN - j - 1];
+			}
+		}
+		/* Initialize AES key state here as an optimization so that
+		 * it does not need to be initialized for every packet.
+		 */
+		key->u.aes_gmac.tfm = ieee80211_aes_gmac_key_setup(key_data, key_len);
+		if (IS_ERR(key->u.aes_gmac.tfm)) {
+			err = PTR_ERR(key->u.aes_gmac.tfm);
+			kfree(key);
+			return ERR_PTR(err);
+		}
+		break;
+	case WLAN_CIPHER_SUITE_GCMP:
+	case WLAN_CIPHER_SUITE_GCMP_256:
+		key->conf.iv_len = IEEE80211_GCMP_HDR_LEN;
+		key->conf.icv_len = IEEE80211_GCMP_MIC_LEN;
+		for (i = 0; seq && i < IEEE80211_NUM_TIDS + 1; i++){
+			for (j = 0; j < IEEE80211_GCMP_PN_LEN; j++){
+				key->u.gcmp.rx_pn[i][j] = seq[IEEE80211_GCMP_PN_LEN - j - 1];
+			}
+		}
+		/* Initialize AES key state here as an optimization so that
+		 * it does not need to be initialized for every packet.
+		 */
+		key->u.gcmp.tfm = ieee80211_aes_gcm_key_setup_encrypt(key_data, key_len);
+		if (IS_ERR(key->u.gcmp.tfm)) {
+			err = PTR_ERR(key->u.gcmp.tfm);
+			kfree(key);
+			return ERR_PTR(err);
+		}
+		break;
+	}
+	memcpy(key->conf.key, key_data, key_len);
+	INIT_LIST_HEAD(&key->list);
+
+	return key;
 }
 
 /* nl80211 based function wrappers (must be working for both Linux and Windows) */

@@ -9,6 +9,10 @@
 #define CONFIG_MAX_SKB_FRAGS		17
 #endif
 
+#ifndef NET_SKB_PAD
+#define NET_SKB_PAD			max(32, L1_CACHE_BYTES)
+#endif
+
 #define MAX_SKB_FRAGS			CONFIG_MAX_SKB_FRAGS
 
 #define SKB_ALLOC_FCLONE		0x01

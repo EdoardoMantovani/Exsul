@@ -9,5 +9,5 @@ void wiphy_work_queue(struct wiphy *wiphy, struct wiphy_work *work){
 	}
 	pthread_mutex_unlock(&local->wiphy_work_queue_mutex);
 
-	queue_work(&local->system_dfl_wq, work);
+	queue_work(&director.system_dfl_wq, work);
 }

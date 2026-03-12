@@ -64,10 +64,11 @@
  * LIST_HEAD - definition of a &struct list_head with initialization values
  * @name: name of the list_head
  */
-#define LIST_HEAD(name) \
-	struct list_head name = LIST_HEAD_INIT(name)
+#define LIST_HEAD(name) struct list_head name = LIST_HEAD_INIT(name)
 
 #define MAX_JIFFY_OFFSET ((LONG_MAX >> 1)-1)
+
+#define IS_ERR_VALUE(x) unlikely((unsigned long)(void *)(x) >= (unsigned long)-MAX_ERRNO)
 
 /* NOTE:  these are not the standard USB_ENDPOINT_XFER_* values!! */
 /* (yet ... they're the values used by usbfs) */
@@ -1016,15 +1017,6 @@ struct word_at_a_time {
 	const unsigned long high_bits;
 };
 
-static inline void align_rsp16_before_glibc_call(void){
-#if defined(__x86_64__)
-	uintptr_t sp;
-	__asm__ volatile("mov %%rsp, %0" : "=r"(sp));
-	/* If sp is 8 mod 16 (or anything nonzero), alloca(sp & 0xf) makes it 0 mod 16. */
-	alloca(sp & 0xf);
-#endif
-}
-
 static inline int ilog2(u64 n){
 	return n ? (63 - __builtin_clzll(n)) : -1;
 }
@@ -1149,6 +1141,18 @@ static inline u32 rol32(__u32 word, unsigned int shift){
 static inline __sum16 csum_fold(__wsum csum){
         u32 sum = (__force u32)csum;
         return (__force __sum16)((~sum - ror32(sum, 16)) >> 16);
+}
+
+static inline u16 get_unaligned_le16(const void *p){
+	return le16_to_cpu(__get_unaligned_t(__le16, p));
+}
+
+static inline u32 get_unaligned_le32(const void *p){
+	return le32_to_cpu(__get_unaligned_t(__le32, p));
+}
+
+static inline u64 get_unaligned_le64(const void *p){
+	return le64_to_cpu(__get_unaligned_t(__le64, p));
 }
 
 static inline int lockdep_rht_mutex_is_held(struct rhashtable *ht){
@@ -1364,6 +1368,11 @@ static ssize_t sized_strscpy(char *dest, const char *src, size_t count){
  */
 static inline const bool is_power_of_2(unsigned long n){
 	return (n != 0 && ((n & (n - 1)) == 0));
+}
+
+/* variant of 'futex_wait' which isn't exported in the kernel API. */
+static inline int futex_wait_timeout(atomic_int *addr, int expected, struct timespec *rel_timeout){
+	return (int)syscall(SYS_futex, (int *)addr, FUTEX_WAIT, expected, rel_timeout, NULL, 0);
 }
 
 /*

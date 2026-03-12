@@ -113,6 +113,8 @@
 #define NR_KMALLOC_TYPES	8
 #define	NUMA_NO_NODE		(-1)
 
+#define MAX_ERRNO		4095
+
 /* Hard limit */
 #define USB_MAXENDPOINTS	30
 /* this maximum is arbitrary */
@@ -133,6 +135,15 @@
 
 #define WHITEOUT_MODE		0
 #define WHITEOUT_DEV		0
+
+#define NOTIFY_DONE		0x0000		/* Don't care */
+#define NOTIFY_OK		0x0001		/* Suits me */
+#define NOTIFY_STOP_MASK	0x8000		/* Don't call further */
+#define NOTIFY_BAD		(NOTIFY_STOP_MASK|0x0002) /* Bad/Veto action */
+/*
+ * Clean way to return from the notifier and stop further calls.
+ */
+#define NOTIFY_STOP		(NOTIFY_OK|NOTIFY_STOP_MASK)
 
 #define CSUM_MANGLED_0		((__force __sum16)0xffff)
 #define TIMER_CPUMASK		0x0003FFFF
@@ -1179,6 +1190,27 @@ static inline long PTR_ERR(const void *ptr){
 	return (long)(intptr_t)ptr;
 }
 
+/**
+ * ERR_CAST - Explicitly cast an error-valued pointer to another pointer type
+ * @ptr: The pointer to cast.
+ *
+ * Explicitly cast an error-valued pointer to another pointer type in such a
+ * way as to make it clear that's what's going on.
+ */
+static inline void *ERR_CAST(const void *ptr){
+	/* cast away the const */
+	return (void *) ptr;
+}
+
+/**
+ * IS_ERR - Detect an error pointer.
+ * @ptr: The pointer to check.
+ * Return: true if @ptr is an error pointer, false otherwise.
+ */
+static inline bool IS_ERR(__force const void *ptr){
+	return IS_ERR_VALUE((unsigned long)ptr);
+}
+
 /*
  * Notes on lockless lookups:
  *
@@ -1698,6 +1730,7 @@ static unsigned long round_jiffies_common(unsigned long j, int cpu, bool force_u
 #include <bits.h>
 #include <net.h>
 #include <skb.h>
+#include <crypto.h>
 #include <ieee80211.h>
 #include <module.h>
 

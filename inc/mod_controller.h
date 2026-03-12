@@ -49,6 +49,10 @@ struct module_controller {
 
 	struct list_head wakeup_sources;
 
+	/* global workqueues */
+	struct workqueue_struct system_freezable_wq;
+	struct workqueue_struct system_dfl_wq;
+
 	/* structures used for seq/procfs/sysfs virtual files */
 	struct seq_list seq_list;
 	struct seq_file *current_seq_file;
