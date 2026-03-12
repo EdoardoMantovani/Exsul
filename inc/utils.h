@@ -94,13 +94,15 @@
  * can unconditionally dereference the pointer(s).
  */
 #define small_const_nbits(nbits) (__builtin_constant_p(nbits) && (nbits) <= BITS_PER_LONG && (nbits) > 0)
-
 #define hlist_nulls_entry(ptr, type, member) container_of(ptr,type,member)
 
 #define hlist_nulls_entry_safe(ptr, type, member) \
 	({ typeof(ptr) ____ptr = (ptr); \
 	   !is_a_nulls(____ptr) ? hlist_nulls_entry(____ptr, type, member) : NULL; \
 	})
+
+#define timer_container_of(var, callback_timer, timer_fieldname)	\
+container_of(callback_timer, typeof(*var), timer_fieldname)
 
 /*
  * NULLS_MARKER() expects a hash value with the low

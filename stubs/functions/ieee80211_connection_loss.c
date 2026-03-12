@@ -6,5 +6,5 @@ void ieee80211_connection_loss(struct ieee80211_vif *vif){
 	sdata = local->sdata;
 
 	sdata->u.mgd.connection_loss = true;
-	//wiphy_work_queue(hw->wiphy, &sdata->u.mgd.beacon_connection_loss_work);
+	wiphy_work_queue(&local->wiphy, &local->beacon_connection_loss_work);
 }

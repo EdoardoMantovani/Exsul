@@ -9,5 +9,6 @@ void ieee80211_disconnect(struct ieee80211_vif *vif, bool reconnect){
 
 	sdata->u.mgd.driver_disconnect = true;
 	sdata->u.mgd.reconnect = reconnect;
-	//wiphy_work_queue(hw->wiphy, &sdata->u.mgd.beacon_connection_loss_work);
+	/* invoke 'ieee80211_beacon_connection_loss_work' */
+	wiphy_work_queue(local->wiphy, &local->beacon_connection_loss_work);
 }

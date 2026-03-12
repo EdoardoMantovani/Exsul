@@ -58,3 +58,5 @@ struct ieee80211_chan_def;
 struct ieee80211_supported_band;
 struct ieee80211_vif_chanctx_switch;
 struct ieee80211_channel;
+struct ieee80211_sta;
+struct ieee80211_txq;

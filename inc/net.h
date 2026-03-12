@@ -148,6 +148,39 @@ struct netdev_hw_addr {
 	struct rcu_head		rcu_head;
 };
 
+/**
+ * eth_random_addr - Generate software assigned random Ethernet address
+ * @addr: Pointer to a six-byte array containing the Ethernet address
+ *
+ * Generate a random Ethernet address (MAC) that is not multicast
+ * and has the local assigned bit set.
+ */
+static inline void eth_random_addr(u8 *addr){
+	get_random_bytes(addr, ETH_ALEN);
+	addr[0] &= 0xfe;	/* clear multicast bit */
+	addr[0] |= 0x02;	/* set local assignment bit (IEEE802) */
+}
+
+/**
+ * eth_broadcast_addr - Assign broadcast address
+ * @addr: Pointer to a six-byte array containing the Ethernet address
+ *
+ * Assign the broadcast address to the given address array.
+ */
+static inline void eth_broadcast_addr(u8 *addr){
+	memset(addr, 0xff, ETH_ALEN);
+}
+
+/**
+ * eth_zero_addr - Assign zero address
+ * @addr: Pointer to a six-byte array containing the Ethernet address
+ *
+ * Assign the zero address to the given address array.
+ */
+static inline void eth_zero_addr(u8 *addr){
+	memset(addr, 0x00, ETH_ALEN);
+}
+
 static struct netdev_hw_addr *__hw_addr_create(const unsigned char *addr, int addr_len, unsigned char addr_type, bool global, bool sync){
         int alloc_size = 0;
         struct netdev_hw_addr *ha = NULL;

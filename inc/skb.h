@@ -45,6 +45,7 @@ typedef unsigned char *sk_buff_data_t;
 
 #define kfree_skb			__kfree_skb
 #define alloc_skb(size, priority)	__alloc_skb(size, priority, 0, 0)
+#define dev_alloc_skb(length)		__netdev_alloc_skb(NULL, length, GFP_ATOMIC)
 
 /**
  * typedef netmem_ref - a nonexistent type marking a reference to generic
@@ -67,6 +68,52 @@ typedef unsigned long __bitwise netmem_ref;
 
 /* ignore 'CHECK_SKB_FIELD' */
 #define CHECK_SKB_FIELD(x)
+
+#define skb_queue_walk(queue, skb) \
+		for (skb = (queue)->next;					\
+		     skb != (struct sk_buff *)(queue);				\
+		     skb = skb->next)
+
+#define skb_queue_walk_safe(queue, skb, tmp)					\
+		for (skb = (queue)->next, tmp = skb->next;			\
+		     skb != (struct sk_buff *)(queue);				\
+		     skb = tmp, tmp = skb->next)
+
+#define skb_queue_walk_from(queue, skb)						\
+		for (; skb != (struct sk_buff *)(queue);			\
+		     skb = skb->next)
+
+#define skb_rbtree_walk(skb, root)						\
+		for (skb = skb_rb_first(root); skb != NULL;			\
+		     skb = skb_rb_next(skb))
+
+#define skb_rbtree_walk_from(skb)						\
+		for (; skb != NULL;						\
+		     skb = skb_rb_next(skb))
+
+#define skb_rbtree_walk_from_safe(skb, tmp)					\
+		for (; tmp = skb ? skb_rb_next(skb) : NULL, (skb != NULL);	\
+		     skb = tmp)
+
+#define skb_queue_walk_from_safe(queue, skb, tmp)				\
+		for (tmp = skb->next;						\
+		     skb != (struct sk_buff *)(queue);				\
+		     skb = tmp, tmp = skb->next)
+
+#define skb_queue_reverse_walk(queue, skb) \
+		for (skb = (queue)->prev;					\
+		     skb != (struct sk_buff *)(queue);				\
+		     skb = skb->prev)
+
+#define skb_queue_reverse_walk_safe(queue, skb, tmp)				\
+		for (skb = (queue)->prev, tmp = skb->prev;			\
+		     skb != (struct sk_buff *)(queue);				\
+		     skb = tmp, tmp = skb->prev)
+
+#define skb_queue_reverse_walk_from_safe(queue, skb, tmp)			\
+		for (tmp = skb->prev;						\
+		     skb != (struct sk_buff *)(queue);				\
+		     skb = tmp, tmp = skb->prev)
 
 enum {
 	SKB_FCLONE_UNAVAILABLE,	/* skb has no fclone (from head_cache) */
@@ -747,6 +794,90 @@ struct sk_buff_head {
 
         __u32           qlen;
 };
+
+static inline void skb_set_queue_mapping(struct sk_buff *skb, u16 queue_mapping){
+	skb->queue_mapping = queue_mapping;
+}
+
+static inline u16 skb_get_queue_mapping(const struct sk_buff *skb){
+	return skb->queue_mapping;
+}
+
+static inline void skb_copy_queue_mapping(struct sk_buff *to, const struct sk_buff *from){
+	to->queue_mapping = from->queue_mapping;
+}
+
+static inline void skb_record_rx_queue(struct sk_buff *skb, u16 rx_queue){
+	skb->queue_mapping = rx_queue + 1;
+}
+
+static inline u16 skb_get_rx_queue(const struct sk_buff *skb){
+	return skb->queue_mapping - 1;
+}
+
+static inline bool skb_rx_queue_recorded(const struct sk_buff *skb){
+	return skb->queue_mapping != 0;
+}
+
+static inline void skb_set_dst_pending_confirm(struct sk_buff *skb, u32 val){
+	skb->dst_pending_confirm = val;
+}
+
+static inline bool skb_get_dst_pending_confirm(const struct sk_buff *skb){
+	return skb->dst_pending_confirm != 0;
+}
+
+static inline unsigned char *skb_tail_pointer(const struct sk_buff *skb){
+        #if BITS_PER_LONG > 32
+        return skb->head + skb->tail;
+        #else
+        return skb->tail;
+        #endif
+}
+
+static inline void *__skb_put(struct sk_buff *skb, unsigned int len){
+	void *tmp = skb_tail_pointer(skb);
+
+	skb->tail += len;
+	skb->len  += len;
+	return tmp;
+}
+
+static inline void *__skb_put_zero(struct sk_buff *skb, unsigned int len){
+	void *tmp = __skb_put(skb, len);
+
+	memset(tmp, 0, len);
+	return tmp;
+}
+
+static inline void *__skb_put_data(struct sk_buff *skb, const void *data, unsigned int len){
+	void *tmp = __skb_put(skb, len);
+
+	memcpy(tmp, data, len);
+	return tmp;
+}
+
+static inline void __skb_put_u8(struct sk_buff *skb, u8 val){
+	*(u8 *)__skb_put(skb, 1) = val;
+}
+
+static inline void *skb_put_zero(struct sk_buff *skb, unsigned int len){
+	void *tmp = skb_put(skb, len);
+
+	memset(tmp, 0, len);
+	return tmp;
+}
+
+static inline void *skb_put_data(struct sk_buff *skb, const void *data,  unsigned int len){
+	void *tmp = skb_put(skb, len);
+
+	memcpy(tmp, data, len);
+	return tmp;
+}
+
+static inline void skb_put_u8(struct sk_buff *skb, u8 val){
+	*(u8 *)skb_put(skb, 1) = val;
+}
 
 static inline void skb_copy_from_linear_data(const struct sk_buff *skb, void *to, const unsigned int len){
 	memcpy(to, skb->data, len);

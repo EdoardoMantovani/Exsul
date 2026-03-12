@@ -768,6 +768,20 @@ enum ieee80211_sta_info_flags {
 };
 
 /**
+ * enum ieee80211_ac_numbers - AC numbers as used in mac80211
+ * @IEEE80211_AC_VO: voice
+ * @IEEE80211_AC_VI: video
+ * @IEEE80211_AC_BE: best effort
+ * @IEEE80211_AC_BK: background
+ */
+enum ieee80211_ac_numbers {
+	IEEE80211_AC_VO		= 0,
+	IEEE80211_AC_VI		= 1,
+	IEEE80211_AC_BE		= 2,
+	IEEE80211_AC_BK		= 3,
+};
+
+/**
  * enum mac80211_tx_info_flags - flags to describe transmission information/status
  *
  * These flags are used with the @flags member of &ieee80211_tx_info.
@@ -2956,6 +2970,13 @@ struct ieee80211_trigger {
 	u8 variable[];
 } __packed __aligned(2);
 
+struct ieee80211_pspoll {
+	__le16 frame_control;
+	__le16 aid;
+	u8 bssid[ETH_ALEN];
+	u8 ta[ETH_ALEN];
+} __packed __aligned(2);
+
 /**
  * struct ieee80211_multiple_bssid_configuration - multiple BSSID configuration
  *	element structure
@@ -3291,6 +3312,17 @@ struct ieee80211_if_managed {
 	u8 dialog_token_alloc;
 };
 
+struct ieee80211_link_data_managed {
+	u8 bssid[ETH_ALEN] __aligned(2);
+
+	u8 dtim_period;
+};
+
+struct ieee80211_link_data_ap {
+	struct beacon_data __rcu *beacon;
+	struct probe_resp __rcu *probe_resp;
+};
+
 struct ieee80211_link_data {
 	struct ieee80211_sub_if_data *sdata;
 	unsigned int link_id;
@@ -3309,6 +3341,12 @@ struct ieee80211_link_data {
 	int user_power_level; /* in dBm */
 	int ap_power_level; /* in dBm */
 
+	struct ieee80211_bss_conf *conf;
+
+	union {
+		struct ieee80211_link_data_managed mgd;
+		struct ieee80211_link_data_ap ap;
+	} u;
 };
 
 struct ieee80211_sub_if_data {
@@ -3754,6 +3792,29 @@ struct ieee80211_vif_cfg {
 	bool s1g;
 	bool idle;
 	u8 ap_addr[ETH_ALEN] __aligned(2);
+};
+
+/**
+ * struct ieee80211_txq - Software intermediate tx queue
+ *
+ * @vif: &struct ieee80211_vif pointer from the add_interface callback.
+ * @sta: station table entry, %NULL for per-vif queue
+ * @tid: the TID for this queue (unused for per-vif queue),
+ *	%IEEE80211_NUM_TIDS for non-data (if enabled)
+ * @ac: the AC for this queue
+ * @drv_priv: driver private area, sized by hw->txq_data_size
+ *
+ * The driver can obtain packets from this queue by calling
+ * ieee80211_tx_dequeue().
+ */
+struct ieee80211_txq {
+	struct ieee80211_vif *vif;
+	struct ieee80211_sta *sta;
+	u8 tid;
+	u8 ac;
+
+	/* must be last */
+	u8 drv_priv[] __aligned(sizeof(void *));
 };
 
 /**
@@ -5119,6 +5180,7 @@ struct ieee80211_emulated_hw {
 };
 
 struct ieee80211_local {
+	struct wiphy *wiphy;
 	struct ieee80211_emulated_hw hw;
 	struct ieee80211_supported_band bands[NUM_NL80211_BANDS];
 
@@ -5252,8 +5314,14 @@ struct ieee80211_local {
 	struct ieee80211_sub_if_data *sdata;
 
 	/* workqueues */
+	struct workqueue_struct *workqueue;
 	struct work_struct restart_work;
-
+	struct wiphy_work hw_roc_start;
+	struct wiphy_work hw_roc_done;
+	struct wiphy_work cqm_rssi_work;
+	struct wiphy_work monitor_work;
+	struct wiphy_work beacon_connection_loss_work;
+	struct wiphy_work csa_connection_drop_work;
 };
 
 const struct element * cfg80211_find_elem_match(u8 eid, const u8 *ies, unsigned int len,  const u8 *match, unsigned int match_len, unsigned int match_offset);
@@ -6383,6 +6451,23 @@ static inline bool ieee80211_is_frag(struct ieee80211_hdr *hdr)
 #define cfg80211_find_ext_elem(ext_eid, ies, len) cfg80211_find_elem_match(WLAN_EID_EXTENSION, ies, len, (u8 *)ext_eid, 1, 0)
 
 /*
+ * Nothing should have been stuffed into the workqueue during
+ * the suspend->resume cycle. Since we can't check each caller
+ * of this function if we are already quiescing / suspended,
+ * check here and don't WARN since this can actually happen when
+ * the rx path (for example) is racing against __ieee80211_suspend
+ * and suspending / quiescing was set after the rx path checked
+ * them.
+ */
+static bool ieee80211_can_queue_work(struct ieee80211_local *local){
+	if (local->quiescing || (local->suspended && !local->resuming)) {
+		printf("[!] queueing ieee80211 work while going to suspend\n");
+		return false;
+	}
+	return true;
+}
+
+/*
  * ieee80211_he_oper_size - calculate 802.11ax HE Operations IE size
  * @he_oper_ie: byte data of the He Operations IE, stating from the byte
  *	after the ext ID byte. It is assumed that he_oper_ie has at least
@@ -6396,17 +6481,23 @@ static inline u8 ieee80211_he_oper_size(const u8 *he_oper_ie){
 	u32 he_oper_params;
 
 	/* Make sure the input is not NULL */
-	if (!he_oper_ie)
+	if (!he_oper_ie){
 		return 0;
+	}
 
 	/* Calc required length */
 	he_oper_params = le32_to_cpu(he_oper->he_oper_params);
-	if (he_oper_params & IEEE80211_HE_OPERATION_VHT_OPER_INFO)
+	if (he_oper_params & IEEE80211_HE_OPERATION_VHT_OPER_INFO){
 		oper_len += 3;
-	if (he_oper_params & IEEE80211_HE_OPERATION_CO_HOSTED_BSS)
+	}
+
+	if (he_oper_params & IEEE80211_HE_OPERATION_CO_HOSTED_BSS){
 		oper_len++;
-	if (he_oper_params & IEEE80211_HE_OPERATION_6GHZ_OP_INFO)
+	}
+
+	if (he_oper_params & IEEE80211_HE_OPERATION_6GHZ_OP_INFO){
 		oper_len += sizeof(struct ieee80211_he_6ghz_oper);
+	}
 
 	/* Add the first byte (extension ID) to the total length */
 	oper_len++;
@@ -6433,12 +6524,17 @@ static inline const struct ieee80211_he_6ghz_oper * ieee80211_he_6ghz_oper(const
 
 	he_oper_params = le32_to_cpu(he_oper->he_oper_params);
 
-	if (!(he_oper_params & IEEE80211_HE_OPERATION_6GHZ_OP_INFO))
+	if (!(he_oper_params & IEEE80211_HE_OPERATION_6GHZ_OP_INFO)){
 		return NULL;
-	if (he_oper_params & IEEE80211_HE_OPERATION_VHT_OPER_INFO)
+	}
+
+	if (he_oper_params & IEEE80211_HE_OPERATION_VHT_OPER_INFO){
 		ret += 3;
-	if (he_oper_params & IEEE80211_HE_OPERATION_CO_HOSTED_BSS)
+	}
+
+	if (he_oper_params & IEEE80211_HE_OPERATION_CO_HOSTED_BSS){
 		ret++;
+	}
 
 	return (const void *)ret;
 }
@@ -6498,40 +6594,42 @@ static bool ieee80211_fill_rate_info(struct ieee80211_hw *hw, struct ieee80211_r
 static int ieee80211_fill_rx_status(struct ieee80211_rx_status *stat,
 				    struct ieee80211_hw *hw,
 				    struct ieee80211_tx_rate *rate,
-				    struct rate_info *rate_info, u8 band, int len)
-{
+				    struct rate_info *rate_info, u8 band, int len){
 	memset(stat, 0, sizeof(*stat));
 	stat->band = band;
 
-	if (ieee80211_fill_rate_info(hw, stat, band, rate_info))
+	if (ieee80211_fill_rate_info(hw, stat, band, rate_info)){
 		return 0;
+	}
 
-	if (!ieee80211_rate_valid(rate))
+	if (!ieee80211_rate_valid(rate)){
 		return -1;
+	}
 
-	if (rate->flags & IEEE80211_TX_RC_160_MHZ_WIDTH)
+	if (rate->flags & IEEE80211_TX_RC_160_MHZ_WIDTH){
 		stat->bw = RATE_INFO_BW_160;
-	else if (rate->flags & IEEE80211_TX_RC_80_MHZ_WIDTH)
+	}else if (rate->flags & IEEE80211_TX_RC_80_MHZ_WIDTH){
 		stat->bw = RATE_INFO_BW_80;
-	else if (rate->flags & IEEE80211_TX_RC_40_MHZ_WIDTH)
+	}else if (rate->flags & IEEE80211_TX_RC_40_MHZ_WIDTH){
 		stat->bw = RATE_INFO_BW_40;
-	else
+	}else{
 		stat->bw = RATE_INFO_BW_20;
-
+	}
 	stat->enc_flags = 0;
-	if (rate->flags & IEEE80211_TX_RC_USE_SHORT_PREAMBLE)
+	if (rate->flags & IEEE80211_TX_RC_USE_SHORT_PREAMBLE){
 		stat->enc_flags |= RX_ENC_FLAG_SHORTPRE;
-	if (rate->flags & IEEE80211_TX_RC_SHORT_GI)
+	}
+	if (rate->flags & IEEE80211_TX_RC_SHORT_GI){
 		stat->enc_flags |= RX_ENC_FLAG_SHORT_GI;
-
+	}
 	stat->rate_idx = rate->idx;
-	if (rate->flags & IEEE80211_TX_RC_VHT_MCS) {
+	if (rate->flags & IEEE80211_TX_RC_VHT_MCS){
 		stat->encoding = RX_ENC_VHT;
 		stat->rate_idx = ieee80211_rate_get_vht_mcs(rate);
 		stat->nss = ieee80211_rate_get_vht_nss(rate);
-	} else if (rate->flags & IEEE80211_TX_RC_MCS) {
+	}else if (rate->flags & IEEE80211_TX_RC_MCS){
 		stat->encoding = RX_ENC_HT;
-	} else {
+	}else{
 		stat->encoding = RX_ENC_LEGACY;
 	}
 
@@ -6984,6 +7082,26 @@ static struct sta_info *sta_info_get_bss(struct ieee80211_sub_if_data *sdata, u8
 
 	for_each_sta_info(local, addr, sta, tmp) {
 		if (&sta->sdata == sdata || (sta->sdata.bss && sta->sdata.bss == sdata->bss)) {
+			/* this is safe as the caller must already hold
+			 * another rcu read section or the mutex
+			 */
+			return sta;
+		}
+	}
+
+	return NULL;
+}
+
+/* protected by RCU */
+static struct sta_info *sta_info_get(struct ieee80211_sub_if_data *sdata, u8 *addr){
+	struct ieee80211_local *local = NULL;
+	struct rhlist_head *tmp = NULL;
+	struct sta_info *sta = NULL;
+
+	local = &director.ieee80211_local;
+
+	for_each_sta_info(local, addr, sta, tmp) {
+		if (&sta->sdata == sdata) {
 			/* this is safe as the caller must already hold
 			 * another rcu read section or the mutex
 			 */

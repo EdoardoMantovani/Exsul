@@ -36,18 +36,14 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[1] = {
 				.struct_size = 0,
 				.struct_name = "ieee80211_hw",
-				.struct_field_num = 3,
+				.struct_field_num = 2,
 				.fields = {
 					[0] = {
 						.field_name = "netdev_features",
 						.field_offset = 0,
 					},
 					[1] = {
-						.field_name = "priv",
-						.field_offset = 0,
-					},
-					[2] = {
-						.field_name = "wiphy",
+						.field_name = "txq_data_size",
 						.field_offset = 0,
 					},
 				},
@@ -475,7 +471,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[6] = {
 				.struct_size = 0,
 				.struct_name = "sk_buff",
-				.struct_field_num = 51,
+				.struct_field_num = 53,
 				.fields = {
 					[0] = {
 						.field_name = "_skb_refdst",
@@ -530,154 +526,162 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[13] = {
-						.field_name = "end",
+						.field_name = "dst_pending_confirm",
 						.field_offset = 0,
 					},
 					[14] = {
-						.field_name = "extensions",
+						.field_name = "end",
 						.field_offset = 0,
 					},
 					[15] = {
-						.field_name = "fclone",
+						.field_name = "extensions",
 						.field_offset = 0,
 					},
 					[16] = {
-						.field_name = "hash",
+						.field_name = "fclone",
 						.field_offset = 0,
 					},
 					[17] = {
-						.field_name = "hdr_len",
+						.field_name = "hash",
 						.field_offset = 0,
 					},
 					[18] = {
-						.field_name = "head",
+						.field_name = "hdr_len",
 						.field_offset = 0,
 					},
 					[19] = {
-						.field_name = "head_frag",
+						.field_name = "head",
 						.field_offset = 0,
 					},
 					[20] = {
-						.field_name = "inner_ipproto",
+						.field_name = "head_frag",
 						.field_offset = 0,
 					},
 					[21] = {
-						.field_name = "inner_mac_header",
+						.field_name = "inner_ipproto",
 						.field_offset = 0,
 					},
 					[22] = {
-						.field_name = "inner_network_header",
+						.field_name = "inner_mac_header",
 						.field_offset = 0,
 					},
 					[23] = {
-						.field_name = "inner_protocol",
+						.field_name = "inner_network_header",
 						.field_offset = 0,
 					},
 					[24] = {
-						.field_name = "inner_protocol_type",
+						.field_name = "inner_protocol",
 						.field_offset = 0,
 					},
 					[25] = {
-						.field_name = "inner_transport_header",
+						.field_name = "inner_protocol_type",
 						.field_offset = 0,
 					},
 					[26] = {
-						.field_name = "ip_summed",
+						.field_name = "inner_transport_header",
 						.field_offset = 0,
 					},
 					[27] = {
-						.field_name = "len",
+						.field_name = "ip_summed",
 						.field_offset = 0,
 					},
 					[28] = {
-						.field_name = "mac_header",
+						.field_name = "len",
 						.field_offset = 0,
 					},
 					[29] = {
-						.field_name = "mac_len",
+						.field_name = "mac_header",
 						.field_offset = 0,
 					},
 					[30] = {
-						.field_name = "network_header",
+						.field_name = "mac_len",
 						.field_offset = 0,
 					},
 					[31] = {
-						.field_name = "next",
+						.field_name = "network_header",
 						.field_offset = 0,
 					},
 					[32] = {
-						.field_name = "nohdr",
+						.field_name = "next",
 						.field_offset = 0,
 					},
 					[33] = {
-						.field_name = "peeked",
+						.field_name = "nohdr",
 						.field_offset = 0,
 					},
 					[34] = {
-						.field_name = "pfmemalloc",
+						.field_name = "peeked",
 						.field_offset = 0,
 					},
 					[35] = {
-						.field_name = "pkt_type",
+						.field_name = "pfmemalloc",
 						.field_offset = 0,
 					},
 					[36] = {
-						.field_name = "prev",
+						.field_name = "pkt_type",
 						.field_offset = 0,
 					},
 					[37] = {
-						.field_name = "protocol",
+						.field_name = "prev",
 						.field_offset = 0,
 					},
 					[38] = {
-						.field_name = "queue_mapping",
+						.field_name = "priority",
 						.field_offset = 0,
 					},
 					[39] = {
-						.field_name = "reserved_tailroom",
+						.field_name = "protocol",
 						.field_offset = 0,
 					},
 					[40] = {
-						.field_name = "sk",
+						.field_name = "queue_mapping",
 						.field_offset = 0,
 					},
 					[41] = {
-						.field_name = "slow_gro",
+						.field_name = "reserved_tailroom",
 						.field_offset = 0,
 					},
 					[42] = {
-						.field_name = "tail",
+						.field_name = "sk",
 						.field_offset = 0,
 					},
 					[43] = {
-						.field_name = "transport_header",
+						.field_name = "slow_gro",
 						.field_offset = 0,
 					},
 					[44] = {
-						.field_name = "truesize",
+						.field_name = "tail",
 						.field_offset = 0,
 					},
 					[45] = {
-						.field_name = "tstamp",
+						.field_name = "transport_header",
 						.field_offset = 0,
 					},
 					[46] = {
-						.field_name = "unreadable",
+						.field_name = "truesize",
 						.field_offset = 0,
 					},
 					[47] = {
-						.field_name = "users",
+						.field_name = "tstamp",
 						.field_offset = 0,
 					},
 					[48] = {
-						.field_name = "wifi_acked",
+						.field_name = "unreadable",
 						.field_offset = 0,
 					},
 					[49] = {
-						.field_name = "wifi_acked_valid",
+						.field_name = "users",
 						.field_offset = 0,
 					},
 					[50] = {
+						.field_name = "wifi_acked",
+						.field_offset = 0,
+					},
+					[51] = {
+						.field_name = "wifi_acked_valid",
+						.field_offset = 0,
+					},
+					[52] = {
 						.field_name = "x",
 						.field_offset = 0,
 					},
