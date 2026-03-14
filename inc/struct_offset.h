@@ -962,13 +962,9 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[11] = {
 				.struct_size = 0,
 				.struct_name = "usb_device",
-				.struct_field_num = 2,
+				.struct_field_num = 1,
 				.fields = {
 					[0] = {
-						.field_name = "actconfig",
-						.field_offset = 0,
-					},
-					[1] = {
 						.field_name = "dev",
 						.field_offset = 0,
 					},
@@ -977,21 +973,25 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[12] = {
 				.struct_size = 0,
 				.struct_name = "usb_interface",
-				.struct_field_num = 4,
+				.struct_field_num = 5,
 				.fields = {
 					[0] = {
-						.field_name = "altsetting",
+						.field_name = "actconfig",
 						.field_offset = 0,
 					},
 					[1] = {
-						.field_name = "cur_altsetting",
+						.field_name = "altsetting",
 						.field_offset = 0,
 					},
 					[2] = {
-						.field_name = "dev",
+						.field_name = "cur_altsetting",
 						.field_offset = 0,
 					},
 					[3] = {
+						.field_name = "dev",
+						.field_offset = 0,
+					},
+					[4] = {
 						.field_name = "num_altsetting",
 						.field_offset = 0,
 					},

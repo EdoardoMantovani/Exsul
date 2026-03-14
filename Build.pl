@@ -2,7 +2,7 @@
 
 # Made by Edoardo Mantovani, 2026
 # Rewritten with safer local alias inference and guarded field replacement.
-# version 1.0.4 (13 March 2026)
+# version 1.0.6 (14 March 2026)
 
 use strict;
 use warnings;
@@ -77,6 +77,8 @@ my $struct_field_counter = 0;
 my $struct_name_counter = 0;
 my $total_struct_number = 0;
 my $current_struct_field_num = 0;
+# permits to define the maximun number of the symbols that can be supported by the kernel module loader
+my $sym_total_entries = 0;
 
 my @sources = ();
 my @crafted_sources = ();
@@ -704,6 +706,10 @@ foreach my $src (uniq(@sources)){
 	rewrite_source_file($src);
 }
 
+# set the symbols total entries to a specific value (quite high, must support at least 8192 different symbols,
+# 450+ from my implementation + every possible other symbol present in complex wifi drivers, at least 1k
+$sym_total_entries = 8192;
+
 $cb_header = "$include/$cb_table";
 open(FH, '>', $cb_header) or die $!;
 print FH "/* Copyright (C) Edoardo Mantovani - All Rights Reserved\n";
@@ -711,7 +717,7 @@ print FH "* Unauthorized copying of this file, via any medium is strictly prohib
 print FH "* Proprietary and confidential\n";
 print FH "*/\n\n";
 print FH "/** automatically generated file, don't edit! **/\n\n";
-print FH "struct internal_cb_table sym_table[] = {\n";
+print FH "struct internal_cb_table sym_table[$sym_total_entries] = {\n";
 
 $proto_header = "$include/$proto_gen";
 open(PROTO, '>', $proto_header) or die $!;

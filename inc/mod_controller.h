@@ -1,11 +1,22 @@
+struct global_conf {
+	u8 show_struct_offset;
+	u8 strict_missing_syms;
+};
+
 struct module_controller {
         char module_name[16];
+	/* mantain the count of the loaded modules in the current address space */
+	int modules_loaded;
+	/* mantain a track of the current memory used for everything, in bytes */
+	int total_memory_used;
 	int fd;
 	u8 *trampoline_area;
         int trampoline_used;
 	/* emulates jiffies */
 	u64 jiffies;
         int libusb_ret;
+	/* global configuration struct, the field can be set at runtime via the 'set' command */
+	struct global_conf global_conf;
         struct module *mod;
         struct load_info *info;
         struct internal_cb_table *internal_cb_table;

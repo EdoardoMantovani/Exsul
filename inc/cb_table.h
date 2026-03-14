@@ -5,7 +5,7 @@
 
 /** automatically generated file, don't edit! **/
 
-struct internal_cb_table sym_table[] = {
+struct internal_cb_table sym_table[8192] = {
     [0] = { .function_name = "__netif_napi_del_locked", .function_ptr = __netif_napi_del_locked },
     [1] = { .function_name = "kernel_write", .function_ptr = kernel_write },
     [2] = { .function_name = "seq_putc", .function_ptr = seq_putc },

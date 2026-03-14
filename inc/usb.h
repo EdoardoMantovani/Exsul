@@ -508,3 +508,77 @@ static int detect_usb_endpoints(void){
 	#endif
 	return ret;
 }
+
+/* due to the fact that the usb driver entry point functions usually employs the structs defined in /usr/include/ch9/xxx.h,
+ * we need to create a translation layer between libusb and those structs, the function below have this purpose.
+ */
+static int convert_ss_ep_companion(struct usb_ss_ep_comp_descriptor *ep_dst, struct libusb_ss_endpoint_companion_descriptor *ep_src){
+	int ret = 0;
+	if(ep_dst == NULL || ep_src == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	ep_dst->bLength           = ep_src->bLength;
+	ep_dst->bDescriptorType   = ep_src->bDescriptorType;
+	ep_dst->bMaxBurst         = ep_src->bMaxBurst;
+	ep_dst->bmAttributes      = ep_src->bmAttributes;
+	ep_dst->wBytesPerInterval = ep_src->wBytesPerInterval;
+	return ret;
+}
+
+static int convert_usb_endpoint_desc(struct usb_endpoint_descriptor *ep_dst, struct libusb_endpoint_descriptor *ep_src){
+	int ret = 0;
+	if(ep_dst == NULL || ep_src == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	ep_dst->bLength          = ep_src->bLength;
+	ep_dst->bDescriptorType  = ep_src->bDescriptorType;
+	ep_dst->bEndpointAddress = ep_src->bEndpointAddress;
+	ep_dst->bmAttributes     = ep_src->bmAttributes;
+	ep_dst->wMaxPacketSize   = ep_src->wMaxPacketSize;
+	ep_dst->bInterval        = ep_src->bInterval;
+	ep_dst->bRefresh         = ep_src->bRefresh;
+	ep_dst->bSynchAddress    = ep_src->bSynchAddress;
+	return ret;
+}
+
+static int convert_usb_interface_desc(struct usb_interface_descriptor *ep_dst, struct libusb_interface_descriptor *ep_src){
+	int ret =  0;
+	if(ep_dst == NULL || ep_src == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	ep_dst->bLength            = ep_src->bLength;
+	ep_dst->bDescriptorType    = ep_src->bDescriptorType;
+	ep_dst->bInterfaceNumber   = ep_src->bInterfaceNumber;
+	ep_dst->bAlternateSetting  = ep_src->bAlternateSetting;
+	ep_dst->bNumEndpoints      = ep_src->bNumEndpoints;
+	ep_dst->bInterfaceClass    = ep_src->bInterfaceClass;
+	ep_dst->bInterfaceSubClass = ep_src->bInterfaceSubClass;
+	ep_dst->bInterfaceProtocol = ep_src->bInterfaceProtocol;
+	ep_dst->iInterface         = ep_src->iInterface;
+	return ret;
+}
+
+static int get_altsetting_endpoints_enabled(struct usb_host_interface *alt){
+	int ret = 0;
+
+	if (alt == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	if(alt->endpoint == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	for (int i = 0; i < alt->desc.bNumEndpoints; i++){
+		alt->endpoint[i].enabled = 1;
+	}
+	return ret;
+}

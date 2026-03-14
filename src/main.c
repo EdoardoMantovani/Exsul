@@ -25,6 +25,7 @@ enum {
 	DRV_CMD_STOP,
 	DRV_CMD_RUN,
 	DRV_CMD_SET,
+	DRV_CMD_GET,
 };
 
 int dwarf_search_field(unsigned char *field_input_name, Dwarf_Debug dbg, Dwarf_Die struct_die){
@@ -203,45 +204,6 @@ int dwarf_loader_parser(unsigned char *struct_to_search, unsigned char *field_to
 	return ret;
 }
 
-int dwarf_load_struct(Dwarf_Debug dbg, Dwarf_Error err, unsigned char *struct_to_search){
-	int ret = 0;
-	Dwarf_Unsigned cu_header_len = 0;
-	Dwarf_Unsigned abbrev_off = 0;
-	Dwarf_Unsigned next_cu = 0;
-	Dwarf_Half version = 0;
-	Dwarf_Half addr_size = 0;
-	Dwarf_Die found = 0;
-	Dwarf_Die cu_die = 0;
-
-	/* iterate for every 'compilation unit' inside the dwarf section */
-	while (dwarf_next_cu_header(dbg, &cu_header_len, &version, &abbrev_off, &addr_size, &next_cu, &err) == DW_DLV_OK) {
-		cu_die = 0;
-		ret = dwarf_siblingof(dbg, NULL, &cu_die, &err);
-		if(ret != DW_DLV_OK){
-			continue;
-		}
-		ret = dwarf_detect_struct(dbg, cu_die, struct_to_search, &found);
-		if(ret){
-			dwarf_dealloc(dbg, cu_die, DW_DLA_DIE);
-			break;
-		}
-		dwarf_dealloc(dbg, cu_die, DW_DLA_DIE);
-	}
-
-	if(found == 0){
-		printf("[!] struct %s not found, switching to the backup plan!\n", struct_to_search);
-		goto backup_plan;
-	}
-
-	backup_plan:
-	/* if for any reason the .ko hasn't any dwarf/btf debug information, use a precomputed kernel offset table generated during the build time. */
-	#ifdef ENABLE_OFFSET_BACKUP
-
-	#endif
-	end:
-	return ret;
-}
-
 void *search_similar_function(unsigned char *function_name){
 	int n = 0;
 	void *fn = NULL;
@@ -301,7 +263,7 @@ int parse_module_offset_table(void){
 				break;
 			}
 			ret = dwarf_loader_parser(runtime_struct_layout->struct_name, current_struct_fields[k].field_name, &current_struct_fields[k].field_offset);
-			if(ret > 0){
+			if(ret > 0 && director.global_conf.show_struct_offset == true){
 				printf("  - %s->%s offset: %d\n",
 					runtime_struct_layout->struct_name,
 					current_struct_fields[k].field_name,
@@ -1067,6 +1029,24 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 				    info->sechdrs[sym[i].st_shndx].sh_addr;
 			}
 			sym[i].st_value += secbase;
+                        /*
+                         * if we have a function which is defined inside this module, add it to the internal symbol table, this will permit
+                         * to resolve the relocations when we will have multi-modules dependencies
+                         */
+                        if (ELF64_ST_TYPE(sym[i].st_info) == STT_FUNC && strcmp(name, "cleanup_module") != 0 && strcmp(name, "init_module") != 0) {
+                                for (int j = 0; sym_table[j].function_ptr != NULL; j++){
+                                        if((j + 1 ) >= ARRAY_SIZE(sym_table)){
+                                                break;
+                                        }
+                                        if(sym_table[j + 1].function_ptr == NULL){
+                                                /* insert the function and it's name */
+                                                sym_table[j + 1].function_ptr  = sym[i].st_value;
+                                                sym_table[j + 1].function_name = strdup(name);
+						director.total_memory_used += strlen(name);
+                                                break;
+                                        }
+                                }
+                        }
 			break;
 		}
 	}
@@ -1425,7 +1405,7 @@ static int do_init_module(struct module *mod) {
 		       __FUNCTION__, mod->name, ret, __FUNCTION__);
 	}
 
-	// mod->state = MODULE_STATE_LIVE;
+	mod->state = MODULE_STATE_LIVE;
 	trim_init_extable(mod);
 	return 0;
 }
@@ -1521,17 +1501,12 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	tmp_mapped_file = (unsigned char *)mmap(
 	    NULL, file_size, PROT_READ, MAP_FILE | MAP_SHARED, fd, 0x00);
 
-	RAND_BASE_ADDR mapped_file_base_random =
-	    (RAND_BASE_ADDR)(arc4random() + arc4random());
-	RAND_BASE_ADDR mapped_file_base_address =
-	    (RAND_BASE_ADDR)(0xffffffff + mapped_file_base_random);
-
-	printf("random base address for the module %s loading: 0x%lx\n", file_name,
-	       mapped_file_base_address);
-
 	mapped_file = (unsigned char *)mmap(
 	    NULL, file_size, PROT_READ | PROT_WRITE,
 	    MAP_ANON | MAP_PRIVATE, -1, 0x00);
+
+	/* track the size of the *entire* module loaded in memory */
+	director.total_memory_used += file_size;
 
 	memset(mapped_file, 0x00, file_size);
 	memcpy(mapped_file, tmp_mapped_file, file_size);
@@ -1583,7 +1558,7 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 
 	err = simplify_symbols(mod, info);
 
-	if (err < 0) {
+	if (err < 0 && director.global_conf.strict_missing_syms == true) {
 		printf("end at line: %d\n", __LINE__);
 		return -1;
 	}
@@ -1701,19 +1676,19 @@ static int drv_execute_cmd(struct module_controller *director, char *argv[], str
 /*
  *      Main commands used by the cmd shell.
  */
-int drv_cmd_exit(struct mod_director *director, char *argv[], int num_args) {
+int drv_cmd_exit(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
 	exit(ret);
 }
 
-int drv_cmd_reset(struct mod_director *director, char *argv[], int num_args) {
+int drv_cmd_reset(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
 
 	return ret;
 }
 
 /* given a .ko name, load it into memory, this permits to load muultiple kernel modules into the process memory without executing them */
-int drv_cmd_load(struct mod_director *director, char *argv[], int num_args) {
+int drv_cmd_load(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
 	unsigned char *module_name = NULL;
 	struct load_info *load_info = NULL;
@@ -1743,7 +1718,7 @@ int drv_cmd_load(struct mod_director *director, char *argv[], int num_args) {
 }
 
 /* the opposite of 'load', given a kernel module name, unload it from the system */
-int drv_cmd_unload(struct mod_director *director, char *argv[], int num_args) {
+int drv_cmd_unload(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
 	unsigned char *module_name = NULL;
 
@@ -1757,37 +1732,95 @@ int drv_cmd_unload(struct mod_director *director, char *argv[], int num_args) {
 }
 
 /* 'start' is used as an alias for 'run' */
-int drv_cmd_start(struct mod_director *director, char *argv[], int num_args) {
+int drv_cmd_start(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
 
 	return ret;
 }
 
 /* stop the driver execution, different from the unload function */
-int drv_cmd_stop(struct mod_director *director, char *argv[], int num_args) {
+int drv_cmd_stop(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
 
 	return ret;
 }
 
 /* given a kernel module name registered in the system and the init function, run it, this permits to loads different symbols from every loaded driver into the memory */
-int drv_cmd_run(struct mod_director *director, char *argv[], int num_args) {
+int drv_cmd_run(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
+	int (*fn)(void) = NULL;
+	unsigned char *ptr = NULL;
 	unsigned char *module_name = NULL;
 	unsigned char *module_function = NULL;
-	if(argv[1] == NULL || argv[2] == NULL){
-		printf("> run <module_name> <function_name>!\n");
+	unsigned char *current_function_name = NULL;
+
+	if(argv[1] == NULL){
+		printf("> run <function_name>!\n");
 		ret = -EINVAL;
 		return ret;
 	}
+	/* support also the format <kernel_object_name(.ko)> <function_name> */
+	if(argv[2] != NULL){
+		module_name = argv[1];
+		module_function = argv[2];
+	}else{
+		module_function = argv[1];
+	}
 
+	/* call the function */
+	for (unsigned int i = 0; ; i++) {
+		current_function_name = sym_table[i].function_name;
+
+		if (current_function_name == NULL || current_function_name[0] == '\0'){
+			continue;
+		}
+
+		if (strcmp((char *)module_function, current_function_name) == 0) {
+			fn = (int (*)(void))(uintptr_t)sym_table[i].function_ptr;
+			ptr = (unsigned char *)fn;
+			if (ptr[0] == 0xE8) {
+				int32_t disp = *(int32_t *)(ptr + 1);
+				void   *tgt  = ptr + 5 + disp;
+			}
+
+			/* mark the module execution */
+			printf("--------------------------\n");
+			ret = fn();
+			printf("%s returned %d\n", module_function, ret);
+		}
+	}
 	return ret;
 }
 
 /* set a context variable to a specific value, used for changing the runtime of the driver executor */
-int drv_cmd_set(struct mod_director *director, char *argv[], int num_args) {
+int drv_cmd_set(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
 
+	return ret;
+}
+
+/* permits to get data from the program */
+int drv_cmd_get(struct module_controller *director, char *argv[], int num_args) {
+	int ret = 0;
+	unsigned char *get_req = NULL;
+
+	if(argv[1] == NULL){
+		printf("> get <req>\n");
+		ret = -EINVAL;
+		return ret;
+	}
+
+	get_req = argv[1];
+
+	/* list every symbols in the current loaded system */
+	if(strstr(get_req, "sym") != NULL){
+		for(u32 sym_idx = 0; sym_table[sym_idx].function_ptr != NULL; sym_idx++){
+			printf("sym %d name: %s address: 0x%08x\n", sym_idx, sym_table[sym_idx].function_name, sym_table[sym_idx].function_ptr);
+		}
+	}
+	if(strstr(get_req, "mem") != NULL){
+		printf("[*] using %d bytes\n", director->total_memory_used);
+	}
 	return ret;
 }
 
@@ -1845,6 +1878,11 @@ int main(int argc, char *argv[], char *envp[]) {
 			.cmd_name = "set",
 			.cmd_args = 1,
 			.cmd_ptr  = drv_cmd_set,
+		},
+		[DRV_CMD_GET] = {
+			.cmd_name = "get",
+			.cmd_args = 1,
+			.cmd_ptr  = drv_cmd_get,
 		},
 	};
 
