@@ -1,8 +1,10 @@
 struct module_controller {
         char module_name[16];
 	int fd;
-        unsigned char *trampoline_area;
+	u8 *trampoline_area;
         int trampoline_used;
+	/* emulates jiffies */
+	u64 jiffies;
         int libusb_ret;
         struct module *mod;
         struct load_info *info;
@@ -12,7 +14,7 @@ struct module_controller {
 	/* lock used for the hashtable add/removal of an item */
 	pthread_mutex_t rhashtable_lock;
 
-        /* libusb data */
+        /* libusb data, use only 1 device handler for an entire application */
         libusb_device_handle *usb_dev;
 
 	struct file_layer file_table[MAX_FILE_IDX];

@@ -13,6 +13,7 @@ use List::Util qw(uniq);
 use Term::ANSIColor qw(color);
 use File::Temp qw(tempfile tempdir);
 use File::Basename qw(dirname basename);
+use File::Path qw(make_path);
 
 my $ls   = `which ls`;
 my $cd   = `which cd`;
@@ -44,7 +45,8 @@ my $variables = "variables";
 my $function_proto_regex = q{^\h*[_A-Za-z]\w*(?:[\w\h\*]*\h+)+[_A-Za-z]\w*\h*\([^;{}]*\)\h*(?=\{)};
 my $find_command_arg = q{-type f -not -path "out_*" -name "*.c" -or -name "*.h"};
 
-my $final_obj_line = undef;
+my @built_objects = ();
+my $merged_fast_source = undef;
 my $proto = undef;
 my $current_stub = undef;
 my $final_stub = undef;
@@ -60,6 +62,7 @@ my $offset_generation_file = undef;
 my $virtual_compilation_folder = undef;
 
 my $compiler = undef;
+my $fast_compilation = undef;
 my $generate_offset_file = undef;
 my $pahole_kernel = undef;
 my $windows_support = undef;
@@ -223,6 +226,11 @@ my %field_ctype = (
 		"features"		=> "u32",
 		"ext_features"		=> "u8",
 		"priv"			=> "char",
+		"max_num_csa_counters"	=> "u8",
+		"max_ap_assoc_sta"	=> "u16",
+		"bands"			=> "struct ieee80211_supported_band *",
+		"max_num_pmkids"	=> "u8",
+		"pmsr_capa"		=> "struct cfg80211_pmsr_capabilities *",
 	},
 	net_device => {
 		"name"			=> "char",
@@ -243,6 +251,28 @@ my %field_ctype = (
 		"dev"			=> "struct device",
 		"usb_dev"		=> "struct device *",
 	},
+	ieee80211_hw => {
+		"conf"			=> "struct ieee80211_conf",
+		"wiphy"			=> "struct wiphy *",
+		"rate_control_algorithm"=> "const char *",
+		"priv"			=> "void *",
+		"flags"			=> "unsigned long",
+		"extra_tx_headroom"	=> "unsigned int",
+		"extra_beacon_tailroom" => "unsigned int",
+		"queues"		=> "u16",
+		"max_listen_interval"	=> "u16",
+		"max_signal"		=> "s8",
+		"max_rates"		=> "u8",
+		"max_report_rates"	=> "u8",
+		"max_rate_tries"	=> "u8",
+		"max_tx_fragments"	=> "u8",
+	},
+	device => {
+		"kobj"			=> "struct kobject",
+		"parent"		=> "struct device *",
+		"init_name"		=> "const char *",
+		"devres_head"		=> "struct list_head",
+	},
 );
 
 chomp($ls);
@@ -256,6 +286,7 @@ chomp($make);
 
 GetOptions(
 	"compiler=s"      => \$compiler,
+	"fast"		  => \$fast_compilation,
 	"generate_offset" => \$generate_offset_file,
 	"pahole_kernel=s" => \$pahole_kernel,
 	"windows"         => \$windows_support,
@@ -270,6 +301,7 @@ if($help){
 	print("Made by Edoardo Mantovani, 2026\n");
 	print("options:\n");
 	print("compiler=[gcc|clang|tcc] (only working for now: gcc)\n");
+	print("fast: unlock the fast compilation feature\n");
 	print("generate_offset -> generate a special json file which can be used for creating the offset backup plan\n");
 	print("windows -> enable windows compilation\n");
 	print("examples -> compile every kernel object example under the ./example folder\n");
@@ -577,6 +609,53 @@ sub rewrite_source_file {
 	move($tmp_path, $in_path) or die $!;
 }
 
+
+sub merge_rewritten_function_stubs {
+	my ($root, $out_path) = @_;
+
+	my $functions_dir = "$root/$stubs/$functions";
+	my $layer_path    = "$root/$include/$win_layer";
+	my $utils_path    = "$root/$include/utils.h";
+
+	my $out_dir = dirname($out_path);
+	make_path($out_dir) unless -d $out_dir;
+
+	open(my $out, '>', $out_path) or die $!;
+
+	print $out "/* Copyright (C) Edoardo Mantovani - All Rights Reserved\n";
+	print $out "* Unauthorized copying of this file, via any medium is strictly prohibited\n";
+	print $out "* Proprietary and confidential\n";
+	print $out "*/\n\n";
+
+	foreach my $header ($layer_path, $utils_path) {
+		open(my $fh, '<', $header) or die $!;
+		while (my $line = <$fh>) {
+			print $out $line;
+		}
+		print $out "\n";
+		close($fh) or die $!;
+	}
+
+	my @function_files = ();
+	foreach (`$find $functions_dir -type f -name "*.c" | sort`) {
+		my $file = $_;
+		chomp($file);
+		push(@function_files, $file);
+	}
+
+	foreach my $file (@function_files) {
+		print $out "\n/* merged from: $file */\n";
+		open(my $fh, '<', $file) or die $!;
+		while (my $line = <$fh>) {
+			print $out $line;
+		}
+		print $out "\n";
+		close($fh) or die $!;
+	}
+
+	close($out) or die $!;
+}
+
 # fill the '\@sources' array
 foreach(`$find $find_command_arg | $grep -iv out_`){
 	$iterator = $_;
@@ -604,8 +683,11 @@ emit_runtime_struct_header($offsets, $offset_generation_file);
 $process_step++;
 
 $virtual_compilation_folder = tempdir("out_XXXX", CLEANUP => 0);
+make_path("$virtual_compilation_folder/$build");
 
-foreach(qw(inc stubs src)){
+# Copy only the trees that must be rewritten/compiled in the virtual build.
+# Keep src/main.c outside the virtual tree so it is never rewritten nor copied there.
+foreach(qw(inc stubs)){
 	`$cp -R $_ $virtual_compilation_folder/$_`;
 }
 
@@ -685,17 +767,35 @@ close(PROTO) or die $!;
 `$cp $proto_header $virtual_compilation_folder/$include`;
 `$cp $cb_header $virtual_compilation_folder/$include`;
 
-foreach(`$ls $virtual_compilation_folder/$stubs/$functions`){
-	$current_stub = $_;
-	chomp($current_stub);
-	$final_stub = $current_stub;
-	$final_stub =~ s/\..*$/.o/;
+if($fast_compilation){
+	$merged_fast_source = "$virtual_compilation_folder/$build/merged_functions.c";
+	$final_stub = "merged_functions.o";
+	merge_rewritten_function_stubs($virtual_compilation_folder, $merged_fast_source);
+
 	if($verbose){
-		print("$compiler @gcc_params -I./$virtual_compilation_folder/$include @gcc_stub_params -include $virtual_compilation_folder/$include/$win_layer -c $virtual_compilation_folder/$stubs/$functions/$current_stub -o $build/$final_stub\n");
+		print("$compiler @gcc_params -I./$virtual_compilation_folder/$include @gcc_stub_params -include $virtual_compilation_folder/$include/$win_layer -c $merged_fast_source -o $build/$final_stub\n");
 	}
-	system("$compiler @gcc_params -I./$virtual_compilation_folder/$include @gcc_stub_params -include $virtual_compilation_folder/$include/$win_layer -c $virtual_compilation_folder/$stubs/$functions/$current_stub -o $build/$final_stub");
+
+	system("$compiler @gcc_params -I./$virtual_compilation_folder/$include @gcc_stub_params -include $virtual_compilation_folder/$include/$win_layer -c $merged_fast_source -o $build/$final_stub");
+	push(@built_objects, "$build/$final_stub");
+
 	if(!$verbose){
 		print("[*] compiling $final_stub\n");
+	}
+}else{
+	foreach(`$ls $virtual_compilation_folder/$stubs/$functions`){
+		$current_stub = $_;
+		chomp($current_stub);
+		$final_stub = $current_stub;
+		$final_stub =~ s/\..*$/.o/;
+		if($verbose){
+			print("$compiler @gcc_params -I./$virtual_compilation_folder/$include @gcc_stub_params -include $virtual_compilation_folder/$include/$win_layer -c $virtual_compilation_folder/$stubs/$functions/$current_stub -o $build/$final_stub\n");
+		}
+		system("$compiler @gcc_params -I./$virtual_compilation_folder/$include @gcc_stub_params -include $virtual_compilation_folder/$include/$win_layer -c $virtual_compilation_folder/$stubs/$functions/$current_stub -o $build/$final_stub");
+		push(@built_objects, "$build/$final_stub");
+		if(!$verbose){
+			print("[*] compiling $final_stub\n");
+		}
 	}
 }
 
@@ -710,22 +810,19 @@ foreach(`$ls $virtual_compilation_folder/$stubs/$variables`){
 		print("$compiler @gcc_params -I./$virtual_compilation_folder/$include -include $virtual_compilation_folder/$include/$win_layer -c $virtual_compilation_folder/$stubs/$variables/$current_stub -o $build/$final_stub\n");
 	}
 	system("$compiler @gcc_params -I./$virtual_compilation_folder/$include -include $virtual_compilation_folder/$include/$win_layer -c $virtual_compilation_folder/$stubs/$variables/$current_stub -o $build/$final_stub");
+	push(@built_objects, "$build/$final_stub");
 	if(!$verbose){
 		print("[*] compiling $final_stub\n");
 	}
 }
 
-foreach(`$ls $build`){
-	$current_stub = $_;
-	chomp($current_stub);
-	$final_obj_line .= "$build/$current_stub ";
-}
+my $final_obj_line = join(' ', @built_objects);
 
 print(color("red"));
 print("[*] compiling $final_program\n");
 print(color("reset"));
 if($verbose){
-	print("$compiler @gcc_params @gcc_final_params -I./$virtual_compilation_folder/$include $virtual_compilation_folder/$source/$main -o $bin/$final_program $final_obj_line @gcc_final_linkkings");
+	print("$compiler @gcc_params @gcc_final_params -I./$virtual_compilation_folder/$include $source/$main -o $bin/$final_program $final_obj_line @gcc_final_linkkings");
 	print("\n\n");
 }
 system("$compiler @gcc_params @gcc_final_params -I./$virtual_compilation_folder/$include $source/$main -o $bin/$final_program $final_obj_line @gcc_final_linkkings");

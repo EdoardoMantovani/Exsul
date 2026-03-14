@@ -334,3 +334,177 @@ static const struct usb_host_endpoint *usb_find_endpoint(struct usb_interface *i
 	return NULL;
 }
 
+static void *get_symbol_data(unsigned char *symbol_name, int *symbol_size){
+        int n = 0;
+        void *ptr = NULL;
+        void *strtab = NULL;
+        Elf(Sym) *sym = NULL;
+        Elf(Shdr) *symsect = NULL;
+        struct load_info *info = NULL;
+        unsigned char *cur_name = NULL;
+
+        info = director.info;
+
+        symsect = &info->sechdrs[info->index.sym];
+
+	sym = (void *)symsect->sh_addr;
+        strtab = (void *)info->sechdrs[info->index.str].sh_addr;
+        n = symsect->sh_size / sizeof(Elf(Sym));
+
+        for (unsigned int i = 0; i < n; i++) {
+                cur_name = &strtab[sym[i].st_name];
+
+                if (cur_name == NULL || cur_name[0] == '\0'){
+                        continue;
+                }
+
+                if (strstr(cur_name, (char *)symbol_name) != NULL) {
+                        *symbol_size = sym[i].st_size;
+                        ptr = malloc(sym[i].st_size);
+                        memset(ptr, 0, sym[i].st_size);
+                        memcpy(ptr, sym[i].st_value, sym[i].st_size);
+                }
+        }
+        return ptr;
+}
+
+static int parse_module_usb_table(void){
+	int ret = 0;
+	int usb_table_size = 0;
+	struct usb_device_id *p = NULL;
+
+	p = (struct usb_device_id *)get_symbol_data(USB_TABLE_SYM_NAME, &usb_table_size);
+	if(p == NULL || usb_table_size == 0){
+		ret = -ENOMEM;
+		return ret;
+	}
+
+	ret = (usb_table_size % sizeof(struct usb_device_id));
+	if(ret != 0){
+		printf("[!] usb device table symbol isn't aligned with the size of \'usb_device_id\', aborting...\n");
+		free(p);
+		ret = -EINVAL;
+		return ret;
+	}
+
+	printf("[*] usb devices detected for the current kernel module:\n");
+	for(u8 j = 0; ; j++){
+		if(p == NULL || p->idProduct == 0x00 || p->idVendor == 0x00){
+			break;
+		}
+		printf("[*] usb pid: 0x%08x vid: 0x%08x\n", p->idProduct, p->idVendor);
+		/* now add the pid/vid tuple into our main struct, this will be used later for the libusb device handling */
+		for(u8 k = 0; k < MAX_USB_DEV_LIST; k++){
+			if(director.usb_dev_list[k].is_used == false){
+				director.usb_dev_list[k].usb_vid = p->idVendor;
+				director.usb_dev_list[k].usb_pid = p->idProduct;
+				director.usb_dev_list[k].is_used = true;
+				break;
+			}
+		}
+		p++;
+	}
+
+	return ret;
+}
+
+/* main function for detecting the attached usb dongle, requires a full 'usb_dev_list' table */
+static int detect_usb_device(void){
+	int ret = 0;
+	for (u8 j = 0; j < MAX_USB_DEV_LIST; j++) {
+		director.usb_dev = libusb_open_device_with_vid_pid(NULL, director.usb_dev_list[j].usb_vid, director.usb_dev_list[j].usb_pid);
+		if (director.usb_dev != NULL) {
+			printf("[*] new device found:\n-pid: 0x%04x\n-vid: 0x%04x\n",
+                            director.usb_dev_list[j].usb_pid,
+			    director.usb_dev_list[j].usb_vid);
+			ret = libusb_claim_interface(director.usb_dev, director.usb_interface_number);
+			if (ret < 0) {
+				printf("[!] failed to claim interface!\n");
+				printf("[!] error: %d\n", ret);
+				goto end;
+			}
+			break;
+                }
+
+		if ((j + 1) == MAX_USB_DEV_LIST) {
+			/* sleep and reset the counter */
+			usleep(1000);
+			j = 0;
+		}
+	}
+	end:
+	return ret;
+}
+
+static int detect_usb_endpoints(void){
+	int ret = 0;
+	libusb_device *usb_dev = NULL;
+	struct libusb_config_descriptor *cfg = NULL;
+
+	usb_dev = libusb_get_device(director.usb_dev);
+
+	ret = libusb_get_active_config_descriptor(usb_dev, &cfg);
+
+	if (ret == LIBUSB_ERROR_NOT_FOUND) {
+		ret = libusb_get_config_descriptor(usb_dev, 0, &cfg);
+	}
+	#if 0
+	if (ret) {
+		printf("[%s] failed to get the usb configuration descriptor!\n", __FUNCTION__);
+		return ret;
+	}
+
+	for (u8 i = 0; i < cfg->bNumInterfaces; i++) {
+                const struct libusb_interface *itf = &cfg->interface[i];
+
+                for (int a = 0; a < itf->num_altsetting; a++) {
+                        const struct libusb_interface_descriptor *id =
+                            &itf->altsetting[a];
+
+                        u8 out = 0, in = 0;
+                        for (u8 e = 0; e < id->bNumEndpoints; e++) {
+                                const struct libusb_endpoint_descriptor *ep =
+                                    &id->endpoint[e];
+                                u8 type = ep->bmAttributes &
+                                          LIBUSB_TRANSFER_TYPE_MASK;
+                                u8 dir = ep->bEndpointAddress &
+                                         LIBUSB_ENDPOINT_DIR_MASK;
+
+                                if (type == LIBUSB_TRANSFER_TYPE_BULK) {
+                                        if (dir == LIBUSB_ENDPOINT_OUT &&
+                                            out == 0)
+                                                out = ep->bEndpointAddress;
+                                        if (dir == LIBUSB_ENDPOINT_IN &&
+                                            in == 0)
+                                                in = ep->bEndpointAddress;
+                                }
+                        }
+
+                        if (!out) {
+                                continue;
+                        }
+
+                        int score = (id->bInterfaceClass == 0x08) ? 2 : 1;
+
+                        if (score > best_score) {
+                                best_score = score;
+                                best_iface = id->bInterfaceNumber;
+                                best_alt   = id->bAlternateSetting;
+                                best_out   = out;
+                                best_in    = in;
+                        }
+                }
+        }
+
+        libusb_free_config_descriptor(cfg);
+
+        if (!best_out) {
+                return LIBUSB_ERROR_NOT_FOUND;
+        }
+        dev->iface_num   = best_iface;
+        dev->alt_setting = best_alt;
+        dev->bulk_out    = best_out;
+        dev->bulk_in     = best_in;
+	#endif
+	return ret;
+}

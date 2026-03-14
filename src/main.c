@@ -8,6 +8,25 @@
 
 struct module_controller director;
 
+struct cmd_table_entry {
+	u8 cmd_name[18];
+	u8 cmd_args;
+	int (*cmd_ptr)(struct mod_controller *, char **, int);
+};
+
+/* structures and definitions used for representing the command table used by
+ * the main program. */
+enum {
+	DRV_CMD_EXIT,
+	DRV_CMD_RESET,
+	DRV_CMD_LOAD,
+	DRV_CMD_UNLOAD,
+	DRV_CMD_START,
+	DRV_CMD_STOP,
+	DRV_CMD_RUN,
+	DRV_CMD_SET,
+};
+
 int dwarf_search_field(unsigned char *field_input_name, Dwarf_Debug dbg, Dwarf_Die struct_die){
 	int ret = 0;
 	int sibling = 0;
@@ -254,48 +273,22 @@ void *search_similar_function(unsigned char *function_name){
 	return fn;
 }
 
-void *get_symbol_data(unsigned char *symbol_name, int *symbol_size){
-	int n = 0;
-	void *ptr = NULL;
-	void *strtab = NULL;
-	Elf(Sym) *sym = NULL;
-	Elf(Shdr) *symsect = NULL;
-	struct load_info *info = NULL;
-	unsigned char *cur_name = NULL;
-
-	info = &director.info;
-	symsect = &info->sechdrs[info->index.sym];
-	sym = (void *)symsect->sh_addr;
-	strtab = (void *)info->sechdrs[info->index.str].sh_addr;
-	n = symsect->sh_size / sizeof(*sym);
-
-	for (unsigned int i = 0; i < n; i++) {
-		cur_name = &strtab[sym[i].st_name];
-
-		if (cur_name == NULL || cur_name[0] == '\0'){
-			continue;
-		}
-
-		if (strstr((char *)symbol_name, cur_name) != NULL) {
-			*symbol_size = sym[i].st_size;
-			ptr = malloc(sym[i].st_size);
-			memset(ptr, 0, sym[i].st_size);
-			memcpy(ptr, sym[i].st_value, sym[i].st_size);
-		}
-	}
-	return ptr;
-}
-
 int parse_module_offset_table(void){
 	int ret = 0;
 	u8 counter = 0;
-	struct runtime_struct *runtime_generated_structs = NULL;
+	struct runtime_struct *runtime_structs = NULL;
 	struct runtime_struct_layout *runtime_struct_layout = NULL;
 	struct struct_field *current_struct_fields = NULL;
-	runtime_generated_structs = director.runtime_generated_structs;
+	runtime_structs = &runtime_generated_structs;
+
+	if(runtime_structs == NULL){
+		printf("[!] no runtime struct data!\n");
+		ret = -EINVAL;
+		return ret;
+	}
 
 	for (counter = 0; ; counter++) {
-		runtime_struct_layout = &runtime_generated_structs->structs[counter];
+		runtime_struct_layout = &runtime_structs->structs[counter];
 		if (runtime_struct_layout->struct_name == NULL){
 			break;
 		}
@@ -318,46 +311,6 @@ int parse_module_offset_table(void){
 	}
 
 	dwarf_finish(director.dbg, &director.err);
-	return ret;
-}
-
-int parse_module_usb_table(void){
-	int ret = 0;
-	int usb_table_size = 0;
-	void *p = NULL;
-	struct usb_device_id *usb_device_table_ptr = NULL;
-
-	p = get_symbol_data(USB_TABLE_SYM_NAME, &usb_table_size);
-	if(p == NULL){
-		ret = -ENOMEM;
-		return ret;
-	}
-
-	ret = (usb_table_size % sizeof(struct usb_device_id));
-	if(ret != 0){
-		printf("[!] usb device table symbol isn't aligned with the size of \'usb_device_id\', aborting...\n");
-		free(p);
-		ret = -EINVAL;
-		return ret;
-	}
-
-	printf("[*] usb devices detected for the current kernel module:\n");
-	for(u8 j = 0; j < ret; j++){
-		usb_device_table_ptr = (struct usb_device_id *)p;
-		printf("[*] usb pid: 0x%08x vid: 0x%08x\n", usb_device_table_ptr->idProduct, usb_device_table_ptr->idVendor);
-		/* now add the pid/vid tuple into our main struct, this will be used later for the libusb device handling */
-		for(u8 k = 0; k < ARRAY_SIZE(director.usb_dev_list); k++){
-			if(director.usb_dev_list[k].is_used == false){
-				director.usb_dev_list[k].usb_vid = usb_device_table_ptr->idVendor;
-				director.usb_dev_list[k].usb_pid = usb_device_table_ptr->idProduct;
-				director.usb_dev_list[k].is_used = true;
-				break;
-			}
-		}
-		p += sizeof(struct usb_device_id);
-	}
-
-	free(p);
 	return ret;
 }
 
@@ -915,11 +868,7 @@ static struct module *layout_and_allocate(struct load_info *info, int flags) {
 
 static int percpu_modalloc(struct module *mod, struct load_info *info) {
 	int ret = 0;
-	/* UP modules shouldn't have this section: ENOMEM isn't quite right */
-	if (info->sechdrs[info->index.pcpu].sh_size != 0) {
-		ret = -ENOMEM;
-		return ret;
-	}
+	/* fix: ignore this function */
 	return ret;
 }
 
@@ -1489,12 +1438,27 @@ static int call_final_function(struct module *mod, struct load_info *info,
 	const char *name = NULL;
 	unsigned char *ptr = NULL;
 	int (*fn)(void) = NULL;
+	Elf(Ehdr) *header = &info->hdr;
 	Elf(Shdr) *symsect = &info->sechdrs[info->index.sym];
 
 	Elf(Sym) *sym = (void *)symsect->sh_addr;
 
 	strtab = (void *)info->sechdrs[info->index.str].sh_addr;
 	n = symsect->sh_size / sizeof(*sym);
+
+	if(strcmp(function_name, "entry") == 0){
+		fn = (int (*)(void))(uintptr_t)header->e_entry;
+		ptr = (unsigned char *)fn;
+		if (ptr[0] == 0xE8) {
+			int32_t disp = *(int32_t *)(ptr + 1);
+			void   *tgt  = ptr + 5 + disp;
+ 		}
+
+		/* mark the module execution */
+		printf("--------------------------\n");
+		ret = fn();
+		printf("%s returned %d\n", name, ret);
+	}
 
 	for (unsigned int i = 0; i < n; i++) {
 		name = &strtab[sym[i].st_name];
@@ -1535,7 +1499,7 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	unsigned char *tmp_mapped_file	= NULL;
 	struct stat    file_stats	= {};
 
-	if (file_name == NULL || function_name == NULL) {
+	if (file_name == NULL) {
 		return -EINVAL;
 	}
 
@@ -1562,7 +1526,7 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	RAND_BASE_ADDR mapped_file_base_address =
 	    (RAND_BASE_ADDR)(0xffffffff + mapped_file_base_random);
 
-	printf("random base address for the module loading: 0x%lx\n",
+	printf("random base address for the module %s loading: 0x%lx\n", file_name,
 	       mapped_file_base_address);
 
 	mapped_file = (unsigned char *)mmap(
@@ -1580,11 +1544,10 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		close(director.fd);
 		return err;
 	}
-	parse_module_offset_table();
-	close(fd);
 
-	info = (struct load_info *)malloc(sizeof(struct load_info));
-	memset(info, 0x00, sizeof(struct load_info));
+	parse_module_offset_table();
+
+	close(fd);
 
 	info->hdr = (Elf(Ehdr) *)mapped_file;
 	info->len = file_size;
@@ -1653,77 +1616,260 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		return -1;
 	}
 
+	#if 0
 	err = call_final_function(mod, info, function_name);
 
 	/* at the end, call the 'exit' function for free the memory allocated by the 'init' function */
 	err = call_final_function(mod, info, "cleanup_module");
-
+	#endif
 	return err;
 }
 
-void display_usage(unsigned char *argv[]) {
-	printf("./%s <lkm_name> <function_name> !\n", argv[0]);
-}
+int initialize_director(struct module_controller *director, struct load_info **info) {
+	int ret = 0;
 
-int initialize_director(struct module_controller *director, struct load_info *info) {
-	int ret		     = 0;
 	director->libusb_ret = libusb_init(NULL);
 	if (director->libusb_ret < 0) {
 		ret = -EINVAL;
-		goto out;
+		return ret;
 	}
 
 	director->internal_cb_table = &sym_table;
-	director->runtime_generated_structs = &runtime_generated_structs;
-	director->info = info;
-out:
+
+	director->info = malloc(sizeof(struct load_info));
+	if (director->info == NULL){
+		ret = -ENOMEM;
+		return ret;
+	}
+
+	*info = director->info;
+	return ret;
+}
+
+/*
+ *      Utilities functions used for the cmd shell.
+ */
+static int drv_parse_line(char *line, char **drv_arg, int max_args) {
+	int   ret   = 0;
+	char *token = NULL;
+	token       = strtok(line, " \t\r\n");
+
+	while (token && ret < max_args - 1) {
+		drv_arg[ret++] = token;
+		token            = strtok(NULL, " \t\r\n");
+	}
+
+	drv_arg[ret] = NULL;
+	return ret;
+}
+
+static int drv_execute_cmd(struct module_controller *director, char *argv[], struct cmd_table_entry *dispatch_cmd_table) {
+	int ret      = 0;
+	int num_args = -1;
+
+	/* basic sanity check */
+	if (argv[0] == NULL || dispatch_cmd_table == NULL) {
+		ret = -EINVAL;
+		return ret;
+	}
+
+	/* get the total args for the cmd */
+	for (u8 j = 0; argv[j] != NULL; j++) {
+		num_args++;
+	}
+
+	/* compare both the cmd name and it's args */
+	if (strcmp(argv[0], (const char *)dispatch_cmd_table->cmd_name) == 0) {
+		/* special option: if cmd_args is set to '0xFF', bypass this
+		 * parameter
+		 */
+		if (dispatch_cmd_table->cmd_args == 0xFF) {
+			ret = dispatch_cmd_table->cmd_ptr(director, argv, dispatch_cmd_table->cmd_args);
+			return ret;
+		}
+		/* execute the command with the correct parameters check */
+		if (num_args == dispatch_cmd_table->cmd_args) {
+			ret = dispatch_cmd_table->cmd_ptr(director, argv, dispatch_cmd_table->cmd_args);
+			return ret;
+		}
+	}
+
+	ret = -EDOM;
+	return ret;
+}
+
+/*
+ *      Main commands used by the cmd shell.
+ */
+int drv_cmd_exit(struct mod_director *director, char *argv[], int num_args) {
+	int ret = 0;
+	exit(ret);
+}
+
+int drv_cmd_reset(struct mod_director *director, char *argv[], int num_args) {
+	int ret = 0;
+
+	return ret;
+}
+
+/* given a .ko name, load it into memory, this permits to load muultiple kernel modules into the process memory without executing them */
+int drv_cmd_load(struct mod_director *director, char *argv[], int num_args) {
+	int ret = 0;
+	unsigned char *module_name = NULL;
+	struct load_info *load_info = NULL;
+
+	if(argv[1] == NULL){
+		printf("> load <module.ko>!\n");
+		ret = -EINVAL;
+		return ret;
+	}
+
+	module_name = argv[1];
+	if(strlen(module_name) < MODULE_INPUT_MIN_LEN){
+		printf("[!] module %s too short!\n", module_name);
+		ret = -EINVAL;
+		return ret;
+	}
+
+	ret = initialize_director(&director, &load_info);
+	if (ret) {
+		printf("[!] failed to initialize the main context!\n");
+		return ret;
+	}
+
+	/* now call the main driver loading function */
+	ret = module_init(module_name, NULL, load_info);
+	return ret;
+}
+
+/* the opposite of 'load', given a kernel module name, unload it from the system */
+int drv_cmd_unload(struct mod_director *director, char *argv[], int num_args) {
+	int ret = 0;
+	unsigned char *module_name = NULL;
+
+	if(argv[1] == NULL){
+		printf("> unload <module.ko>!\n");
+		ret = -EINVAL;
+		return ret;
+	}
+
+	return ret;
+}
+
+/* 'start' is used as an alias for 'run' */
+int drv_cmd_start(struct mod_director *director, char *argv[], int num_args) {
+	int ret = 0;
+
+	return ret;
+}
+
+/* stop the driver execution, different from the unload function */
+int drv_cmd_stop(struct mod_director *director, char *argv[], int num_args) {
+	int ret = 0;
+
+	return ret;
+}
+
+/* given a kernel module name registered in the system and the init function, run it, this permits to loads different symbols from every loaded driver into the memory */
+int drv_cmd_run(struct mod_director *director, char *argv[], int num_args) {
+	int ret = 0;
+	unsigned char *module_name = NULL;
+	unsigned char *module_function = NULL;
+	if(argv[1] == NULL || argv[2] == NULL){
+		printf("> run <module_name> <function_name>!\n");
+		ret = -EINVAL;
+		return ret;
+	}
+
+	return ret;
+}
+
+/* set a context variable to a specific value, used for changing the runtime of the driver executor */
+int drv_cmd_set(struct mod_director *director, char *argv[], int num_args) {
+	int ret = 0;
+
 	return ret;
 }
 
 int main(int argc, char *argv[], char *envp[]) {
 	int	       ret	     = 0;
+	char           line[64]      = {};
+	unsigned char *drv_arg[5]    = {};
 	unsigned char *lkm_name	     = NULL;
 	unsigned char *function_name = NULL;
-	struct load_info load_info = {};
 
-	if (argv[1] == NULL && argv[2] == NULL) {
-		display_usage(argv);
-		ret = -EINVAL;
-		return ret;
-	}
+	struct cmd_table_entry dispatch_cmd_table[] = {
+		[DRV_CMD_EXIT] =
+		{
+			.cmd_name = "exit",
+			.cmd_args = 0,
+			.cmd_ptr  = drv_cmd_exit,
+		},
+		[DRV_CMD_RESET] =
+		{
+			.cmd_name = "reset",
+			.cmd_args = 0,
+			.cmd_ptr  = drv_cmd_reset,
+                },
+		[DRV_CMD_LOAD] =
+		{
+			.cmd_name = "load",
+			.cmd_args = 1,
+			.cmd_ptr  = drv_cmd_load,
+		},
+		[DRV_CMD_UNLOAD] =
+		{
+			.cmd_name = "unload",
+			.cmd_args = 1,
+			.cmd_ptr  = drv_cmd_unload,
+		},
+		[DRV_CMD_START] =
+		{
+			.cmd_name = "start",
+			.cmd_args = 1,
+			.cmd_ptr  = drv_cmd_start,
+		},
+		[DRV_CMD_STOP] =
+		{
+			.cmd_name = "stop",
+			.cmd_args = 1,
+			.cmd_ptr  = drv_cmd_stop,
+		},
+		[DRV_CMD_RUN] =
+		{
+			.cmd_name = "run",
+			.cmd_args = 1,
+			.cmd_ptr = drv_cmd_run,
+		},
+		[DRV_CMD_SET] = {
+			.cmd_name = "set",
+			.cmd_args = 1,
+			.cmd_ptr  = drv_cmd_set,
+		},
+	};
 
-	/* assume that if we give only the .ko path, we will call the 'init_module' function */
-	if(argv[2] == NULL){
-		argv[2] = "init_module";
-	}
+	while (true) {
+		printf("> ");
+		fflush(stdout);
 
-	if (strlen(argv[1]) < MODULE_INPUT_MIN_LEN ||
-	    strlen(argv[2]) < MODULE_INPUT_MIN_LEN) {
-		printf("[!] invalid input length!\n");
-		ret = -EINVAL;
-		return ret;
-	}
-
-	/* control if the input finish with '.ko' */
-	if (strstr(argv[1], ".ko") == NULL) {
-		if (strstr(argv[2], ".ko") != NULL) {
-			lkm_name      = argv[2];
-			function_name = argv[1];
-		} else {
-			display_usage(argv);
-			ret = -EINVAL;
-			return ret;
+		if (!fgets(line, sizeof(line), stdin)) {
+			printf("\n");
+			break;
 		}
-	} else {
-		lkm_name      = argv[1];
-		function_name = argv[2];
+
+		ret = drv_parse_line(line, drv_arg, 5);
+		if (ret == 0) {
+			continue;
+		}
+
+		for (u8 counter = 0; counter < ARRAY_SIZE(dispatch_cmd_table); counter++) {
+			ret = drv_execute_cmd(&director, drv_arg, &dispatch_cmd_table[counter]);
+			if (ret == 0) {
+				/* cmd executed correctly */
+				break;
+			}
+		}
 	}
 
-	ret = initialize_director(&director, &load_info);
-	if (ret) {
-		return ret;
-	}
-
-	ret = module_init(lkm_name, function_name, &load_info);
 	return ret;
 }

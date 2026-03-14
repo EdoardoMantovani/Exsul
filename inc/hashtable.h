@@ -179,9 +179,10 @@ struct rhashtable {
 	unsigned int			max_elems;
 	struct rhashtable_params	p;
 	bool				rhlist;
-	pthread_mutex_t			mutex;
-	u32				lock;	/* unused */
-	atomic_uint			nelems;
+	struct work_struct		run_work;
+	struct mutex                    mutex;
+	u32				lock;
+	atomic_int			nelems;
 #ifdef CONFIG_MEM_ALLOC_PROFILING
 	struct alloc_tag		*alloc_tag;
 #endif
@@ -378,4 +379,80 @@ static inline void *rhashtable_lookup_fast(struct rhashtable *ht, const void *ke
 	pthread_mutex_unlock(&director.rhashtable_lock);
 
 	return obj;
+}
+
+static inline struct rhash_head *rht_ptr_exclusive(struct rhash_lock_head __rcu *const *bkt){
+	return __rht_ptr(rcu_dereference_protected(*bkt, 1), bkt, RHT_LOOKUP_NORMAL);
+}
+
+
+static void rhashtable_free_one(struct rhashtable *ht, struct rhash_head *obj, void (*free_fn)(void *ptr, void *arg), void *arg){
+	struct rhlist_head *list = NULL;
+
+	if (!ht->rhlist) {
+		free_fn(rht_obj(ht, obj), arg);
+		return;
+	}
+
+	list = container_of(obj, struct rhlist_head, rhead);
+	do {
+		obj = &list->rhead;
+		list = rht_dereference(list->next, ht);
+		free_fn(rht_obj(ht, obj), arg);
+	} while (list);
+}
+
+static void nested_table_free(union nested_table *ntbl, unsigned int size){
+	const unsigned int shift = PAGE_SHIFT - ilog2(sizeof(void *));
+	const unsigned int len = 1 << shift;
+
+	ntbl = rcu_dereference_protected(ntbl->table, 1);
+	if (ntbl == NULL){
+		return;
+	}
+	if (size > len) {
+		size >>= shift;
+		for (unsigned int i = 0; i < len; i++){
+			nested_table_free(ntbl + i, size);
+		}
+	}
+
+	kfree(ntbl);
+}
+
+static void nested_bucket_table_free(const struct bucket_table *tbl){
+	unsigned int size = tbl->size >> tbl->nest;
+	unsigned int len = 1 << tbl->nest;
+	union nested_table *ntbl = NULL;
+
+	ntbl = nested_table_top(tbl);
+
+	for (int i = 0; i < len; i++){
+		nested_table_free(ntbl + i, size);
+	}
+	kfree(ntbl);
+}
+
+static void bucket_table_free(const struct bucket_table *tbl){
+	if (tbl->nest != NULL){
+		nested_bucket_table_free(tbl);
+	}
+
+	kvfree(tbl);
+}
+
+/**
+ * rhltable_free_and_destroy - free elements and destroy hash list table
+ * @hlt:	the hash list table to destroy
+ * @free_fn:	callback to release resources of element
+ * @arg:	pointer passed to free_fn
+ *
+ * See documentation for rhashtable_free_and_destroy.
+ */
+static inline void rhltable_free_and_destroy(struct rhltable *hlt, void (*free_fn)(void *ptr, void *arg), void *arg){
+	rhashtable_free_and_destroy(&hlt->ht, free_fn, arg);
+}
+
+static inline void rhltable_destroy(struct rhltable *hlt){
+	rhltable_free_and_destroy(hlt, NULL, NULL);
 }

@@ -33,6 +33,13 @@
 
 #define ARRAY_SIZE(array)	(sizeof(array)/sizeof(array[0]))
 
+#define __cmp_op_min <
+#define __cmp_op_max >
+
+#define __cmp(op, x, y)	((x) __cmp_op_##op (y) ? (x) : (y))
+#define __cmp_once_unique(op, type, x, y, ux, uy) ({ type ux = (x); type uy = (y); __cmp(op, ux, uy); })
+#define __cmp_once(op, type, x, y) __cmp_once_unique(op, type, x, y, __UNIQUE_ID(x_), __UNIQUE_ID(y_))
+
 #define offsetof(TYPE, MEMBER)	__builtin_offsetof(TYPE, MEMBER)
 
 /* The "volatile" is due to gcc bugs */
@@ -53,6 +60,22 @@
  * @MEMBER: The member within the structure to get the end offset of
  */
 #define offsetofend(TYPE, MEMBER) (offsetof(TYPE, MEMBER) + sizeof_field(TYPE, MEMBER))
+
+/**
+ * min_t - return minimum of two values, using the specified type
+ * @type: data type to use
+ * @x: first value
+ * @y: second value
+ */
+#define min_t(type, x, y) __cmp_once(min, type, x, y)
+
+/**
+ * max_t - return maximum of two values, using the specified type
+ * @type: data type to use
+ * @x: first value
+ * @y: second value
+ */
+#define max_t(type, x, y) __cmp_once(max, type, x, y)
 
 /**
  * LIST_HEAD_INIT - initialize a &struct list_head's links to point to itself
@@ -83,6 +106,21 @@
 
 #define DECLARE_BITMAP(name,bits)		unsigned long name[BITS_TO_LONGS(bits)]
 #define __ETHTOOL_DECLARE_LINK_MODE_MASK(name)	DECLARE_BITMAP(name, __ETHTOOL_LINK_MODE_MASK_NBITS)
+
+#define alloc_ordered_workqueue(fmt, flags, args...)			\
+	alloc_workqueue(fmt, WQ_UNBOUND | __WQ_ORDERED | (flags), 1, ##args)
+
+#define create_workqueue(name)						\
+	alloc_workqueue("%s", __WQ_LEGACY | WQ_MEM_RECLAIM | WQ_PERCPU, 1, (name))
+
+#define create_freezable_workqueue(name)				\
+	alloc_workqueue("%s", __WQ_LEGACY | WQ_FREEZABLE | WQ_UNBOUND |	\
+			WQ_MEM_RECLAIM, 1, (name))
+#define create_singlethread_workqueue(name)				\
+	alloc_ordered_workqueue("%s", __WQ_LEGACY | WQ_MEM_RECLAIM, name)
+
+#define from_work(var, callback_work, work_fieldname)	\
+	container_of(callback_work, typeof(*var), work_fieldname)
 
 /*
  * small_const_nbits(n) is true precisely when it is known at compile-time
@@ -283,6 +321,35 @@ do {									      \
  * Makes rcu_dereference_check() do the dirty work.
  */
 #define rcu_dereference_all(p) rcu_dereference_all_check(p, 0)
+
+/**
+ * rcu_access_pointer() - fetch RCU pointer with no dereferencing
+ * @p: The pointer to read
+ *
+ * Return the value of the specified RCU-protected pointer, but omit the
+ * lockdep checks for being in an RCU read-side critical section.  This is
+ * useful when the value of this pointer is accessed, but the pointer is
+ * not dereferenced, for example, when testing an RCU-protected pointer
+ * against NULL.  Although rcu_access_pointer() may also be used in cases
+ * where update-side locks prevent the value of the pointer from changing,
+ * you should instead use rcu_dereference_protected() for this use case.
+ * Within an RCU read-side critical section, there is little reason to
+ * use rcu_access_pointer().
+ *
+ * It is usually best to test the rcu_access_pointer() return value
+ * directly in order to avoid accidental dereferences being introduced
+ * by later inattentive changes.  In other words, assigning the
+ * rcu_access_pointer() return value to a local variable results in an
+ * accident waiting to happen.
+ *
+ * It is also permissible to use rcu_access_pointer() when read-side
+ * access to the pointer was removed at least one grace period ago, as is
+ * the case in the context of the RCU callback that is freeing up the data,
+ * or after a synchronize_rcu() returns.  This can be useful when tearing
+ * down multi-linked structures after a grace period has elapsed.  However,
+ * rcu_dereference_protected() is normally preferred for this use case.
+ */
+#define rcu_access_pointer(p) __rcu_access_pointer((p), __UNIQUE_ID(rcu), __rcu)
 
 /*
  * Prefer C11 _Generic for better compile-times and simpler code. Note: 'char'
@@ -559,14 +626,6 @@ found:										\
 out:										\
 	sz;									\
 })
-
-/**
- * time_is_after_jiffies - return true if a is after jiffies
- * @a: time (unsigned long) to compare to jiffies
- *
- * Return: %true is time a is after jiffies, otherwise %false.
- */
-#define time_is_after_jiffies(a) time_before(jiffies, a)
 
 #ifndef PAGE_SHIFT
 #define PAGE_SHIFT 12
@@ -884,6 +943,12 @@ out:										\
 #define __rcu_dereference_check(p, local, c, space) \
 ({ \
 	/* Dependency order vs. p above. */ \
+	typeof(*p) *local = (typeof(*p) *__force)READ_ONCE(p); \
+	rcu_check_sparse(p, space); \
+	((typeof(*p) __force __kernel *)(local)); \
+})
+#define __rcu_access_pointer(p, local, space) \
+({ \
 	typeof(*p) *local = (typeof(*p) *__force)READ_ONCE(p); \
 	rcu_check_sparse(p, space); \
 	((typeof(*p) __force __kernel *)(local)); \
@@ -1239,6 +1304,21 @@ static inline unsigned char __toupper(unsigned char c){
 	return c;
 }
 
+/* rewrite memdup here */
+static void *memdup(void *memarea, unsigned int size){
+	void *new_memarea = NULL;
+
+	if(memarea == NULL){
+		return NULL;
+	}
+	if(size > 0){
+		new_memarea = (void *)malloc(size);
+		memcpy(new_memarea, memarea, size);
+	}else{
+		return NULL;
+	}
+}
+
 static uint64_t nsec_now_monotonic(void){
 	struct timespec ts = {};
 
@@ -1428,25 +1508,6 @@ static inline const bool is_power_of_2(unsigned long n){
 static inline int futex_wait_timeout(atomic_int *addr, int expected, struct timespec *rel_timeout){
 	return (int)syscall(SYS_futex, (int *)addr, FUTEX_WAIT, expected, rel_timeout, NULL, 0);
 }
-
-/*
- * HZ is equal to or smaller than 1000, and 1000 is a nice round
- * multiple of HZ, divide with the factor between them, but round
- * upwards:
- */
-static inline unsigned long _msecs_to_jiffies(const unsigned int m){
-	return (m + (MSEC_PER_SEC / HZ) - 1) / (MSEC_PER_SEC / HZ);
-}
-
-#if !(USEC_PER_SEC % HZ)
-static inline unsigned long _usecs_to_jiffies(const unsigned int u){
-	return (u + (USEC_PER_SEC / HZ) - 1) / (USEC_PER_SEC / HZ);
-}
-#else
-static inline unsigned long _usecs_to_jiffies(const unsigned int u){
-	return (USEC_TO_HZ_MUL32 * u + USEC_TO_HZ_ADJ32) >> USEC_TO_HZ_SHR32;
-}
-#endif
 
 static bool is_a_number(unsigned char character){
 	bool ret = false;

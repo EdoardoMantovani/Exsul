@@ -17,6 +17,8 @@
 #define NUM_DEFAULT_BEACON_KEYS 2
 #define INVALID_PTK_KEYIDX 2 /* Keyidx always pointing to a NULL key for PTK */
 
+#define IEEE80211_MAX_CNTDWN_COUNTERS_NUM 2
+
 #define AVG_PKT_SIZE 1024
 #define IEEE80211_CB_PTR 96
 #define IEEE80211_MAX_CHAINS 4
@@ -24,6 +26,7 @@
 #define IEEE80211_HE_PPE_THRES_MAX_LEN 25
 #define IEEE80211_EHT_PPE_THRES_MAX_LEN	32
 #define CONFIG_MAC80211_STA_HASH_MAX_SIZE 0
+#define IEEE80211_MAX_NAN_INSTANCE_ID 255
 /* there are 40 bytes if you don't need the rateset to be kept */
 #define IEEE80211_TX_INFO_DRIVER_DATA_SIZE 40
 
@@ -50,8 +53,109 @@
 
 /* power level hasn't been configured (or set to automatic) */
 #define IEEE80211_UNSET_POWER_LEVEL		INT_MIN
-
 #define IEEE80211_IRQSAFE_QUEUE_LIMIT		128
+
+/* Extended Channel Switching capability to be set in the 1st byte of
+ * the @WLAN_EID_EXT_CAPABILITY information element
+ */
+#define WLAN_EXT_CAPA1_EXT_CHANNEL_SWITCHING	BIT(2)
+
+/* Multiple BSSID capability is set in the 6th bit of 3rd byte of the
+ * @WLAN_EID_EXT_CAPABILITY information element
+ */
+#define WLAN_EXT_CAPA3_MULTI_BSSID_SUPPORT	BIT(6)
+
+/* Timing Measurement protocol for time sync is set in the 7th bit of 3rd byte
+ * of the @WLAN_EID_EXT_CAPABILITY information element
+ */
+#define WLAN_EXT_CAPA3_TIMING_MEASUREMENT_SUPPORT	BIT(7)
+
+/* TDLS capabilities in the 4th byte of @WLAN_EID_EXT_CAPABILITY */
+#define WLAN_EXT_CAPA4_TDLS_BUFFER_STA		BIT(4)
+#define WLAN_EXT_CAPA4_TDLS_PEER_PSM		BIT(5)
+#define WLAN_EXT_CAPA4_TDLS_CHAN_SWITCH		BIT(6)
+
+/* Interworking capabilities are set in 7th bit of 4th byte of the
+ * @WLAN_EID_EXT_CAPABILITY information element
+ */
+#define WLAN_EXT_CAPA4_INTERWORKING_ENABLED	BIT(7)
+
+/*
+ * TDLS capabililites to be enabled in the 5th byte of the
+ * @WLAN_EID_EXT_CAPABILITY information element
+ */
+#define WLAN_EXT_CAPA5_TDLS_ENABLED	BIT(5)
+#define WLAN_EXT_CAPA5_TDLS_PROHIBITED	BIT(6)
+#define WLAN_EXT_CAPA5_TDLS_CH_SW_PROHIBITED	BIT(7)
+
+#define WLAN_EXT_CAPA8_TDLS_WIDE_BW_ENABLED	BIT(5)
+#define WLAN_EXT_CAPA8_OPMODE_NOTIF	BIT(6)
+
+/* Defines the maximal number of MSDUs in an A-MSDU. */
+#define WLAN_EXT_CAPA8_MAX_MSDU_IN_AMSDU_LSB	BIT(7)
+#define WLAN_EXT_CAPA9_MAX_MSDU_IN_AMSDU_MSB	BIT(0)
+
+/*
+ * Fine Timing Measurement Initiator - bit 71 of @WLAN_EID_EXT_CAPABILITY
+ * information element
+ */
+#define WLAN_EXT_CAPA9_FTM_INITIATOR	BIT(7)
+
+/* Defines support for TWT Requester and TWT Responder */
+#define WLAN_EXT_CAPA10_TWT_REQUESTER_SUPPORT	BIT(5)
+#define WLAN_EXT_CAPA10_TWT_RESPONDER_SUPPORT	BIT(6)
+
+/* 802.11n HT capabilities masks (for cap_info) */
+#define IEEE80211_HT_CAP_LDPC_CODING		0x0001
+#define IEEE80211_HT_CAP_SUP_WIDTH_20_40	0x0002
+#define IEEE80211_HT_CAP_SM_PS			0x000C
+#define	IEEE80211_HT_CAP_SM_PS_SHIFT		2
+#define IEEE80211_HT_CAP_GRN_FLD		0x0010
+#define IEEE80211_HT_CAP_SGI_20			0x0020
+#define IEEE80211_HT_CAP_SGI_40			0x0040
+#define IEEE80211_HT_CAP_TX_STBC		0x0080
+#define IEEE80211_HT_CAP_RX_STBC		0x0300
+#define	IEEE80211_HT_CAP_RX_STBC_SHIFT		8
+#define IEEE80211_HT_CAP_DELAY_BA		0x0400
+#define IEEE80211_HT_CAP_MAX_AMSDU		0x0800
+#define IEEE80211_HT_CAP_DSSSCCK40		0x1000
+#define IEEE80211_HT_CAP_RESERVED		0x2000
+#define IEEE80211_HT_CAP_40MHZ_INTOLERANT	0x4000
+#define IEEE80211_HT_CAP_LSIG_TXOP_PROT		0x8000
+
+/* 802.11n HT extended capabilities masks (for extended_ht_cap_info) */
+#define IEEE80211_HT_EXT_CAP_PCO		0x0001
+#define IEEE80211_HT_EXT_CAP_PCO_TIME		0x0006
+#define	IEEE80211_HT_EXT_CAP_PCO_TIME_SHIFT	1
+#define IEEE80211_HT_EXT_CAP_MCS_FB		0x0300
+#define	IEEE80211_HT_EXT_CAP_MCS_FB_SHIFT	8
+#define IEEE80211_HT_EXT_CAP_HTC_SUP		0x0400
+#define IEEE80211_HT_EXT_CAP_RD_RESPONDER	0x0800
+
+/* 802.11n HT capability AMPDU settings (for ampdu_params_info) */
+#define IEEE80211_HT_AMPDU_PARM_FACTOR		0x03
+#define IEEE80211_HT_AMPDU_PARM_DENSITY		0x1C
+#define	IEEE80211_HT_AMPDU_PARM_DENSITY_SHIFT	2
+
+/* for rx_highest */
+#define IEEE80211_VHT_MAX_NSTS_TOTAL_SHIFT	13
+#define IEEE80211_VHT_MAX_NSTS_TOTAL_MASK	(7 << IEEE80211_VHT_MAX_NSTS_TOTAL_SHIFT)
+
+/* for tx_highest */
+#define IEEE80211_VHT_EXT_NSS_BW_CAPABLE	(1 << 13)
+
+/* 802.11ax HE PHY capabilities */
+#define IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_IN_2G		0x02
+#define IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_80MHZ_IN_5G	0x04
+#define IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_160MHZ_IN_5G		0x08
+#define IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_80PLUS80_MHZ_IN_5G	0x10
+#define IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_MASK_ALL		0x1e
+
+/*
+ * The TX headroom reserved by mac80211 for its own tx_status functions.
+ * This is enough for the radiotap header.
+ */
+#define IEEE80211_TX_STATUS_HEADROOM	ALIGN(14, 4)
 
 /*
  * A-MPDU buffer sizes
@@ -660,6 +764,14 @@
 #define IEEE80211_6GHZ_CTRL_REG_INDOOR_SP_AP_OLD	4
 #define IEEE80211_6GHZ_CTRL_REG_INDOOR_SP_AP		8
 
+/* interface handling */
+#define MAC80211_SUPPORTED_FEATURES_TX	(NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM | \
+					 NETIF_F_HW_CSUM | NETIF_F_SG | \
+					 NETIF_F_HIGHDMA | NETIF_F_GSO_SOFTWARE | \
+					 NETIF_F_HW_TC)
+#define MAC80211_SUPPORTED_FEATURES_RX	(NETIF_F_RXCSUM)
+#define MAC80211_SUPPORTED_FEATURES	(MAC80211_SUPPORTED_FEATURES_TX | \
+					 MAC80211_SUPPORTED_FEATURES_RX)
 /**
  * wiphy_dereference - fetch RCU pointer when updates are prevented by wiphy mtx
  * @wiphy: the wiphy to check the locking on
@@ -678,6 +790,54 @@
 	rhl_for_each_entry_rcu(_sta, _tmp,				\
 			       link_sta_info_hash_lookup(local, _addr),	\
 			       link_hash_node)
+
+/*
+ * for_each_sdata_link_rcu() must be used under RCU read lock.
+ */
+#define for_each_sdata_link_rcu(_local, _link)						\
+	/* outer loop just to define the variables ... */				\
+	for (struct ieee80211_sub_if_data *___sdata = NULL;				\
+	     !___sdata;									\
+	     ___sdata = (void *)~0 /* always stop */)					\
+	for (int ___link_id = ARRAY_SIZE(___sdata->link);		\
+	     ___link_id; ___link_id = 0 /* always stop */)		\
+	list_for_each_entry(___sdata, &(_local)->interfaces, list)	\
+	if (___link_id == ARRAY_SIZE(___sdata->link) &&			\
+	    ieee80211_sdata_running(___sdata))				\
+	for (___link_id = 0;						\
+	     ___link_id < ARRAY_SIZE((___sdata)->link);					\
+	     ___link_id++)								\
+	if ((_link = rcu_dereference((___sdata)->link[___link_id])))
+
+#define for_each_link_data(sdata, __link)					\
+	/* outer loop just to define the variable ... */			\
+	for (struct ieee80211_sub_if_data *__sdata = (sdata); __sdata;		\
+		__sdata = NULL /* always stop */)				\
+	for (int __link_id = 0;							\
+	     __link_id < ARRAY_SIZE((__sdata)->link); __link_id++)		\
+		if ((!(__sdata)->vif.valid_links ||				\
+		     (__sdata)->vif.valid_links & BIT(__link_id)) &&		\
+		    ((__link) = sdata_dereference((__sdata)->link[__link_id],	\
+						  (__sdata))))
+
+/**
+ * ieee80211_set_sband_iftype_data - set sband iftype data array
+ * @sband: the sband to initialize
+ * @iftd: the iftype data array
+ */
+#define ieee80211_set_sband_iftype_data(sband, iftd)	\
+	_ieee80211_set_sband_iftype_data(sband, iftd, ARRAY_SIZE(iftd))
+
+/**
+ * for_each_sband_iftype_data - iterate sband iftype data entries
+ * @sband: the sband whose iftype_data array to iterate
+ * @i: iterator counter
+ * @iftd: iftype data pointer to set
+ */
+#define for_each_sband_iftype_data(sband, i, iftd)				\
+	for (i = 0, iftd = (const void __force *)&(sband)->iftype_data[i];	\
+	     i < (sband)->n_iftype_data;					\
+	     i++, iftd = (const void __force *)&(sband)->iftype_data[i])
 
 /**
  * enum ieee80211_sta_info_flags - Stations flags
@@ -768,6 +928,22 @@ enum ieee80211_sta_info_flags {
 };
 
 /**
+ * enum ieee80211_sdata_state_bits - virtual interface state bits
+ * @SDATA_STATE_RUNNING: virtual interface is up & running; this
+ *	mirrors netif_running() but is separate for interface type
+ *	change handling while the interface is up
+ * @SDATA_STATE_OFFCHANNEL: This interface is currently in offchannel
+ *	mode, so queues are stopped
+ * @SDATA_STATE_OFFCHANNEL_BEACON_STOPPED: Beaconing was stopped due
+ *	to offchannel, reset when offchannel returns
+ */
+enum ieee80211_sdata_state_bits {
+	SDATA_STATE_RUNNING,
+	SDATA_STATE_OFFCHANNEL,
+	SDATA_STATE_OFFCHANNEL_BEACON_STOPPED,
+};
+
+/**
  * enum ieee80211_ac_numbers - AC numbers as used in mac80211
  * @IEEE80211_AC_VO: voice
  * @IEEE80211_AC_VI: video
@@ -779,6 +955,25 @@ enum ieee80211_ac_numbers {
 	IEEE80211_AC_VI		= 1,
 	IEEE80211_AC_BE		= 2,
 	IEEE80211_AC_BK		= 3,
+};
+
+/**
+ * enum rate_control_capabilities - rate control capabilities
+ */
+enum rate_control_capabilities {
+	/**
+	 * @RATE_CTRL_CAPA_VHT_EXT_NSS_BW:
+	 * Support for extended NSS BW support (dot11VHTExtendedNSSCapable)
+	 * Note that this is only looked at if the minimum number of chains
+	 * that the AP uses is < the number of TX chains the hardware has,
+	 * otherwise the NSS difference doesn't bother us.
+	 */
+	RATE_CTRL_CAPA_VHT_EXT_NSS_BW = BIT(0),
+	/**
+	 * @RATE_CTRL_CAPA_AMPDU_TRIGGER:
+	 * mac80211 should start A-MPDU sessions on tx
+	 */
+	RATE_CTRL_CAPA_AMPDU_TRIGGER = BIT(1),
 };
 
 /**
@@ -915,6 +1110,108 @@ enum mac80211_tx_info_flags {
 };
 
 /**
+ * enum ieee80211_channel_flags - channel flags
+ *
+ * Channel flags set by the regulatory control code.
+ *
+ * @IEEE80211_CHAN_DISABLED: This channel is disabled.
+ * @IEEE80211_CHAN_NO_IR: do not initiate radiation, this includes
+ *	sending probe requests or beaconing.
+ * @IEEE80211_CHAN_PSD: Power spectral density (in dBm) is set for this
+ *	channel.
+ * @IEEE80211_CHAN_RADAR: Radar detection is required on this channel.
+ * @IEEE80211_CHAN_NO_HT40PLUS: extension channel above this channel
+ *	is not permitted.
+ * @IEEE80211_CHAN_NO_HT40MINUS: extension channel below this channel
+ *	is not permitted.
+ * @IEEE80211_CHAN_NO_OFDM: OFDM is not allowed on this channel.
+ * @IEEE80211_CHAN_NO_80MHZ: If the driver supports 80 MHz on the band,
+ *	this flag indicates that an 80 MHz channel cannot use this
+ *	channel as the control or any of the secondary channels.
+ *	This may be due to the driver or due to regulatory bandwidth
+ *	restrictions.
+ * @IEEE80211_CHAN_NO_160MHZ: If the driver supports 160 MHz on the band,
+ *	this flag indicates that an 160 MHz channel cannot use this
+ *	channel as the control or any of the secondary channels.
+ *	This may be due to the driver or due to regulatory bandwidth
+ *	restrictions.
+ * @IEEE80211_CHAN_INDOOR_ONLY: see %NL80211_FREQUENCY_ATTR_INDOOR_ONLY
+ * @IEEE80211_CHAN_IR_CONCURRENT: see %NL80211_FREQUENCY_ATTR_IR_CONCURRENT
+ * @IEEE80211_CHAN_NO_20MHZ: 20 MHz bandwidth is not permitted
+ *	on this channel.
+ * @IEEE80211_CHAN_NO_10MHZ: 10 MHz bandwidth is not permitted
+ *	on this channel.
+ * @IEEE80211_CHAN_NO_HE: HE operation is not permitted on this channel.
+ * @IEEE80211_CHAN_NO_320MHZ: If the driver supports 320 MHz on the band,
+ *	this flag indicates that a 320 MHz channel cannot use this
+ *	channel as the control or any of the secondary channels.
+ *	This may be due to the driver or due to regulatory bandwidth
+ *	restrictions.
+ * @IEEE80211_CHAN_NO_EHT: EHT operation is not permitted on this channel.
+ * @IEEE80211_CHAN_DFS_CONCURRENT: See %NL80211_RRF_DFS_CONCURRENT
+ * @IEEE80211_CHAN_NO_6GHZ_VLP_CLIENT: Client connection with VLP AP
+ *	not permitted using this channel
+ * @IEEE80211_CHAN_NO_6GHZ_AFC_CLIENT: Client connection with AFC AP
+ *	not permitted using this channel
+ * @IEEE80211_CHAN_CAN_MONITOR: This channel can be used for monitor
+ *	mode even in the presence of other (regulatory) restrictions,
+ *	even if it is otherwise disabled.
+ * @IEEE80211_CHAN_ALLOW_6GHZ_VLP_AP: Allow using this channel for AP operation
+ *	with very low power (VLP), even if otherwise set to NO_IR.
+ * @IEEE80211_CHAN_ALLOW_20MHZ_ACTIVITY: Allow activity on a 20 MHz channel,
+ *	even if otherwise set to NO_IR.
+ * @IEEE80211_CHAN_S1G_NO_PRIMARY: Prevents the channel for use as an S1G
+ *	primary channel. Does not prevent the wider operating channel
+ *	described by the chandef from being used. In order for a 2MHz primary
+ *	to be used, both 1MHz subchannels shall not contain this flag.
+ * @IEEE80211_CHAN_NO_4MHZ: 4 MHz bandwidth is not permitted on this channel.
+ * @IEEE80211_CHAN_NO_8MHZ: 8 MHz bandwidth is not permitted on this channel.
+ * @IEEE80211_CHAN_NO_16MHZ: 16 MHz bandwidth is not permitted on this channel.
+ */
+enum ieee80211_channel_flags {
+	IEEE80211_CHAN_DISABLED			= BIT(0),
+	IEEE80211_CHAN_NO_IR			= BIT(1),
+	IEEE80211_CHAN_PSD			= BIT(2),
+	IEEE80211_CHAN_RADAR			= BIT(3),
+	IEEE80211_CHAN_NO_HT40PLUS		= BIT(4),
+	IEEE80211_CHAN_NO_HT40MINUS		= BIT(5),
+	IEEE80211_CHAN_NO_OFDM			= BIT(6),
+	IEEE80211_CHAN_NO_80MHZ			= BIT(7),
+	IEEE80211_CHAN_NO_160MHZ		= BIT(8),
+	IEEE80211_CHAN_INDOOR_ONLY		= BIT(9),
+	IEEE80211_CHAN_IR_CONCURRENT		= BIT(10),
+	IEEE80211_CHAN_NO_20MHZ			= BIT(11),
+	IEEE80211_CHAN_NO_10MHZ			= BIT(12),
+	IEEE80211_CHAN_NO_HE			= BIT(13),
+	/* can use free bits here */
+	IEEE80211_CHAN_NO_320MHZ		= BIT(19),
+	IEEE80211_CHAN_NO_EHT			= BIT(20),
+	IEEE80211_CHAN_DFS_CONCURRENT		= BIT(21),
+	IEEE80211_CHAN_NO_6GHZ_VLP_CLIENT	= BIT(22),
+	IEEE80211_CHAN_NO_6GHZ_AFC_CLIENT	= BIT(23),
+	IEEE80211_CHAN_CAN_MONITOR		= BIT(24),
+	IEEE80211_CHAN_ALLOW_6GHZ_VLP_AP	= BIT(25),
+	IEEE80211_CHAN_ALLOW_20MHZ_ACTIVITY     = BIT(26),
+	IEEE80211_CHAN_S1G_NO_PRIMARY		= BIT(27),
+	IEEE80211_CHAN_NO_4MHZ			= BIT(28),
+	IEEE80211_CHAN_NO_8MHZ			= BIT(29),
+	IEEE80211_CHAN_NO_16MHZ			= BIT(30),
+};
+
+/**
+ * enum cfg80211_signal_type - signal type
+ *
+ * @CFG80211_SIGNAL_TYPE_NONE: no signal strength information available
+ * @CFG80211_SIGNAL_TYPE_MBM: signal strength in mBm (100*dBm)
+ * @CFG80211_SIGNAL_TYPE_UNSPEC: signal strength, increasing from 0 through 100
+ */
+enum cfg80211_signal_type {
+	CFG80211_SIGNAL_TYPE_NONE,
+	CFG80211_SIGNAL_TYPE_MBM,
+	CFG80211_SIGNAL_TYPE_UNSPEC,
+};
+
+/**
  * enum rfkill_hard_block_reasons - hard block reasons
  * @RFKILL_HARD_BLOCK_SIGNAL: the hardware rfkill signal is active
  * @RFKILL_HARD_BLOCK_NOT_OWNER: the NIC is not owned by the host
@@ -941,6 +1238,130 @@ enum ieee80211_conn_mode {
 	IEEE80211_CONN_MODE_VHT,
 	IEEE80211_CONN_MODE_HE,
 	IEEE80211_CONN_MODE_EHT,
+};
+
+/**
+ * enum ieee80211_conf_flags - configuration flags
+ *
+ * Flags to define PHY configuration options
+ *
+ * @IEEE80211_CONF_MONITOR: there's a monitor interface present -- use this
+ *	to determine for example whether to calculate timestamps for packets
+ *	or not, do not use instead of filter flags!
+ * @IEEE80211_CONF_PS: Enable 802.11 power save mode (managed mode only).
+ *	This is the power save mode defined by IEEE 802.11-2007 section 11.2,
+ *	meaning that the hardware still wakes up for beacons, is able to
+ *	transmit frames and receive the possible acknowledgment frames.
+ *	Not to be confused with hardware specific wakeup/sleep states,
+ *	driver is responsible for that. See the section "Powersave support"
+ *	for more.
+ * @IEEE80211_CONF_IDLE: The device is running, but idle; if the flag is set
+ *	the driver should be prepared to handle configuration requests but
+ *	may turn the device off as much as possible. Typically, this flag will
+ *	be set when an interface is set UP but not associated or scanning, but
+ *	it can also be unset in that case when monitor interfaces are active.
+ * @IEEE80211_CONF_OFFCHANNEL: The device is currently not on its main
+ *	operating channel.
+ */
+enum ieee80211_conf_flags {
+	IEEE80211_CONF_MONITOR		= (1<<0),
+	IEEE80211_CONF_PS		= (1<<1),
+	IEEE80211_CONF_IDLE		= (1<<2),
+	IEEE80211_CONF_OFFCHANNEL	= (1<<3),
+};
+
+/**
+ * enum ieee80211_bss_change - BSS change notification flags
+ *
+ * These flags are used with the bss_info_changed(), link_info_changed()
+ * and vif_cfg_changed() callbacks to indicate which parameter(s) changed.
+ *
+ * @BSS_CHANGED_ASSOC: association status changed (associated/disassociated),
+ *	also implies a change in the AID.
+ * @BSS_CHANGED_ERP_CTS_PROT: CTS protection changed
+ * @BSS_CHANGED_ERP_PREAMBLE: preamble changed
+ * @BSS_CHANGED_ERP_SLOT: slot timing changed
+ * @BSS_CHANGED_HT: 802.11n parameters changed
+ * @BSS_CHANGED_BASIC_RATES: Basic rateset changed
+ * @BSS_CHANGED_BEACON_INT: Beacon interval changed
+ * @BSS_CHANGED_BSSID: BSSID changed, for whatever
+ *	reason (IBSS and managed mode)
+ * @BSS_CHANGED_BEACON: Beacon data changed, retrieve
+ *	new beacon (beaconing modes)
+ * @BSS_CHANGED_BEACON_ENABLED: Beaconing should be
+ *	enabled/disabled (beaconing modes)
+ * @BSS_CHANGED_CQM: Connection quality monitor config changed
+ * @BSS_CHANGED_IBSS: IBSS join status changed
+ * @BSS_CHANGED_ARP_FILTER: Hardware ARP filter address list or state changed.
+ * @BSS_CHANGED_QOS: QoS for this association was enabled/disabled. Note
+ *	that it is only ever disabled for station mode.
+ * @BSS_CHANGED_IDLE: Idle changed for this BSS/interface.
+ * @BSS_CHANGED_SSID: SSID changed for this BSS (AP and IBSS mode)
+ * @BSS_CHANGED_AP_PROBE_RESP: Probe Response changed for this BSS (AP mode)
+ * @BSS_CHANGED_PS: PS changed for this BSS (STA mode)
+ * @BSS_CHANGED_TXPOWER: TX power setting changed for this interface
+ * @BSS_CHANGED_P2P_PS: P2P powersave settings (CTWindow, opportunistic PS)
+ *	changed
+ * @BSS_CHANGED_BEACON_INFO: Data from the AP's beacon became available:
+ *	currently dtim_period only is under consideration.
+ * @BSS_CHANGED_BANDWIDTH: The bandwidth used by this interface changed,
+ *	note that this is only called when it changes after the channel
+ *	context had been assigned.
+ * @BSS_CHANGED_OCB: OCB join status changed
+ * @BSS_CHANGED_MU_GROUPS: VHT MU-MIMO group id or user position changed
+ * @BSS_CHANGED_KEEP_ALIVE: keep alive options (idle period or protected
+ *	keep alive) changed.
+ * @BSS_CHANGED_MCAST_RATE: Multicast Rate setting changed for this interface
+ * @BSS_CHANGED_FTM_RESPONDER: fine timing measurement request responder
+ *	functionality changed for this BSS (AP mode).
+ * @BSS_CHANGED_TWT: TWT status changed
+ * @BSS_CHANGED_HE_OBSS_PD: OBSS Packet Detection status changed.
+ * @BSS_CHANGED_HE_BSS_COLOR: BSS Color has changed
+ * @BSS_CHANGED_FILS_DISCOVERY: FILS discovery status changed.
+ * @BSS_CHANGED_UNSOL_BCAST_PROBE_RESP: Unsolicited broadcast probe response
+ *	status changed.
+ * @BSS_CHANGED_MLD_VALID_LINKS: MLD valid links status changed.
+ * @BSS_CHANGED_MLD_TTLM: negotiated TID to link mapping was changed
+ * @BSS_CHANGED_TPE: transmit power envelope changed
+ */
+enum ieee80211_bss_change {
+	BSS_CHANGED_ASSOC		= 1<<0,
+	BSS_CHANGED_ERP_CTS_PROT	= 1<<1,
+	BSS_CHANGED_ERP_PREAMBLE	= 1<<2,
+	BSS_CHANGED_ERP_SLOT		= 1<<3,
+	BSS_CHANGED_HT			= 1<<4,
+	BSS_CHANGED_BASIC_RATES		= 1<<5,
+	BSS_CHANGED_BEACON_INT		= 1<<6,
+	BSS_CHANGED_BSSID		= 1<<7,
+	BSS_CHANGED_BEACON		= 1<<8,
+	BSS_CHANGED_BEACON_ENABLED	= 1<<9,
+	BSS_CHANGED_CQM			= 1<<10,
+	BSS_CHANGED_IBSS		= 1<<11,
+	BSS_CHANGED_ARP_FILTER		= 1<<12,
+	BSS_CHANGED_QOS			= 1<<13,
+	BSS_CHANGED_IDLE		= 1<<14,
+	BSS_CHANGED_SSID		= 1<<15,
+	BSS_CHANGED_AP_PROBE_RESP	= 1<<16,
+	BSS_CHANGED_PS			= 1<<17,
+	BSS_CHANGED_TXPOWER		= 1<<18,
+	BSS_CHANGED_P2P_PS		= 1<<19,
+	BSS_CHANGED_BEACON_INFO		= 1<<20,
+	BSS_CHANGED_BANDWIDTH		= 1<<21,
+	BSS_CHANGED_OCB                 = 1<<22,
+	BSS_CHANGED_MU_GROUPS		= 1<<23,
+	BSS_CHANGED_KEEP_ALIVE		= 1<<24,
+	BSS_CHANGED_MCAST_RATE		= 1<<25,
+	BSS_CHANGED_FTM_RESPONDER	= 1<<26,
+	BSS_CHANGED_TWT			= 1<<27,
+	BSS_CHANGED_HE_OBSS_PD		= 1<<28,
+	BSS_CHANGED_HE_BSS_COLOR	= 1<<29,
+	BSS_CHANGED_FILS_DISCOVERY      = 1<<30,
+	BSS_CHANGED_UNSOL_BCAST_PROBE_RESP = BIT_ULL(31),
+	BSS_CHANGED_MLD_VALID_LINKS	= BIT_ULL(33),
+	BSS_CHANGED_MLD_TTLM		= BIT_ULL(34),
+	BSS_CHANGED_TPE			= BIT_ULL(35),
+
+	/* when adding here, make sure to change ieee80211_reconfig */
 };
 
 #define IEEE80211_CONN_MODE_HIGHEST	IEEE80211_CONN_MODE_EHT
@@ -2786,6 +3207,65 @@ struct cfg80211_bss_ies {
 	u8 data[];
 };
 
+/**
+ * struct ieee80211_ht_cap - HT capabilities element
+ * @cap_info: HT Capability Information
+ * @ampdu_params_info: A-MPDU Parameters
+ * @mcs: Supported MCS Set
+ * @extended_ht_cap_info: HT Extended Capabilities
+ * @tx_BF_cap_info: Transmit Beamforming Capabilities
+ * @antenna_selection_info: ASEL Capability
+ *
+ * This structure represents the payload of the "HT Capabilities
+ * element" as described in IEEE Std 802.11-2020 section 9.4.2.55.
+ */
+struct ieee80211_ht_cap {
+	__le16 cap_info;
+	u8 ampdu_params_info;
+
+	/* 16 bytes MCS information */
+	struct ieee80211_mcs_info mcs;
+
+	__le16 extended_ht_cap_info;
+	__le32 tx_BF_cap_info;
+	u8 antenna_selection_info;
+} __packed;
+
+struct ieee80211_s1g_cap {
+	u8 capab_info[10];
+	u8 supp_mcs_nss[5];
+} __packed;
+
+/**
+ * struct ieee80211_eht_cap_elem_fixed - EHT capabilities fixed data
+ *
+ * This structure is the "EHT Capabilities element" fixed fields as
+ * described in P802.11be_D2.0 section 9.4.2.313.
+ *
+ * @mac_cap_info: MAC capabilities, see IEEE80211_EHT_MAC_CAP*
+ * @phy_cap_info: PHY capabilities, see IEEE80211_EHT_PHY_CAP*
+ */
+struct ieee80211_eht_cap_elem_fixed {
+	u8 mac_cap_info[2];
+	u8 phy_cap_info[9];
+} __packed;
+
+/**
+ * struct ieee80211_eht_cap_elem - EHT capabilities element
+ * @fixed: fixed parts, see &ieee80211_eht_cap_elem_fixed
+ * @optional: optional parts
+ */
+struct ieee80211_eht_cap_elem {
+	struct ieee80211_eht_cap_elem_fixed fixed;
+
+	/*
+	 * Followed by:
+	 * Supported EHT-MCS And NSS Set field: 4, 3, 6 or 9 octets.
+	 * EHT PPE Thresholds field: variable length.
+	 */
+	u8 optional[];
+} __packed;
+
 struct ieee80211_bss {
 	u32 device_ts_beacon;
 	u32 device_ts_presp;
@@ -3318,9 +3798,182 @@ struct ieee80211_link_data_managed {
 	u8 dtim_period;
 };
 
+/**
+ * struct ieee80211_meshconf_ie - Mesh Configuration element
+ * @meshconf_psel: Active Path Selection Protocol Identifier
+ * @meshconf_pmetric: Active Path Selection Metric Identifier
+ * @meshconf_congest: Congestion Control Mode Identifier
+ * @meshconf_synch: Synchronization Method Identifier
+ * @meshconf_auth: Authentication Protocol Identifier
+ * @meshconf_form: Mesh Formation Info
+ * @meshconf_cap: Mesh Capability (see &enum mesh_config_capab_flags)
+ *
+ * This structure represents the payload of the "Mesh Configuration
+ * element" as described in IEEE Std 802.11-2020 section 9.4.2.97.
+ */
+struct ieee80211_meshconf_ie {
+	u8 meshconf_psel;
+	u8 meshconf_pmetric;
+	u8 meshconf_congest;
+	u8 meshconf_synch;
+	u8 meshconf_auth;
+	u8 meshconf_form;
+	u8 meshconf_cap;
+} __packed;
+
+/**
+ * struct cfg80211_rnr_elems - Reduced neighbor report (RNR) elements
+ *
+ * @cnt: Number of elements in array %elems.
+ *
+ * @elem: Array of RNR element(s) to be added into Beacon frames.
+ * @elem.data: Data for RNR elements.
+ * @elem.len: Length of data.
+ */
+struct cfg80211_rnr_elems {
+	u8 cnt;
+	struct {
+		const u8 *data;
+		size_t len;
+	} elem[];
+};
+
+/**
+ * struct cfg80211_mbssid_elems - Multiple BSSID elements
+ *
+ * @cnt: Number of elements in array %elems.
+ *
+ * @elem: Array of multiple BSSID element(s) to be added into Beacon frames.
+ * @elem.data: Data for multiple BSSID elements.
+ * @elem.len: Length of data.
+ */
+struct cfg80211_mbssid_elems {
+	u8 cnt;
+	struct {
+		const u8 *data;
+		size_t len;
+	} elem[];
+};
+
+struct beacon_data {
+	u8 *head;
+	u8 *tail;
+	int head_len, tail_len;
+	struct ieee80211_meshconf_ie *meshconf;
+	u16 cntdwn_counter_offsets[2]; /* 'IEEE80211_MAX_CNTDWN_COUNTERS_NUM' = 2 */
+	u8 cntdwn_current_counter;
+	struct cfg80211_mbssid_elems *mbssid_ies;
+	struct cfg80211_rnr_elems *rnr_ies;
+	struct rcu_head rcu_head;
+};
+
 struct ieee80211_link_data_ap {
 	struct beacon_data __rcu *beacon;
 	struct probe_resp __rcu *probe_resp;
+};
+
+/**
+ * struct ieee80211_channel - channel definition
+ *
+ * This structure describes a single channel for use
+ * with cfg80211.
+ *
+ * @center_freq: center frequency in MHz
+ * @freq_offset: offset from @center_freq, in KHz
+ * @hw_value: hardware-specific value for the channel
+ * @flags: channel flags from &enum ieee80211_channel_flags.
+ * @orig_flags: channel flags at registration time, used by regulatory
+ *	code to support devices with additional restrictions
+ * @band: band this channel belongs to.
+ * @max_antenna_gain: maximum antenna gain in dBi
+ * @max_power: maximum transmission power (in dBm)
+ * @max_reg_power: maximum regulatory transmission power (in dBm)
+ * @beacon_found: helper to regulatory code to indicate when a beacon
+ *	has been found on this channel. Use regulatory_hint_found_beacon()
+ *	to enable this, this is useful only on 5 GHz band.
+ * @orig_mag: internal use
+ * @orig_mpwr: internal use
+ * @dfs_state: current state of this channel. Only relevant if radar is required
+ *	on this channel.
+ * @dfs_state_entered: timestamp (jiffies) when the dfs state was entered.
+ * @dfs_cac_ms: DFS CAC time in milliseconds, this is valid for DFS channels.
+ * @psd: power spectral density (in dBm)
+ */
+struct ieee80211_channel {
+	enum nl80211_band band;
+	u32 center_freq;
+	u16 freq_offset;
+	u16 hw_value;
+	u32 flags;
+	int max_antenna_gain;
+	int max_power;
+	int max_reg_power;
+	bool beacon_found;
+	u32 orig_flags;
+	int orig_mag, orig_mpwr;
+	enum nl80211_dfs_state dfs_state;
+	unsigned long dfs_state_entered;
+	unsigned int dfs_cac_ms;
+	s8 psd;
+};
+
+/**
+ * struct ieee80211_edmg - EDMG configuration
+ *
+ * This structure describes most essential parameters needed
+ * to describe 802.11ay EDMG configuration
+ *
+ * @channels: bitmap that indicates the 2.16 GHz channel(s)
+ *	that are allowed to be used for transmissions.
+ *	Bit 0 indicates channel 1, bit 1 indicates channel 2, etc.
+ *	Set to 0 indicate EDMG not supported.
+ * @bw_config: Channel BW Configuration subfield encodes
+ *	the allowed channel bandwidth configurations
+ */
+struct ieee80211_edmg {
+	u8 channels;
+	enum ieee80211_edmg_bw_config bw_config;
+};
+
+/**
+ * struct cfg80211_chan_def - channel definition
+ * @chan: the (control) channel
+ * @width: channel width
+ * @center_freq1: center frequency of first segment
+ * @center_freq2: center frequency of second segment
+ *	(only with 80+80 MHz)
+ * @edmg: define the EDMG channels configuration.
+ *	If edmg is requested (i.e. the .channels member is non-zero),
+ *	chan will define the primary channel and all other
+ *	parameters are ignored.
+ * @freq1_offset: offset from @center_freq1, in KHz
+ * @punctured: mask of the punctured 20 MHz subchannels, with
+ *	bits turned on being disabled (punctured); numbered
+ *	from lower to higher frequency (like in the spec)
+ * @s1g_primary_2mhz: Indicates if the control channel pointed to
+ *	by 'chan' exists as a 1MHz primary subchannel within an
+ *	S1G 2MHz primary channel.
+ */
+struct cfg80211_chan_def {
+	struct ieee80211_channel *chan;
+	enum nl80211_chan_width width;
+	u32 center_freq1;
+	u32 center_freq2;
+	struct ieee80211_edmg edmg;
+	u16 freq1_offset;
+	u16 punctured;
+	bool s1g_primary_2mhz;
+};
+
+/**
+ * struct ieee80211_chan_req - A channel "request"
+ * @oper: channel definition to use for operation
+ * @ap: the channel definition of the AP, if any
+ *	(otherwise the chan member is %NULL)
+ */
+struct ieee80211_chan_req {
+	struct cfg80211_chan_def oper;
+	struct cfg80211_chan_def ap;
 };
 
 struct ieee80211_link_data {
@@ -3335,6 +3988,10 @@ struct ieee80211_link_data {
 	struct ieee80211_key __rcu *default_mgmt_key;
 	struct ieee80211_key __rcu *default_beacon_key;
 
+	struct {
+		struct wiphy_work finalize_work;
+		struct ieee80211_chan_req chanreq;
+	} csa;
 
 	bool operating_11g_mode;
 
@@ -3417,65 +4074,6 @@ struct ieee80211_sub_if_data {
 	u32 tx_handlers_drop;
 	/* must be last, dynamically sized area in this! */
 	struct ieee80211_vif *vif;
-};
-
-/**
- * struct ieee80211_edmg - EDMG configuration
- *
- * This structure describes most essential parameters needed
- * to describe 802.11ay EDMG configuration
- *
- * @channels: bitmap that indicates the 2.16 GHz channel(s)
- *	that are allowed to be used for transmissions.
- *	Bit 0 indicates channel 1, bit 1 indicates channel 2, etc.
- *	Set to 0 indicate EDMG not supported.
- * @bw_config: Channel BW Configuration subfield encodes
- *	the allowed channel bandwidth configurations
- */
-struct ieee80211_edmg {
-	u8 channels;
-	enum ieee80211_edmg_bw_config bw_config;
-};
-
-/**
- * struct cfg80211_chan_def - channel definition
- * @chan: the (control) channel
- * @width: channel width
- * @center_freq1: center frequency of first segment
- * @center_freq2: center frequency of second segment
- *	(only with 80+80 MHz)
- * @edmg: define the EDMG channels configuration.
- *	If edmg is requested (i.e. the .channels member is non-zero),
- *	chan will define the primary channel and all other
- *	parameters are ignored.
- * @freq1_offset: offset from @center_freq1, in KHz
- * @punctured: mask of the punctured 20 MHz subchannels, with
- *	bits turned on being disabled (punctured); numbered
- *	from lower to higher frequency (like in the spec)
- * @s1g_primary_2mhz: Indicates if the control channel pointed to
- *	by 'chan' exists as a 1MHz primary subchannel within an
- *	S1G 2MHz primary channel.
- */
-struct cfg80211_chan_def {
-	struct ieee80211_channel *chan;
-	enum nl80211_chan_width width;
-	u32 center_freq1;
-	u32 center_freq2;
-	struct ieee80211_edmg edmg;
-	u16 freq1_offset;
-	u16 punctured;
-	bool s1g_primary_2mhz;
-};
-
-/**
- * struct ieee80211_chan_req - A channel "request"
- * @oper: channel definition to use for operation
- * @ap: the channel definition of the AP, if any
- *	(otherwise the chan member is %NULL)
- */
-struct ieee80211_chan_req {
-	struct cfg80211_chan_def oper;
-	struct cfg80211_chan_def ap;
 };
 
 /**
@@ -3792,6 +4390,30 @@ struct ieee80211_vif_cfg {
 	bool s1g;
 	bool idle;
 	u8 ap_addr[ETH_ALEN] __aligned(2);
+};
+
+/**
+ * struct vif_params - describes virtual interface parameters
+ * @flags: monitor interface flags, unchanged if 0, otherwise
+ *	%MONITOR_FLAG_CHANGED will be set
+ * @use_4addr: use 4-address frames
+ * @macaddr: address to use for this virtual interface.
+ *	If this parameter is set to zero address the driver may
+ *	determine the address as needed.
+ *	This feature is only fully supported by drivers that enable the
+ *	%NL80211_FEATURE_MAC_ON_CREATE flag.  Others may support creating
+ **	only p2p devices with specified MAC.
+ * @vht_mumimo_groups: MU-MIMO groupID, used for monitoring MU-MIMO packets
+ *	belonging to that MU-MIMO groupID; %NULL if not changed
+ * @vht_mumimo_follow_addr: MU-MIMO follow address, used for monitoring
+ *	MU-MIMO packets going to the specified station; %NULL if not changed
+ */
+struct vif_params {
+	u32 flags;
+	int use_4addr;
+	u8 macaddr[ETH_ALEN];
+	const u8 *vht_mumimo_groups;
+	const u8 *vht_mumimo_follow_addr;
 };
 
 /**
@@ -4157,51 +4779,6 @@ struct cfg80211_registered_device {
 	struct list_head bss_list;
 	u32 bss_generation;
 	u32 bss_entries;
-};
-
-/**
- * struct ieee80211_channel - channel definition
- *
- * This structure describes a single channel for use
- * with cfg80211.
- *
- * @center_freq: center frequency in MHz
- * @freq_offset: offset from @center_freq, in KHz
- * @hw_value: hardware-specific value for the channel
- * @flags: channel flags from &enum ieee80211_channel_flags.
- * @orig_flags: channel flags at registration time, used by regulatory
- *	code to support devices with additional restrictions
- * @band: band this channel belongs to.
- * @max_antenna_gain: maximum antenna gain in dBi
- * @max_power: maximum transmission power (in dBm)
- * @max_reg_power: maximum regulatory transmission power (in dBm)
- * @beacon_found: helper to regulatory code to indicate when a beacon
- *	has been found on this channel. Use regulatory_hint_found_beacon()
- *	to enable this, this is useful only on 5 GHz band.
- * @orig_mag: internal use
- * @orig_mpwr: internal use
- * @dfs_state: current state of this channel. Only relevant if radar is required
- *	on this channel.
- * @dfs_state_entered: timestamp (jiffies) when the dfs state was entered.
- * @dfs_cac_ms: DFS CAC time in milliseconds, this is valid for DFS channels.
- * @psd: power spectral density (in dBm)
- */
-struct ieee80211_channel {
-	enum nl80211_band band;
-	u32 center_freq;
-	u16 freq_offset;
-	u16 hw_value;
-	u32 flags;
-	int max_antenna_gain;
-	int max_power;
-	int max_reg_power;
-	bool beacon_found;
-	u32 orig_flags;
-	int orig_mag, orig_mpwr;
-	enum nl80211_dfs_state dfs_state;
-	unsigned long dfs_state_entered;
-	unsigned int dfs_cac_ms;
-	s8 psd;
 };
 
 /**
@@ -4583,6 +5160,47 @@ struct ieee80211_tx_info {
 };
 
 /**
+ * struct cfg80211_pmsr_capabilities - cfg80211 peer measurement capabilities
+ * @max_peers: maximum number of peers in a single measurement
+ * @report_ap_tsf: can report assoc AP's TSF for radio resource measurement
+ * @randomize_mac_addr: can randomize MAC address for measurement
+ * @ftm: FTM measurement data
+ * @ftm.supported: FTM measurement is supported
+ * @ftm.asap: ASAP-mode is supported
+ * @ftm.non_asap: non-ASAP-mode is supported
+ * @ftm.request_lci: can request LCI data
+ * @ftm.request_civicloc: can request civic location data
+ * @ftm.preambles: bitmap of preambles supported (&enum nl80211_preamble)
+ * @ftm.bandwidths: bitmap of bandwidths supported (&enum nl80211_chan_width)
+ * @ftm.max_bursts_exponent: maximum burst exponent supported
+ *	(set to -1 if not limited; note that setting this will necessarily
+ *	forbid using the value 15 to let the responder pick)
+ * @ftm.max_ftms_per_burst: maximum FTMs per burst supported (set to 0 if
+ *	not limited)
+ * @ftm.trigger_based: trigger based ranging measurement is supported
+ * @ftm.non_trigger_based: non trigger based ranging measurement is supported
+ */
+struct cfg80211_pmsr_capabilities {
+	unsigned int max_peers;
+	u8 report_ap_tsf:1,
+	   randomize_mac_addr:1;
+
+	struct {
+		u32 preambles;
+		u32 bandwidths;
+		s8 max_bursts_exponent;
+		u8 max_ftms_per_burst;
+		u8 supported:1,
+		   asap:1,
+		   non_asap:1,
+		   request_lci:1,
+		   request_civicloc:1,
+		   trigger_based:1,
+		   non_trigger_based:1;
+	} ftm;
+};
+
+/**
  * struct cfg80211_scan_request - scan request description
  *
  * @ssids: SSIDs to scan for (active scan only)
@@ -4681,20 +5299,6 @@ struct ieee80211_sta_he_cap {
 struct ieee80211_he_6ghz_capa {
 	/* uses IEEE80211_HE_6GHZ_CAP_* below */
 	__le16 capa;
-} __packed;
-
-/**
- * struct ieee80211_eht_cap_elem_fixed - EHT capabilities fixed data
- *
- * This structure is the "EHT Capabilities element" fixed fields as
- * described in P802.11be_D2.0 section 9.4.2.313.
- *
- * @mac_cap_info: MAC capabilities, see IEEE80211_EHT_MAC_CAP*
- * @phy_cap_info: PHY capabilities, see IEEE80211_EHT_PHY_CAP*
- */
-struct ieee80211_eht_cap_elem_fixed {
-	u8 mac_cap_info[2];
-	u8 phy_cap_info[9];
 } __packed;
 
 /**
@@ -5179,8 +5783,37 @@ struct ieee80211_emulated_hw {
 	u8 max_txpwr_levels_idx;
 };
 
+struct rate_control_ops {
+	unsigned long capa;
+	const char *name;
+	void *(*alloc)(struct ieee80211_hw *hw);
+	void (*add_debugfs)(struct ieee80211_hw *hw, void *priv, void *debugfsdir);
+	void (*free)(void *priv);
+
+	void *(*alloc_sta)(void *priv, struct ieee80211_sta *sta, int gfp);
+	void (*rate_init)(void *priv, struct ieee80211_supported_band *sband,
+			  struct cfg80211_chan_def *chandef, struct ieee80211_sta *sta, void *priv_sta);
+	void (*rate_update)(void *priv, struct ieee80211_supported_band *sband,
+			    struct cfg80211_chan_def *chandef, struct ieee80211_sta *sta, void *priv_sta, u32 changed);
+	void (*free_sta)(void *priv, struct ieee80211_sta *sta, void *priv_sta);
+
+	void (*tx_status_ext)(void *priv, struct ieee80211_supported_band *sband, void *priv_sta, struct ieee80211_tx_status *st);
+	void (*tx_status)(void *priv, struct ieee80211_supported_band *sband, struct ieee80211_sta *sta, void *priv_sta, struct sk_buff *skb);
+	void (*get_rate)(void *priv, struct ieee80211_sta *sta, void *priv_sta, struct ieee80211_tx_rate_control *txrc);
+
+	void (*add_sta_debugfs)(void *priv, void *priv_sta, void *dir);
+	u32 (*get_expected_throughput)(void *priv_sta);
+};
+
+struct rate_control_ref {
+	const struct rate_control_ops *rops;
+	void *priv;
+};
+
 struct ieee80211_local {
 	struct wiphy *wiphy;
+	struct cfg80211_registered_device *rdev;
+	struct rate_control_ref *rate_ctrl;
 	struct ieee80211_emulated_hw hw;
 	struct ieee80211_supported_band bands[NUM_NL80211_BANDS];
 
@@ -5196,8 +5829,9 @@ struct ieee80211_local {
 	/* include here the crda timeout variable instead of implementing it as a global one */
 	u32 reg_crda_timeouts;
 
+	u32 wep_iv;
+	u8 dynamic_ps_forced_timeout;
 	u32 tx_status_drop;
-
 	u16 airtime_flags;
 	u32 aql_txq_limit_low[IEEE80211_NUM_ACS];
 	u32 aql_txq_limit_high[IEEE80211_NUM_ACS];
@@ -5238,6 +5872,7 @@ struct ieee80211_local {
 	bool emulate_chanctx;
 	bool tim_in_locked_section; /* see ieee80211_beacon_get() */
 
+	struct ieee80211_chan_req monitor_chanreq;
 	struct cfg80211_cqm_config cqm_config;
 	/*
 	 * suspended is true if we finished all the suspend _and_ we have
@@ -5879,6 +6514,54 @@ warn:
 	return 0;
 }
 
+/* avoid any debugfs function */
+static inline void rate_control_add_debugfs(struct ieee80211_local *local){
+	/* do nothing */
+}
+
+static inline void debugfs_hw_add(struct ieee80211_local *local){
+	/* do nothing */
+}
+
+/* same for leds... */
+static inline void ieee80211_led_assoc(struct ieee80211_local *local, bool associated){
+	/* do nothing */
+}
+
+static inline void ieee80211_led_radio(struct ieee80211_local *local, bool enabled){
+	/* do nothing */
+}
+
+static inline void ieee80211_alloc_led_names(struct ieee80211_local *local){
+	/* do nothing */
+}
+
+static inline void ieee80211_free_led_names(struct ieee80211_local *local){
+	/* do nothing */
+}
+
+static inline void ieee80211_led_init(struct ieee80211_local *local){
+	/* do nothing */
+}
+
+static inline void ieee80211_led_exit(struct ieee80211_local *local){
+	/* do nothing */
+}
+
+static inline void ieee80211_mod_tpt_led_trig(struct ieee80211_local *local, unsigned int types_on, unsigned int types_off){
+	/* do nothing */
+}
+
+static inline bool _ieee80211_hw_check(struct ieee80211_hw *hw, enum ieee80211_hw_flags flg){
+	return test_bit(flg, hw->flags);
+}
+#define ieee80211_hw_check(hw, flg)	_ieee80211_hw_check(hw, IEEE80211_HW_##flg)
+
+static inline void _ieee80211_hw_set(struct ieee80211_hw *hw, enum ieee80211_hw_flags flg){
+	return __set_bit(flg, hw->flags);
+}
+#define ieee80211_hw_set(hw, flg)	_ieee80211_hw_set(hw, IEEE80211_HW_##flg)
+
 static inline void set_sta_flag(struct sta_info *sta, enum ieee80211_sta_info_flags flag){
 	set_bit(flag, &sta->_flags);
 }
@@ -5897,6 +6580,58 @@ static inline int test_and_clear_sta_flag(struct sta_info *sta, enum ieee80211_s
 
 static inline int test_and_set_sta_flag(struct sta_info *sta, enum ieee80211_sta_info_flags flag){
 	return test_and_set_bit(flag, &sta->_flags);
+}
+
+static inline bool ieee80211_sdata_running(struct ieee80211_sub_if_data *sdata){
+	return test_bit(SDATA_STATE_RUNNING, &sdata->state);
+}
+
+/**
+ * wiphy_name - get wiphy name
+ *
+ * @wiphy: The wiphy whose name to return
+ * Return: The name of @wiphy.
+ */
+static inline const char *wiphy_name(const struct wiphy *wiphy){
+	struct device *dev = NULL;
+
+	dev = wiphy->dev;
+
+	/* inline here 'dev_name' for simplicity */
+	if (dev->init_name != NULL){
+		return dev->init_name;
+	}
+
+	return kobject_name(&dev->kobj);
+
+}
+
+/**
+ * wiphy_lock - lock the wiphy
+ * @wiphy: the wiphy to lock
+ *
+ * This is needed around registering and unregistering netdevs that
+ * aren't created through cfg80211 calls, since that requires locking
+ * in cfg80211 when the notifiers is called, but that cannot
+ * differentiate which way it's called.
+ *
+ * It can also be used by drivers for their own purposes.
+ *
+ * When cfg80211 ops are called, the wiphy is already locked.
+ *
+ * Note that this makes sure that no workers that have been queued
+ * with wiphy_queue_work() are running.
+ */
+static inline void wiphy_lock(struct wiphy *wiphy){
+	mutex_lock(&wiphy->mtx);
+}
+
+/**
+ * wiphy_unlock - unlock the wiphy again
+ * @wiphy: the wiphy to unlock
+ */
+static inline void wiphy_unlock(struct wiphy *wiphy){
+	mutex_unlock(&wiphy->mtx);
 }
 
 /**
@@ -5952,7 +6687,6 @@ static inline bool wiphy_ext_feature_isset(struct wiphy *wiphy, enum nl80211_ext
 	ft_byte = wiphy->ext_features + (sizeof(u8) * (ftidx / 8));
 	return (ft_byte & BIT(ftidx % 8)) != 0;
 }
-
 
 /**
  * ieee80211_has_tods - check if IEEE80211_FCTL_TODS is set
@@ -6444,6 +7178,129 @@ static inline bool ieee80211_is_frag(struct ieee80211_hdr *hdr)
 {
 	return ieee80211_has_morefrags(hdr->frame_control) ||
 	       hdr->seq_ctrl & cpu_to_le16(IEEE80211_SCTL_FRAG);
+}
+
+static struct rate_control_ref *rate_control_alloc(const char *name, struct ieee80211_local *local){
+	struct rate_control_ref *ref = NULL;
+
+	ref = malloc(sizeof(struct rate_control_ref));
+	if (ref == NULL){
+		return NULL;
+	}
+	// TODO
+	//ref->rops = ieee80211_rate_control_ops_get(name);
+	if (ref->rops == NULL){
+		goto free;
+	}
+
+	ref->priv = ref->rops->alloc(&local->hw);
+	if (ref->priv == NULL){
+		goto free;
+	}
+
+	return ref;
+
+free:
+	kfree(ref);
+	return NULL;
+}
+
+static int ieee80211_init_rate_ctrl_alg(struct ieee80211_local *local, const char *name){
+	int ret = 0;
+	struct rate_control_ref *ref = NULL;
+	struct ieee80211_ops *ops = NULL;
+
+	ops = local->ops;
+	if(ops == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	if (local->open_count){
+		ret = -EBUSY;
+		return ret;
+	}
+
+	if (ieee80211_hw_check(&local->hw, HAS_RATE_CONTROL)) {
+		if (ops->set_rts_threshold == NULL){
+			ret = -EINVAL;
+			return ret;
+		}
+		return ret;
+	}
+
+	ref = rate_control_alloc(name, local);
+	if (ref == NULL) {
+		//wiphy_warn(local->hw.wiphy, "Failed to select rate control algorithm\n");
+		ret = -ENOENT;
+		return ret;
+	}
+
+	local->rate_ctrl = ref;
+
+	printf("[*][wiphy] Selected rate control algorithm '%s'\n", ref->rops->name);
+
+	return 0;
+}
+
+/* for now avoid also the tx queue functions */
+
+static void ieee80211_txq_teardown_flows(struct ieee80211_local *local){
+
+}
+
+static int ieee80211_txq_setup_flows(struct ieee80211_local *local){
+
+}
+
+static void ieee80211_check_wbrf_support(struct ieee80211_local *local){
+
+}
+
+static void rate_control_free(struct ieee80211_local *local, struct rate_control_ref *ctrl_ref){
+	ctrl_ref->rops->free(ctrl_ref->priv);
+
+	kfree(ctrl_ref);
+}
+
+static void rate_control_deinitialize(struct ieee80211_local *local){
+	struct rate_control_ref *ref = NULL;
+
+	ref = local->rate_ctrl;
+
+	if (ref == NULL){
+		return;
+	}
+
+	local->rate_ctrl = NULL;
+	rate_control_free(local, ref);
+}
+
+static int ieee80211_mcs_to_chains(const struct ieee80211_mcs_info *mcs){
+	int ret = 0;
+
+	if (mcs == NULL){
+		ret = 1;
+		return ret;
+	}
+
+	/* TODO: consider rx_highest */
+
+	if (mcs->rx_mask[3]){
+		ret = 4;
+		return ret;
+	}
+	if (mcs->rx_mask[2]){
+		ret = 3;
+		return ret;
+	}
+	if (mcs->rx_mask[1]){
+		ret = 2;
+		return ret;
+	}
+
+	ret = 1;
+	return ret;
 }
 
 #define cfg80211_find_elem(eid, ies, len) cfg80211_find_elem_match(eid, ies, len, NULL, 0, 0)
@@ -7071,6 +7928,11 @@ static struct rhlist_head *sta_info_hash_lookup(struct ieee80211_local *local, u
 	return rhltable_lookup(&local->sta_hash, addr, sta_rht_params);
 }
 
+static void sta_info_stop(struct ieee80211_local *local){
+	rhltable_destroy(&local->sta_hash);
+	rhltable_destroy(&local->link_sta_hash);
+}
+
 /*
  * Get sta info either from the specified interface
  * or from one of its vlans
@@ -7192,6 +8054,54 @@ static void _ieee80211_iter_keys_rcu(struct ieee80211_hw *hw,  struct ieee80211_
 	}
 }
 
+static void ieee80211_wep_init(struct ieee80211_local *local){
+	/* start WEP IV from a random value */
+	get_random_bytes(&local->wep_iv, IEEE80211_WEP_IV_LEN);
+}
+
+static int ieee80211_init_cipher_suites(struct ieee80211_local *local){
+	int ret = 0;
+	bool have_mfp = ieee80211_hw_check(&local->hw, MFP_CAPABLE);
+	static const u32 cipher_suites[] = {
+		/* keep WEP and TKIP first, they may be removed below */
+		WLAN_CIPHER_SUITE_WEP40,
+		WLAN_CIPHER_SUITE_WEP104,
+		WLAN_CIPHER_SUITE_TKIP,
+		WLAN_CIPHER_SUITE_CCMP,
+		WLAN_CIPHER_SUITE_CCMP_256,
+		WLAN_CIPHER_SUITE_GCMP,
+		WLAN_CIPHER_SUITE_GCMP_256,
+
+		/* keep last -- depends on hw flags! */
+		WLAN_CIPHER_SUITE_AES_CMAC,
+		WLAN_CIPHER_SUITE_BIP_CMAC_256,
+		WLAN_CIPHER_SUITE_BIP_GMAC_128,
+		WLAN_CIPHER_SUITE_BIP_GMAC_256,
+	};
+
+	struct wiphy *wiphy = NULL;
+
+	wiphy = local->wiphy;
+	if(wiphy == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	if (ieee80211_hw_check(&local->hw, SW_CRYPTO_CONTROL) && wiphy->cipher_suites){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	if (wiphy->cipher_suites) {
+		/* assign the (software supported and perhaps offloaded)
+		 * cipher suites
+		 */
+		wiphy->cipher_suites = cipher_suites;
+		wiphy->n_cipher_suites = ARRAY_SIZE(cipher_suites);
+	}
+
+	return 0;
+}
 
 static struct ieee80211_key *ieee80211_key_alloc(u32 cipher, int idx, size_t key_len, u8 *key_data, size_t seq_len, u8 *seq){
 	int err = 0;
@@ -7436,6 +8346,257 @@ static void ieee80211_report_used_skb(struct ieee80211_local *local, struct sk_b
 		skb_shinfo(skb)->frag_list = NULL;
 	}
 	#endif
+}
+
+/* add/remove interface */
+static int ieee80211_if_add(struct ieee80211_local *local, const char *name, unsigned char name_assign_type, struct wireless_dev **new_wdev, enum nl80211_iftype type, struct vif_params *params){
+	struct net_device *netdev = NULL;
+	struct ieee80211_sub_if_data *sdata = NULL;
+	struct txq_info *txqi;
+	int ret, i;
+	#if 0
+	if (type == NL80211_IFTYPE_P2P_DEVICE || type == NL80211_IFTYPE_NAN) {
+		struct wireless_dev *wdev;
+
+		sdata = kzalloc(sizeof(*sdata) + local->hw.vif_data_size,
+				GFP_KERNEL);
+		if (!sdata)
+			return -ENOMEM;
+		wdev = &sdata->wdev;
+
+		sdata->dev = NULL;
+		strscpy(sdata->name, name, IFNAMSIZ);
+		ieee80211_assign_perm_addr(local, wdev->address, type);
+		memcpy(sdata->vif.addr, wdev->address, ETH_ALEN);
+		ether_addr_copy(sdata->vif.bss_conf.addr, sdata->vif.addr);
+	} else {
+		int size = ALIGN(sizeof(*sdata) + local->hw.vif_data_size,
+				 sizeof(void *));
+		int txq_size = 0;
+
+		if (type != NL80211_IFTYPE_AP_VLAN &&
+		    (type != NL80211_IFTYPE_MONITOR ||
+		     (params->flags & MONITOR_FLAG_ACTIVE)))
+			txq_size += sizeof(struct txq_info) +
+				    local->hw.txq_data_size;
+
+		netdev = alloc_netdev_mqs(size + txq_size,
+					name, name_assign_type,
+					ieee80211_if_setup, 1, 1);
+		if (!netdev)
+			return -ENOMEM;
+
+		dev_net_set(netdev, wiphy_net(local->hw.wiphy));
+
+		netdev->pcpu_stat_type = NETDEV_PCPU_STAT_TSTATS;
+
+		netdev->needed_headroom = local->tx_headroom +
+					4*6 /* four MAC addresses */
+					+ 2 + 2 + 2 + 2 /* ctl, dur, seq, qos */
+					+ 6 /* mesh */
+					+ 8 /* rfc1042/bridge tunnel */
+					- ETH_HLEN /* ethernet hard_header_len */
+					+ IEEE80211_ENCRYPT_HEADROOM;
+		netdev->needed_tailroom = IEEE80211_ENCRYPT_TAILROOM;
+
+		ret = dev_alloc_name(netdev, netdev->name);
+		if (ret < 0) {
+			free_netdev(netdev);
+			return ret;
+		}
+
+		ieee80211_assign_perm_addr(local, netdev->perm_addr, type);
+		if (is_valid_ether_addr(params->macaddr))
+			eth_hw_addr_set(netdev, params->macaddr);
+		else
+			eth_hw_addr_set(netdev, netdev->perm_addr);
+		SET_NETDEV_DEV(netdev, wiphy_dev(local->hw.wiphy));
+
+		/* don't use IEEE80211_DEV_TO_SUB_IF -- it checks too much */
+		sdata = netdev_priv(netdev);
+		netdev->ieee80211_ptr = &sdata->wdev;
+		memcpy(sdata->vif.addr, netdev->dev_addr, ETH_ALEN);
+		ether_addr_copy(sdata->vif.bss_conf.addr, sdata->vif.addr);
+		memcpy(sdata->name, netdev->name, IFNAMSIZ);
+
+		if (txq_size) {
+			txqi = netdev_priv(netdev) + size;
+			ieee80211_txq_init(sdata, NULL, txqi, 0);
+		}
+
+		sdata->dev = netdev;
+	}
+
+	/* initialise type-independent data */
+	sdata->wdev.wiphy = local->hw.wiphy;
+
+	ieee80211_sdata_init(local, sdata);
+
+	ieee80211_init_frag_cache(&sdata->frags);
+
+	wiphy_delayed_work_init(&sdata->dec_tailroom_needed_wk,
+				ieee80211_delayed_tailroom_dec);
+
+	for (i = 0; i < NUM_NL80211_BANDS; i++) {
+		struct ieee80211_supported_band *sband;
+		sband = local->hw.wiphy->bands[i];
+		sdata->rc_rateidx_mask[i] =
+			sband ? (1 << sband->n_bitrates) - 1 : 0;
+		if (sband) {
+			__le16 cap;
+			u16 *vht_rate_mask;
+
+			memcpy(sdata->rc_rateidx_mcs_mask[i],
+			       sband->ht_cap.mcs.rx_mask,
+			       sizeof(sdata->rc_rateidx_mcs_mask[i]));
+
+			cap = sband->vht_cap.vht_mcs.rx_mcs_map;
+			vht_rate_mask = sdata->rc_rateidx_vht_mcs_mask[i];
+			ieee80211_get_vht_mask_from_cap(cap, vht_rate_mask);
+		} else {
+			memset(sdata->rc_rateidx_mcs_mask[i], 0,
+			       sizeof(sdata->rc_rateidx_mcs_mask[i]));
+			memset(sdata->rc_rateidx_vht_mcs_mask[i], 0,
+			       sizeof(sdata->rc_rateidx_vht_mcs_mask[i]));
+		}
+	}
+
+	ieee80211_set_default_queues(sdata);
+
+	/* setup type-dependent data */
+	ieee80211_setup_sdata(sdata, type);
+
+	if (netdev) {
+		netdev->ieee80211_ptr->use_4addr = params->use_4addr;
+		if (type == NL80211_IFTYPE_STATION)
+			sdata->u.mgd.use_4addr = params->use_4addr;
+
+		netdev->features |= local->hw.netdev_features;
+		netdev->priv_flags |= IFF_LIVE_ADDR_CHANGE;
+		netdev->hw_features |= netdev->features &
+					MAC80211_SUPPORTED_FEATURES_TX;
+		sdata->vif.netdev_features = local->hw.netdev_features;
+
+		netdev_set_default_ethtool_ops(netdev, &ieee80211_ethtool_ops);
+
+		/* MTU range is normally 256 - 2304, where the upper limit is
+		 * the maximum MSDU size. Monitor interfaces send and receive
+		 * MPDU and A-MSDU frames which may be much larger so we do
+		 * not impose an upper limit in that case.
+		 */
+		netdev->min_mtu = 256;
+		if (type == NL80211_IFTYPE_MONITOR)
+			netdev->max_mtu = 0;
+		else
+			netdev->max_mtu = local->hw.max_mtu;
+
+		ret = cfg80211_register_netdevice(netdev);
+		if (ret) {
+			free_netdev(netdev);
+			return ret;
+		}
+	}
+
+	mutex_lock(&local->iflist_mtx);
+	list_add_tail_rcu(&sdata->list, &local->interfaces);
+	mutex_unlock(&local->iflist_mtx);
+
+	if (new_wdev)
+		*new_wdev = &sdata->wdev;
+	#endif
+	return 0;
+}
+
+static void ieee80211_if_remove(struct ieee80211_sub_if_data *sdata){
+	struct ieee80211_local *local = NULL;
+
+	local = &director.ieee80211_local;
+
+	pthread_mutex_lock(&local->iflist_mtx);
+	list_del_rcu(&sdata->list);
+	pthread_mutex_unlock(&local->iflist_mtx);
+
+	//if (sdata->vif.txq)
+	//	ieee80211_txq_purge(sdata->local, to_txq_info(sdata->vif.txq));
+
+
+	if (sdata->dev == NULL) {
+		//ieee80211_teardown_sdata(sdata);
+		kfree(sdata);
+	}
+}
+
+static inline void drv_vif_cfg_changed(struct ieee80211_local *local, struct ieee80211_sub_if_data *sdata, u64 changed){
+	struct ieee80211_ops *ops = NULL;
+
+	ops = local->ops;
+	if(ops == NULL){
+		goto end;
+	}
+
+	if (ops->vif_cfg_changed){
+//		ops->vif_cfg_changed(&local->hw, &sdata->vif, changed);
+	}else if (ops->bss_info_changed){
+//		ops->bss_info_changed(&local->hw, &sdata->vif, &sdata->vif.bss_conf, changed);
+	}
+	end:
+}
+
+static void ieee80211_vif_cfg_change_notify(struct ieee80211_sub_if_data *sdata, u64 changed){
+	struct ieee80211_local *local = NULL;
+
+	local = &director.ieee80211_local;
+
+	if (!changed || sdata->vif->type == NL80211_IFTYPE_AP_VLAN){
+		return;
+	}
+
+	drv_vif_cfg_changed(local, sdata, changed);
+}
+
+static void ieee80211_remove_interfaces(struct ieee80211_local *local){
+	struct ieee80211_sub_if_data *sdata = NULL;
+	struct ieee80211_sub_if_data *tmp = NULL;
+	LIST_HEAD(unreg_list);
+
+	/* Before destroying the interfaces, make sure they're all stopped so
+	 * that the hardware is stopped. Otherwise, the driver might still be
+	 * iterating the interfaces during the shutdown, e.g. from a worker
+	 * or from RX processing or similar, and if it does so (using atomic
+	 * iteration) while we're manipulating the list, the iteration will
+	 * crash.
+	 *
+	 * After this, the hardware should be stopped and the driver should
+	 * have stopped all of its activities, so that we can do RCU-unaware
+	 * manipulations of the interface list below.
+	 */
+	//cfg80211_shutdown_all_interfaces(local->hw.wiphy);
+
+
+	pthread_mutex_lock(&local->iflist_mtx);
+	list_splice_init(&local->interfaces, &unreg_list);
+	pthread_mutex_unlock(&local->iflist_mtx);
+
+	list_for_each_entry_safe(sdata, tmp, &unreg_list, list) {
+		bool netdev = sdata->dev;
+
+		/*
+		 * Remove IP addresses explicitly, since the notifier will
+		 * skip the callbacks if wdev->registered is false, since
+		 * we can't acquire the wiphy_lock() again there if already
+		 * inside this locked section.
+		 */
+		sdata->vif->cfg.arp_addr_cnt = 0;
+		if (sdata->vif->type == NL80211_IFTYPE_STATION && sdata->u.mgd.associated){
+			ieee80211_vif_cfg_change_notify(sdata, BSS_CHANGED_ARP_FILTER);
+		}
+		list_del(&sdata->list);
+		//cfg80211_unregister_wdev(&sdata->wdev);
+
+		if (netdev == false){
+			kfree(sdata);
+		}
+	}
 }
 
 /* nl80211 based function wrappers (must be working for both Linux and Windows) */

@@ -9,6 +9,8 @@ struct rb_root;
 struct module;
 struct list_head;
 
+struct rhashtable;
+
 struct shash_desc;
 struct crypto_tfm;
 struct crypto_alg;

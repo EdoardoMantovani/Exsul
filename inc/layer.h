@@ -123,6 +123,10 @@
 #define __GFP_NOWARN		0
 #define __GFP_ZERO		0
 
+#define POISON_POINTER_DELTA	0
+#define LIST_POISON1		((void *) 0x100 + POISON_POINTER_DELTA)
+#define LIST_POISON2		((void *) 0x122 + POISON_POINTER_DELTA)
+
 #define L1_CACHE_SHIFT		5
 #define L1_CACHE_BYTES		(1 << L1_CACHE_SHIFT)
 
@@ -180,6 +184,56 @@ enum {
 	DUMP_PREFIX_NONE,
 	DUMP_PREFIX_ADDRESS,
 	DUMP_PREFIX_OFFSET
+};
+
+/*
+ * Workqueue flags and constants.  For details, please refer to
+ * Documentation/core-api/workqueue.rst.
+ */
+enum wq_flags {
+	WQ_BH			= 1 << 0, /* execute in bottom half (softirq) context */
+	WQ_UNBOUND		= 1 << 1, /* not bound to any cpu */
+	WQ_FREEZABLE		= 1 << 2, /* freeze during suspend */
+	WQ_MEM_RECLAIM		= 1 << 3, /* may be used for memory reclaim */
+	WQ_HIGHPRI		= 1 << 4, /* high priority */
+	WQ_CPU_INTENSIVE	= 1 << 5, /* cpu intensive workqueue */
+	WQ_SYSFS		= 1 << 6, /* visible in sysfs, see workqueue_sysfs_register() */
+
+	/*
+	 * Per-cpu workqueues are generally preferred because they tend to
+	 * show better performance thanks to cache locality.  Per-cpu
+	 * workqueues exclude the scheduler from choosing the CPU to
+	 * execute the worker threads, which has an unfortunate side effect
+	 * of increasing power consumption.
+	 *
+	 * The scheduler considers a CPU idle if it doesn't have any task
+	 * to execute and tries to keep idle cores idle to conserve power;
+	 * however, for example, a per-cpu work item scheduled from an
+	 * interrupt handler on an idle CPU will force the scheduler to
+	 * execute the work item on that CPU breaking the idleness, which in
+	 * turn may lead to more scheduling choices which are sub-optimal
+	 * in terms of power consumption.
+	 *
+	 * Workqueues marked with WQ_POWER_EFFICIENT are per-cpu by default
+	 * but become unbound if workqueue.power_efficient kernel param is
+	 * specified.  Per-cpu workqueues which are identified to
+	 * contribute significantly to power-consumption are identified and
+	 * marked with this flag and enabling the power_efficient mode
+	 * leads to noticeable power saving at the cost of small
+	 * performance disadvantage.
+	 *
+	 * http://thread.gmane.org/gmane.linux.kernel/1480396
+	 */
+	WQ_POWER_EFFICIENT	= 1 << 7,
+	WQ_PERCPU		= 1 << 8, /* bound to a specific cpu */
+
+	__WQ_DESTROYING		= 1 << 15, /* internal: workqueue is destroying */
+	__WQ_DRAINING		= 1 << 16, /* internal: workqueue is draining */
+	__WQ_ORDERED		= 1 << 17, /* internal: workqueue is ordered */
+	__WQ_LEGACY		= 1 << 18, /* internal: create*_workqueue() */
+
+	/* BH wq only allows the following flags */
+	__WQ_BH_ALLOWS		= WQ_BH | WQ_HIGHPRI | WQ_PERCPU,
 };
 
 enum {
@@ -273,6 +327,53 @@ struct hlist_head {
 struct hlist_node {
 	struct hlist_node *next;
 	struct hlist_node **pprev;
+};
+
+/* implement mutex too as shown in the kernel headers */
+
+struct optimistic_spin_queue {
+	/*
+	 * Stores an encoded value of the CPU # of the tail node in the queue.
+	 * If the queue is empty, then it's set to OSQ_UNLOCKED_VAL.
+	 */
+	atomic_t tail;
+};
+
+/*
+ * Simple, straightforward mutexes with strict semantics:
+ *
+ * - only one task can hold the mutex at a time
+ * - only the owner can unlock the mutex
+ * - multiple unlocks are not permitted
+ * - recursive locking is not permitted
+ * - a mutex object must be initialized via the API
+ * - a mutex object must not be initialized via memset or copying
+ * - task may not exit with mutex held
+ * - memory areas where held locks reside must not be freed
+ * - held mutexes must not be reinitialized
+ * - mutexes may not be used in hardware or software interrupt
+ *   contexts such as tasklets and timers
+ *
+ * These semantics are fully enforced when DEBUG_MUTEXES is
+ * enabled. Furthermore, besides enforcing the above rules, the mutex
+ * debugging code also implements a number of additional features
+ * that make lock debugging easier and faster:
+ *
+ * - uses symbolic names of mutexes, whenever they are printed in debug output
+ * - point-of-acquire tracking, symbolic lookup of function names
+ * - list of all locks held in the system, printout of them
+ * - owner tracking
+ * - detects self-recursing locks and prints out all relevant info
+ * - detects multi-task circular deadlocks and prints out all affected
+ *   locks and tasks (and only those tasks)
+ */
+struct mutex {
+	atomic_long		owner;
+	/* always consider a spinlock_t as an unsigned integer of 32 bits */
+	u32			wait_lock;
+	struct optimistic_spin_queue osq; /* Spinner MCS lock */
+	struct list_head	wait_list;
+
 };
 
 struct kobject {
@@ -719,6 +820,31 @@ static inline int list_empty(const struct list_head *head){
 	return READ_ONCE(head->next) == head;
 }
 
+static inline void __list_splice(const struct list_head *list, struct list_head *prev, struct list_head *next){
+	struct list_head *first = list->next;
+	struct list_head *last = list->prev;
+
+	first->prev = prev;
+	prev->next = first;
+
+	last->next = next;
+	next->prev = last;
+}
+
+/**
+ * list_splice_init - join two lists and reinitialise the emptied list.
+ * @list: the new list to add.
+ * @head: the place to add it in the first list.
+ *
+ * The list at @list is reinitialised
+ */
+static inline void list_splice_init(struct list_head *list, struct list_head *head){
+	if (!list_empty(list)) {
+		__list_splice(list, head, head->next);
+		INIT_LIST_HEAD(list);
+	}
+}
+
 /*
  * Performs list corruption checks before __list_add(). Returns false if a
  * corruption is detected, true otherwise.
@@ -891,6 +1017,35 @@ static inline void __list_add_rcu(struct list_head *new, struct list_head *prev,
 	new->prev = prev;
 //	rcu_assign_pointer(list_next_rcu(prev), new);
 	next->prev = new;
+}
+
+/**
+ * list_del_rcu - deletes entry from list without re-initialization
+ * @entry: the element to delete from the list.
+ *
+ * Note: list_empty() on entry does not return true after this,
+ * the entry is in an undefined state. It is useful for RCU based
+ * lockfree traversal.
+ *
+ * In particular, it means that we can not poison the forward
+ * pointers that may still be used for walking the list.
+ *
+ * The caller must take whatever precautions are necessary
+ * (such as holding appropriate locks) to avoid racing
+ * with another list-mutation primitive, such as list_del_rcu()
+ * or list_add_rcu(), running on this same list.
+ * However, it is perfectly legal to run concurrently with
+ * the _rcu list-traversal primitives, such as
+ * list_for_each_entry_rcu().
+ *
+ * Note that the caller is not permitted to immediately free
+ * the newly deleted entry.  Instead, either synchronize_rcu()
+ * or call_rcu() must be used to defer freeing until an RCU
+ * grace period has elapsed.
+ */
+static inline void list_del_rcu(struct list_head *entry){
+	__list_del_entry(entry);
+	entry->prev = LIST_POISON2;
 }
 
 /**
@@ -1272,6 +1427,9 @@ static inline void __rb_insert(struct rb_node *node, struct rb_root *root, void 
 	}
 }
 
+static inline const char *kobject_name(const struct kobject *kobj){
+	return (const char *)kobj->name;
+}
 
 static void __kobject_del(struct kobject *kobj){
 	kobj->state_in_sysfs = 0;
@@ -1582,49 +1740,12 @@ static void *kthread_trampoline(void *arg){
 	return NULL;
 }
 
-static unsigned long round_jiffies_common(unsigned long j, int cpu, bool force_up){
-	int rem = 0;
-	unsigned long original = j;
-
-	/*
-	 * We don't want all cpus firing their timers at once hitting the
-	 * same lock or cachelines, so we skew each extra cpu with an extra
-	 * 3 jiffies. This 3 jiffies came originally from the mm/ code which
-	 * already did this.
-	 * The skew is done by adding 3*cpunr, then round, then subtract this
-	 * extra offset again.
-	 */
-	j += cpu * 3;
-
-	rem = j % HZ;
-
-	/*
-	 * If the target jiffy is just after a whole second (which can happen
-	 * due to delays of the timer irq, long irq off times etc etc) then
-	 * we should round down to the whole second, not up. Use 1/4th second
-	 * as cutoff for this rounding as an extreme upper bound for this.
-	 * But never round down if @force_up is set.
-	 */
-	if (rem < HZ/4 && !force_up){ /* round down */
-		j = j - rem;
-	}else{ /* round up */
-		j = j - rem + HZ;
-	}
-	/* now that we have rounded, subtract the extra skew again */
-	j -= cpu * 3;
-
-	/*
-	 * Make sure j is still in the future. Otherwise return the
-	 * unmodified value.
-	 */
-//	return time_is_after_jiffies(j) ? j : original;
-}
-
 #include <prototypes.h>
 #include <single_offset.h>
 #include <struct_offset.h>
 #include <mod_controller.h>
 #include <hashtable.h>
+#include <jiffies.h>
 #include <usb.h>
 #include <bits.h>
 #include <net.h>

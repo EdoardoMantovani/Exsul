@@ -41,13 +41,6 @@ struct kernel_symbol {
 	/* last cacheline: 12 bytes */
 };
 
-struct mutex {
-	u8 pad[32];
-
-	/* size: 32, cachelines: 1, members: 4 */
-	/* last cacheline: 32 bytes */
-};
-
 struct mod_arch_specific {
 	u8 pad[16];
 
