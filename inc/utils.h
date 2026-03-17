@@ -1,6 +1,12 @@
 #ifndef __UTILS_H__
 #define __UTILS_H__
 
+#if defined(__x86_64__)
+#define CONFIG_HAVE_ARCH_PREL32_RELOCATIONS	1
+#elif defined(__arm64__)
+#define CONFIG_HAVE_ARCH_PREL32_RELOCATIONS	1
+#endif
+
 #ifndef SPEED_1600000
 #define SPEED_1600000		1600000
 #endif
@@ -940,6 +946,7 @@ out:										\
 #define __UNIQUE_ID(prefix) 		__PASTE(__PASTE(__UNIQUE_ID_, prefix), __COUNTER__)
 
 #define rcu_check_sparse(p, space)
+#define RCU_INITIALIZER(v)		(typeof(*(v)) __force __rcu *)(v)
 #define __rcu_dereference_check(p, local, c, space) \
 ({ \
 	/* Dependency order vs. p above. */ \
@@ -958,6 +965,50 @@ out:										\
 	rcu_check_sparse(p, space); \
 	((typeof(*p) __force __kernel *)(p)); \
 })
+
+/**
+ * RCU_INIT_POINTER() - initialize an RCU protected pointer
+ * @p: The pointer to be initialized.
+ * @v: The value to initialized the pointer to.
+ *
+ * Initialize an RCU-protected pointer in special cases where readers
+ * do not need ordering constraints on the CPU or the compiler.  These
+ * special cases are:
+ *
+ * 1.	This use of RCU_INIT_POINTER() is NULLing out the pointer *or*
+ * 2.	The caller has taken whatever steps are required to prevent
+ *	RCU readers from concurrently accessing this pointer *or*
+ * 3.	The referenced data structure has already been exposed to
+ *	readers either at compile time or via rcu_assign_pointer() *and*
+ *
+ *	a.	You have not made *any* reader-visible changes to
+ *		this structure since then *or*
+ *	b.	It is OK for readers accessing this structure from its
+ *		new location to see the old state of the structure.  (For
+ *		example, the changes were to statistical counters or to
+ *		other state where exact synchronization is not required.)
+ *
+ * Failure to follow these rules governing use of RCU_INIT_POINTER() will
+ * result in impossible-to-diagnose memory corruption.  As in the structures
+ * will look OK in crash dumps, but any concurrent RCU readers might
+ * see pre-initialized values of the referenced data structure.  So
+ * please be very careful how you use RCU_INIT_POINTER()!!!
+ *
+ * If you are creating an RCU-protected linked structure that is accessed
+ * by a single external-to-structure RCU-protected pointer, then you may
+ * use RCU_INIT_POINTER() to initialize the internal RCU-protected
+ * pointers, but you must use rcu_assign_pointer() to initialize the
+ * external-to-structure pointer *after* you have completely initialized
+ * the reader-accessible portions of the linked structure.
+ *
+ * Note that unlike rcu_assign_pointer(), RCU_INIT_POINTER() provides no
+ * ordering guarantees for either the CPU or the compiler.
+ */
+#define RCU_INIT_POINTER(p, v) \
+	do { \
+		rcu_check_sparse(p, __rcu); \
+		WRITE_ONCE(p, RCU_INITIALIZER(v)); \
+	} while (0)
 
 #define rcu_dereference_check(p, c) 	__rcu_dereference_check((p), __UNIQUE_ID(rcu), c || 0, __rcu)
 
@@ -1000,6 +1051,38 @@ out:										\
 #define _S				0x20	/* white space (space/lf/tab) */
 #define _X				0x40	/* hex digit */
 #define _SP				0x80	/* hard space (0x20) */
+
+/**
+ * roundup_pow_of_two - round the given value up to nearest power of two
+ * @n: parameter
+ *
+ * round the given value up to the nearest power of two
+ * - the result is undefined when n == 0
+ * - this can be used to initialise global variables from constant data
+ */
+#define roundup_pow_of_two(n)			\
+(						\
+	__builtin_constant_p(n) ? (		\
+		((n) == 1) ? 1 :		\
+		(1UL << (ilog2((n) - 1) + 1))	\
+				   ) :		\
+	__roundup_pow_of_two(n)			\
+ )
+
+/**
+ * rounddown_pow_of_two - round the given value down to nearest power of two
+ * @n: parameter
+ *
+ * round the given value down to the nearest power of two
+ * - the result is undefined when n == 0
+ * - this can be used to initialise global variables from constant data
+ */
+#define rounddown_pow_of_two(n)			\
+(						\
+	__builtin_constant_p(n) ? (		\
+		(1UL << ilog2(n))) :		\
+	__rounddown_pow_of_two(n)		\
+ )
 
 #ifndef ARCH_INDEPENDENT_BITOPS
 /*
@@ -1136,8 +1219,78 @@ static inline int test_and_set_bit(int nr, volatile unsigned long * addr) {
 }
 #endif
 
+static inline unsigned int generic___fls(unsigned long word){
+	unsigned int num = BITS_PER_LONG - 1;
+
+#if BITS_PER_LONG == 64
+	if (!(word & (~0ul << 32))) {
+		num -= 32;
+		word <<= 32;
+	}
+#endif
+	if (!(word & (~0ul << (BITS_PER_LONG-16)))) {
+		num -= 16;
+		word <<= 16;
+	}
+	if (!(word & (~0ul << (BITS_PER_LONG-8)))) {
+		num -= 8;
+		word <<= 8;
+	}
+	if (!(word & (~0ul << (BITS_PER_LONG-4)))) {
+		num -= 4;
+		word <<= 4;
+	}
+	if (!(word & (~0ul << (BITS_PER_LONG-2)))) {
+		num -= 2;
+		word <<= 2;
+	}
+	if (!(word & (~0ul << (BITS_PER_LONG-1))))
+		num -= 1;
+	return num;
+}
+
 static inline int ilog2(u64 n){
 	return n ? (63 - __builtin_clzll(n)) : -1;
+}
+
+#if BITS_PER_LONG == 32
+static inline const int fls64(u64 x){
+	__u32 h = x >> 32;
+	if (h){
+		return fls(h) + 32;
+	}
+	return fls(x);
+}
+#elif BITS_PER_LONG == 64
+static inline const int fls64(u64 x){
+	if (x == 0){
+		return 0;
+	}
+	return __fls(x) + 1;
+}
+#endif
+
+static inline unsigned int fls_long(unsigned long l){
+	if (sizeof(l) == 4){
+		return fls(l);
+	}
+	return fls64(l);
+}
+
+/**
+ * __roundup_pow_of_two() - round up to nearest power of two
+ * @n: value to round up
+ */
+static inline const unsigned long __roundup_pow_of_two(unsigned long n){
+	return 1UL << fls_long(n - 1);
+}
+
+/**
+ * __rounddown_pow_of_two() - round down to nearest power of two
+ * @n: value to round down
+ */
+static inline const unsigned long __rounddown_pow_of_two(unsigned long n){
+	return 1UL << (fls_long(n) - 1);
 }
 
 /**
@@ -1375,36 +1528,6 @@ static inline unsigned int __ffs(unsigned long word){
 	return num;
 }
 
-static inline unsigned int generic___fls(unsigned long word){
-	unsigned int num = BITS_PER_LONG - 1;
-
-#if BITS_PER_LONG == 64
-	if (!(word & (~0ul << 32))) {
-		num -= 32;
-		word <<= 32;
-	}
-#endif
-	if (!(word & (~0ul << (BITS_PER_LONG-16)))) {
-		num -= 16;
-		word <<= 16;
-	}
-	if (!(word & (~0ul << (BITS_PER_LONG-8)))) {
-		num -= 8;
-		word <<= 8;
-	}
-	if (!(word & (~0ul << (BITS_PER_LONG-4)))) {
-		num -= 4;
-		word <<= 4;
-	}
-	if (!(word & (~0ul << (BITS_PER_LONG-2)))) {
-		num -= 2;
-		word <<= 2;
-	}
-	if (!(word & (~0ul << (BITS_PER_LONG-1))))
-		num -= 1;
-	return num;
-}
-
 /**
  * fns - find N'th set bit in a word
  * @word: The word to search
@@ -1565,6 +1688,35 @@ static int convert_vermagic(unsigned char *vermagic_string, u8 *version, u8 *sub
 	}
 
 	return ret;
+}
+
+static void DumpHex(const void* data, size_t size) {
+	char ascii[17];
+	size_t i, j;
+	ascii[16] = '\0';
+	for (i = 0; i < size; ++i) {
+		printf("%02X ", ((unsigned char*)data)[i]);
+		if (((unsigned char*)data)[i] >= ' ' && ((unsigned char*)data)[i] <= '~') {
+			ascii[i % 16] = ((unsigned char*)data)[i];
+		} else {
+			ascii[i % 16] = '.';
+		}
+		if ((i+1) % 8 == 0 || i+1 == size) {
+			printf(" ");
+			if ((i+1) % 16 == 0) {
+				printf("|  %s \n", ascii);
+			} else if (i+1 == size) {
+				ascii[(i+1) % 16] = '\0';
+				if ((i+1) % 16 <= 8) {
+					printf(" ");
+				}
+				for (j = (i+1) % 16; j < 16; ++j) {
+					printf("   ");
+				}
+				printf("|  %s \n", ascii);
+			}
+		}
+	}
 }
 
 #endif

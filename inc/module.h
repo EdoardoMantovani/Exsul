@@ -23,24 +23,6 @@ struct ddebug_class_map {
 	/* last cacheline: 56 bytes */
 };
 
-struct exception_table_entry {
-	int                        insn;                 /*     0     4 */
-	int                        fixup;                /*     4     4 */
-	int                        data;                 /*     8     4 */
-
-	/* size: 12, cachelines: 1, members: 3 */
-	/* last cacheline: 12 bytes */
-};
-
-struct kernel_symbol {
-	int                        value_offset;         /*     0     4 */
-	int                        name_offset;          /*     4     4 */
-	int                        namespace_offset;     /*     8     4 */
-
-	/* size: 12, cachelines: 1, members: 3 */
-	/* last cacheline: 12 bytes */
-};
-
 struct mod_arch_specific {
 	u8 pad[16];
 

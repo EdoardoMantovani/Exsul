@@ -12,7 +12,7 @@ int ieee80211_register_hw(struct ieee80211_hw *hw){
 	enum nl80211_band band = NL80211_BAND_2GHZ;
 	struct cfg80211_chan_def dflt_chandef = {};
 	struct ieee80211_local *local = NULL;
-	struct ieee80211_ops *ops = NULL;
+	struct ieee80211_ops *ieee80211_ops = NULL;
 	struct wiphy *wiphy = NULL;
 
 	local = &director.ieee80211_local;
@@ -20,8 +20,8 @@ int ieee80211_register_hw(struct ieee80211_hw *hw){
 		ret = -EINVAL;
 		return ret;
 	}
-	ops = local->ops;
-	if(ops == NULL){
+	ieee80211_ops = local->ieee80211_ops;
+	if(ieee80211_ops == NULL){
 		ret = -EINVAL;
 		return ret;
 	}
@@ -40,17 +40,17 @@ int ieee80211_register_hw(struct ieee80211_hw *hw){
 		return ret;
 	}
 
-	if ((wiphy->features & NL80211_FEATURE_TDLS_CHANNEL_SWITCH) && (ops->tdls_channel_switch == NULL || ops->tdls_cancel_channel_switch == NULL || ops->tdls_recv_channel_switch == NULL)){
+	if ((wiphy->features & NL80211_FEATURE_TDLS_CHANNEL_SWITCH) && (ieee80211_ops->tdls_channel_switch == NULL || ieee80211_ops->tdls_cancel_channel_switch == NULL || ieee80211_ops->tdls_recv_channel_switch == NULL)){
 		ret = -EOPNOTSUPP;
 		return ret;
 	}
 
-	if (ieee80211_hw_check(hw, SUPPORTS_TX_FRAG) && ops->set_frag_threshold == NULL){
+	if (ieee80211_hw_check(hw, SUPPORTS_TX_FRAG) && ieee80211_ops->set_frag_threshold == NULL){
 		ret = -EINVAL;
 		return ret;
 	}
 
-	if (wiphy->interface_modes & BIT(NL80211_IFTYPE_NAN) && (ops->start_nan == NULL || ops->stop_nan == NULL)){
+	if (wiphy->interface_modes & BIT(NL80211_IFTYPE_NAN) && (ieee80211_ops->start_nan == NULL || ieee80211_ops->stop_nan == NULL)){
 		ret = -EINVAL;
 		return ret;
 	}
@@ -67,7 +67,7 @@ int ieee80211_register_hw(struct ieee80211_hw *hw){
 			return ret;
 		}
 
-		if (ops->link_info_changed == NULL){
+		if (ieee80211_ops->link_info_changed == NULL){
 			ret = -EINVAL;
 			return ret;
 		}
@@ -312,7 +312,7 @@ int ieee80211_register_hw(struct ieee80211_hw *hw){
 	/* Mac80211 and therefore all drivers using SW crypto only
 	 * are able to handle PTK rekeys and Extended Key ID.
 	 */
-	if (ops->set_key == NULL) {
+	if (ieee80211_ops->set_key == NULL) {
 		wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_CAN_REPLACE_PTK0);
 		wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_EXT_KEY_ID);
 	}
@@ -356,7 +356,7 @@ int ieee80211_register_hw(struct ieee80211_hw *hw){
 		}
 	}
 
-	if (ops->hw_scan == NULL) {
+	if (ieee80211_ops->hw_scan == NULL) {
 		/* For hw_scan, driver needs to set these up. */
 		wiphy->max_scan_ssids = 4;
 		wiphy->max_scan_ie_len = IEEE80211_MAX_DATA_LEN;
@@ -378,7 +378,7 @@ int ieee80211_register_hw(struct ieee80211_hw *hw){
 		goto fail_workqueue;
 	}
 
-	if (ops->remain_on_channel == NULL){
+	if (ieee80211_ops->remain_on_channel == NULL){
 		wiphy->max_remain_on_channel_duration = 5000;
 	}
 

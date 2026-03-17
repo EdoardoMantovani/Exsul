@@ -28,6 +28,297 @@ enum {
 	DRV_CMD_GET,
 };
 
+int __snprintf(char *buf, size_t size, const char *fmt, ...){
+        va_list args;
+        int i;
+
+        va_start(args, fmt);
+        i = vsnprintf(buf, size, fmt, args);
+        va_end(args);
+
+        return i;
+}
+
+int parse_module_usb_table(struct usb_device_id **id){
+	int ret = 0;
+	int usb_table_size = 0;
+	struct usb_device_id *p = NULL;
+
+	usb_table_size = fast_get_symbol(USB_TABLE_SYM_NAME, &p);
+	if(p == NULL || usb_table_size == 0){
+		ret = -ENOMEM;
+		return ret;
+	}
+
+	*id = p;
+	ret = (usb_table_size % sizeof(struct usb_device_id));
+	if(ret != 0){
+		printf("[!] usb device table symbol isn't aligned with the size of \'struct usb_device_id\', aborting...\n");
+		ret = -EINVAL;
+		return ret;
+	}
+
+	printf("-> usb devices detected for the current kernel module:\n");
+	for(u8 j = 0; ; j++){
+		if(p == NULL || p->idProduct == 0x00 || p->idVendor == 0x00){
+			break;
+		}
+		printf("[*] usb pid: 0x%08x vid: 0x%08x\n", p->idProduct, p->idVendor);
+		/* now add the pid/vid tuple into our main struct, this will be used later for the libusb device handling */
+		for(u8 k = 0; k < MAX_USB_DEV_LIST; k++){
+			if(director.usb_dev_list[k].is_used == false){
+				director.usb_dev_list[k].usb_vid = p->idVendor;
+				director.usb_dev_list[k].usb_pid = p->idProduct;
+				director.usb_dev_list[k].is_used = true;
+				#ifdef ADVANCED_USB_DEBUGGING
+				printf("entry %d usb_vid: 0x%08x usb_pid: 0x%08x is_used: %d\n",
+					k,
+					director.usb_dev_list[k].usb_vid,
+					director.usb_dev_list[k].usb_pid,
+					director.usb_dev_list[k].is_used);
+				#endif
+				break;
+			}
+		}
+		p++;
+	}
+
+	return ret;
+}
+
+#ifdef ADVANCED_USB_DEBUGGING
+void dump_usb_host_interface(struct usb_interface *intf){
+        if(intf == NULL){
+                return;
+        }
+        if(intf->altsetting == NULL){
+                return;
+        }
+        if(intf->altsetting->endpoint == NULL){
+                return;
+        }
+
+        for(u8 z = 0; z < intf->altsetting->desc.bNumEndpoints; z++){
+                printf("[DUMP] endpoint %d length %d\n", z, intf->altsetting->endpoint[z].desc.bLength);
+                printf("[DUMP] endpoint %d desc: %d\n", z, intf->altsetting->endpoint[z].desc.bDescriptorType);
+                printf("[DUMP] endpoint %d ep_addr: %d\n", z, intf->altsetting->endpoint[z].desc.bEndpointAddress);
+                printf("[DUMP] endpoint %d attributes: %d\n", z, intf->altsetting->endpoint[z].desc.bmAttributes);
+                printf("[DUMP] endpoint %d max pkt size: %d\n", z, intf->altsetting->endpoint[z].desc.wMaxPacketSize);
+                printf("[DUMP] endpoint %d interval: %d\n", z, intf->altsetting->endpoint[z].desc.bInterval);
+                printf("[DUMP] endpoint %d refresh: %d\n", z, intf->altsetting->endpoint[z].desc.bRefresh);
+                printf("[DUMP] endpoint %d sync address: %d\n", z, intf->altsetting->endpoint[z].desc.bSynchAddress);
+        }
+}
+#endif
+
+int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface **in_intf){
+        int ret = 0;
+        u8 in = 0;
+        u8 ep_is_bulk = 0;
+        u8 ep_is_intr = 0;
+        u8 ep_is_ctrl = 0;
+        u8 ep_is_isoc = 0;
+        u8 total_ep_num = 0;
+	u32 struct_device_sizeof = 0;
+	struct device *dev = NULL;
+	libusb_device *libusb_dev = NULL;
+        struct usb_interface *intf_ptr = NULL;
+        const struct libusb_interface *libusb_intf_ptr = NULL;
+        struct libusb_config_descriptor *cfg = NULL;
+        const struct libusb_interface_descriptor *alt = NULL;
+        const struct libusb_endpoint_descriptor *current_ep = NULL;
+
+        libusb_dev = libusb_get_device(handler);
+
+        if(libusb_dev == NULL){
+                printf("[!] failed to acquire libusb_device!\n");
+                ret = -EINVAL;
+                return ret;
+        }
+        ret = libusb_get_active_config_descriptor(libusb_dev, &cfg);
+        if(ret < 0){
+                printf("[!] failed to get libusb_config_descriptor!\n");
+                ret = -EINVAL;
+                return ret;
+        }
+#ifdef ADVANCED_USB_DEBUGGING
+        printf("[*] number of interfaces detected: %d\n", cfg->bNumInterfaces);
+#endif
+
+        intf_ptr = (struct usb_interface *)malloc(sizeof(struct usb_interface));
+        if(intf_ptr == NULL){
+                printf("[!] failed to allocate usb_interface!\n");
+                ret = -ENOMEM;
+                libusb_free_config_descriptor(cfg);
+                return ret;
+        }
+        memset(intf_ptr, 0, sizeof(struct usb_interface));
+
+        intf_ptr->altsetting = (struct usb_host_interface *)malloc(sizeof(struct usb_host_interface));
+        if(intf_ptr->altsetting == NULL){
+                printf("[!] failed to allocate usb_host_interface!\n");
+                free(intf_ptr);
+                ret = -ENOMEM;
+                libusb_free_config_descriptor(cfg);
+                return ret;
+        }
+        memset(intf_ptr->altsetting, 0, sizeof(struct usb_host_interface));
+
+        *in_intf = intf_ptr;
+
+        for(u8 j = 0; j < cfg->bNumInterfaces; j++){
+                libusb_intf_ptr = &cfg->interface[j];
+                if(libusb_intf_ptr == NULL){
+                        printf("[!] libusb_interface is null...aborting!\n");
+                        ret = -EINVAL;
+                        libusb_free_config_descriptor(cfg);
+                        return ret;
+                }else{
+#ifdef ADVANCED_USB_DEBUGGING
+                        printf("[*] interface %d has %d altsettings!\n", j, libusb_intf_ptr->num_altsetting);
+#endif
+                }
+
+                intf_ptr->num_altsetting = libusb_intf_ptr->num_altsetting;
+                intf_ptr->cur_altsetting = intf_ptr->altsetting;
+                for(u8 k = 0; k < libusb_intf_ptr->num_altsetting; k++){
+                        alt = &libusb_intf_ptr->altsetting[k];
+                        if(alt == NULL){
+#ifdef ADVANCED_USB_DEBUGGING
+				printf("[!] altsetting is null!\n");
+#endif
+                                ret = -EINVAL;
+                                libusb_free_config_descriptor(cfg);
+                                return ret;
+                        }
+#ifdef ADVANCED_USB_DEBUGGING
+                        printf("[*] total number of endpoints: 0x%02x\n", alt->bNumEndpoints);
+#endif
+			intf_ptr->altsetting->desc.bLength = alt->bLength;
+			intf_ptr->altsetting->desc.bDescriptorType = alt->bDescriptorType;
+			intf_ptr->altsetting->desc.bInterfaceNumber = alt->bInterfaceNumber;
+			intf_ptr->altsetting->desc.bAlternateSetting = alt->bAlternateSetting;
+			intf_ptr->altsetting->desc.bNumEndpoints = alt->bNumEndpoints;
+			intf_ptr->altsetting->desc.bInterfaceClass = alt->bInterfaceClass;
+			intf_ptr->altsetting->desc.bInterfaceSubClass = alt->bInterfaceSubClass;
+			intf_ptr->altsetting->desc.bInterfaceProtocol = alt->bInterfaceProtocol;
+			intf_ptr->altsetting->desc.iInterface = alt->iInterface;
+
+                        total_ep_num = alt->bNumEndpoints;
+
+                        intf_ptr->altsetting->endpoint = calloc(total_ep_num, sizeof(struct usb_host_endpoint));
+                        if(intf_ptr->altsetting->endpoint == NULL){
+                                printf("[!] failed to allocate endpoints!\n");
+                                ret = -ENOMEM;
+                                libusb_free_config_descriptor(cfg);
+                                return ret;
+                        }
+
+                        for(u8 z = 0; z < alt->bNumEndpoints; z++){
+                                current_ep = &alt->endpoint[z];
+#ifdef ADVANCED_USB_DEBUGGING
+                                in = ((current_ep->bEndpointAddress & USB_ENDPOINT_DIR_MASK) == USB_DIR_IN);
+                                ep_is_bulk = ((current_ep->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) == USB_ENDPOINT_XFER_BULK);
+                                ep_is_intr = ((current_ep->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) == USB_ENDPOINT_XFER_INT);
+                                ep_is_ctrl = ((current_ep->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) == USB_ENDPOINT_XFER_CONTROL);
+                                ep_is_isoc = ((current_ep->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) == USB_ENDPOINT_XFER_ISOC);
+                                printf("endpoint %d address: 0x%02x %s type ", z, current_ep->bEndpointAddress, in ? "IN" : "OUT");
+                                if(ep_is_bulk == true){
+                                        printf("bulk\n");
+                                }else if(ep_is_intr == true){
+                                        printf("interrupt\n");
+                                }else if(ep_is_ctrl == true){
+                                        printf("control\n");
+                                }else if(ep_is_isoc == true){
+                                        printf("isochronous\n");
+                                }
+#endif
+                                intf_ptr->altsetting->endpoint[z].desc.bLength = current_ep->bLength;
+                                intf_ptr->altsetting->endpoint[z].desc.bDescriptorType = current_ep->bDescriptorType;
+                                intf_ptr->altsetting->endpoint[z].desc.bEndpointAddress = current_ep->bEndpointAddress;
+                                intf_ptr->altsetting->endpoint[z].desc.bmAttributes = current_ep->bmAttributes;
+                                intf_ptr->altsetting->endpoint[z].desc.wMaxPacketSize = current_ep->wMaxPacketSize;
+                                intf_ptr->altsetting->endpoint[z].desc.bInterval = current_ep->bInterval;
+                                intf_ptr->altsetting->endpoint[z].desc.bRefresh = current_ep->bRefresh;
+                                intf_ptr->altsetting->endpoint[z].desc.bSynchAddress = current_ep->bSynchAddress;
+                        }
+                }
+        }
+
+#ifdef ADVANCED_USB_DEBUGGING
+	dump_usb_host_interface(*in_intf);
+#endif
+	/* last step: allocate a 'struct device' for usb_dev */
+	struct_device_sizeof = get_struct_size("device");
+	if(struct_device_sizeof == 0){
+		printf("[!] failed to retrieve the size for struct device!\n");
+		goto end;
+	}else{
+		printf("[*] size of struct device: %d\n", struct_device_sizeof);
+	}
+	intf_ptr->usb_dev = malloc(struct_device_sizeof);
+	/*
+	 * 'interface_to_usbdev' uses also .dev->parent, so we need to allocate both of them.
+	 */
+	dev = &intf_ptr->dev;
+	if(dev != NULL){
+		dev->parent = malloc(struct_device_sizeof);
+	}else{
+
+	}
+
+	end:
+        libusb_free_config_descriptor(cfg);
+        return ret;
+}
+
+/* main function for detecting the attached usb dongle, requires a full 'usb_dev_list' table */
+int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface **intf_out, const struct usb_device_id **matched_id_out){
+	int ret;
+	struct usb_interface *usb_intf = NULL;
+
+	for (struct usb_device_id *p = id_table; p && p->idVendor && p->idProduct; p++) {
+
+		director.usb_dev = libusb_open_device_with_vid_pid(NULL, p->idVendor, p->idProduct);
+		if (director.usb_dev == NULL){
+			continue;
+		}
+		ret = libusb_set_auto_detach_kernel_driver(director.usb_dev, 1);
+		if (ret < 0) {
+			libusb_close(director.usb_dev);
+			director.usb_dev = NULL;
+			continue;
+		}
+		/* alloc the usb_interface which will be passed to the '->probe' callback */
+		ret = parse_usb_and_alloc_intf(director.usb_dev, &usb_intf);
+		if (ret < 0) {
+			libusb_close(director.usb_dev);
+			director.usb_dev = NULL;
+			continue;
+		}
+
+		director.usb_interface_number = ret;
+
+		ret = libusb_claim_interface(director.usb_dev, director.usb_interface_number);
+		if (ret < 0) {
+			libusb_close(director.usb_dev);
+			director.usb_dev = NULL;
+			continue;
+		}
+
+		*intf_out = usb_intf;
+		*matched_id_out = p;
+		return ret;
+	}
+	return -ENODEV;
+}
+
+int invoke_usb_probe(struct usb_driver *new_driver, struct usb_device_id *id, struct usb_interface *intf){
+	int ret = 0;
+	new_driver->probe(intf, id);
+	return ret;
+}
+
 int dwarf_search_field(unsigned char *field_input_name, Dwarf_Debug dbg, Dwarf_Die struct_die){
 	int ret = 0;
 	int sibling = 0;
@@ -83,14 +374,16 @@ int dwarf_search_field(unsigned char *field_input_name, Dwarf_Debug dbg, Dwarf_D
 	return ret;
 }
 
-int dwarf_detect_struct(Dwarf_Debug dbg, Dwarf_Die die, unsigned char *struct_to_search, Dwarf_Die *struct_found){
+int dwarf_detect_struct(Dwarf_Debug dbg, Dwarf_Die die, unsigned char *struct_to_search, Dwarf_Die *struct_found, unsigned short *out_size){
 	int ret = 0;
 	Dwarf_Error err = 0;
 	Dwarf_Half tag = 0;
 	Dwarf_Die child = 0;
 	Dwarf_Die cur = 0;
 	Dwarf_Die sib = 0;
+	Dwarf_Unsigned struct_size = 0;
 	char *die_name = NULL;
+	Dwarf_Attribute size_attr = 0;
 
 	ret = dwarf_tag(die, &tag, &err);
 	if (ret != DW_DLV_OK){
@@ -99,8 +392,25 @@ int dwarf_detect_struct(Dwarf_Debug dbg, Dwarf_Die die, unsigned char *struct_to
 	}
 
 	if (tag == DW_TAG_structure_type) {
+		/* find the 'DW_AT_NAME' used for the struct name*/
 		ret = dwarf_diename(die, &die_name, &err);
 		if (ret == DW_DLV_OK && die_name && strcmp(die_name, (char *)struct_to_search) == 0) {
+			/* update:
+			 * after my analysis on 'dwarfdump', I noticed that for finding the *total*
+			 * size of the struct encoded in the dwarf format, I can extract the 'DW_AT_byte_size'
+			 * field.
+			 */
+			ret = dwarf_attr(die, DW_AT_byte_size, &size_attr, &err);
+			if(ret == DW_DLV_OK){
+				ret = dwarf_formudata(size_attr, &struct_size, &err);
+				dwarf_dealloc(dbg, size_attr, DW_DLA_ATTR);
+				if(ret == DW_DLV_OK){
+				#ifdef ENABLE_DBG_PRINT
+					printf("[*] struct %s size: %d\n", die_name, struct_size);
+				#endif
+					*out_size = struct_size;
+				}
+			}
 			*struct_found = die;
 			ret = true;
 			return ret;
@@ -115,7 +425,7 @@ int dwarf_detect_struct(Dwarf_Debug dbg, Dwarf_Die die, unsigned char *struct_to
 
 	cur = child;
 	for (;;) {
-		ret = dwarf_detect_struct(dbg, cur, struct_to_search, struct_found);
+		ret = dwarf_detect_struct(dbg, cur, struct_to_search, struct_found, out_size);
 		if (ret == true) {
 			if (*struct_found != cur){
 				dwarf_dealloc(dbg, cur, DW_DLA_DIE);
@@ -139,7 +449,7 @@ int dwarf_detect_struct(Dwarf_Debug dbg, Dwarf_Die die, unsigned char *struct_to
 	return ret;
 }
 
-int dwarf_loader_parser(unsigned char *struct_to_search, unsigned char *field_to_search, unsigned short *field_offset){
+int dwarf_loader_parser(unsigned char *struct_to_search, unsigned char *field_to_search, unsigned short *field_offset, unsigned short *out_size){
 	int ret = 0;
 	int fd = -1;
 	Dwarf_Debug dbg = 0;
@@ -178,7 +488,7 @@ int dwarf_loader_parser(unsigned char *struct_to_search, unsigned char *field_to
 			continue;
 		}
 
-		if (dwarf_detect_struct(dbg, cu_die, struct_to_search, &found)) {
+		if (dwarf_detect_struct(dbg, cu_die, struct_to_search, &found, out_size)) {
 			dwarf_dealloc(dbg, cu_die, DW_DLA_DIE);
 			break;
 		}
@@ -262,12 +572,18 @@ int parse_module_offset_table(void){
 			if(current_struct_fields[k].field_name == NULL){
 				break;
 			}
-			ret = dwarf_loader_parser(runtime_struct_layout->struct_name, current_struct_fields[k].field_name, &current_struct_fields[k].field_offset);
+			ret = dwarf_loader_parser(
+				runtime_struct_layout->struct_name,
+				current_struct_fields[k].field_name,
+				&current_struct_fields[k].field_offset,
+				&runtime_struct_layout->struct_size);
 			if(ret > 0 && director.global_conf.show_struct_offset == true){
-				printf("  - %s->%s offset: %d\n",
+				printf("  - %s->%s offset: %d original struct size: %d\n",
 					runtime_struct_layout->struct_name,
 					current_struct_fields[k].field_name,
-					current_struct_fields[k].field_offset);
+					current_struct_fields[k].field_offset,
+					runtime_struct_layout->struct_size
+				);
 			}
 		}
 	}
@@ -401,12 +717,16 @@ static int elf_validity_cache_copy(struct load_info *info, int flags) {
 				   ".gnu.linkonce.this_module") == 0) {
 				num_mod_secs++;
 				mod_idx = i;
+#ifdef ENABLE_DBG_PRINT
 				printf("detected .gnu.linkonce.this_module\n");
+#endif
 			} else if (strcmp(info->secstrings + shdr->sh_name,
 					  ".modinfo") == 0) {
 				num_info_secs++;
 				info_idx = i;
+#ifdef ENABLE_DBG_PRINT
 				printf("detected .modinfo\n");
+#endif
 			}
 			if (shdr->sh_flags & SHF_ALLOC) {
 				if (shdr->sh_name >= strhdr->sh_size) {
@@ -421,7 +741,9 @@ static int elf_validity_cache_copy(struct load_info *info, int flags) {
 	}
 
 	if (num_info_secs > 1) {
+		#ifdef ENABLE_DBG_PRINT
 		printf("Only one .modinfo section must exist.\n");
+		#endif
 		goto no_exec;
 	} else if (num_info_secs == 1) {
 		/* Try to find a name early so we can log errors with a module
@@ -437,37 +759,49 @@ static int elf_validity_cache_copy(struct load_info *info, int flags) {
 		       info->sechdrs[info->index.str].sh_offset;
 
 	if (num_mod_secs != 1) {
+		#ifdef ENABLE_DBG_PRINT
 		printf("module %s: Only one .gnu.linkonce.this_module section "
 		       "must exist.\n",
 		       info->name
 			   ?: "(missing .modinfo section or name field)");
+		#endif
 		goto no_exec;
 	}
 
 	shdr = &info->sechdrs[mod_idx];
 
 	if (shdr->sh_type == SHT_NOBITS) {
+		#ifdef ENABLE_DBG_PRINT
 		printf("module %s: .gnu.linkonce.this_module section must have "
 		       "a size set\n",
 		       info->name
 			   ?: "(missing .modinfo section or name field)");
+		#endif
 		goto no_exec;
 	}
 
 	if (!(shdr->sh_flags & SHF_ALLOC)) {
+		#ifdef ENABLE_DBG_PRINT
 		printf("module %s: .gnu.linkonce.this_module must occupy "
 		       "memory during process execution\n",
 		       info->name
 			   ?: "(missing .modinfo section or name field)");
+		#endif
 		goto no_exec;
 	}
 
-	if (shdr->sh_size != sizeof(struct module)) {
-		printf(
-		    "module %s: .gnu.linkonce.this_module section size must "
-		    "match the kernel's built struct module size at run time\n",
-		    info->name ?: "(missing .modinfo section or name field)");
-	}
+	/* disable the check of the .this_module section */
+
+	/*
+	 * if (shdr->sh_size != sizeof(struct module)) {
+	 *	#ifdef ENABLE_DBG_PRINT
+	 *	printf(
+	 *	    "module %s: .gnu.linkonce.this_module section size must "
+	 *	    "match the kernel's built struct module size at run time\n",
+	 *	    info->name ?: "(missing .modinfo section or name field)");
+	 *	#endif
+	 * }
+	 */
 
 	info->index.mod	 = mod_idx;
 	info->mod	 = (void *)info->hdr + shdr->sh_offset;
@@ -515,13 +849,14 @@ static inline bool within_module_mem_type(unsigned long	       addr,
 int module_enforce_rwx_sections(Elf(Ehdr) * hdr, Elf(Shdr) * sechdrs,
 				char *secstrings, struct module *mod) {
 	const unsigned long shf_wx = SHF_WRITE | SHF_EXECINSTR;
-	int		    i	   = 0;
 
-	for (i = 0; i < hdr->e_shnum; i++) {
+	for (int i = 0; i < hdr->e_shnum; i++) {
 		if ((sechdrs[i].sh_flags & shf_wx) == shf_wx) {
+			#ifdef ENABLE_DBG_PRINT
 			printf("%s: section %s (index %d) has invalid "
 			       "WRITE|EXEC flags\n",
 			       mod->name, secstrings + sechdrs[i].sh_name, i);
+			#endif
 			return -ENOEXEC;
 		}
 	}
@@ -607,7 +942,9 @@ static void __layout_sections(struct module *mod, struct load_info *info,
 
 			s->sh_entsize =
 			    module_get_offset_and_type(mod, type, s, i);
+#ifdef ENABLE_DBG_PRINT
 			printf("%s\n", sname);
+#endif
 		}
 
 	}
@@ -619,10 +956,14 @@ static void layout_sections(struct module *mod, struct load_info *info) {
 		info->sechdrs[i].sh_entsize = ~0UL;
 	}
 
+#ifdef ENABLE_DBG_PRINT
 	printf("Core section allocation order for %s:\n", mod->name);
+#endif
 	__layout_sections(mod, info, false);
 
+#ifdef ENABLE_DBG_PRINT
 	printf("Init section allocation order for %s:\n", mod->name);
+#endif
 	__layout_sections(mod, info, true);
 	return;
 }
@@ -653,9 +994,6 @@ static void module_memory_free(struct module *mod, enum mod_mem_type type,
 	if (mod_mem_type_is_core_data(type)) {
 		return;
 	}
-
-	// TOOD
-	//      munmap(ptr);
 }
 
 static int move_module(struct module *mod, struct load_info *info) {
@@ -679,7 +1017,9 @@ static int move_module(struct module *mod, struct load_info *info) {
 		}
 	}
 
+#ifdef ENABLE_DBG_PRINT
 	printf("Final section addresses for %s:\n", mod->name);
+#endif
 	for (i = 0; i < info->hdr->e_shnum; i++) {
 		dest = NULL;
 		shdr = &info->sechdrs[i];
@@ -696,8 +1036,10 @@ static int move_module(struct module *mod, struct load_info *info) {
 			memcpy(dest, (void *)shdr->sh_addr, shdr->sh_size);
 		}
 		shdr->sh_addr = (unsigned long)dest;
+#ifdef ENABLE_DBG_PRINT
 		printf("\t0x%lx 0x%.8lx %s\n", (long)shdr->sh_addr,
 		       (long)shdr->sh_size, info->secstrings + shdr->sh_name);
+#endif
 	}
 
 	return 0;
@@ -742,7 +1084,9 @@ void layout_symtab(struct module *mod, struct load_info *info) {
 	symsect->sh_flags |= SHF_ALLOC;
 	symsect->sh_entsize = module_get_offset_and_type(
 	    mod, MOD_INIT_DATA, symsect, info->index.sym);
+	#ifdef ENABLE_DBG_PRINT
 	printf("\t%s\n", info->secstrings + symsect->sh_name);
+	#endif
 
 	src  = (void *)info->hdr + symsect->sh_offset;
 	nsrc = symsect->sh_size / sizeof(*src);
@@ -767,7 +1111,9 @@ void layout_symtab(struct module *mod, struct load_info *info) {
 	strsect->sh_flags |= SHF_ALLOC;
 	strsect->sh_entsize = module_get_offset_and_type(
 	    mod, MOD_INIT_DATA, strsect, info->index.str);
+	#ifdef ENABLE_DBG_PRINT
 	printf("\t%s\n", info->secstrings + strsect->sh_name);
+	#endif
 
 	mod_mem_init_data->size =
 	    ALIGN(mod_mem_init_data->size, __alignof__(struct mod_kallsyms));
@@ -802,14 +1148,18 @@ static struct module *layout_and_allocate(struct load_info *info, int flags) {
 	ndx = find_sec(info, ".data..ro_after_init");
 
 	if (ndx) {
+		#ifdef ENABLE_DBG_PRINT
 		printf("section %s found!\n", ".data..ro_after_init");
+		#endif
 		info->sechdrs[ndx].sh_flags |= SHF_RO_AFTER_INIT;
 	}
 
 	ndx = find_sec(info, "__jump_table");
 
 	if (ndx) {
+		#ifdef ENABLE_DBG_PRINT
 		printf("section %s found!\n", "__jump_table");
+		#endif
 		info->sechdrs[ndx].sh_flags |= SHF_RO_AFTER_INIT;
 	}
 
@@ -907,7 +1257,9 @@ static int find_module_sections(struct module *mod, struct load_info *info) {
 				    &mod->num_exentries);
 
 	if (section_addr(info, "__obsparm")) {
+		#ifdef ENABLE_DBG_PRINT
 		printf("%s: Ignoring obsolete parameters\n", mod->name);
+		#endif
 	}
 
 	#ifdef ENABLE_DYNDBG
@@ -965,12 +1317,16 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 			if (!strncmp(name, "__gnu_lto", 9)) {
 				break;
 			}
+#ifdef ENABLE_DBG_PRINT
 			printf("Common symbol: %s\n", name);
+#endif
 			ret = -ENOEXEC;
 			break;
 		case SHN_ABS:
+#ifdef ENABLE_DBG_PRINT
 			printf("Absolute symbol:  0x%08lx %s\n",
 			       (long)sym[i].st_value, name);
+#endif
 			break;
 		case SHN_UNDEF:
 			void *target = NULL;
@@ -989,7 +1345,9 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 				target	   = dlsym(dlopen_ctx, (char *)name);
 			}
 			if (target == NULL) {
-				printf("missing function: %s\n", name);
+#ifdef ENABLE_DBG_PRINT
+				printf("[!] missing function: %s\n", name);
+#endif
 				ret = -ENOEXEC;
 				break;
 			}
@@ -999,21 +1357,23 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 			if (ELF64_ST_TYPE(sym[i].st_info) == STT_FUNC) {
 				trampoline = x86_64_make_trampoline(target);
 				if (trampoline == NULL) {
+					#ifdef ENABLE_DBG_PRINT
 					printf(
-					    "trampoline alloc failed for %s\n",
+					    "[!] trampoline alloc failed for %s\n",
 					    name);
+					#endif
 					ret = -ENOMEM;
 					break;
 				}
 				sym[i].st_value = (Elf64_Addr)(uintptr_t)trampoline;
 #ifdef ENABLE_DBG_PRINT
-				printf("resolved %-24s target=%p tramp=%p\n",
+				printf("- resolved %-24s target=%p tramp=%p\n",
 				       name, target, trampoline);
 #endif
-			} else {
+			}else{
 				sym[i].st_value = (Elf64_Addr)(uintptr_t)target;
 #ifdef ENABLE_DBG_PRINT
-				printf("resolved %-24s target=%p\n",
+				printf("- resolved %-24s target=%p\n",
 				       name, target);
 #endif
 			}
@@ -1033,7 +1393,7 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
                          * if we have a function which is defined inside this module, add it to the internal symbol table, this will permit
                          * to resolve the relocations when we will have multi-modules dependencies
                          */
-                        if (ELF64_ST_TYPE(sym[i].st_info) == STT_FUNC && strcmp(name, "cleanup_module") != 0 && strcmp(name, "init_module") != 0) {
+                        if ((ELF64_ST_TYPE(sym[i].st_info) == STT_FUNC || ELF64_ST_TYPE(sym[i].st_info) == STT_OBJECT) && strcmp(name, "cleanup_module") != 0 && strcmp(name, "init_module") != 0) {
                                 for (int j = 0; sym_table[j].function_ptr != NULL; j++){
                                         if((j + 1 ) >= ARRAY_SIZE(sym_table)){
                                                 break;
@@ -1042,6 +1402,7 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
                                                 /* insert the function and it's name */
                                                 sym_table[j + 1].function_ptr  = sym[i].st_value;
                                                 sym_table[j + 1].function_name = strdup(name);
+						sym_table[j + 1].function_size = sym[i].st_size;
 						director.total_memory_used += strlen(name);
                                                 break;
                                         }
@@ -1069,7 +1430,9 @@ static int apply_relocations(struct module *mod, const struct load_info *info) {
 		}
 
 		if (info->sechdrs[i].sh_flags & SHF_RELA_LIVEPATCH) {
+#ifdef ENABLE_DBG_PRINT
 			printf("LIVEPATCH not supported!\n");
+#endif
 			return err;
 		}
 
@@ -1206,13 +1569,12 @@ static inline bool within_module_coretext(void *addr) {
 	bool	       ret = false;
 	struct module *mod = NULL;
 
-	/**
-	mod = __module_address((unsigned long)addr);
-	if (mod && within_module_core((unsigned long)addr, mod)){
-		ret = true;
-	}
-
-	**/
+	/*
+	 * mod = __module_address((unsigned long)addr);
+	 * if (mod && within_module_core((unsigned long)addr, mod)){
+	 *	ret = true;
+	 * }
+	 */
 
 	return ret;
 }
@@ -1227,8 +1589,7 @@ static bool is_coretext(const struct core_text *ct, void *addr) {
 
 void sort_extable(struct exception_table_entry *start,
 		  struct exception_table_entry *finish) {
-	// sort(start, finish - start, sizeof(struct exception_table_entry),
-	// cmp_ex_sort, swap_ex);
+	/* do nothing */
 }
 
 static int post_relocation(struct module *mod, const struct load_info *info) {
@@ -1266,7 +1627,9 @@ static int module_set_memory(const struct module *mod, enum mod_mem_type type) {
 		mprotect_perm = PROT_READ | PROT_EXEC | PROT_WRITE;
 		break;
 	default:
+#ifdef ENABLE_DBG_PRINT
 		printf("[!] unknown memory type: %d\n", type);
+#endif
 		return 0;
 	}
 
@@ -1399,10 +1762,12 @@ static int do_init_module(struct module *mod) {
 	}
 
 	if (ret > 0) {
+#ifdef ENABLE_DBG_PRINT
 		printf("%s: '%s'->init suspiciously returned %d, it should "
 		       "follow 0/-E convention\n"
 		       "%s: loading module anyway...\n",
 		       __FUNCTION__, mod->name, ret, __FUNCTION__);
+#endif
 	}
 
 	mod->state = MODULE_STATE_LIVE;
@@ -1603,21 +1968,118 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 int initialize_director(struct module_controller *director, struct load_info **info) {
 	int ret = 0;
 
-	director->libusb_ret = libusb_init(NULL);
-	if (director->libusb_ret < 0) {
+	director->runtime_generated_structs = &runtime_generated_structs;
+        director->info = malloc(sizeof(struct load_info));
+        if (director->info == NULL){
+                ret = -ENOMEM;
+                return ret;
+        }
+
+	*info = director->info;
+	return ret;
+}
+
+int fast_drv_load(struct module_controller *director, char *module_name) {
+	int ret = 0;
+	struct load_info *load_info = NULL;
+
+	if(module_name == NULL){
 		ret = -EINVAL;
 		return ret;
 	}
 
-	director->internal_cb_table = &sym_table;
-
-	director->info = malloc(sizeof(struct load_info));
-	if (director->info == NULL){
-		ret = -ENOMEM;
+	if(strlen(module_name) < MODULE_INPUT_MIN_LEN){
+		printf("[!] module %s too short!\n", module_name);
+		ret = -EINVAL;
 		return ret;
 	}
 
-	*info = director->info;
+	ret = initialize_director(director, &load_info);
+	if (ret) {
+		printf("[!] failed to initialize the main context!\n");
+		return ret;
+	}
+
+	/* now call the main driver loading function */
+	ret = module_init(module_name, NULL, load_info);
+	return ret;
+}
+
+/* get the symbol pointer and it's size */
+int fast_get_symbol(unsigned char *sym_name, void **sym_addr){
+	int ret = 0;
+	unsigned char *current_function_name = NULL;
+
+	for (u16 i = 0; ; i++) {
+		if(sym_table[i + 1].function_name == NULL){
+			break;
+		}
+		current_function_name = sym_table[i].function_name;
+		if(strstr(current_function_name, sym_name) != NULL){
+			if(sym_table[i].function_size != 0){
+				ret = sym_table[i].function_size;
+			}
+			*sym_addr = (void *)sym_table[i].function_ptr;
+			break;
+		}
+	}
+	return ret;
+}
+
+/* do the opposite of the function above: given a function pointer, retrieve it's name */
+int fast_get_name(void *sym_addr, unsigned char **sym_name){
+	int ret = 0;
+
+	for (u16 i = 0; ; i++) {
+		if(sym_table[i + 1].function_name == NULL){
+			break;
+		}
+		if(sym_addr == sym_table[i].function_ptr){
+			if(sym_table[i].function_size != 0){
+				ret = sym_table[i].function_size;
+			}
+			*sym_name = sym_table[i].function_name;
+			break;
+		}
+	}
+	return ret;
+}
+
+int fast_execute_function(unsigned char *function_name){
+	int ret = 0;
+	u8 found = false;
+	int (*fn)(void) = NULL;
+	unsigned char *ptr = NULL;
+	unsigned char *current_function_name = NULL;
+
+	/* call the function */
+	for (unsigned int i = 0; ; i++) {
+		current_function_name = sym_table[i].function_name;
+
+		if (current_function_name == NULL || current_function_name[0] == '\0'){
+			continue;
+		}
+		if (strcmp(current_function_name, function_name) == 0) {
+			found = true;
+			fn = (int (*)(void))(uintptr_t)sym_table[i].function_ptr;
+			ptr = (unsigned char *)fn;
+			if (ptr[0] == 0xE8) {
+				int32_t disp = *(int32_t *)(ptr + 1);
+				void   *tgt  = ptr + 5 + disp;
+			}
+
+			/* mark the module execution */
+			printf("--------------------------\n");
+			ret = fn();
+			printf("%s returned %d\n", function_name, ret);
+		}
+		if(sym_table[i + 1].function_name == NULL){
+			break;
+		}
+	}
+	if(found == false){
+		printf("[!] failed to execute function '%s'\n", function_name);
+	}
 	return ret;
 }
 
@@ -1706,7 +2168,7 @@ int drv_cmd_load(struct module_controller *director, char *argv[], int num_args)
 		return ret;
 	}
 
-	ret = initialize_director(&director, &load_info);
+	ret = initialize_director(director, &load_info);
 	if (ret) {
 		printf("[!] failed to initialize the main context!\n");
 		return ret;
@@ -1748,6 +2210,7 @@ int drv_cmd_stop(struct module_controller *director, char *argv[], int num_args)
 /* given a kernel module name registered in the system and the init function, run it, this permits to loads different symbols from every loaded driver into the memory */
 int drv_cmd_run(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
+	u8 found = false;
 	int (*fn)(void) = NULL;
 	unsigned char *ptr = NULL;
 	unsigned char *module_name = NULL;
@@ -1774,8 +2237,8 @@ int drv_cmd_run(struct module_controller *director, char *argv[], int num_args) 
 		if (current_function_name == NULL || current_function_name[0] == '\0'){
 			continue;
 		}
-
 		if (strcmp((char *)module_function, current_function_name) == 0) {
+			found = true;
 			fn = (int (*)(void))(uintptr_t)sym_table[i].function_ptr;
 			ptr = (unsigned char *)fn;
 			if (ptr[0] == 0xE8) {
@@ -1788,6 +2251,12 @@ int drv_cmd_run(struct module_controller *director, char *argv[], int num_args) 
 			ret = fn();
 			printf("%s returned %d\n", module_function, ret);
 		}
+		if(sym_table[i + 1].function_name == NULL){
+			break;
+		}
+	}
+	if(found == false){
+		printf("[!] failed to execute function '%s'\n", module_function);
 	}
 	return ret;
 }
@@ -1815,7 +2284,11 @@ int drv_cmd_get(struct module_controller *director, char *argv[], int num_args) 
 	/* list every symbols in the current loaded system */
 	if(strstr(get_req, "sym") != NULL){
 		for(u32 sym_idx = 0; sym_table[sym_idx].function_ptr != NULL; sym_idx++){
-			printf("sym %d name: %s address: 0x%08x\n", sym_idx, sym_table[sym_idx].function_name, sym_table[sym_idx].function_ptr);
+			printf("sym %d name: %s address: 0x%08x", sym_idx, sym_table[sym_idx].function_name, sym_table[sym_idx].function_ptr);
+			if(sym_table[sym_idx].function_size != 0){
+				printf(" size: %d", sym_table[sym_idx].function_size);
+			}
+			printf("\n");
 		}
 	}
 	if(strstr(get_req, "mem") != NULL){
@@ -1826,9 +2299,9 @@ int drv_cmd_get(struct module_controller *director, char *argv[], int num_args) 
 
 int main(int argc, char *argv[], char *envp[]) {
 	int	       ret	     = 0;
+	int            fd            = 0;
 	char           line[64]      = {};
 	unsigned char *drv_arg[5]    = {};
-	unsigned char *lkm_name	     = NULL;
 	unsigned char *function_name = NULL;
 
 	struct cmd_table_entry dispatch_cmd_table[] = {
@@ -1885,6 +2358,33 @@ int main(int argc, char *argv[], char *envp[]) {
 			.cmd_ptr  = drv_cmd_get,
 		},
 	};
+
+	director.internal_cb_table = &sym_table;
+	libusb_init(NULL);
+
+	/* add a fast loading option: if the user insert as argv 1 or more '.ko', load them in the order given */
+	if(strstr(argv[1], ".ko") != NULL){
+		for(u8 argv_idx = 1; argv[argv_idx] != NULL; argv_idx++){
+			/* add a new fast option: if there is only 1 name without .ko, assume it is the function that needs to be executed */
+			if(argv_idx != 1 && strstr(argv[argv_idx], ".ko") == NULL){
+				function_name = argv[argv_idx];
+				continue;
+			}
+			fd = open(argv[argv_idx], O_RDONLY);
+			if(fd < 0){
+				printf("[!] file '%s' not found!\n", argv[argv_idx]);
+				break;
+			}else{
+				close(fd);
+			}
+			printf("[*] loading %s\n", argv[argv_idx]);
+			ret = fast_drv_load(&director, argv[argv_idx]);
+		}
+		/* call the function if inserted by the user */
+		if(function_name != NULL){
+			ret = fast_execute_function(function_name);
+		}
+	}
 
 	while (true) {
 		printf("> ");

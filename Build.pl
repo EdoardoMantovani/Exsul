@@ -2,7 +2,7 @@
 
 # Made by Edoardo Mantovani, 2026
 # Rewritten with safer local alias inference and guarded field replacement.
-# version 1.0.6 (14 March 2026)
+# version 1.0.7 (16 March 2026)
 
 use strict;
 use warnings;
@@ -77,7 +77,7 @@ my $struct_field_counter = 0;
 my $struct_name_counter = 0;
 my $total_struct_number = 0;
 my $current_struct_field_num = 0;
-# permits to define the maximun number of the symbols that can be supported by the kernel module loader
+# permits to define the maximun number of the symbols that can be supported by the kernel module loader, unsure if maintain or not.
 my $sym_total_entries = 0;
 
 my @sources = ();
@@ -91,11 +91,11 @@ my %struct_set = ();
 my %used_fields_by_struct = ();
 
 my @gcc_params = (
-	"-DENABLE_DBG_PRINT",
 	"-DARCH_INDEPENDENT_BITOPS",
 	"-DCONFIG_PM",
 	"-O2",
 	"-w",
+	"-fno-omit-frame-pointer",
 	"-I$arch",
 	"-march=native",
 	"-mtune=native",
@@ -137,143 +137,223 @@ my %struct_whitelist = (
 	"fops"		=> "file_operations",
 	"netdev"	=> "net_device",
 	"intf"		=> "usb_interface",
+	"ieee80211_ops" => "ieee80211_ops",
 );
 
 my %field_ctype = (
 	module => {
-		"mem"			=> "struct module_memory",
-		"crcs"			=> "u32 *",
-		"gpl_crcs"		=> "u32 *",
-		"num_gpl_syms"		=> "unsigned int",
-		"num_exentries"		=> "unsigned int",
-		"args"			=> "char *",
-		"ctors"			=> "void *",
-		"exit"			=> "void *",
-		"name"			=> "char",
-		"build_id"		=> "char",
-		"sig_ok"		=> "bool",
-		"status"		=> "unsigned int",
-		"aborted"		=> "bool",
-		"kp"			=> "struct kernel_param *",
-		"num_kp"		=> "unsigned int",
-		"syms"			=> "struct kernel_symbol *",
-		"kallsyms"		=> "struct mod_kallsyms *",
-		"core_kallsyms"		=> "struct mod_kallsyms",
+		"mem"				=> "struct module_memory",
+		"crcs"				=> "u32 *",
+		"gpl_crcs"			=> "u32 *",
+		"num_gpl_syms"			=> "unsigned int",
+		"num_syms"			=> "unsigned int",
+		"num_exentries"			=> "unsigned int",
+		"args"				=> "char *",
+		"ctors"				=> "void *",
+		"exit"				=> "void *",
+		"name"				=> "char",
+		"build_id"			=> "char",
+		"sig_ok"			=> "bool",
+		"status"			=> "unsigned int",
+		"aborted"			=> "bool",
+		"kp"				=> "struct kernel_param *",
+		"num_kp"			=> "unsigned int",
+		"syms"				=> "struct kernel_symbol *",
+		"gpl_syms"			=> "struct kernel_symbol *",
+		"extable"			=> "struct exception_table_entry *",
+		"noinstr_text_start"		=> "void *",
+		"noinstr_text_size"		=> "unsigned int",
+		"dyndbg_info"			=> "void *",
+		"percpu"			=> "void *",
+		"init"				=> "void *",
+		"state"				=> "unsigned int",
+		"kallsyms"			=> "struct mod_kallsyms *",
+		"core_kallsyms"			=> "struct mod_kallsyms",
 	},
 	sk_buff => {
-		"len"                   => "unsigned int",
-		"data_len"              => "unsigned int",
-		"mac_len"               => "__u16",
-		"hdr_len"               => "__u16",
-		"next"                  => "struct sk_buff *",
-		"prev"                  => "struct sk_buff *",
-		"tail"                  => "sk_buff_data_t",
-		"end"                   => "sk_buff_data_t",
-		"head"                  => "unsigned char *",
-		"data"                  => "unsigned char *",
-		"cb"			=> "char",
-		"queue_mapping"		=> "u16",
-		"pkt_type"		=> "u8",
-		"unreadable"            => "u8",
-		"csum"			=> "__wsum",
-		"hash"			=> "u32",
-		"protocol"		=> "be16",
-		"inner_protocol"        => "be16",
-		"inner_protocol_type"   => "u8",
-		"inner_ipproto"         => "u8",
-		"inner_mac_header"      => "u16",
-		"inner_network_header"  => "u16",
-		"inner_transport_header"=> "u16",
-		"transport_header"      => "u16",
-		"network_header"        => "u16",
-		"mac_header"            => "u16",
-		"dev"                   => "void *",
-		"queue_mapping"         => "unsigned int",
-		"reserved_tailroom"     => "unsigned int",
-		"destructor"            => "void *",
+		"len"                   	=> "unsigned int",
+		"data_len"              	=> "unsigned int",
+		"mac_len"               	=> "u16",
+		"hdr_len"               	=> "u16",
+		"next"                 	 	=> "struct sk_buff *",
+		"prev"                  	=> "struct sk_buff *",
+		"tail"                  	=> "sk_buff_data_t",
+		"end"                   	=> "sk_buff_data_t",
+		"head"                  	=> "unsigned char *",
+		"data"                  	=> "unsigned char *",
+		"cb"				=> "char",
+		"queue_mapping"			=> "u16",
+		"pkt_type"			=> "u8",
+		"unreadable"            	=> "u8",
+		"csum"				=> "__wsum",
+		"hash"				=> "u32",
+		"protocol"			=> "be16",
+		"inner_protocol"        	=> "be16",
+		"inner_protocol_type"   	=> "u8",
+		"inner_ipproto"         	=> "u8",
+		"inner_mac_header"      	=> "u16",
+		"inner_network_header"  	=> "u16",
+		"inner_transport_header"	=> "u16",
+		"transport_header"      	=> "u16",
+		"network_header"        	=> "u16",
+		"mac_header"            	=> "u16",
+		"dev"                   	=> "void *",
+		"queue_mapping"         	=> "unsigned int",
+		"reserved_tailroom"     	=> "unsigned int",
+		"destructor"            	=> "void *",
 	},
 	sk_buff_head => {
-		"next"			=> "struct sk_buff *",
-		"prev"			=> "struct sk_buff *",
-		"qlen"			=> "unsigned int",
+		"next"				=> "struct sk_buff *",
+		"prev"				=> "struct sk_buff *",
+		"qlen"				=> "unsigned int",
 	},
 	skb_shared_info => {
-		"flags"			=> "unsigned char",
-		"frag_list"		=> "struct sk_buff *",
-		"destructor_arg"	=> "void *",
+		"flags"				=> "unsigned char",
+		"frag_list"			=> "struct sk_buff *",
+		"destructor_arg"		=> "void *",
 	},
 	urb => {
-		"kref"			=> "struct kref",
-		"urb_list"		=> "struct list_head",
-		"anchor_list"		=> "struct list_head",
-		"ep"			=> "struct usb_host_endpoint *",
-		"pipe"			=> "unsigned int",
-		"transfer_flags"	=> "unsigned int",
-		"transfer_buffer"	=> "void *",
-		"anchor"		=> "struct usb_anchor *",
-		"context"		=> "void *",
+		"kref"				=> "struct kref",
+		"urb_list"			=> "struct list_head",
+		"anchor"			=> "struct usb_anchor *",
+		"anchor_list"			=> "struct list_head",
+		"dev"				=> "struct usb_device *",
+		"ep"				=> "struct usb_host_endpoint *",
+		"pipe"				=> "unsigned int",
+		"transfer_flags"		=> "unsigned int",
+		"transfer_buffer"		=> "void *",
+		"anchor"			=> "struct usb_anchor *",
+		"context"			=> "void *",
+		"setup_packet"			=> "unsigned char *",
+		"setup_dma"			=> "u64",
+		"iso_frame_desc"		=> "struct usb_iso_packet_descriptor",
+		"complete"			=> "void *", # should be a callback but use a void pointer for now
 	},
 	usb_device => {
-		"ep0"			=> "struct usb_host_endpoint",
-		"descriptor"		=> "struct usb_device_descriptor",
-		"bos"			=> "struct usb_host_bos *",
-		"config"		=> "struct usb_host_config *",
-		"actconfig"		=> "struct usb_host_config *",
-		"dev"			=> "void *",
-		"kobj"			=> "void *",
+		"ep0"				=> "struct usb_host_endpoint",
+		"descriptor"			=> "struct usb_device_descriptor",
+		"bos"				=> "struct usb_host_bos *",
+		"config"			=> "struct usb_host_config *",
+		"actconfig"			=> "struct usb_host_config *",
+		"dev"				=> "void *",
+		"kobj"				=> "void *",
+		"ep_in"				=> "struct usb_host_endpoint *",
+		"ep_out"			=> "struct usb_host_endpoint *",
+		"tt"				=> "struct usb_tt *", # probably will be a "never used" struct
+	},
+	rate_info => {
+		"bw"				=> "unsigned int",
+		"nss"				=> "unsigned int",
+		"mcs"				=> "unsigned int",
+		"flags"				=> "unsigned int",
+		"eht_gi"			=> "unsigned int",
+		"he_gi"				=> "unsigned int",
+		"legacy"			=> "unsigned int",
 	},
 	wiphy => {
-		"flags"			=> "u32",
-		"regulatory_flags"	=> "u32",
-		"features"		=> "u32",
-		"ext_features"		=> "u8",
-		"priv"			=> "char",
-		"max_num_csa_counters"	=> "u8",
-		"max_ap_assoc_sta"	=> "u16",
-		"bands"			=> "struct ieee80211_supported_band *",
-		"max_num_pmkids"	=> "u8",
-		"pmsr_capa"		=> "struct cfg80211_pmsr_capabilities *",
+		"flags"				=> "u32",
+		"regulatory_flags"		=> "u32",
+		"features"			=> "u32",
+		"ext_features"			=> "u8",
+		"priv"				=> "char",
+		"max_num_csa_counters"		=> "u8",
+		"max_ap_assoc_sta"		=> "u16",
+		"bands"				=> "struct ieee80211_supported_band *",
+		"max_num_pmkids"		=> "u8",
+		"pmsr_capa"			=> "struct cfg80211_pmsr_capabilities *",
+		"iftype_akm_suites"		=> "struct wiphy_iftype_akm_suites *",
+		"retry_short"			=> "u8",
+		"retry_long"			=> "u8",
 	},
 	net_device => {
-		"name"			=> "char",
-		"mem_end"		=> "unsigned long",
-		"mem_start"		=> "unsigned long",
-		"base_addr"		=> "unsigned long",
-		"irq"			=> "int",
-		"dev_list"		=> "struct list_head",
-		"napi_list"		=> "struct list_head",
-		"unreg_list"		=> "struct list_head",
-		"ptype_all"		=> "struct list_head",
-		"ptype_specific"	=> "struct list_head",
+		"name"				=> "char",
+		"mem_end"			=> "unsigned long",
+		"mem_start"			=> "unsigned long",
+		"base_addr"			=> "unsigned long",
+		"irq"				=> "int",
+		"dev_list"			=> "struct list_head",
+		"napi_list"			=> "struct list_head",
+		"unreg_list"			=> "struct list_head",
+		"ptype_all"			=> "struct list_head",
+		"ptype_specific"		=> "struct list_head",
+		"features"			=> "u64",
+		"rx_handler"			=> "void *",
+		"rx_handler_data"		=> "void *",
 	},
 	usb_interface => {
-		"altsetting"		=> "struct usb_host_interface *",
-		"cur_altsetting"	=> "struct usb_host_interface *",
-		"intf_assoc"		=> "struct usb_interface_assoc_descriptor *",
-		"dev"			=> "struct device",
-		"usb_dev"		=> "struct device *",
+		"altsetting"			=> "struct usb_host_interface *",
+		"cur_altsetting"		=> "struct usb_host_interface *",
+		"intf_assoc"			=> "struct usb_interface_assoc_descriptor *",
+		"dev"				=> "struct device",
+		"usb_dev"			=> "struct device *",
+		"reset_ws"			=> "struct work_struct",
 	},
 	ieee80211_hw => {
-		"conf"			=> "struct ieee80211_conf",
-		"wiphy"			=> "struct wiphy *",
-		"rate_control_algorithm"=> "const char *",
-		"priv"			=> "void *",
-		"flags"			=> "unsigned long",
-		"extra_tx_headroom"	=> "unsigned int",
-		"extra_beacon_tailroom" => "unsigned int",
-		"queues"		=> "u16",
-		"max_listen_interval"	=> "u16",
-		"max_signal"		=> "s8",
-		"max_rates"		=> "u8",
-		"max_report_rates"	=> "u8",
-		"max_rate_tries"	=> "u8",
-		"max_tx_fragments"	=> "u8",
+		"conf"				=> "struct ieee80211_conf",
+		"wiphy"				=> "struct wiphy *",
+		"rate_control_algorithm"	=> "const char *",
+		"priv"				=> "void *",
+		"flags"				=> "unsigned long",
+		"extra_tx_headroom"		=> "unsigned int",
+		"extra_beacon_tailroom" 	=> "unsigned int",
+		"queues"			=> "u16",
+		"max_listen_interval"		=> "u16",
+		"max_signal"			=> "s8",
+		"max_rates"			=> "u8",
+		"max_report_rates"		=> "u8",
+		"max_rate_tries"		=> "u8",
+		"max_tx_fragments"		=> "u8",
 	},
 	device => {
-		"kobj"			=> "struct kobject",
-		"parent"		=> "struct device *",
-		"init_name"		=> "const char *",
-		"devres_head"		=> "struct list_head",
+		"kobj"				=> "struct kobject",
+		"parent"			=> "struct device *",
+		"init_name"			=> "const char *",
+		"devres_head"			=> "struct list_head",
+		"driver"			=> "struct device_driver *",
+		"driver_data"			=> "void *",
+		"platform_data"			=> "void *",
+	},
+	ieee80211_ops => {
+		"add_chanctx"			=> "void *",
+		"add_interface"			=> "void *",
+		"add_nan_func"			=> "void *",
+		"assign_vif_chanctx"		=> "void *",
+		"bss_info_changed"		=> "void *",
+		"change_chanctx"		=> "void *",
+		"config"			=> "void *",
+		"configure_filter"		=> "void *",
+		"del_nan_func"			=> "void *",
+		"hw_scan"			=> "void *",
+		"link_info_changed"		=> "void *",
+		"remain_on_channel"		=> "void *",
+		"remove_chanctx"		=> "void *",
+		"remove_interface"		=> "void *",
+		"set_frag_threshold"		=> "void *",
+		"set_key"			=> "void *",
+		"set_mac_acl"			=> "void *",
+		"set_rts_threshold"		=> "void *",
+		"sta_add"			=> "void *",
+		"sta_remove"			=> "void *",
+		"sta_state"			=> "void *",
+		"start"				=> "void *",
+		"start_nan"			=> "void *",
+		"stop"				=> "void *",
+		"stop_nan"			=> "void *",
+		"tdls_cancel_channel_switch" 	=> "void *",
+		"tdls_channel_switch"		=> "void *",
+		"tdls_recv_channel_switch" 	=> "void *",
+		"tx"				=> "void *",
+		"unassign_vif_chanctx"		=> "void *",
+		"vif_cfg_changed"		=> "void *",
+		"wake_tx_queue"			=> "void *",
+	},
+);
+
+my %inline_array_field = (
+	module => {
+		"mem"				=> 1,
+		"name"				=> 1,
+		"build_id"			=> 1,
 	},
 );
 
@@ -357,28 +437,134 @@ sub get_field_index {
 	return $field_idx_by_name{$struct_name}{$field_name};
 }
 
+#sub get_extended_ptr_variables {
+#	my ($line, $struct) = @_;
+#	my @vars = ();
+
+#	while ($line =~ /\b(?:const\s+)?struct\s+\Q$struct\E\b[^;{]*?\*+\s*([A-Za-z_]\w*)\s*(?=[,;\)=])/g) {
+#		push(@vars, $1);
+#	}
+
+#	if ($line =~ /\b(?:const\s+)?struct\s+\Q$struct\E\b([^;{]*)/) {
+#		my $rest = $1;
+#		while ($rest =~ /,\s*\*+\s*([A-Za-z_]\w*)\s*(?=[,;\)=])/g) {
+#			push(@vars, $1);
+#		}
+#	}
+
+#	return uniq(@vars);
+#}
+
+# new version of 'get_extended_ptr_variables' had a bug which didn't permit to detect "ieee80211_ops"
 sub get_extended_ptr_variables {
 	my ($line, $struct) = @_;
-	my @vars = ();
+	my %seen = ();
 
-	while ($line =~ /\b(?:const\s+)?struct\s+\Q$struct\E\b[^;{]*?\*+\s*([A-Za-z_]\w*)\s*(?=[,;\)=])/g) {
-		push(@vars, $1);
+	while ($line =~ /\b(?:const\s+)?struct\s+\Q$struct\E\b\s*\*+\s*([A-Za-z_]\w*)\b(?=\s*(?:[,;)=]))/g) {
+		$seen{$1} = 1;
 	}
 
-	if ($line =~ /\b(?:const\s+)?struct\s+\Q$struct\E\b([^;{]*)/) {
-		my $rest = $1;
-		while ($rest =~ /,\s*\*+\s*([A-Za-z_]\w*)\s*(?=[,;\)=])/g) {
-			push(@vars, $1);
+	while ($line =~ /\b(?:const\s+)?struct\s+\Q$struct\E\b\s*\*+\s*[A-Za-z_]\w*\b((?:\s*,\s*\*+\s*[A-Za-z_]\w*\b)*)/g) {
+		my $tail = $1;
+		while ($tail =~ /,\s*\*+\s*([A-Za-z_]\w*)\b/g) {
+			$seen{$1} = 1;
 		}
 	}
 
-	return uniq(@vars);
+	return keys %seen;
 }
 
 sub get_type_from_struct_field {
 	my ($struct, $field) = @_;
+	if($verbose){
+		if(exists $field_ctype{$struct} && exists $field_ctype{$struct}{$field}){
+			printf("- struct $struct field $field\n");
+		}else{
+			printf("- not exist $struct field $field\n");
+		}
+	}
+	# fast fix: in case of 'ieee80211_ops' always return a "void *" [deprecated]
+	if($struct eq "ieee80211_ops"){
+		if($verbose){
+			printf("[ieee80211_ops] fix for field $field\n");
+		}
+		return "void *";
+	}
+
 	return $field_ctype{$struct}{$field} if exists $field_ctype{$struct} && exists $field_ctype{$struct}{$field};
 	return "unsigned int";
+}
+
+sub field_is_inline_array {
+	my ($struct, $field) = @_;
+	return 0 if !exists $inline_array_field{$struct};
+	return exists $inline_array_field{$struct}{$field};
+}
+
+sub build_simple_field_access_expr {
+	my ($var, $st, $field) = @_;
+
+	my $current_struct_idx = get_struct_index($st);
+	my $current_field_idx  = get_field_index($st, $field);
+
+	if (!defined $current_struct_idx || !defined $current_field_idx) {
+		print("[!] skipping $var->$field (struct $st)\n");
+		return undef;
+	}
+
+	my $current_field_type = get_type_from_struct_field($st, $field);
+	my $field_offset_expr  = "director.runtime_generated_structs->structs[$current_struct_idx].fields[$current_field_idx].field_offset";
+
+	if($verbose){
+		printf("$st->$field has type $current_field_type\n");
+	}
+
+	return "(*($current_field_type*)((char *)$var + $field_offset_expr))";
+}
+
+# build the expression (*(type *)((char *)base + runtime_struct.specific_field))) [only idea I have for now on this]
+sub build_field_access_expr {
+	my ($var, $st, $field, $index_expr) = @_;
+
+	my $current_struct_idx = get_struct_index($st);
+	my $current_field_idx  = get_field_index($st, $field);
+
+	if (!defined $current_struct_idx || !defined $current_field_idx) {
+		print("[!] skipping unresolved access $var->$field (struct $st)\n");
+		return undef;
+	}
+
+	my $current_field_type = get_type_from_struct_field($st, $field);
+	my $field_offset_expr  = "director.runtime_generated_structs->structs[$current_struct_idx].fields[$current_field_idx].field_offset";
+
+	if($verbose){
+		printf("$st->$field has type $current_field_type\n");
+	}
+
+	if (field_is_inline_array($st, $field)) {
+		my $base_expr = "(($current_field_type *)((char *)$var + $field_offset_expr))";
+		if (defined $index_expr && length($index_expr) > 0) {
+			return "$base_expr\[$index_expr\]";
+		}
+		return $base_expr;
+	}
+
+	my $base_expr = "(*($current_field_type*)((char *)$var + $field_offset_expr))";
+	if (defined $index_expr && length($index_expr) > 0) {
+		return "$base_expr\[$index_expr\]";
+	}
+	return $base_expr;
+}
+
+# build a very similar output as above BUT use this for the sizeof(struct <not compiled struct>)
+sub build_undef_struct_expr {
+	my $st = @_;
+	my $current_struct_idx = 0;
+	my $base_expr = undef;
+
+	$current_struct_idx = get_struct_index($st);
+	$base_expr = "director.runtime_generated_structs->structs[$current_struct_idx].struct_size";
+	return $base_expr;
 }
 
 sub build_fixed_alias_map {
@@ -437,17 +623,17 @@ sub emit_runtime_struct_header {
 	print OFFSETS "struct struct_field {\n";
 	print OFFSETS "	unsigned char  field_name[24];\n";
 	print OFFSETS "	unsigned short field_offset;\n";
-	print OFFSETS "};\n";
+	print OFFSETS "};\n\n";
 	print OFFSETS "struct runtime_struct_layout {\n";
 	print OFFSETS "	short struct_size;\n";
 	print OFFSETS "	unsigned char *struct_name;\n";
 	print OFFSETS "	unsigned short struct_field_num;\n";
-	print OFFSETS "struct struct_field fields[64];\n";
-	print OFFSETS "};\n";
+	print OFFSETS "	struct struct_field fields[64];\n";
+	print OFFSETS "};\n\n";
 	print OFFSETS "struct runtime_struct {\n";
 	print OFFSETS "	int compilation_time_generated_structs;\n";
-	print OFFSETS "struct runtime_struct_layout structs[$total_struct_number];\n";
-	print OFFSETS "};\n";
+	print OFFSETS "	struct runtime_struct_layout structs[$total_struct_number];\n";
+	print OFFSETS "};\n\n";
 	print OFFSETS "OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {\n";
 	print OFFSETS "	.structs = {\n";
 
@@ -539,68 +725,69 @@ sub rewrite_source_file {
 	my $dir = dirname($in_path);
 	my ($out, $tmp_path) = tempfile(".tmp_XXXX", DIR => $dir, UNLINK => 0);
 	my %local_alias = %fixed_alias;
+	my $allow_array_mode = ($in_path =~ m{(?:^|/)src/main\.c$});
 
 	while(my $line = <$in>){
 		my %new_aliases = harvest_declared_ptr_aliases($line);
 		@local_alias{keys %new_aliases} = values %new_aliases if %new_aliases;
 
-#		$line =~ s{
-#			\b([A-Za-z_]\w*)->([A-Za-z_]\w*)
-#		}{
-#			print("$line\n");
-#			my ($var, $field) = ($1, $2);
-#			my $st = $local_alias{$var};
-#
-#			if (!defined $st) {
-#				"$var->$field";
-#			}
-#			else {
-#				my $current_struct_idx = get_struct_index($st);
-#				my $current_field_idx  = get_field_index($st, $field);
-#
-#				if (!defined $current_struct_idx || !defined $current_field_idx) {
-#					print("[!] skipping unresolved access $var->$field (struct $st)\n");
-#					"$var->$field";
-#				}
-#				else {
-#					print("[*] $st $field\n");
-#					my $current_field_type = get_type_from_struct_field($st, $field);
-#					"(*($current_field_type*)((char *)$var + director.runtime_generated_structs->structs[$current_struct_idx].fields[$current_field_idx].field_offset))";
-#				}
-#			}
-#		}gex;
-
 		if (%local_alias) {
+			# resolve the sizeof(struct <not defined>) by converting it
+                        foreach(keys %local_alias){
+                                if($line =~ "sizeof(struct $_)"){
+                                        print("$line\n");
+                                }
+                        }
+			# maps the keys of %local alias as 'key1|key2|key3'..
         		my $var_re = join '|', map { quotemeta($_) } sort { length($b) <=> length($a) } keys %local_alias;
+			if ($allow_array_mode) {
+				$line =~ s{
+					\b($var_re)->([A-Za-z_]\w*)
+					(
+						\s*\[
+							([^\[\]\n]+)
+						\]
+					)?
+				}{
+					my ($var, $field, $raw_index, $index_expr) = ($1, $2, $3, $4);
+					my $st = $local_alias{$var};
 
-			$line =~ s{\b($var_re)->([A-Za-z_]\w*)}{
-				my ($var, $field) = ($1, $2);
-				my $st = $local_alias{$var};
+					if($verbose){
+						print("var $var field $field st $st\n");
+					}
 
-				if (!(defined $st)) {
-					"$var->$field";
-				}else{
-					my $current_struct_idx = get_struct_index($st);
-					my $current_field_idx  = get_field_index($st, $field);
+					if (!(defined $st)) {
+						defined $raw_index ? "$var->$field$raw_index" : "$var->$field";
+					}else{
+						my $expr = build_field_access_expr($var, $st, $field, $index_expr);
+						if (defined $expr) {
+							$expr;
+						}else{
+							defined $raw_index ? "$var->$field$raw_index" : "$var->$field";
+						}
+					}
+				}gex;
+			}else{
+				$line =~ s{\b($var_re)->([A-Za-z_]\w*)(?!\s*\[)}{
+					my ($var, $field) = ($1, $2);
+					my $st = $local_alias{$var};
 
-					if (!defined $current_struct_idx || !defined $current_field_idx) {
-						print("[!] skipping unresolved access $var->$field (struct $st)\n");
+					if($verbose){
+						print("var $var field $field st $st\n");
+					}
+
+					if (!(defined $st)) {
 						"$var->$field";
 					}else{
-						my $current_field_type = get_type_from_struct_field($st, $field);
-						"(*($current_field_type*)((char *)$var + director.runtime_generated_structs->structs[$current_struct_idx].fields[$current_field_idx].field_offset))";
+						my $expr = build_simple_field_access_expr($var, $st, $field);
+						if (defined $expr) {
+							$expr;
+						}else{
+							"$var->$field";
+						}
 					}
-				}
-			}gex;
-		}
-		if($line =~ /\]\.base\b/){
-			$line =~ s/\]\.base\b/]+ 0/g;
-		}
-		if($line =~ /\]\.size\b/){
-			$line =~ s/\]\.size\b/] + director.runtime_single_fields.module_mem_size_offset/g;
-		}
-		if($line =~ /\[type\]/){
-			$line =~ s/\[type\]/ + \(type * director.runtime_generated_structs->structs[0].struct_size\)/g;
+				}gex;
+			}
 		}
 
 		print $out $line;
@@ -646,7 +833,7 @@ sub merge_rewritten_function_stubs {
 	}
 
 	foreach my $file (@function_files) {
-		print $out "\n/* merged from: $file */\n";
+		print $out "\n/* function extrated from: $file */\n";
 		open(my $fh, '<', $file) or die $!;
 		while (my $line = <$fh>) {
 			print $out $line;
@@ -658,18 +845,15 @@ sub merge_rewritten_function_stubs {
 	close($out) or die $!;
 }
 
-# fill the '\@sources' array
 foreach(`$find $find_command_arg | $grep -iv out_`){
 	$iterator = $_;
 	chomp($iterator);
 	push(@sources, $iterator);
 }
 
-# set of structs recognised from declarations
 %struct_set = map { $_ => 1 } values %struct_whitelist;
 $struct_set{"sk_buff_head"}    = 1;
 $struct_set{"skb_shared_info"} = 1;
-$struct_set{"ieee80211_ops"}   = 1;
 
 # first pass: gather field usage using local alias inference
 %used_fields_by_struct = collect_used_fields(@sources);
@@ -687,9 +871,7 @@ $process_step++;
 $virtual_compilation_folder = tempdir("out_XXXX", CLEANUP => 0);
 make_path("$virtual_compilation_folder/$build");
 
-# Copy only the trees that must be rewritten/compiled in the virtual build.
-# Keep src/main.c outside the virtual tree so it is never rewritten nor copied there.
-foreach(qw(inc stubs)){
+foreach(qw(inc stubs src)){
 	`$cp -R $_ $virtual_compilation_folder/$_`;
 }
 
@@ -831,7 +1013,7 @@ if($verbose){
 	print("$compiler @gcc_params @gcc_final_params -I./$virtual_compilation_folder/$include $source/$main -o $bin/$final_program $final_obj_line @gcc_final_linkkings");
 	print("\n\n");
 }
-system("$compiler @gcc_params @gcc_final_params -I./$virtual_compilation_folder/$include $source/$main -o $bin/$final_program $final_obj_line @gcc_final_linkkings");
+system("$compiler @gcc_params @gcc_final_params -I./$virtual_compilation_folder/$include $virtual_compilation_folder/$source/$main -o $bin/$final_program $final_obj_line @gcc_final_linkkings");
 
 undef(@struct_fields);
 undef(@gcc_params);

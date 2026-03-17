@@ -2,53 +2,52 @@ struct struct_field {
 	unsigned char  field_name[24];
 	unsigned short field_offset;
 };
+
 struct runtime_struct_layout {
 	short struct_size;
 	unsigned char *struct_name;
 	unsigned short struct_field_num;
-struct struct_field fields[64];
+	struct struct_field fields[64];
 };
+
 struct runtime_struct {
 	int compilation_time_generated_structs;
-struct runtime_struct_layout structs[14];
+	struct runtime_struct_layout structs[14];
 };
+
 OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 	.structs = {
 			[0] = {
 				.struct_size = 0,
 				.struct_name = "device",
-				.struct_field_num = 8,
+				.struct_field_num = 7,
 				.fields = {
 					[0] = {
-						.field_name = "alt_setting",
-						.field_offset = 0,
-					},
-					[1] = {
-						.field_name = "bulk_in",
-						.field_offset = 0,
-					},
-					[2] = {
-						.field_name = "bulk_out",
-						.field_offset = 0,
-					},
-					[3] = {
 						.field_name = "cfg",
 						.field_offset = 0,
 					},
-					[4] = {
+					[1] = {
 						.field_name = "ethtool",
 						.field_offset = 0,
 					},
-					[5] = {
-						.field_name = "iface_num",
-						.field_offset = 0,
-					},
-					[6] = {
+					[2] = {
 						.field_name = "init_name",
 						.field_offset = 0,
 					},
-					[7] = {
+					[3] = {
 						.field_name = "kobj",
+						.field_offset = 0,
+					},
+					[4] = {
+						.field_name = "parent",
+						.field_offset = 0,
+					},
+					[5] = {
+						.field_name = "rb_left",
+						.field_offset = 0,
+					},
+					[6] = {
+						.field_name = "rb_right",
 						.field_offset = 0,
 					},
 				},
@@ -56,14 +55,113 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[1] = {
 				.struct_size = 0,
 				.struct_name = "ieee80211_hw",
-				.struct_field_num = 36,
+				.struct_field_num = 23,
+				.fields = {
+					[0] = {
+						.field_name = "conf",
+						.field_offset = 0,
+					},
+					[1] = {
+						.field_name = "flags",
+						.field_offset = 0,
+					},
+					[2] = {
+						.field_name = "max_listen_interval",
+						.field_offset = 0,
+					},
+					[3] = {
+						.field_name = "max_mtu",
+						.field_offset = 0,
+					},
+					[4] = {
+						.field_name = "max_nan_de_entries",
+						.field_offset = 0,
+					},
+					[5] = {
+						.field_name = "max_rates",
+						.field_offset = 0,
+					},
+					[6] = {
+						.field_name = "max_report_rates",
+						.field_offset = 0,
+					},
+					[7] = {
+						.field_name = "max_rx_aggregation_subframes",
+						.field_offset = 0,
+					},
+					[8] = {
+						.field_name = "max_signal",
+						.field_offset = 0,
+					},
+					[9] = {
+						.field_name = "max_tx_aggregation_subframes",
+						.field_offset = 0,
+					},
+					[10] = {
+						.field_name = "netdev_features",
+						.field_offset = 0,
+					},
+					[11] = {
+						.field_name = "offchannel_tx_hw_queue",
+						.field_offset = 0,
+					},
+					[12] = {
+						.field_name = "priv",
+						.field_offset = 0,
+					},
+					[13] = {
+						.field_name = "queues",
+						.field_offset = 0,
+					},
+					[14] = {
+						.field_name = "radiotap_mcs_details",
+						.field_offset = 0,
+					},
+					[15] = {
+						.field_name = "radiotap_vht_details",
+						.field_offset = 0,
+					},
+					[16] = {
+						.field_name = "rate_control_algorithm",
+						.field_offset = 0,
+					},
+					[17] = {
+						.field_name = "tx_sk_pacing_shift",
+						.field_offset = 0,
+					},
+					[18] = {
+						.field_name = "txq_data_size",
+						.field_offset = 0,
+					},
+					[19] = {
+						.field_name = "uapsd_max_sp_len",
+						.field_offset = 0,
+					},
+					[20] = {
+						.field_name = "uapsd_queues",
+						.field_offset = 0,
+					},
+					[21] = {
+						.field_name = "weight_multiplier",
+						.field_offset = 0,
+					},
+					[22] = {
+						.field_name = "wiphy",
+						.field_offset = 0,
+					},
+				},
+			},
+			[2] = {
+				.struct_size = 0,
+				.struct_name = "ieee80211_ops",
+				.struct_field_num = 28,
 				.fields = {
 					[0] = {
 						.field_name = "add_chanctx",
 						.field_offset = 0,
 					},
 					[1] = {
-						.field_name = "add_interface",
+						.field_name = "add_nan_func",
 						.field_offset = 0,
 					},
 					[2] = {
@@ -79,197 +177,94 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[5] = {
-						.field_name = "conf",
-						.field_offset = 0,
-					},
-					[6] = {
 						.field_name = "config",
 						.field_offset = 0,
 					},
-					[7] = {
-						.field_name = "configure_filter",
-						.field_offset = 0,
-					},
-					[8] = {
-						.field_name = "flags",
-						.field_offset = 0,
-					},
-					[9] = {
-						.field_name = "hw_scan",
-						.field_offset = 0,
-					},
-					[10] = {
-						.field_name = "link_info_changed",
-						.field_offset = 0,
-					},
-					[11] = {
-						.field_name = "max_listen_interval",
-						.field_offset = 0,
-					},
-					[12] = {
-						.field_name = "max_nan_de_entries",
-						.field_offset = 0,
-					},
-					[13] = {
-						.field_name = "max_rates",
-						.field_offset = 0,
-					},
-					[14] = {
-						.field_name = "max_report_rates",
-						.field_offset = 0,
-					},
-					[15] = {
-						.field_name = "max_signal",
-						.field_offset = 0,
-					},
-					[16] = {
-						.field_name = "netdev_features",
-						.field_offset = 0,
-					},
-					[17] = {
-						.field_name = "offchannel_tx_hw_queue",
-						.field_offset = 0,
-					},
-					[18] = {
-						.field_name = "priv",
-						.field_offset = 0,
-					},
-					[19] = {
-						.field_name = "queues",
-						.field_offset = 0,
-					},
-					[20] = {
-						.field_name = "rate_control_algorithm",
-						.field_offset = 0,
-					},
-					[21] = {
-						.field_name = "remain_on_channel",
-						.field_offset = 0,
-					},
-					[22] = {
-						.field_name = "remove_chanctx",
-						.field_offset = 0,
-					},
-					[23] = {
-						.field_name = "remove_interface",
-						.field_offset = 0,
-					},
-					[24] = {
-						.field_name = "set_key",
-						.field_offset = 0,
-					},
-					[25] = {
-						.field_name = "sta_add",
-						.field_offset = 0,
-					},
-					[26] = {
-						.field_name = "sta_remove",
-						.field_offset = 0,
-					},
-					[27] = {
-						.field_name = "sta_state",
-						.field_offset = 0,
-					},
-					[28] = {
-						.field_name = "start",
-						.field_offset = 0,
-					},
-					[29] = {
-						.field_name = "stop",
-						.field_offset = 0,
-					},
-					[30] = {
-						.field_name = "tx",
-						.field_offset = 0,
-					},
-					[31] = {
-						.field_name = "txq_data_size",
-						.field_offset = 0,
-					},
-					[32] = {
-						.field_name = "unassign_vif_chanctx",
-						.field_offset = 0,
-					},
-					[33] = {
-						.field_name = "vif_cfg_changed",
-						.field_offset = 0,
-					},
-					[34] = {
-						.field_name = "wake_tx_queue",
-						.field_offset = 0,
-					},
-					[35] = {
-						.field_name = "weight_multiplier",
-						.field_offset = 0,
-					},
-				},
-			},
-			[2] = {
-				.struct_size = 0,
-				.struct_name = "ieee80211_ops",
-				.struct_field_num = 16,
-				.fields = {
-					[0] = {
-						.field_name = "add_nan_func",
-						.field_offset = 0,
-					},
-					[1] = {
-						.field_name = "bss_info_changed",
-						.field_offset = 0,
-					},
-					[2] = {
+					[6] = {
 						.field_name = "del_nan_func",
 						.field_offset = 0,
 					},
-					[3] = {
+					[7] = {
 						.field_name = "hw_scan",
 						.field_offset = 0,
 					},
-					[4] = {
+					[8] = {
 						.field_name = "link_info_changed",
 						.field_offset = 0,
 					},
-					[5] = {
+					[9] = {
 						.field_name = "remain_on_channel",
 						.field_offset = 0,
 					},
-					[6] = {
-						.field_name = "set_frag_threshold",
-						.field_offset = 0,
-					},
-					[7] = {
-						.field_name = "set_key",
-						.field_offset = 0,
-					},
-					[8] = {
-						.field_name = "set_mac_acl",
-						.field_offset = 0,
-					},
-					[9] = {
-						.field_name = "set_rts_threshold",
-						.field_offset = 0,
-					},
 					[10] = {
-						.field_name = "start_nan",
+						.field_name = "remove_chanctx",
 						.field_offset = 0,
 					},
 					[11] = {
-						.field_name = "stop_nan",
+						.field_name = "set_frag_threshold",
 						.field_offset = 0,
 					},
 					[12] = {
-						.field_name = "tdls_cancel_channel_switch",
+						.field_name = "set_key",
 						.field_offset = 0,
 					},
 					[13] = {
-						.field_name = "tdls_channel_switch",
+						.field_name = "set_mac_acl",
 						.field_offset = 0,
 					},
 					[14] = {
-						.field_name = "tdls_recv_channel_switch",
+						.field_name = "set_rts_threshold",
 						.field_offset = 0,
 					},
 					[15] = {
+						.field_name = "sta_add",
+						.field_offset = 0,
+					},
+					[16] = {
+						.field_name = "sta_remove",
+						.field_offset = 0,
+					},
+					[17] = {
+						.field_name = "sta_state",
+						.field_offset = 0,
+					},
+					[18] = {
+						.field_name = "start",
+						.field_offset = 0,
+					},
+					[19] = {
+						.field_name = "start_nan",
+						.field_offset = 0,
+					},
+					[20] = {
+						.field_name = "stop",
+						.field_offset = 0,
+					},
+					[21] = {
+						.field_name = "stop_nan",
+						.field_offset = 0,
+					},
+					[22] = {
+						.field_name = "tdls_cancel_channel_switch",
+						.field_offset = 0,
+					},
+					[23] = {
+						.field_name = "tdls_channel_switch",
+						.field_offset = 0,
+					},
+					[24] = {
+						.field_name = "tdls_recv_channel_switch",
+						.field_offset = 0,
+					},
+					[25] = {
+						.field_name = "tx",
+						.field_offset = 0,
+					},
+					[26] = {
+						.field_name = "unassign_vif_chanctx",
+						.field_offset = 0,
+					},
+					[27] = {
 						.field_name = "vif_cfg_changed",
 						.field_offset = 0,
 					},
@@ -278,141 +273,93 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[3] = {
 				.struct_size = 0,
 				.struct_name = "module",
-				.struct_field_num = 34,
+				.struct_field_num = 22,
 				.fields = {
 					[0] = {
 						.field_name = "core_kallsyms",
 						.field_offset = 0,
 					},
 					[1] = {
-						.field_name = "core_typeoffs",
-						.field_offset = 0,
-					},
-					[2] = {
 						.field_name = "crcs",
 						.field_offset = 0,
 					},
-					[3] = {
+					[2] = {
 						.field_name = "ctors",
 						.field_offset = 0,
 					},
-					[4] = {
+					[3] = {
 						.field_name = "dyndbg_info",
 						.field_offset = 0,
 					},
-					[5] = {
+					[4] = {
 						.field_name = "extable",
 						.field_offset = 0,
 					},
-					[6] = {
+					[5] = {
 						.field_name = "gpl_crcs",
 						.field_offset = 0,
 					},
-					[7] = {
+					[6] = {
 						.field_name = "gpl_syms",
 						.field_offset = 0,
 					},
-					[8] = {
-						.field_name = "hdr",
-						.field_offset = 0,
-					},
-					[9] = {
-						.field_name = "index",
-						.field_offset = 0,
-					},
-					[10] = {
+					[7] = {
 						.field_name = "init",
 						.field_offset = 0,
 					},
-					[11] = {
-						.field_name = "init_typeoffs",
-						.field_offset = 0,
-					},
-					[12] = {
+					[8] = {
 						.field_name = "kallsyms",
 						.field_offset = 0,
 					},
-					[13] = {
+					[9] = {
 						.field_name = "kp",
 						.field_offset = 0,
 					},
-					[14] = {
-						.field_name = "len",
-						.field_offset = 0,
-					},
-					[15] = {
+					[10] = {
 						.field_name = "mem",
 						.field_offset = 0,
 					},
-					[16] = {
-						.field_name = "mod",
-						.field_offset = 0,
-					},
-					[17] = {
-						.field_name = "mod_kallsyms_init_off",
-						.field_offset = 0,
-					},
-					[18] = {
+					[11] = {
 						.field_name = "name",
 						.field_offset = 0,
 					},
-					[19] = {
+					[12] = {
 						.field_name = "noinstr_text_size",
 						.field_offset = 0,
 					},
-					[20] = {
+					[13] = {
 						.field_name = "noinstr_text_start",
 						.field_offset = 0,
 					},
-					[21] = {
+					[14] = {
 						.field_name = "num_ctors",
 						.field_offset = 0,
 					},
-					[22] = {
+					[15] = {
 						.field_name = "num_exentries",
 						.field_offset = 0,
 					},
-					[23] = {
+					[16] = {
 						.field_name = "num_gpl_syms",
 						.field_offset = 0,
 					},
-					[24] = {
+					[17] = {
 						.field_name = "num_kp",
 						.field_offset = 0,
 					},
-					[25] = {
+					[18] = {
 						.field_name = "num_syms",
 						.field_offset = 0,
 					},
-					[26] = {
+					[19] = {
 						.field_name = "percpu",
 						.field_offset = 0,
 					},
-					[27] = {
-						.field_name = "sechdrs",
-						.field_offset = 0,
-					},
-					[28] = {
-						.field_name = "secstrings",
-						.field_offset = 0,
-					},
-					[29] = {
+					[20] = {
 						.field_name = "state",
 						.field_offset = 0,
 					},
-					[30] = {
-						.field_name = "stroffs",
-						.field_offset = 0,
-					},
-					[31] = {
-						.field_name = "strtab",
-						.field_offset = 0,
-					},
-					[32] = {
-						.field_name = "symoffs",
-						.field_offset = 0,
-					},
-					[33] = {
+					[21] = {
 						.field_name = "syms",
 						.field_offset = 0,
 					},
@@ -962,9 +909,13 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[11] = {
 				.struct_size = 0,
 				.struct_name = "usb_device",
-				.struct_field_num = 1,
+				.struct_field_num = 2,
 				.fields = {
 					[0] = {
+						.field_name = "actconfig",
+						.field_offset = 0,
+					},
+					[1] = {
 						.field_name = "dev",
 						.field_offset = 0,
 					},
@@ -976,23 +927,23 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 				.struct_field_num = 5,
 				.fields = {
 					[0] = {
-						.field_name = "actconfig",
-						.field_offset = 0,
-					},
-					[1] = {
 						.field_name = "altsetting",
 						.field_offset = 0,
 					},
-					[2] = {
+					[1] = {
 						.field_name = "cur_altsetting",
 						.field_offset = 0,
 					},
-					[3] = {
+					[2] = {
 						.field_name = "dev",
 						.field_offset = 0,
 					},
-					[4] = {
+					[3] = {
 						.field_name = "num_altsetting",
+						.field_offset = 0,
+					},
+					[4] = {
+						.field_name = "usb_dev",
 						.field_offset = 0,
 					},
 				},
@@ -1000,7 +951,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[13] = {
 				.struct_size = 0,
 				.struct_name = "wiphy",
-				.struct_field_num = 35,
+				.struct_field_num = 40,
 				.fields = {
 					[0] = {
 						.field_name = "addresses",
@@ -1027,118 +978,138 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[6] = {
-						.field_name = "dev",
+						.field_name = "coverage_class",
 						.field_offset = 0,
 					},
 					[7] = {
-						.field_name = "ext_features",
+						.field_name = "dev",
 						.field_offset = 0,
 					},
 					[8] = {
-						.field_name = "extra_tx_headroom",
+						.field_name = "ext_features",
 						.field_offset = 0,
 					},
 					[9] = {
-						.field_name = "features",
+						.field_name = "extra_tx_headroom",
 						.field_offset = 0,
 					},
 					[10] = {
-						.field_name = "flags",
+						.field_name = "features",
 						.field_offset = 0,
 					},
 					[11] = {
-						.field_name = "iface_combinations",
+						.field_name = "flags",
 						.field_offset = 0,
 					},
 					[12] = {
-						.field_name = "interface_modes",
+						.field_name = "frag_threshold",
 						.field_offset = 0,
 					},
 					[13] = {
-						.field_name = "max_acl_mac_addrs",
+						.field_name = "iface_combinations",
 						.field_offset = 0,
 					},
 					[14] = {
-						.field_name = "max_num_csa_counters",
+						.field_name = "interface_modes",
 						.field_offset = 0,
 					},
 					[15] = {
-						.field_name = "max_remain_on_channel_duration",
+						.field_name = "max_acl_mac_addrs",
 						.field_offset = 0,
 					},
 					[16] = {
-						.field_name = "max_scan_ie_len",
+						.field_name = "max_num_csa_counters",
 						.field_offset = 0,
 					},
 					[17] = {
-						.field_name = "max_scan_ssids",
+						.field_name = "max_remain_on_channel_duration",
 						.field_offset = 0,
 					},
 					[18] = {
-						.field_name = "mtx",
+						.field_name = "max_scan_ie_len",
 						.field_offset = 0,
 					},
 					[19] = {
-						.field_name = "n_addresses",
+						.field_name = "max_scan_ssids",
 						.field_offset = 0,
 					},
 					[20] = {
-						.field_name = "n_cipher_suites",
+						.field_name = "max_sched_scan_plan_interval",
 						.field_offset = 0,
 					},
 					[21] = {
-						.field_name = "n_iface_combinations",
+						.field_name = "max_sched_scan_plans",
 						.field_offset = 0,
 					},
 					[22] = {
-						.field_name = "n_radio",
+						.field_name = "mtx",
 						.field_offset = 0,
 					},
 					[23] = {
-						.field_name = "nan_supported_bands",
+						.field_name = "n_addresses",
 						.field_offset = 0,
 					},
 					[24] = {
-						.field_name = "pmsr_capa",
+						.field_name = "n_cipher_suites",
 						.field_offset = 0,
 					},
 					[25] = {
-						.field_name = "priv",
+						.field_name = "n_iface_combinations",
 						.field_offset = 0,
 					},
 					[26] = {
-						.field_name = "radio",
+						.field_name = "n_radio",
 						.field_offset = 0,
 					},
 					[27] = {
-						.field_name = "regd",
+						.field_name = "nan_supported_bands",
 						.field_offset = 0,
 					},
 					[28] = {
-						.field_name = "regulatory_flags",
+						.field_name = "pmsr_capa",
 						.field_offset = 0,
 					},
 					[29] = {
-						.field_name = "retry_long",
+						.field_name = "priv",
 						.field_offset = 0,
 					},
 					[30] = {
-						.field_name = "retry_short",
+						.field_name = "radio",
 						.field_offset = 0,
 					},
 					[31] = {
-						.field_name = "signal_type",
+						.field_name = "regd",
 						.field_offset = 0,
 					},
 					[32] = {
-						.field_name = "software_iftypes",
+						.field_name = "regulatory_flags",
 						.field_offset = 0,
 					},
 					[33] = {
-						.field_name = "support_mbssid",
+						.field_name = "retry_long",
 						.field_offset = 0,
 					},
 					[34] = {
+						.field_name = "retry_short",
+						.field_offset = 0,
+					},
+					[35] = {
+						.field_name = "rts_threshold",
+						.field_offset = 0,
+					},
+					[36] = {
+						.field_name = "signal_type",
+						.field_offset = 0,
+					},
+					[37] = {
+						.field_name = "software_iftypes",
+						.field_offset = 0,
+					},
+					[38] = {
+						.field_name = "support_mbssid",
+						.field_offset = 0,
+					},
+					[39] = {
 						.field_name = "support_only_he_mbssid",
 						.field_offset = 0,
 					},

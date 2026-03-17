@@ -1,4 +1,5 @@
 void wiphy_rfkill_start_polling(struct wiphy *wiphy){
+	struct cfg80211_registered_device *rdev = NULL;
 	void (*rfkill_poll_cb)(struct rfkill *rfkill, void *data) = NULL;
 
 	rfkill_poll_cb = search_similar_function("_rfkill_poll");
@@ -7,7 +8,8 @@ void wiphy_rfkill_start_polling(struct wiphy *wiphy){
 		return;
 	}
 
-	director.rdev->rfkill_ops.poll = rfkill_poll_cb;
+	rdev = director.rdev;
+	rdev->rfkill_ops.poll = rfkill_poll_cb;
 	director.rfkill->polling_paused = false;
 	if (director.rfkill->suspended == true){
 		return;

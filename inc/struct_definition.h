@@ -9,7 +9,9 @@ struct rb_root;
 struct module;
 struct list_head;
 
+struct rhltable;
 struct rhashtable;
+struct rhashtable_params;
 
 struct shash_desc;
 struct crypto_tfm;
@@ -51,6 +53,7 @@ struct cfg80211_chan_def;
 struct cfg80211_scan_info;
 struct netdev_hw_addr_list;
 struct cfg80211_wowlan_wakeup;
+struct cfg80211_registered_device;
 struct cfg80211_report_wowlan_wakeup;
 struct ieee80211_chanctx_conf;
 struct ieee80211_key_conf;

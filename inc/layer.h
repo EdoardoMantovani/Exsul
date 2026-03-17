@@ -113,6 +113,9 @@
 /* maximun number of usb endpoints possible */
 #define USB_MAX_ENDPOINT_NUM    12
 
+/* path for the firmware files, this will be used mainly in Linux, for Windows expect a local folder */
+#define DEFAULT_FW_PATH		"/lib/firmware/"
+
 #define NR_KMALLOC_TYPES	8
 #define	NUMA_NO_NODE		(-1)
 
@@ -397,6 +400,12 @@ struct kobject {
 #endif
 };
 
+/* use this trick for bypassing the 'struct device' not implemented limitation, should work for every kernel after 5.4 */
+struct device {
+	struct kobject		 kobj;
+	struct device		*parent;
+};
+
 struct kobj_type {
 	void (*release)(struct kobject *kobj);
 	const struct sysfs_ops *sysfs_ops;
@@ -659,6 +668,18 @@ struct load_info {
 	} index;
 };
 
+struct kernel_symbol {
+#ifdef CONFIG_HAVE_ARCH_PREL32_RELOCATIONS
+	int value_offset;
+	int name_offset;
+	int namespace_offset;
+#else
+	unsigned long value;
+	const char *name;
+	const char *namespace;
+#endif
+};
+
 struct kernel_param {
 	const char *name;
 	struct module *mod;
@@ -749,6 +770,8 @@ struct mod_kallsyms {
 struct internal_cb_table {
 	unsigned char *function_name;
 	void *function_ptr;
+	/* new update: add also the size of the symbol, useful for some operations at runtime */
+	u16 function_size;
 };
 
 struct module_controller;
@@ -1256,19 +1279,19 @@ static inline void rb_set_parent_color(struct rb_node *rb, struct rb_node *p, in
 	rb->__rb_parent_color = (unsigned long)p + color;
 }
 
-static inline void rb_link_node(struct rb_node *node, struct rb_node *parent, struct rb_node **rb_link){
-	node->__rb_parent_color = (unsigned long)parent;
+static inline void rb_link_node(struct rb_node *node, struct rb_node *rb_parent, struct rb_node **rb_link){
+	node->__rb_parent_color = (unsigned long)rb_parent;
 	node->rb_left = node->rb_right = NULL;
 
 	*rb_link = node;
 }
 
-static inline void __rb_change_child(struct rb_node *old, struct rb_node *new, struct rb_node *parent, struct rb_root *root){
-	if (parent) {
-		if (parent->rb_left == old){
-			WRITE_ONCE(parent->rb_left, new);
+static inline void __rb_change_child(struct rb_node *old, struct rb_node *new, struct rb_node *rb_parent, struct rb_root *root){
+	if (rb_parent) {
+		if (rb_parent->rb_left == old){
+			WRITE_ONCE(rb_parent->rb_left, new);
 		}else{
-			WRITE_ONCE(parent->rb_right, new);
+			WRITE_ONCE(rb_parent->rb_right, new);
 		}
 	}else{
 		WRITE_ONCE(root->rb_node, new);
@@ -1281,14 +1304,14 @@ static inline void __rb_change_child(struct rb_node *old, struct rb_node *new, s
  * - old gets assigned new as a parent and 'color' as a color.
  */
 static inline void __rb_rotate_set_parents(struct rb_node *old, struct rb_node *new, struct rb_root *root, int color){
-	struct rb_node *parent = rb_parent(old);
+	struct rb_node *rb_parent = rb_parent(old);
 	new->__rb_parent_color = old->__rb_parent_color;
 	rb_set_parent_color(old, new, color);
-	__rb_change_child(old, new, parent, root);
+	__rb_change_child(old, new, rb_parent, root);
 }
 
 static inline void __rb_insert(struct rb_node *node, struct rb_root *root, void (*augment_rotate)(struct rb_node *old, struct rb_node *new)){
-	struct rb_node *parent = rb_red_parent(node);
+	struct rb_node *rb_parent = rb_red_parent(node);
 	struct rb_node *gparent = NULL;
 	struct rb_node *tmp = NULL;
 
@@ -1296,7 +1319,7 @@ static inline void __rb_insert(struct rb_node *node, struct rb_root *root, void 
 		/*
 		 * Loop invariant: node is red.
 		 */
-		if (unlikely(!parent)) {
+		if (unlikely(!rb_parent)) {
 			/*
 			 * The inserted node is root. Either this is the
 			 * first node, or we recursed at Case 1 below and
@@ -1312,14 +1335,14 @@ static inline void __rb_insert(struct rb_node *node, struct rb_root *root, void 
 		 * per 4), we don't want a red root or two
 		 * consecutive red nodes.
 		 */
-		if(rb_is_black(parent)){
+		if(rb_is_black(rb_parent)){
 			break;
 		}
 
-		gparent = rb_red_parent(parent);
+		gparent = rb_red_parent(rb_parent);
 
 		tmp = gparent->rb_right;
-		if (parent != tmp) {	/* parent == gparent->rb_left */
+		if (rb_parent != tmp) {	/* parent == gparent->rb_left */
 			if (tmp && rb_is_red(tmp)) {
 				/*
 				 * Case 1 - node's uncle is red (color flips).
@@ -1335,14 +1358,14 @@ static inline void __rb_insert(struct rb_node *node, struct rb_root *root, void 
 				 * at g.
 				 */
 				rb_set_parent_color(tmp, gparent, RB_BLACK);
-				rb_set_parent_color(parent, gparent, RB_BLACK);
+				rb_set_parent_color(rb_parent, gparent, RB_BLACK);
 				node = gparent;
-				parent = rb_parent(node);
-				rb_set_parent_color(node, parent, RB_RED);
+				rb_parent = rb_parent(node);
+				rb_set_parent_color(node, rb_parent, RB_RED);
 				continue;
 			}
 
-			tmp = parent->rb_right;
+			tmp = rb_parent->rb_right;
 			if (node == tmp) {
 				/*
 				 * Case 2 - node's uncle is black and node is
@@ -1358,14 +1381,14 @@ static inline void __rb_insert(struct rb_node *node, struct rb_root *root, void 
 				 * continuation into Case 3 will fix that.
 				 */
 				tmp = node->rb_left;
-				WRITE_ONCE(parent->rb_right, tmp);
-				WRITE_ONCE(node->rb_left, parent);
+				WRITE_ONCE(rb_parent->rb_right, tmp);
+				WRITE_ONCE(node->rb_left, rb_parent);
 				if (tmp){
-					rb_set_parent_color(tmp, parent, RB_BLACK);
+					rb_set_parent_color(tmp, rb_parent, RB_BLACK);
 				}
-				rb_set_parent_color(parent, node, RB_RED);
-				augment_rotate(parent, node);
-				parent = node;
+				rb_set_parent_color(rb_parent, node, RB_RED);
+				augment_rotate(rb_parent, node);
+				rb_parent = node;
 				tmp = node->rb_right;
 			}
 
@@ -1380,48 +1403,48 @@ static inline void __rb_insert(struct rb_node *node, struct rb_root *root, void 
 			 *    n                   U
 			 */
 			WRITE_ONCE(gparent->rb_left, tmp); /* == parent->rb_right */
-			WRITE_ONCE(parent->rb_right, gparent);
+			WRITE_ONCE(rb_parent->rb_right, gparent);
 			if (tmp){
 				rb_set_parent_color(tmp, gparent, RB_BLACK);
 			}
-			__rb_rotate_set_parents(gparent, parent, root, RB_RED);
-			augment_rotate(gparent, parent);
+			__rb_rotate_set_parents(gparent, rb_parent, root, RB_RED);
+			augment_rotate(gparent, rb_parent);
 			break;
 		} else {
 			tmp = gparent->rb_left;
 			if (tmp && rb_is_red(tmp)) {
 				/* Case 1 - color flips */
 				rb_set_parent_color(tmp, gparent, RB_BLACK);
-				rb_set_parent_color(parent, gparent, RB_BLACK);
+				rb_set_parent_color(rb_parent, gparent, RB_BLACK);
 				node = gparent;
-				parent = rb_parent(node);
-				rb_set_parent_color(node, parent, RB_RED);
+				rb_parent = rb_parent(node);
+				rb_set_parent_color(node, rb_parent, RB_RED);
 				continue;
 			}
 
-			tmp = parent->rb_left;
+			tmp = rb_parent->rb_left;
 			if (node == tmp) {
 				/* Case 2 - right rotate at parent */
 				tmp = node->rb_right;
-				WRITE_ONCE(parent->rb_left, tmp);
-				WRITE_ONCE(node->rb_right, parent);
+				WRITE_ONCE(rb_parent->rb_left, tmp);
+				WRITE_ONCE(node->rb_right, rb_parent);
 				if (tmp){
-					rb_set_parent_color(tmp, parent, RB_BLACK);
+					rb_set_parent_color(tmp, rb_parent, RB_BLACK);
 				}
-				rb_set_parent_color(parent, node, RB_RED);
-				augment_rotate(parent, node);
-				parent = node;
+				rb_set_parent_color(rb_parent, node, RB_RED);
+				augment_rotate(rb_parent, node);
+				rb_parent = node;
 				tmp = node->rb_left;
 			}
 
 			/* Case 3 - left rotate at gparent */
 			WRITE_ONCE(gparent->rb_right, tmp); /* == parent->rb_left */
-			WRITE_ONCE(parent->rb_left, gparent);
+			WRITE_ONCE(rb_parent->rb_left, gparent);
 			if (tmp){
 				rb_set_parent_color(tmp, gparent, RB_BLACK);
 			}
-			__rb_rotate_set_parents(gparent, parent, root, RB_RED);
-			augment_rotate(gparent, parent);
+			__rb_rotate_set_parents(gparent, rb_parent, root, RB_RED);
+			augment_rotate(gparent, rb_parent);
 			break;
 		}
 	}
@@ -1442,7 +1465,7 @@ static void __kobject_del(struct kobject *kobj){
  * @kobj: object to cleanup
  */
 static void kobject_cleanup(struct kobject *kobj){
-	struct kobject *parent = kobj->parent;
+	struct kobject *rb_parent = kobj->parent;
 	const struct kobj_type *t = kobj->ktype;
 	const char *name = kobj->name;
 
@@ -1451,7 +1474,7 @@ static void kobject_cleanup(struct kobject *kobj){
 		__kobject_del(kobj);
 	} else {
 		/* avoid dropping the parent reference unnecessarily */
-		parent = NULL;
+		rb_parent = NULL;
 	}
 
 	if (t && t->release != NULL) {
@@ -1463,7 +1486,7 @@ static void kobject_cleanup(struct kobject *kobj){
 		kfree_const(name);
 	}
 
-	kobject_put(parent);
+	kobject_put(rb_parent);
 }
 
 static void kobject_release(struct kref *kref){
@@ -1744,6 +1767,7 @@ static void *kthread_trampoline(void *arg){
 #include <single_offset.h>
 #include <struct_offset.h>
 #include <mod_controller.h>
+#include <controller_utils.h>
 #include <hashtable.h>
 #include <jiffies.h>
 #include <usb.h>

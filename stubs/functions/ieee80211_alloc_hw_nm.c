@@ -1,23 +1,33 @@
-struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, const struct ieee80211_ops *ops, const char *requested_name){
+struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, struct ieee80211_ops *ieee80211_ops, const char *requested_name){
 	int priv_size = 0;
 	bool emulate_chanctx = false;
 	struct wiphy *wiphy = NULL;
+	struct ieee80211_hw *hw = NULL;
 	struct ieee80211_local *local = NULL;
 
-	if (!ops->tx || !ops->start || !ops->stop || !ops->config ||!ops->add_interface || !ops->remove_interface || !ops->configure_filter || !ops->wake_tx_queue){
+	if(priv_data_len == 0 || ieee80211_ops == NULL){
 		return NULL;
 	}
 
-	if (ops->sta_state && (ops->sta_add || ops->sta_remove)){
+	if (director.runtime_generated_structs == NULL) {
 		return NULL;
 	}
 
-	if (!!ops->link_info_changed != !!ops->vif_cfg_changed || (ops->link_info_changed && ops->bss_info_changed)){
+	/* exclude from the check 'ieee80211_ops->tx' because it is often the first pointer in the struct */
+	if (ieee80211_ops->start == NULL || ieee80211_ops->stop == NULL || ieee80211_ops->config == NULL){
+		return NULL;
+	}
+
+	if (ieee80211_ops->sta_state && (ieee80211_ops->sta_add || ieee80211_ops->sta_remove)){
+		return NULL;
+	}
+
+	if (!!ieee80211_ops->link_info_changed != !!ieee80211_ops->vif_cfg_changed || (ieee80211_ops->link_info_changed && ieee80211_ops->bss_info_changed)){
 		return NULL;
 	}
 
 	/* check all or no channel context operations exist */
-	if (!ops->add_chanctx || !ops->remove_chanctx || !ops->change_chanctx || !ops->assign_vif_chanctx || !ops->unassign_vif_chanctx){
+	if (!ieee80211_ops->add_chanctx || !ieee80211_ops->remove_chanctx || !ieee80211_ops->change_chanctx || !ieee80211_ops->assign_vif_chanctx || !ieee80211_ops->unassign_vif_chanctx){
 		return NULL;
 	}
 
@@ -38,7 +48,7 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, const struct ie
 	 */
 	priv_size = ALIGN(sizeof(*local), 32) + priv_data_len; /* 'NETDEV_ALIGN' = 32 */
 
-	//wiphy = wiphy_new_nm(&mac80211_config_ops, priv_size, requested_name);
+	wiphy = wiphy_new_nm(NULL, /*&mac80211_config_ops,*/ priv_size, requested_name);
 
 	if (wiphy == NULL){
 		return NULL;
@@ -50,7 +60,7 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, const struct ie
 			WIPHY_FLAG_REPORTS_OBSS |
 			WIPHY_FLAG_OFFCHAN_TX;
 
-	if (emulate_chanctx || ops->remain_on_channel){
+	if (emulate_chanctx || ieee80211_ops->remain_on_channel){
 		wiphy->flags |= WIPHY_FLAG_HAS_REMAIN_ON_CHANNEL;
 	}
 
@@ -81,7 +91,7 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, const struct ie
 	wiphy_ext_feature_set(wiphy,
 			      NL80211_EXT_FEATURE_POWERED_ADDR_CHANGE);
 
-	if (!ops->hw_scan) {
+	if (ieee80211_ops->hw_scan == NULL) {
 		wiphy->features |= NL80211_FEATURE_LOW_PRIORITY_SCAN |
 				   NL80211_FEATURE_AP_SCAN;
 		/*
@@ -95,9 +105,12 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, const struct ie
 				      NL80211_EXT_FEATURE_SCAN_MIN_PREQ_CONTENT);
 	}
 
-	if (!ops->set_key) {
+	if (!ieee80211_ops->set_key) {
 		wiphy->flags |= WIPHY_FLAG_IBSS_RSN;
-	//	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_SPP_AMSDU_SUPPORT);
+		#ifndef NL80211_EXT_FEATURE_SPP_AMSDU_SUPPORT
+		#define NL80211_EXT_FEATURE_SPP_AMSDU_SUPPORT 70
+		#endif
+		wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_SPP_AMSDU_SUPPORT);
 	}
 
 	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_TXQS);
@@ -105,18 +118,20 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, const struct ie
 
 	wiphy->bss_priv_size = sizeof(struct ieee80211_bss);
 
-	//local = wiphy->priv;
-	local = &director.ieee80211_local;
+	local = wiphy->priv;
+	director.ieee80211_local = (struct ieee80211_local *)malloc(sizeof(struct ieee80211_local));
+	local = director.ieee80211_local;
 
 	if (sta_info_init(local)){
 		goto err_free;
 	}
 
-	local->hw.wiphy = wiphy;
+	hw = &local->hw;
 
-	local->hw.priv = (char *)local + ALIGN(sizeof(*local), 32); /** 'NETDEV_ALIGN' = 32 */
+	hw->wiphy = wiphy;
+	hw->priv = (char *)local + ALIGN(sizeof(*local), 32); /** 'NETDEV_ALIGN' = 32 */
 
-	local->ops = ops;
+	local->ieee80211_ops = ieee80211_ops;
 	local->emulate_chanctx = emulate_chanctx;
 
 	/*
@@ -129,38 +144,33 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, const struct ie
 	 * for local reasons (longer buffers, longer completion time, or
 	 * similar).
 	 */
-	local->hw.tx_sk_pacing_shift = 7;
-
+	hw->tx_sk_pacing_shift = 7;
 	/* set up some defaults */
-	local->hw.queues = 1;
-	local->hw.max_rates = 1;
-	local->hw.max_report_rates = 0;
-	local->hw.max_rx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HT;
-	local->hw.max_tx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HT;
-	local->hw.offchannel_tx_hw_queue = IEEE80211_INVAL_HW_QUEUE;
-	local->hw.conf.long_frame_max_tx_count = wiphy->retry_long;
-	local->hw.conf.short_frame_max_tx_count = wiphy->retry_short;
-	local->hw.radiotap_mcs_details = IEEE80211_RADIOTAP_MCS_HAVE_MCS |
+	hw->queues = 1;
+	hw->max_rates = 1;
+	hw->max_report_rates = 0;
+	hw->max_rx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HT;
+	hw->max_tx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HT;
+	hw->offchannel_tx_hw_queue = IEEE80211_INVAL_HW_QUEUE;
+	hw->conf.long_frame_max_tx_count = wiphy->retry_long;
+	hw->conf.short_frame_max_tx_count = wiphy->retry_short;
+	hw->radiotap_mcs_details = IEEE80211_RADIOTAP_MCS_HAVE_MCS |
 					 IEEE80211_RADIOTAP_MCS_HAVE_GI |
 					 IEEE80211_RADIOTAP_MCS_HAVE_BW;
-	local->hw.radiotap_vht_details = IEEE80211_RADIOTAP_VHT_KNOWN_GI |
+	hw->radiotap_vht_details = IEEE80211_RADIOTAP_VHT_KNOWN_GI |
 					 IEEE80211_RADIOTAP_VHT_KNOWN_BANDWIDTH;
-	local->hw.uapsd_queues = IEEE80211_DEFAULT_UAPSD_QUEUES;
-	local->hw.uapsd_max_sp_len = IEEE80211_DEFAULT_MAX_SP_LEN;
-	local->hw.max_mtu = IEEE80211_MAX_DATA_LEN;
-	local->user_power_level = IEEE80211_UNSET_POWER_LEVEL;
-
+	hw->uapsd_queues = IEEE80211_DEFAULT_UAPSD_QUEUES;
+	hw->uapsd_max_sp_len = IEEE80211_DEFAULT_MAX_SP_LEN;
+	hw->max_mtu = IEEE80211_MAX_DATA_LEN;
 	local->ext_capa[7] = WLAN_EXT_CAPA8_OPMODE_NOTIF;
 
 	INIT_LIST_HEAD(&local->interfaces);
 	INIT_LIST_HEAD(&local->mon_list);
 
 	pthread_mutex_init(&local->iflist_mtx, NULL);
-
 	local->airtime_flags = AIRTIME_USE_TX | AIRTIME_USE_RX;
 	local->aql_threshold = IEEE80211_AQL_THRESHOLD;
 	atomic_store(&local->aql_total_pending_airtime, 0);
-
 	INIT_LIST_HEAD(&local->chanctx_list);
 
 	for (int i = 0; i < IEEE80211_MAX_QUEUES; i++) {
@@ -171,11 +181,8 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, const struct ie
 	skb_queue_head_init(&local->skb_queue);
 	skb_queue_head_init(&local->skb_queue_unreliable);
 
-	local->hw.radiotap_timestamp.units_pos = -1;
-	local->hw.radiotap_timestamp.accuracy = -1;
-
-	return &local->hw;
- err_free:
+	return hw;
+err_free:
 	wiphy_free(wiphy);
 	return NULL;
 }

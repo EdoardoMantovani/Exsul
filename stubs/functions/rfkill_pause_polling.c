@@ -1,5 +1,8 @@
 void rfkill_pause_polling(struct rfkill *rfkill){
-	if (director.rdev->rfkill_ops.poll == NULL){
+	struct cfg80211_registered_device *rdev = NULL;
+
+	rdev = director.rdev;
+	if (rdev->rfkill_ops.poll == NULL){
 		return;
 	}
 

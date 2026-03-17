@@ -1,5 +1,10 @@
 /* contains everything related to the hashtable manipulation */
 
+#define HASH_DEFAULT_SIZE	64UL
+#define HASH_MIN_SIZE		4U
+
+#define rhltable_init		rhltable_init_noprof
+
 /**
  * rht_for_each_rcu_from - iterate over rcu hash chain from given head
  * @pos:	the &struct rhash_head to use as a loop cursor.
@@ -97,6 +102,25 @@ struct rhlist_head {
 	struct rhash_head		rhead;
 	struct rhlist_head __rcu	*next;
 };
+
+/*
+ * Objects in an rhashtable have an embedded struct rhash_head
+ * which is linked into as hash chain from the hash table - or one
+ * of two or more hash tables when the rhashtable is being resized.
+ * The end of the chain is marked with a special nulls marks which has
+ * the least significant bit set but otherwise stores the address of
+ * the hash bucket.  This allows us to be sure we've found the end
+ * of the right list.
+ * The value stored in the hash bucket has BIT(0) used as a lock bit.
+ * This bit must be atomically set before any changes are made to
+ * the chain.  To avoid dereferencing this pointer without clearing
+ * the bit first, we use an opaque 'struct rhash_lock_head *' for the
+ * pointer stored in the bucket.  This struct needs to be defined so
+ * that rcu_dereference() works on it, but it has no content so a
+ * cast is needed for it to be useful.  This ensures it isn't
+ * used by mistake with clearing the lock bit first.
+ */
+struct rhash_lock_head {};
 
 /**
  * struct bucket_table - Table of hash buckets
@@ -456,3 +480,46 @@ static inline void rhltable_free_and_destroy(struct rhltable *hlt, void (*free_f
 static inline void rhltable_destroy(struct rhltable *hlt){
 	rhltable_free_and_destroy(hlt, NULL, NULL);
 }
+
+static u32 rhashtable_jhash2(const void *key, u32 length, u32 seed){
+	return jhash2(key, length, seed);
+}
+
+static size_t rounded_hashtable_size(const struct rhashtable_params *params){
+	size_t retsize = 0;
+
+	if (params->nelem_hint){
+		retsize = max(roundup_pow_of_two(params->nelem_hint * 4 / 3),
+			      (unsigned long)params->min_size);
+	}else{
+		retsize = max(HASH_DEFAULT_SIZE,
+			      (unsigned long)params->min_size);
+	}
+	return retsize;
+}
+
+static struct bucket_table *bucket_table_alloc(struct rhashtable *ht, int nbuckets, int gfp){
+	int size = 0;
+	struct bucket_table *tbl = NULL;
+
+	tbl = malloc(sizeof(struct bucket_table) + (sizeof(struct rhash_lock_head) * nbuckets));
+
+	size = nbuckets;
+
+	if (tbl == NULL){
+		return NULL;
+	}
+
+	tbl->size = size;
+
+	INIT_LIST_HEAD(&tbl->walkers);
+
+	tbl->hash_rnd = get_random_u32();
+
+	for (int i = 0; i < nbuckets; i++){
+		INIT_RHT_NULLS_HEAD(tbl->buckets[i]);
+	}
+
+	return tbl;
+}
+

@@ -5,6 +5,12 @@
 #define REPEAT_BYTE(x)                          ((~0ul / 0xff) * (x))
 #define WORD_AT_A_TIME_CONSTANTS                { REPEAT_BYTE(0x01), REPEAT_BYTE(0x80) }
 
+struct exception_table_entry {
+	int insn;
+	int fixup;
+	int type;
+};
+
 /*
  * The patching flags are part of the upper bits of the @ft_flags parameter when
  * specifying them. The split is currently like this:

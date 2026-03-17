@@ -5,4 +5,5 @@ void *kmemdup_noprof(const void *src, size_t len, int gfp){
 	if(p != NULL){
 		memcpy(p, src, len);
 	}
+	return p;
 }

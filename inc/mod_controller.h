@@ -39,7 +39,6 @@ struct module_controller {
 
         /* provide the support for loading multiple lkm, permitting thus to reuse the functions from every lkm loaded */
         u8 loaded_lkm_num;
-        void *lkm_current_area[MAX_ALLOCATED_LKM_NUMBER];
 
         struct rfkill *rfkill;
 	struct ieee80211_local *ieee80211_local;

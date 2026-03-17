@@ -782,6 +782,8 @@
  */
 #define wiphy_dereference(wiphy, p)			rcu_dereference_protected(p, 1)
 
+#define sdata_dereference(p, sdata)			wiphy_dereference(sdata->local->hw.wiphy, p)
+
 #define for_each_sta_info(local, _addr, _sta, _tmp)			\
 	rhl_for_each_entry_rcu(_sta, _tmp,				\
 			       sta_info_hash_lookup(local, _addr), hash_node)
@@ -2980,6 +2982,21 @@ struct wiphy_delayed_work {
 	struct timer_list timer;
 };
 
+/**
+ * struct wiphy_iftype_akm_suites - This structure encapsulates supported akm
+ * suites for interface types defined in @iftypes_mask. Each type in the
+ * @iftypes_mask must be unique across all instances of iftype_akm_suites.
+ *
+ * @iftypes_mask: bitmask of interfaces types
+ * @akm_suites: points to an array of supported akm suites
+ * @n_akm_suites: number of supported AKM suites
+ */
+struct wiphy_iftype_akm_suites {
+	u16 iftypes_mask;
+	const u32 *akm_suites;
+	int n_akm_suites;
+};
+
 struct rfkill {
 	enum rfkill_type	type;
 
@@ -4566,6 +4583,18 @@ struct sta_info {
 	struct ieee80211_vif vif;
 };
 
+struct link_sta_info {
+	u8 addr[ETH_ALEN];
+	u8 link_id;
+
+	u8 op_mode_nss;
+	u8 capa_nss;
+
+	struct rhlist_head link_hash_node;
+
+	struct sta_info *sta;
+};
+
 struct regulatory_request {
 	struct rcu_head rcu_head;
 	int wiphy_idx;
@@ -4779,6 +4808,15 @@ struct cfg80211_registered_device {
 	struct list_head bss_list;
 	u32 bss_generation;
 	u32 bss_entries;
+	struct work_struct wiphy_work;
+	struct list_head wiphy_work_list;
+	struct list_head beacon_registrations;
+	struct list_head sched_scan_req_list;
+	/*
+	 * we cannot hae a real wiphy struct because it would change drastically on other kernel versions,
+	 * the solution is to alloc a costant size, like 1024 bytes
+	 */
+	u8 wiphy[1024];
 };
 
 /**
@@ -5811,6 +5849,8 @@ struct rate_control_ref {
 };
 
 struct ieee80211_local {
+	/* ieee80211_hw changes across kernel versions, for security, mantain a fixed size of 1024 even if is oversized */
+	u8 ieee80211_hw[1024];
 	struct wiphy *wiphy;
 	struct cfg80211_registered_device *rdev;
 	struct rate_control_ref *rate_ctrl;
@@ -5848,7 +5888,7 @@ struct ieee80211_local {
 	pthread_mutex_t active_txq_lock[IEEE80211_NUM_ACS];
 	struct list_head active_txqs[IEEE80211_NUM_ACS];
 	u16 schedule_round[IEEE80211_NUM_ACS];
-	struct ieee80211_ops *ops;
+	struct ieee80211_ops *ieee80211_ops;
 	struct sk_buff_head pending[IEEE80211_MAX_QUEUES];
 
 	int user_power_level; /* in dBm */
@@ -7208,10 +7248,10 @@ free:
 static int ieee80211_init_rate_ctrl_alg(struct ieee80211_local *local, const char *name){
 	int ret = 0;
 	struct rate_control_ref *ref = NULL;
-	struct ieee80211_ops *ops = NULL;
+	struct ieee80211_ops *ieee80211_ops = NULL;
 
-	ops = local->ops;
-	if(ops == NULL){
+	ieee80211_ops = local->ieee80211_ops;
+	if(ieee80211_ops == NULL){
 		ret = -EINVAL;
 		return ret;
 	}
@@ -7222,7 +7262,7 @@ static int ieee80211_init_rate_ctrl_alg(struct ieee80211_local *local, const cha
 	}
 
 	if (ieee80211_hw_check(&local->hw, HAS_RATE_CONTROL)) {
-		if (ops->set_rts_threshold == NULL){
+		if (ieee80211_ops->set_rts_threshold == NULL){
 			ret = -EINVAL;
 			return ret;
 		}
@@ -8527,16 +8567,16 @@ static void ieee80211_if_remove(struct ieee80211_sub_if_data *sdata){
 }
 
 static inline void drv_vif_cfg_changed(struct ieee80211_local *local, struct ieee80211_sub_if_data *sdata, u64 changed){
-	struct ieee80211_ops *ops = NULL;
+	struct ieee80211_ops *ieee80211_ops = NULL;
 
-	ops = local->ops;
-	if(ops == NULL){
+	ieee80211_ops = local->ieee80211_ops;
+	if(ieee80211_ops == NULL){
 		goto end;
 	}
 
-	if (ops->vif_cfg_changed){
+	if (ieee80211_ops->vif_cfg_changed){
 //		ops->vif_cfg_changed(&local->hw, &sdata->vif, changed);
-	}else if (ops->bss_info_changed){
+	}else if (ieee80211_ops->bss_info_changed){
 //		ops->bss_info_changed(&local->hw, &sdata->vif, &sdata->vif.bss_conf, changed);
 	}
 	end:
@@ -8597,6 +8637,44 @@ static void ieee80211_remove_interfaces(struct ieee80211_local *local){
 			kfree(sdata);
 		}
 	}
+}
+
+static int sta_info_init(struct ieee80211_local *local){
+	int ret = 0;
+
+	static const struct rhashtable_params sta_rht_params = {
+		.nelem_hint = 3, /* start small */
+		.automatic_shrinking = true,
+		.head_offset = offsetof(struct sta_info, hash_node),
+		.key_offset = offsetof(struct sta_info, addr),
+		.key_len = ETH_ALEN,
+		.max_size = CONFIG_MAC80211_STA_HASH_MAX_SIZE,
+	};
+
+	static const struct rhashtable_params link_sta_rht_params = {
+		.nelem_hint = 3, /* start small */
+		.automatic_shrinking = true,
+		.head_offset = offsetof(struct link_sta_info, link_hash_node),
+		.key_offset = offsetof(struct link_sta_info, addr),
+		.key_len = ETH_ALEN,
+		.max_size = CONFIG_MAC80211_STA_HASH_MAX_SIZE,
+	};
+
+	ret = rhltable_init(&local->sta_hash, &sta_rht_params);
+	if (ret){
+		return ret;
+	}
+
+	ret = rhltable_init(&local->link_sta_hash, &link_sta_rht_params);
+	if (ret) {
+		rhltable_destroy(&local->sta_hash);
+		return ret;
+	}
+
+	INIT_LIST_HEAD(&local->sta_list);
+
+	//timer_setup(&local->sta_cleanup, sta_info_cleanup, 0);
+	return ret;
 }
 
 /* nl80211 based function wrappers (must be working for both Linux and Windows) */

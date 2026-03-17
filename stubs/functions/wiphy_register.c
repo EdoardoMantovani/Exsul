@@ -8,7 +8,7 @@ int wiphy_register(struct wiphy *wiphy){
 
 	struct ieee80211_local *local = NULL;
 	struct cfg80211_registered_device *rdev = NULL;
-	struct ieee80211_ops *ops = NULL;
+	struct ieee80211_ops *ieee80211_ops = NULL;
 
 	local = &director.ieee80211_local;
 	if(local == NULL){
@@ -18,15 +18,15 @@ int wiphy_register(struct wiphy *wiphy){
 	if(rdev == NULL){
 
 	}
-	ops = local->ops;
-	if(ops == NULL){
+	ieee80211_ops = local->ieee80211_ops;
+	if(ieee80211_ops == NULL){
 		ret = -EINVAL;
 		return ret;
 	}
 
 	ifmodes = wiphy->interface_modes;
 
-	if ((wiphy->interface_modes & BIT(NL80211_IFTYPE_NAN)) && (!ops->start_nan || !ops->stop_nan || !ops->add_nan_func || !ops->del_nan_func || !(wiphy->nan_supported_bands & BIT(NL80211_BAND_2GHZ)))){
+	if ((wiphy->interface_modes & BIT(NL80211_IFTYPE_NAN)) && (!ieee80211_ops->start_nan || !ieee80211_ops->stop_nan || !ieee80211_ops->add_nan_func || !ieee80211_ops->del_nan_func || !(wiphy->nan_supported_bands & BIT(NL80211_BAND_2GHZ)))){
 		ret = -EINVAL;
 		return ret;
 	}
@@ -65,7 +65,7 @@ int wiphy_register(struct wiphy *wiphy){
 			return -EINVAL;
 		}
 
-		if (wiphy->max_acl_mac_addrs && (!(wiphy->flags & WIPHY_FLAG_HAVE_AP_SME) || !ops->set_mac_acl)){
+		if (wiphy->max_acl_mac_addrs && (!(wiphy->flags & WIPHY_FLAG_HAVE_AP_SME) || !ieee80211_ops->set_mac_acl)){
 			return -EINVAL;
 		}
 
