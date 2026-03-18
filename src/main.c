@@ -111,6 +111,7 @@ void dump_usb_host_interface(struct usb_interface *intf){
 }
 #endif
 
+
 int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface **in_intf){
         int ret = 0;
         u8 in = 0;
@@ -253,19 +254,36 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 	if(struct_device_sizeof == 0){
 		printf("[!] failed to retrieve the size for struct device!\n");
 		goto end;
-	}else{
-		printf("[*] size of struct device: %d\n", struct_device_sizeof);
 	}
 	intf_ptr->usb_dev = malloc(struct_device_sizeof);
 	/*
 	 * 'interface_to_usbdev' uses also .dev->parent, so we need to allocate both of them.
 	 */
-	dev = &intf_ptr->dev;
-	if(dev != NULL){
-		dev->parent = malloc(struct_device_sizeof);
-	}else{
-
-	}
+	//
+	int struct_usb_device_sizeof = get_struct_size("usb_device");
+	struct usb_device *usb_device_ptr = (struct usb_device *)malloc(struct_usb_device_sizeof);
+        //intf_ptr->usb_dev = &usb_device_ptr->dev;
+        intf_ptr->dev.parent = &usb_device_ptr->dev;
+        ret = libusb_get_device_speed(handler);
+        switch(ret){
+                case LIBUSB_SPEED_SUPER:
+                        usb_device_ptr->speed = USB_SPEED_SUPER;
+                break;
+                case LIBUSB_SPEED_HIGH:
+                        usb_device_ptr->speed = USB_SPEED_HIGH;
+                break;
+                case LIBUSB_SPEED_FULL:
+                        usb_device_ptr->speed = USB_SPEED_FULL;
+                break;
+                case LIBUSB_SPEED_LOW:
+                        usb_device_ptr->speed = USB_SPEED_LOW;
+                break;
+                default:
+                        usb_device_ptr->speed = USB_SPEED_UNKNOWN;
+                break;
+        }
+        /* reset ret */
+        ret = 0;
 
 	end:
         libusb_free_config_descriptor(cfg);
