@@ -273,7 +273,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[3] = {
 				.struct_size = 0,
 				.struct_name = "module",
-				.struct_field_num = 22,
+				.struct_field_num = 21,
 				.fields = {
 					[0] = {
 						.field_name = "core_kallsyms",
@@ -304,62 +304,58 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[7] = {
-						.field_name = "init",
-						.field_offset = 0,
-					},
-					[8] = {
 						.field_name = "kallsyms",
 						.field_offset = 0,
 					},
-					[9] = {
+					[8] = {
 						.field_name = "kp",
 						.field_offset = 0,
 					},
-					[10] = {
+					[9] = {
 						.field_name = "mem",
 						.field_offset = 0,
 					},
-					[11] = {
+					[10] = {
 						.field_name = "name",
 						.field_offset = 0,
 					},
-					[12] = {
+					[11] = {
 						.field_name = "noinstr_text_size",
 						.field_offset = 0,
 					},
-					[13] = {
+					[12] = {
 						.field_name = "noinstr_text_start",
 						.field_offset = 0,
 					},
-					[14] = {
+					[13] = {
 						.field_name = "num_ctors",
 						.field_offset = 0,
 					},
-					[15] = {
+					[14] = {
 						.field_name = "num_exentries",
 						.field_offset = 0,
 					},
-					[16] = {
+					[15] = {
 						.field_name = "num_gpl_syms",
 						.field_offset = 0,
 					},
-					[17] = {
+					[16] = {
 						.field_name = "num_kp",
 						.field_offset = 0,
 					},
-					[18] = {
+					[17] = {
 						.field_name = "num_syms",
 						.field_offset = 0,
 					},
-					[19] = {
+					[18] = {
 						.field_name = "percpu",
 						.field_offset = 0,
 					},
-					[20] = {
+					[19] = {
 						.field_name = "state",
 						.field_offset = 0,
 					},
-					[21] = {
+					[20] = {
 						.field_name = "syms",
 						.field_offset = 0,
 					},

@@ -1709,9 +1709,6 @@ int module_enable_text_rox(const struct module *mod) {
 static int complete_formation(struct module *mod, struct load_info *info) {
 	int err = 0;
 
-	// module_bug_finalize(info->hdr, info->sechdrs, mod);
-	// module_cfi_finalize(info->hdr, info->sechdrs, mod);
-
 	err = module_enable_rodata_ro(mod, false);
 
 	if (err) {
@@ -1730,7 +1727,7 @@ static int complete_formation(struct module *mod, struct load_info *info) {
 		goto out_strict_rwx;
 	}
 
-	// mod->state    = MODULE_STATE_COMING;
+	mod->state    = MODULE_STATE_COMING;
 	return 0;
 
 out_strict_rwx:
@@ -1779,9 +1776,6 @@ static int do_init_module(struct module *mod) {
 	int ret = 0;
 
 	do_mod_ctors(mod);
-	if (mod->init != NULL) {
-		// ret = do_one_initcall(mod->init);
-	}
 
 	if (ret > 0) {
 #ifdef ENABLE_DBG_PRINT
@@ -2326,6 +2320,16 @@ int drv_cmd_get(struct module_controller *director, char *argv[], int num_args) 
 	return ret;
 }
 
+/* clean everything allocated in the main controller */
+void finalize_director(void){
+	if(director.info != NULL){
+		free(director.info);
+	}
+	if(director.ieee80211_local != NULL){
+
+	}
+}
+
 /*
  * add also a crash handler which returns a custom file format when it crash,
  * output file format is still wip, it should contains both the callback table and the offset table.
@@ -2340,7 +2344,9 @@ void crash_handler(int sig){
 	u8 dumped_filename_buffer[128];
 	struct crashdump_section crash_sections[CRASH_SECTION_MAX];
         /* get crash address */
-
+	printf("crash handler\n");
+	finalize_director();
+	exit(0);
 	if(sig != SIGABRT){
 		current_crash_time = time(NULL);
 		/* taken from 'https://stackoverflow.com/questions/1442116/how-can-i-get-the-date-and-time-values-in-a-c-program' */
@@ -2380,8 +2386,8 @@ void crash_handler(int sig){
 		write(dump_fd, sym_table[j].function_name, strlen(sym_table[j].function_name));
 		dump_fd_offset_count += strlen(sym_table[j].function_name);
 		lseek(dump_fd, dump_fd_offset_count, SEEK_SET);
-		write(dump_fd, sym_table[j].function_ptr, sizeof(void *));
-		dump_fd_offset_count += sizeof(void *);
+		write(dump_fd, &sym_table[j].function_ptr, sizeof(sym_table[j].function_ptr));
+		dump_fd_offset_count += sizeof(sym_table[j].function_ptr);
 		sym_table_section_size += sizeof(sym_table[j]);
 	}
 	/* return at the start of the section header */
@@ -2455,7 +2461,7 @@ int main(int argc, char *argv[], char *envp[]) {
 	/* register now the signal handler */
 	signal(SIGINT, crash_handler);
 	signal(SIGSEGV, crash_handler);
-	signal(SIGABRT, crash_handler);
+	//signal(SIGABRT, crash_handler);
 
 	director.internal_cb_table = &sym_table;
 	libusb_init(NULL);

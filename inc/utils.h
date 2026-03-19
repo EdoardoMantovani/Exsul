@@ -7,6 +7,16 @@
 #define CONFIG_HAVE_ARCH_PREL32_RELOCATIONS	1
 #endif
 
+/* due to the fact that tracking every memory allocation can cause some troubles, I decided to create a simple API which allocates memory and
+ * add them to a queue present in the main context.
+ */
+#define MALLOC(alloc_ptr, alloc_size)		alloc_ptr = malloc(alloc_size);									\
+						new_allocation(ALLOCATION_TYPE_MALLOC, alloc_ptr, alloc_size, director.allocation_list);
+
+#define MMAP(alloc_ptr, alloc_size)		alloc_ptr = mmap(NULL, alloc_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);	\
+						new_allocation(ALLOCATION_TYPE_MMAP, alloc_ptr, alloc_size, director.allocation_list);
+
+
 #ifndef SPEED_1600000
 #define SPEED_1600000		1600000
 #endif
@@ -1202,9 +1212,9 @@ struct word_at_a_time {
 /* allocation list used for mantaining the track of the memory allocated during the module runtime loading/execution */
 struct allocation_list {
 	u8 alloc_type;
-	int alloc_size;
+	int alloc_len;
 	void *alloc_ptr;
-	struct allocation_list *next;
+	struct allocation_list *alloc_next;
 };
 
 /* section for the crash dump file */
@@ -1711,7 +1721,56 @@ static int speed_duplex_to_capa(int speed, unsigned int duplex){
 }
 
 /* functions for handling the allocation list */
+static struct allocation_list *add_top_memory_zone(struct allocation_list *current_allocation, struct allocation_list *head){
+	if(head != NULL){
+		struct allocation_list *next_memory_zone = head;
+		head = (struct allocation_list *)malloc(sizeof(struct allocation_list));
+                head->alloc_type = current_allocation->alloc_type;
+                head->alloc_ptr  = current_allocation->alloc_ptr;
+                head->alloc_len  = current_allocation->alloc_len;
+		head->alloc_next = next_memory_zone;
+	}else{
+		head = (struct allocation_list *)malloc(sizeof(struct allocation_list));
+                head->alloc_type = current_allocation->alloc_type;
+                head->alloc_ptr  = current_allocation->alloc_ptr;
+                head->alloc_len  = current_allocation->alloc_len;
+		head->alloc_next = NULL;
+	}
+	return head;
+}
 
+static struct allocation_list *add_memory_zone(struct allocation_list *current_allocation, struct allocation_list *head){
+	struct allocation_list *next_memory_area = NULL;
+
+	if(head != NULL){
+		next_memory_area = head;
+		while(next_memory_area->alloc_next != NULL){
+			next_memory_area = next_memory_area->alloc_next;
+		}
+		next_memory_area->alloc_next = add_top_memory_zone(current_allocation, NULL);
+	}else{
+		head = add_top_memory_zone(current_allocation, head);
+	}
+	return head;
+}
+
+static void dump_memory_allocation_list(struct allocation_list *head){
+	if(head != NULL){
+		while(head != NULL){
+			head = head->alloc_next;
+		}
+	}
+}
+
+/* high level function which adds an allocation node to the main context */
+static void new_allocation(u8 allocation_type, void *allocation_ptr, int allocation_length, struct allocation_list *allocation_head){
+	struct allocation_list current_allocation = {
+		.alloc_type = allocation_type,
+		.alloc_ptr  = allocation_ptr,
+		.alloc_len  = allocation_length,
+	};
+	add_memory_zone(&current_allocation, allocation_head);
+}
 
 /*
  * simple function which converts the vermagic into a series of numbers

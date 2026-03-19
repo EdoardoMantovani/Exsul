@@ -123,6 +123,13 @@
 /* name of the crashdump file */
 #define DUMP_FILENAME		"crashreport-%d-%02d-%02d_%02d:%02d:%02d.dump"
 
+/* workaround for having clang -fsanitize flag working */
+#ifdef __clang__
+#define clang_static		static
+#else
+#define clang_static
+#endif
+
 #define NR_KMALLOC_TYPES	8
 #define	NUMA_NO_NODE		(-1)
 

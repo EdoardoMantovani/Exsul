@@ -98,6 +98,7 @@ my @gcc_params = (
 	"-DCONFIG_PM",
 	"-O2",
 	"-w",
+	#"-fsanitize=leak -g",
 	"-funwind-tables",
 	"-fasynchronous-unwind-tables",
 	"-fno-omit-frame-pointer",
