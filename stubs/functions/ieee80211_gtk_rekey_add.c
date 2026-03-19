@@ -65,7 +65,8 @@ struct ieee80211_key_conf *ieee80211_gtk_rekey_add(struct ieee80211_vif *vif, u8
 
 	key->conf.link_id = link_data->link_id;
 
-	ret = ieee80211_key_link(key, link_data, NULL);
+	// TODO
+	//ret = ieee80211_key_link(key, link_data, NULL);
 	if (ret){
 		return ERR_PTR(ret);
 	}

@@ -97,15 +97,14 @@ my @gcc_params = (
 	"-DARCH_INDEPENDENT_BITOPS",
 	"-DCONFIG_PM",
 	"-O2",
-	"-funwind-tables",
 	"-w",
+	"-funwind-tables",
 	"-fasynchronous-unwind-tables",
 	"-fno-omit-frame-pointer",
 	"-I$arch",
 	"-march=native",
 	"-mtune=native",
 	"-mstackrealign",
-	"-mincoming-stack-boundary=3",
 );
 my @gcc_stub_params = (
 	"-mno-sse",
@@ -115,7 +114,6 @@ my @gcc_stub_params = (
 	"-mno-avx",
 	"-mno-sse4a",
 	"-mno-red-zone",
-	"-mpreferred-stack-boundary=3",
 	"-fno-omit-frame-pointer",
 );
 my @gcc_final_params = (
@@ -190,6 +188,7 @@ my %field_ctype = (
 		"queue_mapping"			=> "u16",
 		"pkt_type"			=> "u8",
 		"unreadable"            	=> "u8",
+		"cloned"			=> "u8",
 		"csum"				=> "__wsum",
 		"hash"				=> "u32",
 		"protocol"			=> "be16",
@@ -219,6 +218,8 @@ my %field_ctype = (
 		"destructor_arg"		=> "void *",
 	},
 	urb => {
+		"use_count"			=> "atomic_int",
+		"reject"			=> "atomic_int",
 		"kref"				=> "struct kref",
 		"urb_list"			=> "struct list_head",
 		"anchor"			=> "struct usb_anchor *",
@@ -257,6 +258,7 @@ my %field_ctype = (
 		"legacy"			=> "unsigned int",
 	},
 	wiphy => {
+		"dev"				=> "struct device",
 		"flags"				=> "u32",
 		"regulatory_flags"		=> "u32",
 		"features"			=> "u32",
@@ -408,6 +410,28 @@ if($generate_offset_file){
 	$offset_generation_file = "required_offsets.json";
 }
 
+# fix for clang: seems that the flags '-mincoming-stack-boundary=3' and '-mpreferred-stack-boundary=3' aren't supported by clang
+if($compiler){
+	if(!($compiler eq "clang")){
+		push(@gcc_params, "-mincoming-stack-boundary=3 ");
+		push(@gcc_stub_params, "-mpreferred-stack-boundary=3 ");
+	}else{
+		push(@gcc_params, "-Wno-everything ");
+		push(@gcc_stub_params, "-Wno-implicit-function-declaration ");
+	}
+	# workaround for tcc, which cannot find the stdatomic.h header.
+	if($compiler eq "tcc"){
+		push(@gcc_params, "-I/usr/include/newlib/ ");
+		#fix also 'Unable to determine type definition of intptr_t'
+		push(@gcc_params, "-D__INTPTR_TYPE__ long int ");
+	}
+	# windows support
+	if($compiler =~ "ming"){
+		push(@gcc_params, "-I/usr/include/ ");
+		push(@gcc_params, "-I/usr/include/x86_64-linux-gnu/ ");
+	}
+}
+
 if($clean){
 	`$rm $build/*.o 2>/dev/null`;
 	`$rm $bin/$final_program 2>/dev/null`;
@@ -433,7 +457,7 @@ if($make_examples){
 }
 
 if($windows_support){
-	# reserved for future work
+	$compiler = "x86_64-w64-mingw32-gcc";
 }
 
 if(!$compiler){

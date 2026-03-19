@@ -118,7 +118,7 @@
 #define DEFAULT_FW_PATH		"/lib/firmware/"
 
 /* magic number used for identifying the header of crash dump */
-#define DUMP_MAGIC		0xDCCCCB
+#define DUMP_MAGIC		"DCCCCB"
 
 /* name of the crashdump file */
 #define DUMP_FILENAME		"crashreport-%d-%02d-%02d_%02d:%02d:%02d.dump"
@@ -193,7 +193,16 @@
 /* sections for the crashdump */
 enum {
 	CRASH_SECTION_SYMBOL_TABLE,
+
 	CRASH_SECTION_MAX,
+};
+
+/* memory allocation type for the generic list used for tracking the allocated memory */
+enum {
+	ALLOCATION_TYPE_MMAP,
+	ALLOCATION_TYPE_MALLOC,
+
+	ALLOCATION_TYPE_MAX,
 };
 
 enum {
@@ -790,6 +799,8 @@ struct internal_cb_table {
 struct module_controller;
 extern struct module_controller director;
 
+#include <prototypes.h>
+
 /**
  * refcount_set - set a refcount's value
  * @r: the refcount
@@ -1183,7 +1194,11 @@ static inline bool refcount_dec_and_test(refcount_t *r){
  * @kref: object in question.
  */
 static inline void kref_init(struct kref *kref){
+	#ifdef __clang__
+	__c11_atomic_store(&kref->refcount.refs, 1, __ATOMIC_RELEASE);
+	#else
 	__atomic_store_n(&kref->refcount.refs, 1, __ATOMIC_RELEASE);
+	#endif
 }
 
 static inline void kref_get(struct kref *kref){
@@ -1776,7 +1791,6 @@ static void *kthread_trampoline(void *arg){
 	return NULL;
 }
 
-#include <prototypes.h>
 #include <single_offset.h>
 #include <struct_offset.h>
 #include <mod_controller.h>

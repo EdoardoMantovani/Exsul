@@ -6635,7 +6635,7 @@ static inline bool ieee80211_sdata_running(struct ieee80211_sub_if_data *sdata){
 static inline const char *wiphy_name(const struct wiphy *wiphy){
 	struct device *dev = NULL;
 
-	dev = wiphy->dev;
+	dev = &wiphy->dev;
 
 	/* inline here 'dev_name' for simplicity */
 	if (dev->init_name != NULL){
@@ -8090,7 +8090,7 @@ static void _ieee80211_iter_keys_rcu(struct ieee80211_hw *hw,  struct ieee80211_
 	struct ieee80211_key *key = NULL;
 
 	list_for_each_entry_rcu(key, &sdata->key_list, list){
-		ieee80211_key_iter(hw, &sdata->vif, key, iter, iter_data);
+		ieee80211_key_iter(hw, sdata->vif, key, iter, iter_data);
 	}
 }
 

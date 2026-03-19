@@ -1086,7 +1086,11 @@ static void skb_clone_fraglist(struct sk_buff *skb){
  *	shared data so must not be written to under normal circumstances.
  */
 static inline int skb_cloned(const struct sk_buff *skb){
+	#ifdef __clang__
+	return skb->cloned;
+	#else
 	return skb->cloned && (__atomic_load_n(&skb_shinfo(skb)->dataref, __ATOMIC_ACQUIRE) & SKB_DATAREF_MASK) != 1;
+	#endif
 }
 
 static inline int skb_unclone(struct sk_buff *skb, int pri){

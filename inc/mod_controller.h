@@ -74,4 +74,7 @@ struct module_controller {
 	#ifdef USE_BUILTIN_FIRMWARE
 	struct firmware_builtin_space *fw_builtin;
 	#endif
+
+	/* list of the allocated memory, used for freeing everything at the end */
+	struct allocation_list *allocation_list;
 };

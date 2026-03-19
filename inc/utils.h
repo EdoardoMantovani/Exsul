@@ -172,6 +172,7 @@ container_of(callback_timer, typeof(*var), timer_fieldname)
 #define ms_to_us(ms)				((useconds_t)((ms) * 1000))
 #define udelay(us)				usleep(us)
 #define prep_zero_mask(a, bits, c)		(bits)
+#define fls(x)					generic_fls(x)
 #define __fls(word)				generic___fls(word)
 #define find_zero(bits)				(__ffs(bits) >> 3)
 
@@ -1198,6 +1199,14 @@ struct word_at_a_time {
 	const unsigned long high_bits;
 };
 
+/* allocation list used for mantaining the track of the memory allocated during the module runtime loading/execution */
+struct allocation_list {
+	u8 alloc_type;
+	int alloc_size;
+	void *alloc_ptr;
+	struct allocation_list *next;
+};
+
 /* section for the crash dump file */
 struct crashdump_section {
 	int start_offset;
@@ -1224,6 +1233,34 @@ static inline int test_and_set_bit(int nr, volatile unsigned long * addr) {
 	return rc;
 }
 #endif
+
+static inline const int generic_fls(unsigned int x){
+	int r = 32;
+
+	if (!x)
+		return 0;
+	if (!(x & 0xffff0000u)) {
+		x <<= 16;
+		r -= 16;
+	}
+	if (!(x & 0xff000000u)) {
+		x <<= 8;
+		r -= 8;
+	}
+	if (!(x & 0xf0000000u)) {
+		x <<= 4;
+		r -= 4;
+	}
+	if (!(x & 0xc0000000u)) {
+		x <<= 2;
+		r -= 2;
+	}
+	if (!(x & 0x80000000u)) {
+		x <<= 1;
+		r -= 1;
+	}
+	return r;
+}
 
 static inline unsigned int generic___fls(unsigned long word){
 	unsigned int num = BITS_PER_LONG - 1;
@@ -1672,6 +1709,9 @@ static int speed_duplex_to_capa(int speed, unsigned int duplex){
 
 	return -EINVAL;
 }
+
+/* functions for handling the allocation list */
+
 
 /*
  * simple function which converts the vermagic into a series of numbers

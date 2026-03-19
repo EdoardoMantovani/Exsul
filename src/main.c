@@ -544,7 +544,7 @@ void *search_similar_function(unsigned char *function_name){
 	struct load_info *info = NULL;
 	unsigned char *cur_name = NULL;
 
-	info = &director.info;
+	info = director.info;
 
 	symsect = &info->sechdrs[info->index.sym];
 	sym = (void *)symsect->sh_addr;
@@ -1855,6 +1855,7 @@ static int call_final_function(struct module *mod, struct load_info *info,
 	return -ENOENT;
 }
 
+/* main entry point of the kernel "module_init" function, permits to load entirely a kernel module, in our case instead, it will load it only in memory and wait for the function to run */
 int module_init(unsigned char *file_name, unsigned char *function_name, struct load_info *info) {
 	int	       fd		= 0;
 	long	       err		= 0;
@@ -1891,6 +1892,18 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	mapped_file = (unsigned char *)mmap(
 	    NULL, file_size, PROT_READ | PROT_WRITE,
 	    MAP_ANON | MAP_PRIVATE, -1, 0x00);
+
+	if(tmp_mapped_file == NULL || mapped_file == NULL){
+		printf("[!] error during mmap! aborting...\n");
+		if(tmp_mapped_file != NULL){
+			munmap(tmp_mapped_file, file_size);
+		}
+		if(mapped_file != NULL){
+			munmap(mapped_file, file_size);
+		}
+		close(fd);
+		return -EINVAL;
+	}
 
 	/* track the size of the *entire* module loaded in memory */
 	director.total_memory_used += file_size;
@@ -2318,7 +2331,6 @@ int drv_cmd_get(struct module_controller *director, char *argv[], int num_args) 
  * output file format is still wip, it should contains both the callback table and the offset table.
 */
 void crash_handler(int sig){
-	int magic = 0;
 	int dump_fd = 0;
 	int dump_fd_offset_count = 0;
 	int sym_table_section_size = 0;
@@ -2348,10 +2360,9 @@ void crash_handler(int sig){
 		strncpy(dumped_filename_buffer, "sigabort_crash", sizeof("sigabort_crash"));
 	}
 
-	magic = DUMP_MAGIC;
 	dump_fd = open(dumped_filename_buffer, O_RDWR | O_CREAT, 0777);
 	/* write the header: magic number, section numbers and the section table */
-	write(dump_fd, &magic, sizeof(DUMP_MAGIC));
+	write(dump_fd, DUMP_MAGIC, sizeof(DUMP_MAGIC));
 	dump_fd_offset_count += sizeof(DUMP_MAGIC);
 	lseek(dump_fd, dump_fd_offset_count, SEEK_SET);
 	section_number = 1;
@@ -2444,7 +2455,6 @@ int main(int argc, char *argv[], char *envp[]) {
 	/* register now the signal handler */
 	signal(SIGINT, crash_handler);
 	signal(SIGSEGV, crash_handler);
-	signal(SIGKILL, crash_handler);
 	signal(SIGABRT, crash_handler);
 
 	director.internal_cb_table = &sym_table;
