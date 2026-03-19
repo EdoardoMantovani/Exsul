@@ -1684,7 +1684,16 @@ static inline const bool is_power_of_2(unsigned long n){
 
 /* variant of 'futex_wait' which isn't exported in the kernel API. */
 static inline int futex_wait_timeout(atomic_int *addr, int expected, struct timespec *rel_timeout){
+	#ifdef __WIN64__
+	if (expected == 1) {
+		WakeByAddressSingle(addr);
+		return true;
+	}
+	WakeByAddressAll(addr);
+	return expected;
+	#else
 	return (int)syscall(SYS_futex, (int *)addr, FUTEX_WAIT, expected, rel_timeout, NULL, 0);
+	#endif
 }
 
 static bool is_a_number(unsigned char character){

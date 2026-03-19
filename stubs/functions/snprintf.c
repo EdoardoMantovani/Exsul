@@ -1,4 +1,4 @@
-int snprintf(char *buf, size_t size, const char *fmt, ...){
+win_static int snprintf(char *buf, size_t size, const char *fmt, ...){
 	va_list args;
 	int i;
 

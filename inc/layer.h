@@ -64,8 +64,10 @@
 #include <sys/types.h>
 #include <time.h>
 
+#include <linux/const.h>
 #include <linux/types.h>
 #include <linux/stddef.h>
+#include <linux/in6.h>
 #include <linux/udp.h>
 #include <linux/if_ether.h>
 #include <linux/nl80211.h>
@@ -99,10 +101,25 @@ typedef off_t	loff_t;
 typedef SRWLOCK            pthread_mutex_t;
 typedef CONDITION_VARIABLE pthread_cond_t;
 typedef HANDLE             pthread_t;
+
+/* for windows also '_UL' and '_ULL' needs to be defined... */
+#ifdef __ASSEMBLY__
+#define _AC(X,Y)        X
+#define _AT(T,X)        X
+#else
+#define __AC(X,Y)       (X##Y)
+#define _AC(X,Y)        __AC(X,Y)
+#define _AT(T,X)        ((T)(X))
+#endif
+
+#define _UL(x)          (_AC(x, UL))
+#define _ULL(x)		(_AC(x, ULL))
+
 #define UL(x) (_UL(x))
 #define ULL(x) (_ULL(x))
 #define BIT(nr) (UL(1) << (nr))
 #define BIT_ULL(nr) (ULL(1) << (nr))
+
 
 #define BIT_MASK(nr) (UL(1) << ((nr) % BITS_PER_LONG))
 #define BIT_WORD(nr) ((nr) / BITS_PER_LONG)
@@ -170,6 +187,12 @@ typedef _Atomic(unsigned int) atomic_uint;
 #define be16 __be16
 #define be32 __be32
 #define be64 __be64
+
+#ifdef __WIN64__
+#define win_static	static
+#else
+#define win_static
+#endif
 
 #include <utils.h>
 #include <jhash.h>

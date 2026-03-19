@@ -36,7 +36,7 @@ bool __bitmap_subset(unsigned long *bitmap1, unsigned long *bitmap2, unsigned in
 void pci_enable_msi(struct pci_dev *dev);
 void __skb_zcopy_downgrade_managed(struct sk_buff *skb);
 void _raw_spin_lock(void *spin_lock);
-int snprintf(char *buf, size_t size, const char *fmt, ...);
+win_static int snprintf(char *buf, size_t size, const char *fmt, ...);
 void netif_napi_add_weight_locked(struct net_device *dev, void *napi, int (*poll)(void *, int), int weight);
 u32 ieee80211_calc_tx_airtime(struct ieee80211_hw *hw, struct ieee80211_tx_info *info, int len);
 unsigned long __find_nth_and_andnot_bit(const unsigned long *addr1, const unsigned long *addr2, const unsigned long *addr3, unsigned long size, unsigned long n);

@@ -959,6 +959,11 @@ enum ieee80211_ac_numbers {
 	IEEE80211_AC_BK		= 3,
 };
 
+#define UL(x) (_UL(x))
+#define ULL(x) (_ULL(x))
+#define BIT(nr) (UL(1) << (nr))
+#define BIT_ULL(nr) (ULL(1) << (nr))
+
 /**
  * enum rate_control_capabilities - rate control capabilities
  */
