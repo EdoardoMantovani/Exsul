@@ -11,11 +11,12 @@ struct module_controller director;
 struct cmd_table_entry {
 	u8 cmd_name[18];
 	u8 cmd_args;
-	int (*cmd_ptr)(struct mod_controller *, char **, int);
+	int (*cmd_ptr)(struct module_controller *, char **, int);
 };
 
 /* structures and definitions used for representing the command table used by
- * the main program. */
+ * the main program.
+ */
 enum {
 	DRV_CMD_EXIT,
 	DRV_CMD_RESET,
@@ -111,90 +112,94 @@ void dump_usb_host_interface(struct usb_interface *intf){
 }
 #endif
 
-
 int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface **in_intf){
         int ret = 0;
         u8 in = 0;
+	u8 int_number = 0;
         u8 ep_is_bulk = 0;
         u8 ep_is_intr = 0;
         u8 ep_is_ctrl = 0;
         u8 ep_is_isoc = 0;
         u8 total_ep_num = 0;
 	u32 struct_device_sizeof = 0;
+	u32 struct_usb_interface = 0;
+	u32 struct_usb_device_sizeof = 0;
 	struct device *dev = NULL;
 	libusb_device *libusb_dev = NULL;
         struct usb_interface *intf_ptr = NULL;
-        const struct libusb_interface *libusb_intf_ptr = NULL;
-        struct libusb_config_descriptor *cfg = NULL;
-        const struct libusb_interface_descriptor *alt = NULL;
-        const struct libusb_endpoint_descriptor *current_ep = NULL;
+	struct usb_device *usb_device_ptr = NULL;
+	struct libusb_config_descriptor *cfg = NULL;
+	struct libusb_interface *libusb_intf_ptr = NULL;
+	const struct libusb_interface_descriptor *alt = NULL;
+	const struct libusb_endpoint_descriptor *current_ep = NULL;
 
-        libusb_dev = libusb_get_device(handler);
+	libusb_dev = libusb_get_device(handler);
 
-        if(libusb_dev == NULL){
-                printf("[!] failed to acquire libusb_device!\n");
-                ret = -EINVAL;
-                return ret;
-        }
-        ret = libusb_get_active_config_descriptor(libusb_dev, &cfg);
-        if(ret < 0){
+	if(libusb_dev == NULL){
+		printf("[!] failed to acquire libusb_device!\n");
+		ret = -EINVAL;
+		return ret;
+	}
+	ret = libusb_get_active_config_descriptor(libusb_dev, &cfg);
+	if(ret < 0){
                 printf("[!] failed to get libusb_config_descriptor!\n");
                 ret = -EINVAL;
                 return ret;
         }
 #ifdef ADVANCED_USB_DEBUGGING
-        printf("[*] number of interfaces detected: %d\n", cfg->bNumInterfaces);
+	printf("[*] number of interfaces detected: %d\n", cfg->bNumInterfaces);
 #endif
+	struct_usb_interface = get_struct_size("usb_interface");
+	struct_usb_device_sizeof = get_struct_size("usb_device");
 
-        intf_ptr = (struct usb_interface *)malloc(sizeof(struct usb_interface));
-        if(intf_ptr == NULL){
-                printf("[!] failed to allocate usb_interface!\n");
-                ret = -ENOMEM;
-                libusb_free_config_descriptor(cfg);
-                return ret;
-        }
-        memset(intf_ptr, 0, sizeof(struct usb_interface));
+	intf_ptr = (struct usb_interface *)calloc(1, struct_usb_interface);
+	if(intf_ptr == NULL){
+		printf("[!] failed to allocate usb_interface!\n");
+		ret = -ENOMEM;
+		libusb_free_config_descriptor(cfg);
+		return ret;
+	}
+	printf("num altsetting: %d\n", cfg->interface[0].num_altsetting);
+	intf_ptr->altsetting = (struct usb_host_interface *)calloc(cfg->interface[0].num_altsetting, sizeof(struct usb_host_interface));
+	if(intf_ptr->altsetting == NULL){
+		printf("[!] failed to allocate usb_host_interface!\n");
+		free(intf_ptr);
+		ret = -ENOMEM;
+		libusb_free_config_descriptor(cfg);
+		return ret;
+	}
+	memset(intf_ptr->altsetting, 0, sizeof(struct usb_host_interface));
+	*in_intf = intf_ptr;
 
-        intf_ptr->altsetting = (struct usb_host_interface *)malloc(sizeof(struct usb_host_interface));
-        if(intf_ptr->altsetting == NULL){
-                printf("[!] failed to allocate usb_host_interface!\n");
-                free(intf_ptr);
-                ret = -ENOMEM;
-                libusb_free_config_descriptor(cfg);
-                return ret;
-        }
-        memset(intf_ptr->altsetting, 0, sizeof(struct usb_host_interface));
-
-        *in_intf = intf_ptr;
-
-        for(u8 j = 0; j < cfg->bNumInterfaces; j++){
-                libusb_intf_ptr = &cfg->interface[j];
-                if(libusb_intf_ptr == NULL){
-                        printf("[!] libusb_interface is null...aborting!\n");
-                        ret = -EINVAL;
-                        libusb_free_config_descriptor(cfg);
-                        return ret;
-                }else{
+	for(u8 j = 0; j < cfg->bNumInterfaces; j++){
+		libusb_intf_ptr = &cfg->interface[j];
+		if(libusb_intf_ptr == NULL){
+			printf("[!] libusb_interface is null...aborting!\n");
+			ret = -EINVAL;
+			libusb_free_config_descriptor(cfg);
+			return ret;
+		}else{
 #ifdef ADVANCED_USB_DEBUGGING
                         printf("[*] interface %d has %d altsettings!\n", j, libusb_intf_ptr->num_altsetting);
 #endif
-                }
+		}
 
-                intf_ptr->num_altsetting = libusb_intf_ptr->num_altsetting;
-                intf_ptr->cur_altsetting = intf_ptr->altsetting;
-                for(u8 k = 0; k < libusb_intf_ptr->num_altsetting; k++){
-                        alt = &libusb_intf_ptr->altsetting[k];
-                        if(alt == NULL){
+		intf_ptr->num_altsetting = libusb_intf_ptr->num_altsetting;
+		intf_ptr->cur_altsetting = intf_ptr->altsetting;
+		for(u8 k = 0; k < libusb_intf_ptr->num_altsetting; k++){
+			alt = &libusb_intf_ptr->altsetting[k];
+			if(alt == NULL){
 #ifdef ADVANCED_USB_DEBUGGING
 				printf("[!] altsetting is null!\n");
 #endif
-                                ret = -EINVAL;
-                                libusb_free_config_descriptor(cfg);
-                                return ret;
-                        }
+				ret = -EINVAL;
+				libusb_free_config_descriptor(cfg);
+				return ret;
+			}
 #ifdef ADVANCED_USB_DEBUGGING
-                        printf("[*] total number of endpoints: 0x%02x\n", alt->bNumEndpoints);
+			printf("[*] total number of endpoints: 0x%02x\n", alt->bNumEndpoints);
 #endif
+			int_number = alt->bInterfaceNumber;
 			intf_ptr->altsetting->desc.bLength = alt->bLength;
 			intf_ptr->altsetting->desc.bDescriptorType = alt->bDescriptorType;
 			intf_ptr->altsetting->desc.bInterfaceNumber = alt->bInterfaceNumber;
@@ -205,46 +210,46 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 			intf_ptr->altsetting->desc.bInterfaceProtocol = alt->bInterfaceProtocol;
 			intf_ptr->altsetting->desc.iInterface = alt->iInterface;
 
-                        total_ep_num = alt->bNumEndpoints;
+			total_ep_num = alt->bNumEndpoints;
 
-                        intf_ptr->altsetting->endpoint = calloc(total_ep_num, sizeof(struct usb_host_endpoint));
-                        if(intf_ptr->altsetting->endpoint == NULL){
-                                printf("[!] failed to allocate endpoints!\n");
-                                ret = -ENOMEM;
-                                libusb_free_config_descriptor(cfg);
-                                return ret;
-                        }
+			intf_ptr->altsetting->endpoint = calloc(total_ep_num, sizeof(struct usb_host_endpoint));
+			if(intf_ptr->altsetting->endpoint == NULL){
+				printf("[!] failed to allocate endpoints!\n");
+				ret = -ENOMEM;
+				libusb_free_config_descriptor(cfg);
+				return ret;
+			}
 
-                        for(u8 z = 0; z < alt->bNumEndpoints; z++){
-                                current_ep = &alt->endpoint[z];
+			for(u8 z = 0; z < alt->bNumEndpoints; z++){
+				current_ep = &alt->endpoint[z];
 #ifdef ADVANCED_USB_DEBUGGING
-                                in = ((current_ep->bEndpointAddress & USB_ENDPOINT_DIR_MASK) == USB_DIR_IN);
-                                ep_is_bulk = ((current_ep->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) == USB_ENDPOINT_XFER_BULK);
-                                ep_is_intr = ((current_ep->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) == USB_ENDPOINT_XFER_INT);
-                                ep_is_ctrl = ((current_ep->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) == USB_ENDPOINT_XFER_CONTROL);
-                                ep_is_isoc = ((current_ep->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) == USB_ENDPOINT_XFER_ISOC);
-                                printf("endpoint %d address: 0x%02x %s type ", z, current_ep->bEndpointAddress, in ? "IN" : "OUT");
-                                if(ep_is_bulk == true){
-                                        printf("bulk\n");
-                                }else if(ep_is_intr == true){
-                                        printf("interrupt\n");
-                                }else if(ep_is_ctrl == true){
-                                        printf("control\n");
-                                }else if(ep_is_isoc == true){
-                                        printf("isochronous\n");
-                                }
+				in = ((current_ep->bEndpointAddress & USB_ENDPOINT_DIR_MASK) == USB_DIR_IN);
+				ep_is_bulk = ((current_ep->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) == USB_ENDPOINT_XFER_BULK);
+				ep_is_intr = ((current_ep->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) == USB_ENDPOINT_XFER_INT);
+				ep_is_ctrl = ((current_ep->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) == USB_ENDPOINT_XFER_CONTROL);
+				ep_is_isoc = ((current_ep->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) == USB_ENDPOINT_XFER_ISOC);
+				printf("endpoint %d address: 0x%02x %s type ", z, current_ep->bEndpointAddress, in ? "IN" : "OUT");
+				if(ep_is_bulk == true){
+					printf("bulk\n");
+				}else if(ep_is_intr == true){
+					printf("interrupt\n");
+				}else if(ep_is_ctrl == true){
+					printf("control\n");
+				}else if(ep_is_isoc == true){
+					printf("isochronous\n");
+				}
 #endif
-                                intf_ptr->altsetting->endpoint[z].desc.bLength = current_ep->bLength;
-                                intf_ptr->altsetting->endpoint[z].desc.bDescriptorType = current_ep->bDescriptorType;
-                                intf_ptr->altsetting->endpoint[z].desc.bEndpointAddress = current_ep->bEndpointAddress;
-                                intf_ptr->altsetting->endpoint[z].desc.bmAttributes = current_ep->bmAttributes;
-                                intf_ptr->altsetting->endpoint[z].desc.wMaxPacketSize = current_ep->wMaxPacketSize;
-                                intf_ptr->altsetting->endpoint[z].desc.bInterval = current_ep->bInterval;
-                                intf_ptr->altsetting->endpoint[z].desc.bRefresh = current_ep->bRefresh;
-                                intf_ptr->altsetting->endpoint[z].desc.bSynchAddress = current_ep->bSynchAddress;
-                        }
-                }
-        }
+				intf_ptr->altsetting->endpoint[z].desc.bLength = current_ep->bLength;
+				intf_ptr->altsetting->endpoint[z].desc.bDescriptorType = current_ep->bDescriptorType;
+				intf_ptr->altsetting->endpoint[z].desc.bEndpointAddress = current_ep->bEndpointAddress;
+				intf_ptr->altsetting->endpoint[z].desc.bmAttributes = current_ep->bmAttributes;
+				intf_ptr->altsetting->endpoint[z].desc.wMaxPacketSize = current_ep->wMaxPacketSize;
+				intf_ptr->altsetting->endpoint[z].desc.bInterval = current_ep->bInterval;
+				intf_ptr->altsetting->endpoint[z].desc.bRefresh = current_ep->bRefresh;
+				intf_ptr->altsetting->endpoint[z].desc.bSynchAddress = current_ep->bSynchAddress;
+			}
+		}
+	}
 
 #ifdef ADVANCED_USB_DEBUGGING
 	dump_usb_host_interface(*in_intf);
@@ -259,40 +264,38 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 	/*
 	 * 'interface_to_usbdev' uses also .dev->parent, so we need to allocate both of them.
 	 */
-	//
-	int struct_usb_device_sizeof = get_struct_size("usb_device");
-	struct usb_device *usb_device_ptr = (struct usb_device *)malloc(struct_usb_device_sizeof);
-        //intf_ptr->usb_dev = &usb_device_ptr->dev;
-        intf_ptr->dev.parent = &usb_device_ptr->dev;
-        ret = libusb_get_device_speed(handler);
-        switch(ret){
-                case LIBUSB_SPEED_SUPER:
-                        usb_device_ptr->speed = USB_SPEED_SUPER;
-                break;
-                case LIBUSB_SPEED_HIGH:
-                        usb_device_ptr->speed = USB_SPEED_HIGH;
-                break;
-                case LIBUSB_SPEED_FULL:
-                        usb_device_ptr->speed = USB_SPEED_FULL;
-                break;
-                case LIBUSB_SPEED_LOW:
-                        usb_device_ptr->speed = USB_SPEED_LOW;
-                break;
-                default:
-                        usb_device_ptr->speed = USB_SPEED_UNKNOWN;
-                break;
-        }
-        /* reset ret */
-        ret = 0;
+	usb_device_ptr = calloc(1, struct_usb_device_sizeof);
+	intf_ptr->dev.parent = usb_device_ptr->dev;
+	ret = libusb_get_device_speed(libusb_dev);
+
+	switch(ret){
+		case LIBUSB_SPEED_SUPER:
+			usb_device_ptr->speed = USB_SPEED_SUPER;
+		break;
+		case LIBUSB_SPEED_HIGH:
+			usb_device_ptr->speed = USB_SPEED_HIGH;
+		break;
+		case LIBUSB_SPEED_FULL:
+			usb_device_ptr->speed = USB_SPEED_FULL;
+		break;
+		case LIBUSB_SPEED_LOW:
+			usb_device_ptr->speed = USB_SPEED_LOW;
+		break;
+		default:
+			usb_device_ptr->speed = USB_SPEED_UNKNOWN;
+		break;
+	}
+	/* set ret to the interface number */
+	ret = int_number;
 
 	end:
-        libusb_free_config_descriptor(cfg);
-        return ret;
+	libusb_free_config_descriptor(cfg);
+	return ret;
 }
 
 /* main function for detecting the attached usb dongle, requires a full 'usb_dev_list' table */
 int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface **intf_out, const struct usb_device_id **matched_id_out){
-	int ret;
+	int ret = 0;
 	struct usb_interface *usb_intf = NULL;
 
 	for (struct usb_device_id *p = id_table; p && p->idVendor && p->idProduct; p++) {
@@ -328,19 +331,19 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 		*matched_id_out = p;
 		return ret;
 	}
-	return -ENODEV;
+	ret = -ENODEV;
+	return ret;
 }
 
 int invoke_usb_probe(struct usb_driver *new_driver, struct usb_device_id *id, struct usb_interface *intf){
 	int ret = 0;
-	new_driver->probe(intf, id);
+	ret = new_driver->probe(intf, id);
 	return ret;
 }
 
 int dwarf_search_field(unsigned char *field_input_name, Dwarf_Debug dbg, Dwarf_Die struct_die){
 	int ret = 0;
 	int sibling = 0;
-	Dwarf_Unsigned field_offset = 0;
 	Dwarf_Error err = 0;
 	Dwarf_Die cur = 0;
 	Dwarf_Die sib = 0;
@@ -348,6 +351,7 @@ int dwarf_search_field(unsigned char *field_input_name, Dwarf_Debug dbg, Dwarf_D
 	Dwarf_Half tag = 0;
 	Dwarf_Attribute attr = 0;
 	Dwarf_Unsigned exprlen = 0;
+	Dwarf_Unsigned field_offset = 0;
 	char *block = NULL;
 	char *field_name = NULL;
 
@@ -379,7 +383,6 @@ int dwarf_search_field(unsigned char *field_input_name, Dwarf_Debug dbg, Dwarf_D
 					return (int)field_offset;
 				}
 		}
-
 		sibling = dwarf_siblingof(dbg, cur, &sib, &err);
 		dwarf_dealloc(dbg, cur, DW_DLA_DIE);
 		if (sibling != DW_DLV_OK){
@@ -548,7 +551,7 @@ void *search_similar_function(unsigned char *function_name){
         strtab = (void *)info->sechdrs[info->index.str].sh_addr;
         n = symsect->sh_size / sizeof(*sym);
 
-        for (unsigned int i = 0; i < n; i++) {
+        for (int i = 0; i < n; i++) {
 		cur_name = &strtab[sym[i].st_name];
 
 		if (cur_name == NULL || cur_name[0] == '\0'){
@@ -569,6 +572,7 @@ int parse_module_offset_table(void){
 	struct runtime_struct *runtime_structs = NULL;
 	struct runtime_struct_layout *runtime_struct_layout = NULL;
 	struct struct_field *current_struct_fields = NULL;
+
 	runtime_structs = &runtime_generated_structs;
 
 	if(runtime_structs == NULL){
@@ -1801,7 +1805,7 @@ static int call_final_function(struct module *mod, struct load_info *info,
 	const char *name = NULL;
 	unsigned char *ptr = NULL;
 	int (*fn)(void) = NULL;
-	Elf(Ehdr) *header = &info->hdr;
+	Elf(Ehdr) *header = info->hdr;
 	Elf(Shdr) *symsect = &info->sechdrs[info->index.sym];
 
 	Elf(Sym) *sym = (void *)symsect->sh_addr;
@@ -1974,12 +1978,6 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		return -1;
 	}
 
-	#if 0
-	err = call_final_function(mod, info, function_name);
-
-	/* at the end, call the 'exit' function for free the memory allocated by the 'init' function */
-	err = call_final_function(mod, info, "cleanup_module");
-	#endif
 	return err;
 }
 
@@ -2315,6 +2313,73 @@ int drv_cmd_get(struct module_controller *director, char *argv[], int num_args) 
 	return ret;
 }
 
+/*
+ * add also a crash handler which returns a custom file format when it crash,
+ * output file format is still wip, it should contains both the callback table and the offset table.
+*/
+void crash_handler(int sig){
+	int magic = 0;
+	int dump_fd = 0;
+	int dump_fd_offset_count = 0;
+	int sym_table_section_size = 0;
+	u8  section_number = 0;
+	time_t current_crash_time = 0;
+	struct tm tm = {};
+	u8 dumped_filename_buffer[128];
+	struct crashdump_section crash_sections[CRASH_SECTION_MAX];
+        /* get crash address */
+
+	if(sig != SIGABRT){
+		current_crash_time = time(NULL);
+		/* taken from 'https://stackoverflow.com/questions/1442116/how-can-i-get-the-date-and-time-values-in-a-c-program' */
+		tm = *localtime(&current_crash_time);
+		snprintf(dumped_filename_buffer,
+			sizeof(dumped_filename_buffer),
+			DUMP_FILENAME,
+			tm.tm_year + 1900,
+			tm.tm_mon + 1,
+			tm.tm_mday,
+			tm.tm_hour,
+			tm.tm_min,
+			tm.tm_sec
+		);
+	}else{
+		/* seems that when a SIGABORT is invoked, getting the current time makes my program crash again, this is just a temporary solution */
+		strncpy(dumped_filename_buffer, "sigabort_crash", sizeof("sigabort_crash"));
+	}
+
+	magic = DUMP_MAGIC;
+	dump_fd = open(dumped_filename_buffer, O_RDWR | O_CREAT, 0777);
+	/* write the header: magic number, section numbers and the section table */
+	write(dump_fd, &magic, sizeof(DUMP_MAGIC));
+	dump_fd_offset_count += sizeof(DUMP_MAGIC);
+	lseek(dump_fd, dump_fd_offset_count, SEEK_SET);
+	section_number = 1;
+	write(dump_fd, &section_number, sizeof(section_number));
+	dump_fd_offset_count += sizeof(section_number);
+	lseek(dump_fd, dump_fd_offset_count, SEEK_SET);
+	/* create the section table (for now has only 1 entry) */
+	crash_sections[CRASH_SECTION_SYMBOL_TABLE].start_offset = dump_fd_offset_count + (sizeof(struct crashdump_section) * CRASH_SECTION_MAX);
+	dump_fd_offset_count += sizeof(struct crashdump_section) * CRASH_SECTION_MAX;
+	lseek(dump_fd, dump_fd_offset_count, SEEK_SET);
+
+	/* copy the cb table into the new file */
+	for (int j = 0; sym_table[j].function_ptr != NULL; j++) {
+		lseek(dump_fd, dump_fd_offset_count, SEEK_SET);
+		write(dump_fd, sym_table[j].function_name, strlen(sym_table[j].function_name));
+		dump_fd_offset_count += strlen(sym_table[j].function_name);
+		lseek(dump_fd, dump_fd_offset_count, SEEK_SET);
+		write(dump_fd, sym_table[j].function_ptr, sizeof(void *));
+		dump_fd_offset_count += sizeof(void *);
+		sym_table_section_size += sizeof(sym_table[j]);
+	}
+	/* return at the start of the section header */
+	lseek(dump_fd, 0 + sizeof(DUMP_MAGIC) + sizeof(section_number), SEEK_SET);
+	crash_sections[CRASH_SECTION_SYMBOL_TABLE].length = sym_table_section_size;
+	write(dump_fd, &crash_sections, sizeof(struct crashdump_section) * CRASH_SECTION_MAX);
+	close(dump_fd);
+}
+
 int main(int argc, char *argv[], char *envp[]) {
 	int	       ret	     = 0;
 	int            fd            = 0;
@@ -2376,6 +2441,11 @@ int main(int argc, char *argv[], char *envp[]) {
 			.cmd_ptr  = drv_cmd_get,
 		},
 	};
+	/* register now the signal handler */
+	signal(SIGINT, crash_handler);
+	signal(SIGSEGV, crash_handler);
+	signal(SIGKILL, crash_handler);
+	signal(SIGABRT, crash_handler);
 
 	director.internal_cb_table = &sym_table;
 	libusb_init(NULL);

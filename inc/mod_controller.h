@@ -69,4 +69,9 @@ struct module_controller {
 	/* structures used for seq/procfs/sysfs virtual files */
 	struct seq_list seq_list;
 	struct seq_file *current_seq_file;
+
+	/* firmware builtin data */
+	#ifdef USE_BUILTIN_FIRMWARE
+	struct firmware_builtin_space *fw_builtin;
+	#endif
 };

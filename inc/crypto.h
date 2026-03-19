@@ -689,6 +689,10 @@ static inline void *shash_desc_ctx(struct shash_desc *desc){
 	return desc->__ctx;
 }
 
+static inline unsigned int crypto_aead_authsize(struct crypto_aead *tfm){
+	return tfm->authsize;
+}
+
 static inline unsigned int crypto_sync_aead_authsize(struct crypto_sync_aead *tfm){
 	return crypto_aead_authsize(&tfm->base);
 }

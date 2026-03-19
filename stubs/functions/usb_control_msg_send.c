@@ -5,7 +5,7 @@ int usb_control_msg_send(struct usb_device *dev, __u8 endpoint, __u8 request, __
 
 	data = kmemdup_noprof(driver_data, size, memflags);
 	ret = libusb_control_transfer(
-		&director.usb_dev,
+		director.usb_dev,
 		requesttype,
 		request,
 		value,

@@ -1,5 +1,5 @@
 void release_firmware(const struct firmware *fw){
-	if (fw != NULL) {
+	if(fw != NULL){
 		free(fw);
 	}
 }

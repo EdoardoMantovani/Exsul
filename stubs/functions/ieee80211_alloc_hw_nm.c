@@ -63,7 +63,6 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, struct ieee8021
 	if (emulate_chanctx || ieee80211_ops->remain_on_channel){
 		wiphy->flags |= WIPHY_FLAG_HAS_REMAIN_ON_CHANNEL;
 	}
-
 	wiphy->bss_param_support = WIPHY_BSS_PARAM_CTS_PROT |
 				   WIPHY_BSS_PARAM_SHORT_PREAMBLE |
 				   WIPHY_BSS_PARAM_SHORT_SLOT_TIME |

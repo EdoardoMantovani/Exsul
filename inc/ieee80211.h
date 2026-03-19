@@ -7978,7 +7978,7 @@ static void sta_info_stop(struct ieee80211_local *local){
  * or from one of its vlans
  */
 static struct sta_info *sta_info_get_bss(struct ieee80211_sub_if_data *sdata, u8 *addr){
-	struct ieee80211_local *local = &director.ieee80211_local;
+	struct ieee80211_local *local = director.ieee80211_local;
 	struct rhlist_head *tmp = NULL;
 	struct sta_info *sta = NULL;
 
@@ -8000,7 +8000,7 @@ static struct sta_info *sta_info_get(struct ieee80211_sub_if_data *sdata, u8 *ad
 	struct rhlist_head *tmp = NULL;
 	struct sta_info *sta = NULL;
 
-	local = &director.ieee80211_local;
+	local = director.ieee80211_local;
 
 	for_each_sta_info(local, addr, sta, tmp) {
 		if (&sta->sdata == sdata) {
@@ -8550,7 +8550,7 @@ static int ieee80211_if_add(struct ieee80211_local *local, const char *name, uns
 static void ieee80211_if_remove(struct ieee80211_sub_if_data *sdata){
 	struct ieee80211_local *local = NULL;
 
-	local = &director.ieee80211_local;
+	local = director.ieee80211_local;
 
 	pthread_mutex_lock(&local->iflist_mtx);
 	list_del_rcu(&sdata->list);
@@ -8585,7 +8585,7 @@ static inline void drv_vif_cfg_changed(struct ieee80211_local *local, struct iee
 static void ieee80211_vif_cfg_change_notify(struct ieee80211_sub_if_data *sdata, u64 changed){
 	struct ieee80211_local *local = NULL;
 
-	local = &director.ieee80211_local;
+	local = director.ieee80211_local;
 
 	if (!changed || sdata->vif->type == NL80211_IFTYPE_AP_VLAN){
 		return;

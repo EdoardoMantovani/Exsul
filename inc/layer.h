@@ -12,6 +12,7 @@
 #include <signal.h>
 #include <elf.h>
 #include <fcntl.h>
+#include <execinfo.h>
 #include <libusb-1.0/libusb.h>
 #include <linux/udp.h>
 #include <linux/in.h>
@@ -116,6 +117,12 @@
 /* path for the firmware files, this will be used mainly in Linux, for Windows expect a local folder */
 #define DEFAULT_FW_PATH		"/lib/firmware/"
 
+/* magic number used for identifying the header of crash dump */
+#define DUMP_MAGIC		0xDCCCCB
+
+/* name of the crashdump file */
+#define DUMP_FILENAME		"crashreport-%d-%02d-%02d_%02d:%02d:%02d.dump"
+
 #define NR_KMALLOC_TYPES	8
 #define	NUMA_NO_NODE		(-1)
 
@@ -182,6 +189,12 @@
 
 /* macro used for getting the current 'task_struct' */
 #define current (current_thread_info())
+
+/* sections for the crashdump */
+enum {
+	CRASH_SECTION_SYMBOL_TABLE,
+	CRASH_SECTION_MAX,
+};
 
 enum {
 	DUMP_PREFIX_NONE,
@@ -1494,15 +1507,15 @@ static void kobject_release(struct kref *kref){
 	kobject_cleanup(kobj);
 }
 
-static inline spin_lock_init(pthread_mutex_t *lock){
+static inline int spin_lock_init(pthread_mutex_t *lock){
 	pthread_mutex_init(lock, NULL);
 }
 
-static inline spin_lock(pthread_mutex_t *lock){
+static inline int spin_lock(pthread_mutex_t *lock){
 	pthread_mutex_lock(lock);
 }
 
-static inline spin_unlock(pthread_mutex_t *lock){
+static inline int spin_unlock(pthread_mutex_t *lock){
 	pthread_mutex_unlock(lock);
 }
 

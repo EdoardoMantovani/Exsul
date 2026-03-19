@@ -5,7 +5,7 @@ int usb_interrupt_msg(struct usb_device *usb_dev, unsigned int pipe, void *data,
 	ep = convert_usb_pipe_to_ep(pipe);
 
         ret = libusb_interrupt_transfer(
-                &director.usb_dev,
+                director.usb_dev,
 		ep,
                 data,
                 len,

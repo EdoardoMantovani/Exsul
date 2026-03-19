@@ -2,7 +2,7 @@
 
 # Made by Edoardo Mantovani, 2026
 # Rewritten with safer local alias inference and guarded field replacement.
-# version 1.0.7 (16 March 2026)
+# version 1.0.8 (18 March 2026)
 
 use strict;
 use warnings;
@@ -10,10 +10,10 @@ use Getopt::Long;
 use Cwd qw(getcwd);
 use File::Copy qw(move);
 use List::Util qw(uniq);
+use File::Path qw(make_path);
 use Term::ANSIColor qw(color);
 use File::Temp qw(tempfile tempdir);
 use File::Basename qw(dirname basename);
-use File::Path qw(make_path);
 
 my $ls   = `which ls`;
 my $cd   = `which cd`;
@@ -23,6 +23,7 @@ my $sed  = `which sed`;
 my $grep = `which grep`;
 my $find = `which find`;
 my $make = `which make`;
+my $xxd  = `which xxd`;
 
 my $arch    = "./arch";
 my $source  = "src";
@@ -52,6 +53,7 @@ my $current_stub = undef;
 my $final_stub = undef;
 my $stub_name = undef;
 my $cb_header = undef;
+my $fw_header = undef;
 my $offsets = undef;
 my $cb_counter = 0;
 my $proto_header = undef;
@@ -63,6 +65,7 @@ my $virtual_compilation_folder = undef;
 
 my $compiler = undef;
 my $fast_compilation = undef;
+my $enable_firmware_builtin = undef;
 my $generate_offset_file = undef;
 my $pahole_kernel = undef;
 my $windows_support = undef;
@@ -94,7 +97,9 @@ my @gcc_params = (
 	"-DARCH_INDEPENDENT_BITOPS",
 	"-DCONFIG_PM",
 	"-O2",
+	"-funwind-tables",
 	"-w",
+	"-fasynchronous-unwind-tables",
 	"-fno-omit-frame-pointer",
 	"-I$arch",
 	"-march=native",
@@ -110,13 +115,13 @@ my @gcc_stub_params = (
 	"-mno-avx",
 	"-mno-sse4a",
 	"-mno-red-zone",
-	" -mpreferred-stack-boundary=3",
-	"-fno-omit-frame-pointer"
+	"-mpreferred-stack-boundary=3",
+	"-fno-omit-frame-pointer",
 );
 my @gcc_final_params = (
 	"-fno-pie",
 	"-no-pie",
-	"-rdynamic"
+	"-rdynamic",
 );
 my @gcc_final_linkkings = (
 	"-lusb-1.0",
@@ -201,6 +206,7 @@ my %field_ctype = (
 		"queue_mapping"         	=> "unsigned int",
 		"reserved_tailroom"     	=> "unsigned int",
 		"destructor"            	=> "void *",
+		"users"				=> "refcount_t *",
 	},
 	sk_buff_head => {
 		"next"				=> "struct sk_buff *",
@@ -272,6 +278,7 @@ my %field_ctype = (
 		"base_addr"			=> "unsigned long",
 		"irq"				=> "int",
 		"dev_list"			=> "struct list_head",
+		"dev_addrs"			=> "struct netdev_hw_addr_list",
 		"napi_list"			=> "struct list_head",
 		"unreg_list"			=> "struct list_head",
 		"ptype_all"			=> "struct list_head",
@@ -279,6 +286,7 @@ my %field_ctype = (
 		"features"			=> "u64",
 		"rx_handler"			=> "void *",
 		"rx_handler_data"		=> "void *",
+		"state"				=> "unsigned long",
 	},
 	usb_interface => {
 		"altsetting"			=> "struct usb_host_interface *",
@@ -365,10 +373,12 @@ chomp($sed);
 chomp($grep);
 chomp($find);
 chomp($make);
+chomp($xxd);
 
 GetOptions(
 	"compiler=s"      => \$compiler,
 	"fast"		  => \$fast_compilation,
+	"enable-fw"	  => \$enable_firmware_builtin,
 	"generate_offset" => \$generate_offset_file,
 	"pahole_kernel=s" => \$pahole_kernel,
 	"windows"         => \$windows_support,
@@ -384,6 +394,7 @@ if($help){
 	print("options:\n");
 	print("compiler=[gcc|clang|tcc] (only working for now: gcc)\n");
 	print("fast: unlock the fast compilation feature\n");
+	print("enable-fw: enable static firmware embedding in the main application, this permits to not use the Linux standard path for loading a firmware\n");
 	print("generate_offset -> generate a special json file which can be used for creating the offset backup plan\n");
 	print("windows -> enable windows compilation\n");
 	print("examples -> compile every kernel object example under the ./example folder\n");
@@ -401,6 +412,9 @@ if($clean){
 	`$rm $build/*.o 2>/dev/null`;
 	`$rm $bin/$final_program 2>/dev/null`;
 	`$rm -rf out_* 2>/dev/null`;
+	# update: remove also crashdump files
+	`$rm -f crashreport*`;
+	`$rm -f sigabort_crash`;
 
 	if($offset_generation_file){
 		`$rm $offset_generation_file 2>/dev/null`;
@@ -1013,6 +1027,15 @@ if($verbose){
 	print("$compiler @gcc_params @gcc_final_params -I./$virtual_compilation_folder/$include $source/$main -o $bin/$final_program $final_obj_line @gcc_final_linkkings");
 	print("\n\n");
 }
+
+# update: as the last step, if '--enable-fw' is enabled, creates an additional header which contains the byte arrays obtained via xxd of the firmwares
+$fw_header = "$include/fw.h";
+
+if($enable_firmware_builtin){
+	push(@gcc_final_params, "-include $fw_header ");
+	push(@gcc_final_params, "-DUSE_BUILTIN_FIRMWARE ");
+}
+
 system("$compiler @gcc_params @gcc_final_params -I./$virtual_compilation_folder/$include $virtual_compilation_folder/$source/$main -o $bin/$final_program $final_obj_line @gcc_final_linkkings");
 
 undef(@struct_fields);

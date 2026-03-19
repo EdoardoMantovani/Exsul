@@ -225,6 +225,11 @@ union nested_table {
 	struct rhash_lock_head __rcu *bucket;
 };
 
+/*
+ * declare the prototype of 'rht_bucket_nested_insert' before everything else
+ */
+static struct rhash_lock_head __rcu **rht_bucket_nested_insert(struct rhashtable *ht, struct bucket_table *tbl, unsigned int hash);
+
 static inline bool rht_is_a_nulls(struct rhash_head *ptr){
 	return ((unsigned long) ptr & 1);
 }
@@ -358,6 +363,31 @@ restart:
 }
 
 /**
+ * rhashtable_lookup - search hash table
+ * @ht:		hash table
+ * @key:	the pointer to the key
+ * @params:	hash table parameters
+ *
+ * Computes the hash value for the key and traverses the bucket chain looking
+ * for an entry with an identical key. The first matching entry is returned.
+ *
+ * This must only be called under the RCU read lock.
+ *
+ * Returns the first entry on which the compare function returned true.
+ */
+static inline void *rhashtable_lookup(struct rhashtable *ht, const void *key, const struct rhashtable_params params){
+	struct rhash_head *he = __rhashtable_lookup(ht, key, params, RHT_LOOKUP_NORMAL);
+
+	return he ? rht_obj(ht, he) : NULL;
+}
+
+static inline void *rhashtable_lookup_likely(struct rhashtable *ht, const void *key, const struct rhashtable_params params){
+	struct rhash_head *he = __rhashtable_lookup(ht, key, params, RHT_LOOKUP_LIKELY);
+
+	return likely(he) ? rht_obj(ht, he) : NULL;
+}
+
+/**
  * rhltable_lookup - search hash list table
  * @hlt:	hash table
  * @key:	the pointer to the key
@@ -458,7 +488,7 @@ static void nested_bucket_table_free(const struct bucket_table *tbl){
 }
 
 static void bucket_table_free(const struct bucket_table *tbl){
-	if (tbl->nest != NULL){
+	if (!tbl->nest){
 		nested_bucket_table_free(tbl);
 	}
 
@@ -523,3 +553,49 @@ static struct bucket_table *bucket_table_alloc(struct rhashtable *ht, int nbucke
 	return tbl;
 }
 
+static union nested_table *nested_table_alloc(struct rhashtable *ht, union nested_table __rcu **prev, bool leaf){
+	union nested_table *ntbl = NULL;
+
+	ntbl = rcu_dereference(*prev);
+	if (ntbl != NULL){
+		return ntbl;
+	}
+	ntbl = malloc(PAGE_SIZE);
+
+	if (ntbl && leaf) {
+		for (int i = 0; i < PAGE_SIZE / sizeof(ntbl[0]); i++){
+			INIT_RHT_NULLS_HEAD(ntbl[i].bucket);
+		}
+	}
+
+	/* for simplicity, swap 'cmpxchg' with '__sync_val_compare_and_swap' which seems to be a gcc builtin */
+	if (__sync_val_compare_and_swap((union nested_table **)prev, NULL, ntbl)== NULL){
+		return ntbl;
+	}
+	/* Raced with another thread. */
+	free(ntbl);
+	return rcu_dereference(*prev);
+}
+
+static struct rhash_lock_head __rcu **rht_bucket_nested_insert(struct rhashtable *ht, struct bucket_table *tbl, unsigned int hash){
+	const unsigned int shift = PAGE_SHIFT - ilog2(sizeof(void *));
+	unsigned int index = hash & ((1 << tbl->nest) - 1);
+	unsigned int size = tbl->size >> tbl->nest;
+	union nested_table *ntbl = NULL;
+
+	ntbl = nested_table_top(tbl);
+	hash >>= tbl->nest;
+	ntbl = nested_table_alloc(ht, &ntbl[index].table, size <= (1 << shift));
+
+	while (ntbl && size > (1 << shift)) {
+		index = hash & ((1 << shift) - 1);
+		size >>= shift;
+		hash >>= shift;
+		ntbl = nested_table_alloc(ht, &ntbl[index].table, size <= (1 << shift));
+	}
+
+	if (ntbl == NULL){
+		return NULL;
+	}
+	return &ntbl[hash].bucket;
+}

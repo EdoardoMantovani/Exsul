@@ -1745,8 +1745,6 @@ static inline void skb_orphan(struct sk_buff *skb){
 		destructor(skb);
 		skb->destructor = NULL;
 		skb->sk		= NULL;
-	} else {
-		BUG_ON(skb->sk);
 	}
 }
 

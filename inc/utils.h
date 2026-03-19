@@ -1198,6 +1198,12 @@ struct word_at_a_time {
 	const unsigned long high_bits;
 };
 
+/* section for the crash dump file */
+struct crashdump_section {
+	int start_offset;
+	int length;
+};
+
 #ifdef ARCH_INDEPENDENT_BITOPS
 /* functions taken from 'https://github.com/chris1111/AppleIntelE1000e/blob/0604bc4bdfb1a12be7af6b7fe2ce5b9ad8582310/kcompat.h#L423-L440C2' */
 static inline int test_bit(int nr, const volatile unsigned long * addr) {
@@ -1673,7 +1679,7 @@ static int speed_duplex_to_capa(int speed, unsigned int duplex){
  */
 static int convert_vermagic(unsigned char *vermagic_string, u8 *version, u8 *subversion, u8 *modification){
 	int ret = 0;
-	unsigned char current_ver = NULL;
+	unsigned char *current_ver = NULL;
 
 	if(vermagic_string == NULL){
 		ret = -EINVAL;
@@ -1718,5 +1724,4 @@ static void DumpHex(const void* data, size_t size) {
 		}
 	}
 }
-
 #endif

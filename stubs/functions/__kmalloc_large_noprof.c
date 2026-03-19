@@ -1,3 +1,7 @@
 void *__kmalloc_large_noprof(size_t size, int flags){
-	return (void *)malloc(size);
+	void *p = NULL;
+
+	/* change strategy: use calloc instead of malloc, seems that it crashes when I invoke kmalloc in rtw89 */
+	p = calloc(1, size);
+	return p;
 }
