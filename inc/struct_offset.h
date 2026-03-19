@@ -951,7 +951,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[13] = {
 				.struct_size = 0,
 				.struct_name = "wiphy",
-				.struct_field_num = 40,
+				.struct_field_num = 42,
 				.fields = {
 					[0] = {
 						.field_name = "addresses",
@@ -986,130 +986,138 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[8] = {
-						.field_name = "ext_features",
+						.field_name = "ema_max_profile_periodicity",
 						.field_offset = 0,
 					},
 					[9] = {
-						.field_name = "extra_tx_headroom",
+						.field_name = "ext_features",
 						.field_offset = 0,
 					},
 					[10] = {
-						.field_name = "features",
+						.field_name = "extra_tx_headroom",
 						.field_offset = 0,
 					},
 					[11] = {
-						.field_name = "flags",
+						.field_name = "features",
 						.field_offset = 0,
 					},
 					[12] = {
-						.field_name = "frag_threshold",
+						.field_name = "flags",
 						.field_offset = 0,
 					},
 					[13] = {
-						.field_name = "iface_combinations",
+						.field_name = "frag_threshold",
 						.field_offset = 0,
 					},
 					[14] = {
-						.field_name = "interface_modes",
+						.field_name = "iface_combinations",
 						.field_offset = 0,
 					},
 					[15] = {
-						.field_name = "max_acl_mac_addrs",
+						.field_name = "interface_modes",
 						.field_offset = 0,
 					},
 					[16] = {
-						.field_name = "max_num_csa_counters",
+						.field_name = "max_acl_mac_addrs",
 						.field_offset = 0,
 					},
 					[17] = {
-						.field_name = "max_remain_on_channel_duration",
+						.field_name = "max_num_csa_counters",
 						.field_offset = 0,
 					},
 					[18] = {
-						.field_name = "max_scan_ie_len",
+						.field_name = "max_remain_on_channel_duration",
 						.field_offset = 0,
 					},
 					[19] = {
-						.field_name = "max_scan_ssids",
+						.field_name = "max_scan_ie_len",
 						.field_offset = 0,
 					},
 					[20] = {
-						.field_name = "max_sched_scan_plan_interval",
+						.field_name = "max_scan_ssids",
 						.field_offset = 0,
 					},
 					[21] = {
-						.field_name = "max_sched_scan_plans",
+						.field_name = "max_sched_scan_plan_interval",
 						.field_offset = 0,
 					},
 					[22] = {
-						.field_name = "mtx",
+						.field_name = "max_sched_scan_plans",
 						.field_offset = 0,
 					},
 					[23] = {
-						.field_name = "n_addresses",
+						.field_name = "mbssid_max_interfaces",
 						.field_offset = 0,
 					},
 					[24] = {
-						.field_name = "n_cipher_suites",
+						.field_name = "mtx",
 						.field_offset = 0,
 					},
 					[25] = {
-						.field_name = "n_iface_combinations",
+						.field_name = "n_addresses",
 						.field_offset = 0,
 					},
 					[26] = {
-						.field_name = "n_radio",
+						.field_name = "n_cipher_suites",
 						.field_offset = 0,
 					},
 					[27] = {
-						.field_name = "nan_supported_bands",
+						.field_name = "n_iface_combinations",
 						.field_offset = 0,
 					},
 					[28] = {
-						.field_name = "pmsr_capa",
+						.field_name = "n_radio",
 						.field_offset = 0,
 					},
 					[29] = {
-						.field_name = "priv",
+						.field_name = "nan_supported_bands",
 						.field_offset = 0,
 					},
 					[30] = {
-						.field_name = "radio",
+						.field_name = "pmsr_capa",
 						.field_offset = 0,
 					},
 					[31] = {
-						.field_name = "regd",
+						.field_name = "priv",
 						.field_offset = 0,
 					},
 					[32] = {
-						.field_name = "regulatory_flags",
+						.field_name = "radio",
 						.field_offset = 0,
 					},
 					[33] = {
-						.field_name = "retry_long",
+						.field_name = "regd",
 						.field_offset = 0,
 					},
 					[34] = {
-						.field_name = "retry_short",
+						.field_name = "regulatory_flags",
 						.field_offset = 0,
 					},
 					[35] = {
-						.field_name = "rts_threshold",
+						.field_name = "retry_long",
 						.field_offset = 0,
 					},
 					[36] = {
-						.field_name = "signal_type",
+						.field_name = "retry_short",
 						.field_offset = 0,
 					},
 					[37] = {
-						.field_name = "software_iftypes",
+						.field_name = "rts_threshold",
 						.field_offset = 0,
 					},
 					[38] = {
-						.field_name = "support_mbssid",
+						.field_name = "signal_type",
 						.field_offset = 0,
 					},
 					[39] = {
+						.field_name = "software_iftypes",
+						.field_offset = 0,
+					},
+					[40] = {
+						.field_name = "support_mbssid",
+						.field_offset = 0,
+					},
+					[41] = {
 						.field_name = "support_only_he_mbssid",
 						.field_offset = 0,
 					},

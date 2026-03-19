@@ -1,6 +1,7 @@
 #ifndef __LAYER_H__
 #define __LAYER_H__
 
+#ifdef __linux__
 #include <asm-generic/errno-base.h>
 #include <asm-generic/errno.h>
 #include <asm-generic/param.h>
@@ -42,6 +43,90 @@
 #include <netinet/ether.h>
 #include <dwarf.h>
 #include <libdwarf/libdwarf.h>
+#else
+#include <windows.h>
+#include <stddef.h>
+#include <bcrypt.h>
+#include <direct.h>
+#include <elf.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <io.h>
+#include <process.h>
+#include <stdatomic.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <time.h>
+
+#include <linux/types.h>
+#include <linux/stddef.h>
+#include <linux/udp.h>
+#include <linux/if_ether.h>
+#include <linux/nl80211.h>
+#include <linux/ethtool.h>
+#include <linux/usb/ch9.h>
+#include <asm-generic/errno-base.h>
+#include <asm-generic/errno.h>
+#include <asm-generic/param.h>
+#include <dwarf.h>
+#include <libdwarf/libdwarf.h>
+
+#include <libusb-1.0/libusb.h>
+
+typedef off_t	loff_t;
+
+#ifndef __cplusplus
+#define __struct_group_tag(TAG) TAG
+#else
+#define __struct_group_tag(TAG)
+#endif
+
+#define __struct_group(TAG, NAME, ATTRS, MEMBERS...)                           \
+        union {                                                                \
+                struct {                                                       \
+                        MEMBERS                                                \
+                } ATTRS;                                                       \
+                struct __struct_group_tag(TAG){MEMBERS} ATTRS NAME;            \
+        } ATTRS
+
+/* overwrite the 'pthread_xxx' types with windows based definitions */
+typedef SRWLOCK            pthread_mutex_t;
+typedef CONDITION_VARIABLE pthread_cond_t;
+typedef HANDLE             pthread_t;
+#define UL(x) (_UL(x))
+#define ULL(x) (_ULL(x))
+#define BIT(nr) (UL(1) << (nr))
+#define BIT_ULL(nr) (ULL(1) << (nr))
+
+#define BIT_MASK(nr) (UL(1) << ((nr) % BITS_PER_LONG))
+#define BIT_WORD(nr) ((nr) / BITS_PER_LONG)
+#define BIT_ULL_MASK(nr) (ULL(1) << ((nr) % BITS_PER_LONG_LONG))
+#define BIT_ULL_WORD(nr) ((nr) / BITS_PER_LONG_LONG)
+#define BITS_PER_BYTE 8
+#define BITS_PER_TYPE(type) (sizeof(type) * BITS_PER_BYTE)
+
+#define __always_inline inline
+#ifndef NL80211_SCAN_FLAG_RANDOM_ADDR
+#define NL80211_SCAN_FLAG_RANDOM_ADDR 1<<3
+#endif
+
+#ifdef __TINYC__
+#define __ATOMIC_ACQUIRE 2
+#define __ATOMIC_RELEASE 3
+#define _Atomic(T)                                                             \
+        struct {                                                               \
+                T volatile __val;                                              \
+        }
+typedef _Atomic(unsigned int) atomic_uint;
+#endif
+
+#endif /* __linux__ */
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #include <linux/byteorder/little_endian.h>

@@ -459,6 +459,8 @@ if($make_examples){
 
 if($windows_support){
 	$compiler = "x86_64-w64-mingw32-gcc";
+	push(@gcc_params, "-I./win/include/ ");
+	#push(@gcc_params, "-I/usr/include/x86_64-linux-gnu/ ");
 }
 
 if(!$compiler){

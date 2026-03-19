@@ -1492,9 +1492,11 @@ static inline bool strstarts(const char *str, const char *prefix){
         return strncmp(str, prefix, strlen(prefix)) == 0;
 }
 
+#ifndef __WIN64__
 static inline int isdigit(int c){
         return '0' <= c && c <= '9';
 }
+#endif
 
 static inline unsigned char __tolower(unsigned char c){
 	if (isupper(c)){
