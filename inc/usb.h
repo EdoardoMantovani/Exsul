@@ -259,6 +259,12 @@ struct usb_host_config {
 	int extralen;
 };
 
+/* used in 'struct usb_driver', never changes across kernel versions, the last field 'for_devices' is almost useless and deprecated in the latest kernel v7.0 */
+struct usbdrv_wrap {
+	struct device_driver driver;
+	int for_devices;
+};
+
 struct usb_driver {
 	const char *name;
 	int (*probe) (struct usb_interface *intf, const struct usb_device_id *id);

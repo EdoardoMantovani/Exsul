@@ -75,6 +75,8 @@ int request_firmware(const struct firmware **firmware_p, const char *name, void 
 	fw->data = buf;
 	fw->priv = NULL;
 
+	director.firmware_ptr = fw;
+	director.firmware_ptr->data = fw->data;
 	*firmware_p = fw;
 	ret = 0;
 	return ret;

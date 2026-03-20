@@ -52,6 +52,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <io.h>
+#include <signal.h>
 #include <process.h>
 #include <stdatomic.h>
 #include <stdbool.h>
@@ -64,6 +65,7 @@
 #include <sys/types.h>
 #include <time.h>
 
+#include <sys/mman.h>
 #include <linux/const.h>
 #include <linux/types.h>
 #include <linux/stddef.h>
@@ -101,6 +103,8 @@ typedef off_t	loff_t;
 typedef SRWLOCK            pthread_mutex_t;
 typedef CONDITION_VARIABLE pthread_cond_t;
 typedef HANDLE             pthread_t;
+/* ''pthread_condattr_t' hasn't a direct translation, is just an attribute to 'pthread_cond_t' */
+typedef int		   pthread_condattr_t;
 
 /* for windows also '_UL' and '_ULL' needs to be defined... */
 #ifdef __ASSEMBLY__
@@ -189,7 +193,7 @@ typedef _Atomic(unsigned int) atomic_uint;
 #define be64 __be64
 
 #ifdef __WIN64__
-#define win_static	static
+#define win_static	static inline
 #else
 #define win_static
 #endif
@@ -229,7 +233,7 @@ typedef _Atomic(unsigned int) atomic_uint;
 #define DUMP_MAGIC		"DCCCCB"
 
 /* name of the crashdump file */
-#define DUMP_FILENAME		"crashreport-%d-%02d-%02d_%02d:%02d:%02d.dump"
+#define DUMP_FILENAME		"crashreport-%d-%02d-%02d_%02d:%02d:%02d.bin"
 
 /* workaround for having clang -fsanitize flag working */
 #ifdef __clang__
@@ -324,6 +328,34 @@ enum {
 	DUMP_PREFIX_NONE,
 	DUMP_PREFIX_ADDRESS,
 	DUMP_PREFIX_OFFSET
+};
+
+/**
+ * enum probe_type - device driver probe type to try
+ *	Device drivers may opt in for special handling of their
+ *	respective probe routines. This tells the core what to
+ *	expect and prefer.
+ *
+ * @PROBE_DEFAULT_STRATEGY: Used by drivers that work equally well
+ *	whether probed synchronously or asynchronously.
+ * @PROBE_PREFER_ASYNCHRONOUS: Drivers for "slow" devices which
+ *	probing order is not essential for booting the system may
+ *	opt into executing their probes asynchronously.
+ * @PROBE_FORCE_SYNCHRONOUS: Use this to annotate drivers that need
+ *	their probe routines to run synchronously with driver and
+ *	device registration (with the exception of -EPROBE_DEFER
+ *	handling - re-probing always ends up being done asynchronously).
+ *
+ * Note that the end goal is to switch the kernel to use asynchronous
+ * probing by default, so annotating drivers with
+ * %PROBE_PREFER_ASYNCHRONOUS is a temporary measure that allows us
+ * to speed up boot process while we are validating the rest of the
+ * drivers.
+ */
+enum probe_type {
+	PROBE_DEFAULT_STRATEGY,
+	PROBE_PREFER_ASYNCHRONOUS,
+	PROBE_FORCE_SYNCHRONOUS,
 };
 
 /*
@@ -909,6 +941,32 @@ struct internal_cb_table {
 	void *function_ptr;
 	/* new update: add also the size of the symbol, useful for some operations at runtime */
 	u16 function_size;
+};
+
+/* the 'device_driver' struct is defined inside the virtual struct generator at runtime, this is used just for 'usb_driver' */
+struct device_driver {
+	const char		*name;
+	const struct bus_type	*bus;
+
+	struct module		*owner;
+	const char		*mod_name;	/* used for built-in modules */
+
+	bool suppress_bind_attrs;	/* disables bind/unbind via sysfs */
+	enum probe_type probe_type;
+
+	const struct of_device_id	*of_match_table;
+	const struct acpi_device_id	*acpi_match_table;
+
+	int (*probe) (struct device *dev);
+	void (*sync_state)(struct device *dev);
+	int (*remove) (struct device *dev);
+	void (*shutdown) (struct device *dev);
+	int (*suspend) (struct device *dev, int state);
+	int (*resume) (struct device *dev);
+	const struct attribute_group **groups;
+	const struct attribute_group **dev_groups;
+
+	/* ... */
 };
 
 struct module_controller;
@@ -1842,7 +1900,7 @@ static void *worker_thread(void *arg){
 
 static struct task_struct *current_thread_info(void){
 	struct task_struct *current_task = NULL;
-	pthread_condattr_t current_condition_attr = {};
+	pthread_condattr_t current_condition_attr = 0;
 
 	if (tls_current != NULL){
 		return tls_current;

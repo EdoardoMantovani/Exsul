@@ -260,12 +260,13 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 		printf("[!] failed to retrieve the size for struct device!\n");
 		goto end;
 	}
-	intf_ptr->usb_dev = malloc(struct_device_sizeof);
+
 	/*
 	 * 'interface_to_usbdev' uses also .dev->parent, so we need to allocate both of them.
 	 */
 	usb_device_ptr = calloc(1, struct_usb_device_sizeof);
 	intf_ptr->dev.parent = usb_device_ptr->dev;
+	director.usb_device_ptr = usb_device_ptr;
 	ret = libusb_get_device_speed(libusb_dev);
 
 	switch(ret){
@@ -309,6 +310,8 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 			libusb_close(director.usb_dev);
 			director.usb_dev = NULL;
 			continue;
+		}else{
+			ret = libusb_detach_kernel_driver(director.usb_dev, 0);
 		}
 		/* alloc the usb_interface which will be passed to the '->probe' callback */
 		ret = parse_usb_and_alloc_intf(director.usb_dev, &usb_intf);
@@ -337,7 +340,10 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 
 int invoke_usb_probe(struct usb_driver *new_driver, struct usb_device_id *id, struct usb_interface *intf){
 	int ret = 0;
-	ret = new_driver->probe(intf, id);
+	int (*probe) (struct usb_interface *intf, const struct usb_device_id *id) = NULL;
+	probe = new_driver->probe;
+
+	probe(intf, id);
 	return ret;
 }
 
@@ -581,11 +587,8 @@ int parse_module_offset_table(void){
 		return ret;
 	}
 
-	for (counter = 0; ; counter++) {
+	for (counter = 0; counter < ARRAY_SIZE(runtime_structs->structs); counter++) {
 		runtime_struct_layout = &runtime_structs->structs[counter];
-		if (runtime_struct_layout->struct_name == NULL){
-			break;
-		}
 		if(runtime_struct_layout->struct_field_num == 0){
 			continue;
 		}
@@ -1985,6 +1988,8 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		return -1;
 	}
 
+	free(director.info);
+	director.info = NULL;
 	return err;
 }
 
@@ -2328,6 +2333,16 @@ void finalize_director(void){
 	if(director.ieee80211_local != NULL){
 
 	}
+	if(director.firmware_ptr != NULL){
+		if(director.firmware_ptr->data != NULL){
+			free(director.firmware_ptr->data);
+		}else{
+			free(director.firmware_ptr);
+		}
+	}
+	if(director.usb_device_ptr != NULL){
+		free(director.usb_device_ptr);
+	}
 }
 
 /*
@@ -2343,10 +2358,7 @@ void crash_handler(int sig){
 	struct tm tm = {};
 	u8 dumped_filename_buffer[128];
 	struct crashdump_section crash_sections[CRASH_SECTION_MAX];
-        /* get crash address */
-	printf("crash handler\n");
-	finalize_director();
-	exit(0);
+
 	if(sig != SIGABRT){
 		current_crash_time = time(NULL);
 		/* taken from 'https://stackoverflow.com/questions/1442116/how-can-i-get-the-date-and-time-values-in-a-c-program' */
@@ -2363,7 +2375,7 @@ void crash_handler(int sig){
 		);
 	}else{
 		/* seems that when a SIGABORT is invoked, getting the current time makes my program crash again, this is just a temporary solution */
-		strncpy(dumped_filename_buffer, "sigabort_crash", sizeof("sigabort_crash"));
+		strncpy(dumped_filename_buffer, "sigabort_crash.bin", sizeof("sigabort_crash.bin"));
 	}
 
 	dump_fd = open(dumped_filename_buffer, O_RDWR | O_CREAT, 0777);
@@ -2395,6 +2407,8 @@ void crash_handler(int sig){
 	crash_sections[CRASH_SECTION_SYMBOL_TABLE].length = sym_table_section_size;
 	write(dump_fd, &crash_sections, sizeof(struct crashdump_section) * CRASH_SECTION_MAX);
 	close(dump_fd);
+	printf("[%s] dumped crash to '%s'\n", __FUNCTION__, dumped_filename_buffer);
+	finalize_director();
 }
 
 int main(int argc, char *argv[], char *envp[]) {
@@ -2461,7 +2475,7 @@ int main(int argc, char *argv[], char *envp[]) {
 	/* register now the signal handler */
 	signal(SIGINT, crash_handler);
 	signal(SIGSEGV, crash_handler);
-	//signal(SIGABRT, crash_handler);
+	signal(SIGABRT, crash_handler);
 
 	director.internal_cb_table = &sym_table;
 	libusb_init(NULL);

@@ -27,6 +27,8 @@ struct module_controller {
 
         /* libusb data, use only 1 device handler for an entire application */
         libusb_device_handle *usb_dev;
+	/* pointers to the 'usb_device' structs allocated for the 'probe' callback */
+	void *usb_device_ptr;
 
 	struct file_layer file_table[MAX_FILE_IDX];
 
@@ -74,6 +76,7 @@ struct module_controller {
 	#ifdef USE_BUILTIN_FIRMWARE
 	struct firmware_builtin_space *fw_builtin;
 	#endif
+	struct firmware *firmware_ptr;
 
 	/* list of the allocated memory, used for freeing everything at the end */
 	struct allocation_list *allocation_list;

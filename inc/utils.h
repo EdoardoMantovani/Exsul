@@ -549,7 +549,11 @@ do {									\
          ((type) == MOD_TEXT ||         \
           (type) == MOD_INIT_TEXT)
 
+#ifdef __WIN64__
+#define PAGE_ALIGN(addr)	ALIGN(addr, 4096)
+#else
 #define PAGE_ALIGN(addr)        ALIGN(addr, sysconf(_SC_PAGE_SIZE))
+#endif
 #define ALIGN(x, a)             __ALIGN_KERNEL((x), (a))
 #define SH_ENTSIZE_TYPE_BITS    4
 #define SH_ENTSIZE_TYPE_SHIFT   (BITS_PER_LONG - SH_ENTSIZE_TYPE_BITS)
@@ -1032,7 +1036,12 @@ out:										\
 
 #define CONCATENATE(a, b)		__CONCAT(a, b)
 
+#ifdef __WIN64__
+#define strscpy(dst, src, ...)		sized_strscpy(dst, src, __VA_ARGS__)
+#else
 #define strscpy(dst, src, ...)		CONCATENATE(__strscpy, COUNT_ARGS(__VA_ARGS__))(dst, src, __VA_ARGS__)
+#endif
+
 #define __strscpy1(dst, src, size)	sized_strscpy(dst, src, size)
 
 #define tolower(c)			__tolower(c)

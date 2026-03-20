@@ -26,11 +26,6 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, struct ieee8021
 		return NULL;
 	}
 
-	/* check all or no channel context operations exist */
-	if (!ieee80211_ops->add_chanctx || !ieee80211_ops->remove_chanctx || !ieee80211_ops->change_chanctx || !ieee80211_ops->assign_vif_chanctx || !ieee80211_ops->unassign_vif_chanctx){
-		return NULL;
-	}
-
 	/* Ensure 32-byte alignment of our private data and hw private data.
 	 * We use the wiphy priv data for both our ieee80211_local and for
 	 * the driver's private data

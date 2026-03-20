@@ -98,7 +98,6 @@ my @gcc_params = (
 	"-DCONFIG_PM",
 	"-O2",
 	"-w",
-	#"-fsanitize=leak -g",
 	"-funwind-tables",
 	"-fasynchronous-unwind-tables",
 	"-fno-omit-frame-pointer",
@@ -120,7 +119,6 @@ my @gcc_stub_params = (
 my @gcc_final_params = (
 	"-fno-pie",
 	"-no-pie",
-	"-rdynamic",
 );
 my @gcc_final_linkkings = (
 	"-lusb-1.0",
@@ -142,6 +140,8 @@ my %struct_whitelist = (
 	"netdev"	=> "net_device",
 	"intf"		=> "usb_interface",
 	"ieee80211_ops" => "ieee80211_ops",
+	"driver"	=> "device_driver",
+	"usb_driver"	=> "usb_driver",
 );
 
 my %field_ctype = (
@@ -358,6 +358,36 @@ my %field_ctype = (
 		"vif_cfg_changed"		=> "void *",
 		"wake_tx_queue"			=> "void *",
 	},
+	device_driver => {
+		"name"				=> "const char *",
+		"bus"				=> "struct bus_type *",
+		"owner"				=> "struct module *",
+		"mod_name"			=> "const char *",
+		"suppress_bind_attrs"		=> "bool",
+		"probe_type"			=> "enum probe_type",
+		"of_match_table"		=> "struct of_device_id *",
+		"acpi_match_table"		=> "struct acpi_device_id *",
+		"probe"				=> "void *",
+		"sync_state"			=> "void *",
+		"remove"			=> "void *",
+		"shutdown"			=> "void *",
+		"suspend"			=> "void *",
+		"resume"			=> "void *",
+		"p"				=> "struct driver_private *",
+	},
+	usb_driver => {
+		"name"				=> "const char *",
+		"probe"				=> "void *",
+		"disconnect"			=> "void *",
+		"unlocked_ioctl"		=> "void *",
+		"suspend"			=> "void *",
+		"resume"			=> "void *",
+		"reset_resume"			=> "void *",
+		"pre_reset"			=> "void *",
+		"post_reset"			=> "void *",
+		"id_table"			=> "struct usb_device_id *",
+		"drvwrap"			=> "struct usbdrv_wrap",
+	},
 );
 
 my %inline_array_field = (
@@ -431,6 +461,10 @@ if($compiler){
 		push(@gcc_params, "-I/usr/include/ ");
 		push(@gcc_params, "-I/usr/include/x86_64-linux-gnu/ ");
 	}
+}
+
+if(!($windows_support) && $compiler && !($compiler =~ "ming")){
+	push(@gcc_params, "-rdynamic");
 }
 
 if($clean){

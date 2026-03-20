@@ -18,6 +18,13 @@ GetOptions(
 
 # the "demo" will be focused on rtw89 driver, so the 'default' option will add to udev every rtw89 dongle known to the drivers
 my %udev_rtw89_devices = (
+	# rtw8851bu
+	# pid		 vid
+	# --------------------------
+	"b851" => "0bda",
+	"332a" => "2001",
+	"010b" => "3625",
+	"e611" => "7392",
 	# rtw8852bu
 	# pid		 vid
 	# --------------------------
@@ -36,7 +43,7 @@ my %udev_rtw89_devices = (
 	"6822" => "7392",
 	# rtw8852cu
 	# pid		 vid
-	# ---------------------------
+	# --------------------------
 	"c832" => "0bda",
 	"c85a" => "0bda",
 	"c85d" => "0bda",
@@ -44,7 +51,16 @@ my %udev_rtw89_devices = (
 	"0502" => "35b2",
 	"0101" => "35bc",
 	"0102" => "35bc",
-
+	# rtw8922au
+	# pid		 vid
+	# --------------------------
+	"76d7" => "0502",
+	"1bcf" => "0b05",
+	"1bd2" => "0b05",
+	"8912" => "0bda",
+	"da0e" => "0db0",
+	"010a" => "3625",
+	"3822" => "7392",
 );
 
 if($default && ($vid || $pid)){

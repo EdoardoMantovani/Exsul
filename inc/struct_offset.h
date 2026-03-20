@@ -12,7 +12,7 @@ struct runtime_struct_layout {
 
 struct runtime_struct {
 	int compilation_time_generated_structs;
-	struct runtime_struct_layout structs[14];
+	struct runtime_struct_layout structs[15];
 };
 
 OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
@@ -154,117 +154,97 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[2] = {
 				.struct_size = 0,
 				.struct_name = "ieee80211_ops",
-				.struct_field_num = 28,
+				.struct_field_num = 23,
 				.fields = {
 					[0] = {
-						.field_name = "add_chanctx",
-						.field_offset = 0,
-					},
-					[1] = {
 						.field_name = "add_nan_func",
 						.field_offset = 0,
 					},
-					[2] = {
-						.field_name = "assign_vif_chanctx",
-						.field_offset = 0,
-					},
-					[3] = {
+					[1] = {
 						.field_name = "bss_info_changed",
 						.field_offset = 0,
 					},
-					[4] = {
-						.field_name = "change_chanctx",
-						.field_offset = 0,
-					},
-					[5] = {
+					[2] = {
 						.field_name = "config",
 						.field_offset = 0,
 					},
-					[6] = {
+					[3] = {
 						.field_name = "del_nan_func",
 						.field_offset = 0,
 					},
-					[7] = {
+					[4] = {
 						.field_name = "hw_scan",
 						.field_offset = 0,
 					},
-					[8] = {
+					[5] = {
 						.field_name = "link_info_changed",
 						.field_offset = 0,
 					},
-					[9] = {
+					[6] = {
 						.field_name = "remain_on_channel",
 						.field_offset = 0,
 					},
-					[10] = {
-						.field_name = "remove_chanctx",
-						.field_offset = 0,
-					},
-					[11] = {
+					[7] = {
 						.field_name = "set_frag_threshold",
 						.field_offset = 0,
 					},
-					[12] = {
+					[8] = {
 						.field_name = "set_key",
 						.field_offset = 0,
 					},
-					[13] = {
+					[9] = {
 						.field_name = "set_mac_acl",
 						.field_offset = 0,
 					},
-					[14] = {
+					[10] = {
 						.field_name = "set_rts_threshold",
 						.field_offset = 0,
 					},
-					[15] = {
+					[11] = {
 						.field_name = "sta_add",
 						.field_offset = 0,
 					},
-					[16] = {
+					[12] = {
 						.field_name = "sta_remove",
 						.field_offset = 0,
 					},
-					[17] = {
+					[13] = {
 						.field_name = "sta_state",
 						.field_offset = 0,
 					},
-					[18] = {
+					[14] = {
 						.field_name = "start",
 						.field_offset = 0,
 					},
-					[19] = {
+					[15] = {
 						.field_name = "start_nan",
 						.field_offset = 0,
 					},
-					[20] = {
+					[16] = {
 						.field_name = "stop",
 						.field_offset = 0,
 					},
-					[21] = {
+					[17] = {
 						.field_name = "stop_nan",
 						.field_offset = 0,
 					},
-					[22] = {
+					[18] = {
 						.field_name = "tdls_cancel_channel_switch",
 						.field_offset = 0,
 					},
-					[23] = {
+					[19] = {
 						.field_name = "tdls_channel_switch",
 						.field_offset = 0,
 					},
-					[24] = {
+					[20] = {
 						.field_name = "tdls_recv_channel_switch",
 						.field_offset = 0,
 					},
-					[25] = {
+					[21] = {
 						.field_name = "tx",
 						.field_offset = 0,
 					},
-					[26] = {
-						.field_name = "unassign_vif_chanctx",
-						.field_offset = 0,
-					},
-					[27] = {
+					[22] = {
 						.field_name = "vif_cfg_changed",
 						.field_offset = 0,
 					},
@@ -923,8 +903,23 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			},
 			[12] = {
 				.struct_size = 0,
+				.struct_name = "usb_driver",
+				.struct_field_num = 2,
+				.fields = {
+					[0] = {
+						.field_name = "name",
+						.field_offset = 0,
+					},
+					[1] = {
+						.field_name = "probe",
+						.field_offset = 0,
+					},
+				},
+			},
+			[13] = {
+				.struct_size = 0,
 				.struct_name = "usb_interface",
-				.struct_field_num = 5,
+				.struct_field_num = 4,
 				.fields = {
 					[0] = {
 						.field_name = "altsetting",
@@ -942,13 +937,9 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_name = "num_altsetting",
 						.field_offset = 0,
 					},
-					[4] = {
-						.field_name = "usb_dev",
-						.field_offset = 0,
-					},
 				},
 			},
-			[13] = {
+			[14] = {
 				.struct_size = 0,
 				.struct_name = "wiphy",
 				.struct_field_num = 42,
