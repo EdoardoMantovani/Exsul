@@ -193,7 +193,7 @@ typedef _Atomic(unsigned int) atomic_uint;
 #define be64 __be64
 
 #ifdef __WIN64__
-#define win_static	static inline
+#define win_static	static
 #else
 #define win_static
 #endif
@@ -237,7 +237,7 @@ typedef _Atomic(unsigned int) atomic_uint;
 
 /* workaround for having clang -fsanitize flag working */
 #ifdef __clang__
-#define clang_static		static
+#define clang_static
 #else
 #define clang_static
 #endif
@@ -1900,7 +1900,7 @@ static void *worker_thread(void *arg){
 
 static struct task_struct *current_thread_info(void){
 	struct task_struct *current_task = NULL;
-	pthread_condattr_t current_condition_attr = 0;
+	pthread_condattr_t current_condition_attr;
 
 	if (tls_current != NULL){
 		return tls_current;

@@ -995,11 +995,15 @@ static void layout_sections(struct module *mod, struct load_info *info) {
 
 static int module_memory_alloc(struct module *mod, enum mod_mem_type type) {
 	unsigned int size = PAGE_ALIGN(mod->mem[type].size);
+	unsigned int mem_flags = PROT_READ | PROT_WRITE;
 	void	    *ptr;
 
 	mod->mem[type].size = size;
-
-	ptr = mmap(NULL, size, PROT_READ | PROT_WRITE | PROT_EXEC,
+	printf("module memory alloc %d\n", size);
+	if(type == MOD_TEXT || type == MOD_INIT_TEXT){
+		mem_flags |= PROT_EXEC;
+	}
+	ptr = mmap(NULL, size, mem_flags,
 		   MAP_PRIVATE | MAP_ANON | MAP_32BIT, -1, 0x00);
 
 	if (ptr == NULL) {
@@ -1990,6 +1994,7 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 
 	free(director.info);
 	director.info = NULL;
+	munmap(tmp_mapped_file, file_size);
 	return err;
 }
 
@@ -2408,7 +2413,10 @@ void crash_handler(int sig){
 	write(dump_fd, &crash_sections, sizeof(struct crashdump_section) * CRASH_SECTION_MAX);
 	close(dump_fd);
 	printf("[%s] dumped crash to '%s'\n", __FUNCTION__, dumped_filename_buffer);
-	finalize_director();
+	if(sig != SIGABRT){
+		finalize_director();
+	}
+	exit(0);
 }
 
 int main(int argc, char *argv[], char *envp[]) {
