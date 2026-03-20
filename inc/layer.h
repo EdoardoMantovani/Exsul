@@ -319,7 +319,7 @@ enum {
 /* memory allocation type for the generic list used for tracking the allocated memory */
 enum {
 	ALLOCATION_TYPE_MMAP,
-	ALLOCATION_TYPE_MALLOC,
+	ALLOCATION_TYPE_MALLOC, /* used only for the kernel module segments in memory */
 
 	ALLOCATION_TYPE_MAX,
 };

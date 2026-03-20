@@ -265,7 +265,7 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 	 * 'interface_to_usbdev' uses also .dev->parent, so we need to allocate both of them.
 	 */
 	usb_device_ptr = calloc(1, struct_usb_device_sizeof);
-	intf_ptr->dev.parent = usb_device_ptr->dev;
+	intf_ptr->dev.parent = &usb_device_ptr->dev;
 	director.usb_device_ptr = usb_device_ptr;
 	ret = libusb_get_device_speed(libusb_dev);
 
@@ -432,7 +432,7 @@ int dwarf_detect_struct(Dwarf_Debug dbg, Dwarf_Die die, unsigned char *struct_to
 				ret = dwarf_formudata(size_attr, &struct_size, &err);
 				dwarf_dealloc(dbg, size_attr, DW_DLA_ATTR);
 				if(ret == DW_DLV_OK){
-				#ifdef ENABLE_DBG_PRINT
+				#ifdef ENABLE_DWARF_DBG_PRINT
 					printf("[*] struct %s size: %d\n", die_name, struct_size);
 				#endif
 					*out_size = struct_size;
@@ -999,7 +999,9 @@ static int module_memory_alloc(struct module *mod, enum mod_mem_type type) {
 	void	    *ptr;
 
 	mod->mem[type].size = size;
+#ifdef ENABLE_DBG_PRINT
 	printf("module memory alloc %d\n", size);
+#endif
 	if(type == MOD_TEXT || type == MOD_INIT_TEXT){
 		mem_flags |= PROT_EXEC;
 	}
@@ -1009,7 +1011,7 @@ static int module_memory_alloc(struct module *mod, enum mod_mem_type type) {
 	if (ptr == NULL) {
 		return -ENOMEM;
 	}
-
+	director.module_allocation_list = new_allocation(ALLOCATION_TYPE_MMAP, ptr, size, mem_flags, director.module_allocation_list);
 	memset(ptr, 0, size);
 	mod->mem[type].base = ptr;
 
@@ -2325,7 +2327,8 @@ int drv_cmd_get(struct module_controller *director, char *argv[], int num_args) 
 		}
 	}
 	if(strstr(get_req, "mem") != NULL){
-		printf("[*] using %d bytes\n", director->total_memory_used);
+		printf("[*] bytes used before module initialization: %d bytes\n", director->total_memory_used);
+		dump_memory_allocation_list(director->module_allocation_list);
 	}
 	return ret;
 }
@@ -2348,6 +2351,19 @@ void finalize_director(void){
 	if(director.usb_device_ptr != NULL){
 		free(director.usb_device_ptr);
 	}
+}
+
+/* generate a dumped standalone elf */
+int elf_generator_handler(void){
+	int ret = 0;
+	struct dumped_elf {
+		Elf(Ehdr) header;
+		Elf(Shdr) section_header;
+		Elf(Phdr) program_header;
+		Elf(Sym)  symbol_table;
+	} dumped_elf = {};
+
+	return ret;
 }
 
 /*
@@ -2412,7 +2428,7 @@ void crash_handler(int sig){
 	crash_sections[CRASH_SECTION_SYMBOL_TABLE].length = sym_table_section_size;
 	write(dump_fd, &crash_sections, sizeof(struct crashdump_section) * CRASH_SECTION_MAX);
 	close(dump_fd);
-	printf("[%s] dumped crash to '%s'\n", __FUNCTION__, dumped_filename_buffer);
+	printf("[%s_handler] dumped crash to '%s'\n", (sig == SIGINT) ? "sigint" : "crash", dumped_filename_buffer);
 	if(sig != SIGABRT){
 		finalize_director();
 	}
@@ -2481,7 +2497,6 @@ int main(int argc, char *argv[], char *envp[]) {
 		},
 	};
 	/* register now the signal handler */
-	signal(SIGINT, crash_handler);
 	signal(SIGSEGV, crash_handler);
 	signal(SIGABRT, crash_handler);
 

@@ -41,7 +41,8 @@ struct module_controller {
 
         /* provide the support for loading multiple lkm, permitting thus to reuse the functions from every lkm loaded */
         u8 loaded_lkm_num;
-	//struct module_allocation_list *module_allocation_list[MAX_ALLOCATED_LKM_NUMBER];
+	/* track every memory region mapped in the actual memory, it doesn't matter much the original module they belongs to */
+	struct allocation_list *module_allocation_list;
 
         struct rfkill *rfkill;
 	struct ieee80211_local *ieee80211_local;

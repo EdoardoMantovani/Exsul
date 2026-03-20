@@ -95,6 +95,7 @@ my %used_fields_by_struct = ();
 
 my @gcc_params = (
 	"-DARCH_INDEPENDENT_BITOPS",
+	"-DENABLE_DBG_PRINT",
 	"-DCONFIG_PM",
 	"-O2",
 	"-w",

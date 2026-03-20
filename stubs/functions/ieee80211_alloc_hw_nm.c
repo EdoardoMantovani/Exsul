@@ -113,7 +113,7 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, struct ieee8021
 	wiphy->bss_priv_size = sizeof(struct ieee80211_bss);
 
 	local = wiphy->priv;
-	director.ieee80211_local = (struct ieee80211_local *)malloc(sizeof(struct ieee80211_local));
+	director.ieee80211_local = (struct ieee80211_local *)calloc(1, (ALIGN(sizeof(struct ieee80211_local), 32) + priv_data_len));
 	local = director.ieee80211_local;
 
 	if (sta_info_init(local)){
