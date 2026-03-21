@@ -15,6 +15,7 @@
 #include <fcntl.h>
 #include <execinfo.h>
 #include <libusb-1.0/libusb.h>
+#include <linux/elf-em.h>
 #include <linux/udp.h>
 #include <linux/in.h>
 #include <linux/in6.h>
@@ -71,6 +72,7 @@
 #include <linux/stddef.h>
 #include <linux/in6.h>
 #include <linux/udp.h>
+#include <linux/elf-em.h>
 #include <linux/if_ether.h>
 #include <linux/nl80211.h>
 #include <linux/ethtool.h>
@@ -1974,6 +1976,7 @@ static void *kthread_trampoline(void *arg){
 #include <bits.h>
 #include <net.h>
 #include <skb.h>
+#include <hci.h>
 #include <crypto.h>
 #include <ieee80211.h>
 #include <module.h>

@@ -39,6 +39,11 @@ struct module_controller {
         struct libusb_device_descriptor   usb_dev_desc;
 	pthread_mutex_t			  urb_anchor_mutex;
 
+	u8 *envp;
+	/* base pointer of the region header mapped in memory, used for creating the userspace independent executable */
+	u8 segments_in_memory;
+	void *segment_header_in_memory;
+
         /* provide the support for loading multiple lkm, permitting thus to reuse the functions from every lkm loaded */
         u8 loaded_lkm_num;
 	/* track every memory region mapped in the actual memory, it doesn't matter much the original module they belongs to */

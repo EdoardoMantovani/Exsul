@@ -1997,6 +1997,7 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	free(director.info);
 	director.info = NULL;
 	munmap(tmp_mapped_file, file_size);
+	director.loaded_lkm_num++;
 	return err;
 }
 
@@ -2014,6 +2015,27 @@ int initialize_director(struct module_controller *director, struct load_info **i
 	return ret;
 }
 
+/* clean everything allocated in the main controller */
+void finalize_director(void){
+	if(director.info != NULL){
+		free(director.info);
+	}
+	if(director.ieee80211_local != NULL){
+
+	}
+	if(director.firmware_ptr != NULL){
+		if(director.firmware_ptr->data != NULL){
+			free(director.firmware_ptr->data);
+		}else{
+			free(director.firmware_ptr);
+		}
+	}
+	if(director.usb_device_ptr != NULL){
+		free(director.usb_device_ptr);
+	}
+}
+
+/* fast api: a very minimal and direct way for executing an immediate action (load a kernel driver, executing a function..) */
 int fast_drv_load(struct module_controller *director, char *module_name) {
 	int ret = 0;
 	struct load_info *load_info = NULL;
@@ -2175,6 +2197,7 @@ static int drv_execute_cmd(struct module_controller *director, char *argv[], str
  */
 int drv_cmd_exit(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
+	finalize_director();
 	exit(ret);
 }
 
@@ -2326,43 +2349,175 @@ int drv_cmd_get(struct module_controller *director, char *argv[], int num_args) 
 			printf("\n");
 		}
 	}
+	/* get the current allocated memory number */
 	if(strstr(get_req, "mem") != NULL){
 		printf("[*] bytes used before module initialization: %d bytes\n", director->total_memory_used);
 		dump_memory_allocation_list(director->module_allocation_list);
 	}
+	/* get the ELF/PE file dump */
+	if(strstr(get_req, "exec") != NULL || strstr(get_req, "elf") != NULL || strstr(get_req, "pe") != NULL){
+		elf_generator_handler();
+	}
+
 	return ret;
 }
 
-/* clean everything allocated in the main controller */
-void finalize_director(void){
-	if(director.info != NULL){
-		free(director.info);
-	}
-	if(director.ieee80211_local != NULL){
+#ifdef __WIN64__
+int pe_generator_handler(void){
+	int ret = 0;
+	BYTE *base_addr = NULL;
+	IMAGE_DOS_HEADER *dos_header = NULL;
+	IMAGE_NT_HEADERS *nt_header = NULL;
 
+	base_addr = GetModuleHandleW(NULL);
+	if(base_addr == NULL){
+		ret = -EINVAL;
+		return ret;
 	}
-	if(director.firmware_ptr != NULL){
-		if(director.firmware_ptr->data != NULL){
-			free(director.firmware_ptr->data);
-		}else{
-			free(director.firmware_ptr);
-		}
+	dos_header = (IMAGE_DOS_HEADER *)base_addr;
+	if (dos_header->e_magic != IMAGE_DOS_SIGNATURE){
+		printf("[!] not a DOS header!\n");
+		ret = -EINVAL;
+		return ret;
 	}
-	if(director.usb_device_ptr != NULL){
-		free(director.usb_device_ptr);
+	nt_header = (IMAGE_NT_HEADERS *)(base_addr + dos_header->e_lfanew);
+	if (nt_header->Signature != IMAGE_NT_SIGNATURE){
+		printf("[!] not an NT header!\n");
+		ret = -EINVAL;
+		return ret;
 	}
+
+	printf("Image base      : %p\n", base_addr);
+	printf("SizeOfImage     : 0x%lx\n", (unsigned long)nt_header->OptionalHeader.SizeOfImage);
+	printf("SizeOfHeaders   : 0x%lx\n", (unsigned long)nt_header->OptionalHeader.SizeOfHeaders);
+	printf("EntryPoint RVA  : 0x%lx\n", (unsigned long)nt_header->OptionalHeader.AddressOfEntryPoint);
+
+	return ret;
 }
+#endif
 
-/* generate a dumped standalone elf */
+/* generate a standalone elf by dumping the address space (v1) */
 int elf_generator_handler(void){
 	int ret = 0;
-	struct dumped_elf {
-		Elf(Ehdr) header;
-		Elf(Shdr) section_header;
-		Elf(Phdr) program_header;
-		Elf(Sym)  symbol_table;
-	} dumped_elf = {};
+	int counter = 0;
+	int pht_counter = 0;
+	int off_counter = 0;
+	int elf_dump_fd = 0;
+	u8 phdrs = 0;
+	u64 vaddr = 0;
 
+	Elf(Ehdr) header = {};
+	Elf(Phdr) program_header = {};
+
+	void  *phdr_base = NULL;
+	void  *entry_addr = NULL;
+	Elf(auxv_t) *auxv = NULL;
+	struct allocation_list *head = NULL;
+
+	head = director.module_allocation_list;
+	if(head == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	if(director.loaded_lkm_num == 0){
+		printf("[!] no modules loaded!\n");
+		ret = -EINVAL;
+		return ret;
+	}
+
+	if(director.envp == NULL){
+		printf("[!] envp not saved!\n");
+		ret = -EINVAL;
+		return ret;
+	}
+
+	/* before proceeding, add as the last memory allocation node the executable segment of this process.
+	 * code taken from https://articles.manugarg.com/aboutelfauxiliaryvectors
+	 */
+	while (*director.envp++ != NULL);
+	for (auxv = (Elf(auxv_t) *)director.envp; auxv->a_type != AT_NULL; auxv++){
+		if (auxv->a_type == AT_PHDR){
+			phdr_base = (void *)auxv->a_un.a_val;
+		}
+		if(auxv->a_type == AT_PHNUM){
+			phdrs = auxv->a_un.a_val;
+		}
+	}
+
+	elf_dump_fd = open("userspace_driver.elf", O_RDWR | O_CREAT, 0777);
+	if(elf_dump_fd < 0){
+		ret = -EIO;
+		return ret;
+	}
+
+	fast_get_symbol("_driver_init", &entry_addr);
+	if(entry_addr == NULL){
+		printf("[!] in the current address space an usb driver init function wasn't found!\n");
+		close(elf_dump_fd);
+		ret = -EINVAL;
+		return ret;
+	}
+
+	vaddr = (uintptr_t)entry_addr;
+	#ifdef ENABLE_DBG_PRINT
+	printf("[*] entry point of the output executable file at: 0x%08x\n", vaddr);
+	#endif
+
+	while(head != NULL){
+		counter++;
+		head = head->alloc_next;
+	}
+	head = director.module_allocation_list;
+
+	header.e_ident[0]		= 0x7f;
+	header.e_ident[1]		= 'E';
+	header.e_ident[2]		= 'L';
+	header.e_ident[3]		= 'F';
+	header.e_ident[4]		= 0x01;
+	header.e_ident[5]		= 0x01;
+	header.e_ident[6]		= 0x01;
+
+	header.e_machine		= EM_CURRENT_ARCH;
+	header.e_entry			= vaddr;
+	header.e_phnum			= counter;
+	header.e_shoff			= sizeof(Elf(Ehdr));
+	header.e_phoff			= sizeof(Elf(Ehdr)) + sizeof(Elf(Shdr));
+	header.e_shnum			= 0;
+	header.e_phentsize		= sizeof(Elf(Phdr));
+	header.e_shentsize		= sizeof(Elf(Shdr));
+	header.e_type			= ET_EXEC;
+	header.e_version		= 1;
+	header.e_shstrndx		= 0;
+
+	pht_counter = sizeof(Elf(Ehdr));
+	off_counter = sizeof(Elf(Ehdr)) + (counter * sizeof(Elf(Phdr)));
+	lseek(elf_dump_fd, 0, SEEK_SET);
+	write(elf_dump_fd, &header, sizeof(header));
+	counter = 0;
+	while(head != NULL){
+		if(head->alloc_ptr == NULL){
+			break;
+		}
+		vaddr = (uintptr_t)head->alloc_ptr;
+
+		program_header.p_type   = PT_LOAD;
+		program_header.p_vaddr  = vaddr;
+		program_header.p_paddr  = vaddr;
+		program_header.p_memsz  = head->alloc_len;
+		program_header.p_filesz = head->alloc_len;
+		program_header.p_flags  = head->alloc_flags;
+		program_header.p_align  = 4;
+		lseek(elf_dump_fd, pht_counter,	SEEK_SET);
+		write(elf_dump_fd, &program_header, sizeof(Elf(Phdr)));
+		pht_counter	       += sizeof(Elf(Phdr));
+		lseek(elf_dump_fd, off_counter, SEEK_SET);
+		write(elf_dump_fd, head->alloc_ptr, head->alloc_len);
+		off_counter += head->alloc_len;
+		head = head->alloc_next;
+	}
+
+	close(elf_dump_fd);
 	return ret;
 }
 
@@ -2501,6 +2656,7 @@ int main(int argc, char *argv[], char *envp[]) {
 	signal(SIGABRT, crash_handler);
 
 	director.internal_cb_table = &sym_table;
+	director.envp = envp;
 	libusb_init(NULL);
 
 	/* add a fast loading option: if the user insert as argv 1 or more '.ko', load them in the order given */

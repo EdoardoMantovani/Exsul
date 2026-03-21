@@ -1,5 +1,6 @@
 #ifdef __x86_64__
 
+#define EM_CURRENT_ARCH				EM_X86_64
 #define TRAMP_REGION_SIZE			(64 * 1024)
 
 #define REPEAT_BYTE(x)                          ((~0ul / 0xff) * (x))

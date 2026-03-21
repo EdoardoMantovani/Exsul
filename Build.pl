@@ -2,9 +2,9 @@
 
 # Made by Edoardo Mantovani, 2026
 # Rewritten with safer local alias inference and guarded field replacement.
-# version 1.0.8 (18 March 2026)
+# version 1.1.0 (22 March 2026)
 
-use strict;
+no strict;
 use warnings;
 use Getopt::Long;
 use Cwd qw(getcwd);
@@ -24,6 +24,7 @@ my $grep = `which grep`;
 my $find = `which find`;
 my $make = `which make`;
 my $xxd  = `which xxd`;
+my $sort = `which sort`;
 
 my $arch    = "./arch";
 my $source  = "src";
@@ -44,10 +45,9 @@ my $functions = "functions";
 my $variables = "variables";
 
 my $function_proto_regex = q{^\h*[_A-Za-z]\w*(?:[\w\h\*]*\h+)+[_A-Za-z]\w*\h*\([^;{}]*\)\h*(?=\{)};
-my $find_command_arg = q{-type f -not -path "out_*" -name "*.c" -or -name "*.h"};
 
 my @built_objects = ();
-my $merged_fast_source = undef;
+my $merged_source = undef;
 my $proto = undef;
 my $current_stub = undef;
 my $final_stub = undef;
@@ -64,7 +64,6 @@ my $offset_generation_file = undef;
 my $virtual_compilation_folder = undef;
 
 my $compiler = undef;
-my $fast_compilation = undef;
 my $enable_firmware_builtin = undef;
 my $generate_offset_file = undef;
 my $pahole_kernel = undef;
@@ -143,6 +142,7 @@ my %struct_whitelist = (
 	"ieee80211_ops" => "ieee80211_ops",
 	"driver"	=> "device_driver",
 	"usb_driver"	=> "usb_driver",
+	"hdev"		=> "hci_dev",
 );
 
 my %field_ctype = (
@@ -389,6 +389,101 @@ my %field_ctype = (
 		"id_table"			=> "struct usb_device_id *",
 		"drvwrap"			=> "struct usbdrv_wrap",
 	},
+	hci_dev => {
+		"list"				=> "struct list_head",
+		"name"				=> "const char *",
+		"flags"				=> "unsigned long",
+		"id"				=> "__u16",
+		"bus"				=> "__u8",
+		"bdaddr"			=> "bdaddr_t",
+		"setup_addr"			=> "bdaddr_t",
+		"public_addr"			=> "bdaddr_t",
+		"random_addr"			=> "bdaddr_t",
+		"static_addr"			=> "bdaddr_t",
+		"adv_addr_type"			=> "__u8",
+		"appearance"			=> "__u16",
+		"dev_class"			=> "__u8",
+		"major_class"			=> "__u8",
+		"minor_class"			=> "__u8",
+		"max_page"			=> "__u8",
+		"le_features"			=> "__u8",
+		"le_accept_list_size"		=> "__u8",
+		"le_resolv_list_size"		=> "__u8",
+		"le_num_of_adv_sets"		=> "__u8",
+		"le_states"			=> "__u8",
+		"mesh_ad_types"			=> "__u8",
+		"mesh_send_ref"			=> "__u8",
+		"commands"			=> "__u8",
+		"hci_ver"			=> "__u8",
+		"hci_rev"			=> "__u16",
+		"lmp_ver"			=> "__u8",
+		"manufacturer"			=> "__u16",
+		"lmp_subver"			=> "__u16",
+		"voice_setting"			=> "__u16",
+		"num_iac"			=> "__u8",
+		"stored_max_keys"		=> "__u16",
+		"stored_num_keys"		=> "__u16",
+		"io_capability"			=> "__u8",
+		"inq_tx_power"			=> "__s8",
+		"err_data_reporting"		=> "__u8",
+		"page_scan_interval"		=> "__u16",
+		"page_scan_window"		=> "__u16",
+		"page_scan_type"		=> "__u8",
+		"le_adv_channel_map"		=> "__u8",
+		"le_adv_min_interval"		=> "__u16",
+		"le_adv_max_interval"		=> "__u16",
+		"le_scan_type"			=> "__u8",
+		"le_scan_interval"		=> "__u16",
+		"le_scan_window"		=> "__u16",
+		"le_scan_int_suspend"		=> "__u16",
+		"sniff_min_interval"		=> "__u16",
+		"sniff_max_interval"		=> "__u16",
+		"cmd_cnt"			=> "atomic_int",
+		"le_tx_def_phys"		=> "__u8",
+		"le_rx_def_phys"		=> "__u8",
+		"cmd_sync_work_list"		=> "struct list_head",
+		"rx_q"				=> "struct sk_buff_head",
+		"raw_q"				=> "struct sk_buff_head",
+		"cmd_q"				=> "struct sk_buff_head",
+		"mesh_pending"			=> "struct list_head",
+		"mgmt_pending_lock"		=> "struct mutex",
+		"mgmt_pending"			=> "struct list_head",
+		"reject_list"			=> "struct list_head",
+		"accept_list"			=> "struct list_head",
+		"uuids"				=> "struct list_head",
+		"link_keys"			=> "struct list_head",
+		"long_term_keys"		=> "struct list_head",
+		"identity_resolving_keys"	=> "struct list_head",
+		"remote_oob_data"		=> "struct list_head",
+		"le_accept_list"		=> "struct list_head",
+		"le_resolv_list"		=> "struct list_head",
+		"le_conn_params"		=> "struct list_head",
+		"pend_le_conns"			=> "struct list_head",
+		"pend_le_reports"		=> "struct list_head",
+		"blocked_keys"			=> "struct list_head",
+		"local_codecs"			=> "struct list_head",
+		"hw_info"			=> "const char *",
+		"fw_info"			=> "const char *",
+		"adv_instances"			=> "struct list_head",
+		"monitored_devices"		=> "struct list_head",
+		"open"				=> "void *",
+		"close"				=> "void *",
+		"flush"				=> "void *",
+		"setup"				=> "void *",
+		"shutdown"			=> "void *",
+		"send"				=> "void *",
+		"notify"			=> "void *",
+		"hw_error"			=> "void *",
+		"post_init"			=> "void *",
+		"set_diag"			=> "void *",
+		"set_bdaddr"			=> "void *",
+		"reset"				=> "void *",
+		"wakeup"			=> "void *",
+		"set_quality_report"		=> "void *",
+		"get_data_path_id"		=> "void *",
+		"get_codec_config_data"		=> "void *",
+		"classify_pkt_type"		=> "void *",
+	},
 );
 
 my %inline_array_field = (
@@ -408,10 +503,10 @@ chomp($grep);
 chomp($find);
 chomp($make);
 chomp($xxd);
+chomp($sort);
 
 GetOptions(
 	"compiler=s"      => \$compiler,
-	"fast"		  => \$fast_compilation,
 	"enable-fw"	  => \$enable_firmware_builtin,
 	"generate_offset" => \$generate_offset_file,
 	"pahole_kernel=s" => \$pahole_kernel,
@@ -423,11 +518,11 @@ GetOptions(
 );
 
 if($help){
-	print("Build script for ...\n");
+	# still to decide the project name
+	print("Build script for \n");
 	print("Made by Edoardo Mantovani, 2026\n");
 	print("options:\n");
 	print("compiler=[gcc|clang|tcc] (only working for now: gcc)\n");
-	print("fast: unlock the fast compilation feature\n");
 	print("enable-fw: enable static firmware embedding in the main application, this permits to not use the Linux standard path for loading a firmware\n");
 	print("generate_offset -> generate a special json file which can be used for creating the offset backup plan\n");
 	print("windows -> enable windows compilation\n");
@@ -438,6 +533,7 @@ if($help){
 	exit(0);
 }
 
+# used only if you want to generate the fallback offset solution.
 if($generate_offset_file){
 	$offset_generation_file = "required_offsets.json";
 }
@@ -454,7 +550,7 @@ if($compiler){
 	# workaround for tcc, which cannot find the stdatomic.h header.
 	if($compiler eq "tcc"){
 		push(@gcc_params, "-I/usr/include/newlib/ ");
-		#fix also 'Unable to determine type definition of intptr_t'
+		# fix also 'Unable to determine type definition of intptr_t'
 		push(@gcc_params, "-D__INTPTR_TYPE__ long int ");
 	}
 	# windows support
@@ -464,10 +560,12 @@ if($compiler){
 	}
 }
 
+# gcc ming for Windows doesn't support -rdynamic, this is just a workaround for not producing any errors during the compilation.
 if(!($windows_support) && $compiler && !($compiler =~ "ming")){
 	push(@gcc_params, "-rdynamic");
 }
 
+# "--clean" code
 if($clean){
 	`$rm $build/*.o 2>/dev/null`;
 	`$rm $bin/$final_program 2>/dev/null`;
@@ -486,22 +584,25 @@ if($clean){
 	exit(0);
 }
 
+# compile every example, used just for test
 if($make_examples){
 	chdir($example);
 	`for d in */; do (cd "\$d" && make); done`;
 	exit(0);
 }
 
+# same as using --compiler=mingw
 if($windows_support){
 	$compiler = "x86_64-w64-mingw32-gcc";
 	push(@gcc_params, "-I./win/include/ ");
-	#push(@gcc_params, "-I/usr/include/x86_64-linux-gnu/ ");
 }
 
+# default compiler: gcc
 if(!$compiler){
 	$compiler = "gcc";
 }
 
+# utilities function for getting struct/fields index
 sub get_struct_index {
 	my ($struct_name) = @_;
 	return $struct_idx_by_name{$struct_name};
@@ -513,6 +614,7 @@ sub get_field_index {
 	return $field_idx_by_name{$struct_name}{$field_name};
 }
 
+# deprecated function -- will be removed soon.
 #sub get_extended_ptr_variables {
 #	my ($line, $struct) = @_;
 #	my @vars = ();
@@ -550,19 +652,21 @@ sub get_extended_ptr_variables {
 	return keys %seen;
 }
 
+# this is used for getting the type string associated with every field, the main advantage of that instead of assigning to every field the "unsigned int" type,
+# we can cast them automatically, the form became: (*(type *)((char *)base + director.runtime_generated_structs->structs[X].fields[Y].field_offset))
 sub get_type_from_struct_field {
 	my ($struct, $field) = @_;
 	if($verbose){
 		if(exists $field_ctype{$struct} && exists $field_ctype{$struct}{$field}){
-			printf("- struct $struct field $field\n");
+			print("- struct $struct field $field\n");
 		}else{
-			printf("- not exist $struct field $field\n");
+			print("- not exist $struct field $field\n");
 		}
 	}
 	# fast fix: in case of 'ieee80211_ops' always return a "void *" [deprecated]
 	if($struct eq "ieee80211_ops"){
 		if($verbose){
-			printf("[ieee80211_ops] fix for field $field\n");
+			print("[ieee80211_ops] fix for field $field\n");
 		}
 		return "void *";
 	}
@@ -571,12 +675,14 @@ sub get_type_from_struct_field {
 	return "unsigned int";
 }
 
+# detect if the field is an array, this is used for things like "module->mem[type]" situations.
 sub field_is_inline_array {
 	my ($struct, $field) = @_;
 	return 0 if !exists $inline_array_field{$struct};
 	return exists $inline_array_field{$struct}{$field};
 }
 
+# build the final expression "(*(type *)((char *)base + director.runtime_generated_structs->structs[$current_struct_idx].fields[$current_field_idx].field_offset))"
 sub build_simple_field_access_expr {
 	my ($var, $st, $field) = @_;
 
@@ -592,7 +698,7 @@ sub build_simple_field_access_expr {
 	my $field_offset_expr  = "director.runtime_generated_structs->structs[$current_struct_idx].fields[$current_field_idx].field_offset";
 
 	if($verbose){
-		printf("$st->$field has type $current_field_type\n");
+		print("$st->$field has type $current_field_type\n");
 	}
 
 	return "(*($current_field_type*)((char *)$var + $field_offset_expr))";
@@ -614,7 +720,7 @@ sub build_field_access_expr {
 	my $field_offset_expr  = "director.runtime_generated_structs->structs[$current_struct_idx].fields[$current_field_idx].field_offset";
 
 	if($verbose){
-		printf("$st->$field has type $current_field_type\n");
+		print("$st->$field has type $current_field_type\n");
 	}
 
 	if (field_is_inline_array($st, $field)) {
@@ -665,6 +771,7 @@ sub harvest_declared_ptr_aliases {
 	return %found;
 }
 
+# scrape from the source codes every access to an undefined struct which will be converted later in this code.
 sub collect_used_fields {
 	my (@srcs) = @_;
 	my %fixed_alias = build_fixed_alias_map();
@@ -682,6 +789,7 @@ sub collect_used_fields {
 				my ($var, $field) = ($1, $2);
 				my $st = $local_alias{$var};
 				next if !defined $st;
+				print("[*] $src:$st->$field\n");
 				$used{$st}{$field} = 1;
 			}
 		}
@@ -692,6 +800,8 @@ sub collect_used_fields {
 	return %used;
 }
 
+# generate the struct_offset header, it takes the structs defined in the hash above and searches through ./inc, ./src and ./stubs every possible field access, then generates
+# a big global struct which contains every offset encoded as a struct field which will be accessed at runtime.
 sub emit_runtime_struct_header {
 	my ($offsets_path, $offset_json_path) = @_;
 
@@ -704,7 +814,7 @@ sub emit_runtime_struct_header {
 	print OFFSETS "	short struct_size;\n";
 	print OFFSETS "	unsigned char *struct_name;\n";
 	print OFFSETS "	unsigned short struct_field_num;\n";
-	print OFFSETS "	struct struct_field fields[64];\n";
+	print OFFSETS "	struct struct_field fields[128];\n";
 	print OFFSETS "};\n\n";
 	print OFFSETS "struct runtime_struct {\n";
 	print OFFSETS "	int compilation_time_generated_structs;\n";
@@ -792,6 +902,7 @@ sub emit_runtime_struct_header {
 	}
 }
 
+# main function used for rewriting the file with the struct conversion
 sub rewrite_source_file {
 	my ($in_path) = @_;
 	my %fixed_alias = build_fixed_alias_map();
@@ -874,11 +985,13 @@ sub rewrite_source_file {
 	move($tmp_path, $in_path) or die $!;
 }
 
-
+# I noticed that instead of compiling every file used as kernel->userspace wrappers, is way more practical to merge the 450+ files into a big
+# one and compile it alone
 sub merge_rewritten_function_stubs {
 	my ($root, $out_path) = @_;
 
-	my $functions_dir = "$root/$stubs/$functions";
+	my $functions_dir = "./$stubs/$functions";
+	my $variables_dir = "./$stubs/$variables";
 	my $layer_path    = "$root/$include/$win_layer";
 	my $utils_path    = "$root/$include/utils.h";
 
@@ -897,19 +1010,25 @@ sub merge_rewritten_function_stubs {
 		while (my $line = <$fh>) {
 			print $out $line;
 		}
-		print $out "\n";
+		print $out "\n\n";
 		close($fh) or die $!;
 	}
 
 	my @function_files = ();
-	foreach (`$find $functions_dir -type f -name "*.c" | sort`) {
+	foreach (`$find $functions_dir -type f -name "*.c" | $sort`) {
+		my $file = $_;
+		chomp($file);
+		push(@function_files, $file);
+	}
+
+	foreach(`$find $variables_dir -type f -name "*.c" | $sort`) {
 		my $file = $_;
 		chomp($file);
 		push(@function_files, $file);
 	}
 
 	foreach my $file (@function_files) {
-		print $out "\n/* function extrated from: $file */\n";
+		print $out "\n/* from $file */\n";
 		open(my $fh, '<', $file) or die $!;
 		while (my $line = <$fh>) {
 			print $out $line;
@@ -921,7 +1040,19 @@ sub merge_rewritten_function_stubs {
 	close($out) or die $!;
 }
 
-foreach(`$find $find_command_arg | $grep -iv out_`){
+# generate the tempdir used for storing the files with the converted struct fields access
+$virtual_compilation_folder = tempdir("out_XXXX", CLEANUP => 0);
+make_path("$virtual_compilation_folder/$build");
+
+foreach(qw(inc src)){
+	print("[*] transferring $_ to the runtime struct converter...\n");
+	`$cp -R $_ $virtual_compilation_folder/$_`;
+}
+
+$merged_source = "$virtual_compilation_folder/$build/merged_functions.c";
+merge_rewritten_function_stubs($virtual_compilation_folder, $merged_source);
+
+foreach(`$find $virtual_compilation_folder -type f`){
 	$iterator = $_;
 	chomp($iterator);
 	push(@sources, $iterator);
@@ -936,33 +1067,33 @@ $struct_set{"skb_shared_info"} = 1;
 $total_struct_number = scalar(keys %used_fields_by_struct);
 
 $offsets = "$include/struct_offset.h";
+print("[*] generating the struct_offset.h header!\n");
 emit_runtime_struct_header($offsets, $offset_generation_file);
+print("[*] done.\n");
 
 # second iteration:
 # 1) process header files under "./inc/"
 # 2) process stubs
 # 3) process "src/main.c"
-$process_step++;
-
-$virtual_compilation_folder = tempdir("out_XXXX", CLEANUP => 0);
-make_path("$virtual_compilation_folder/$build");
-
-foreach(qw(inc stubs src)){
-	`$cp -R $_ $virtual_compilation_folder/$_`;
-}
-
 @sources = ();
 foreach(`$find $virtual_compilation_folder`){
 	$iterator = $_;
 	chomp($iterator);
 	if($iterator =~ /\.(c|h)\z/){
+		if($verbose){
+			print("[*] adding $iterator to the compilation list!\n");
+		}
 		push(@sources, $iterator);
 	}
 }
 
+# apply the real modification now, foreach file added, convert its structs field access
 foreach my $src (uniq(@sources)){
+	print("[*] converting $src...\n");
 	rewrite_source_file($src);
 }
+
+print("[*] conversion finished! creating the global callback table...\n");
 
 # set the symbols total entries to a specific value (quite high, must support at least 8192 different symbols,
 # 450+ from my implementation + every possible other symbol present in complex wifi drivers, at least 1k
@@ -986,7 +1117,7 @@ print PROTO "*/\n\n";
 print PROTO "/** automatically generated file, don't edit! **/\n\n";
 
 $find_command_arg = q{-name "*.c"};
-foreach(`$find $virtual_compilation_folder/$stubs/$functions/ $find_command_arg`){
+foreach(`$find $stubs/$functions/ $find_command_arg`){
 	$current_stub = $_;
 	chomp($current_stub);
 	$final_stub = $current_stub;
@@ -1006,7 +1137,7 @@ foreach(`$find $virtual_compilation_folder/$stubs/$functions/ $find_command_arg`
 	print PROTO "$proto;\n";
 }
 
-foreach(`$find $virtual_compilation_folder/$stubs/$variables/ $find_command_arg`){
+foreach(`$find $stubs/$variables/ $find_command_arg`){
 	$current_stub = $_;
 	chomp($current_stub);
 	$final_stub = $current_stub;
@@ -1028,57 +1159,18 @@ print FH "};\n\n";
 close(FH) or die $!;
 close(PROTO) or die $!;
 
+print("[*] global callback table generated...\n");
 `$cp $proto_header $virtual_compilation_folder/$include`;
 `$cp $cb_header $virtual_compilation_folder/$include`;
 
-if($fast_compilation){
-	$merged_fast_source = "$virtual_compilation_folder/$build/merged_functions.c";
-	$final_stub = "merged_functions.o";
-	merge_rewritten_function_stubs($virtual_compilation_folder, $merged_fast_source);
-
-	if($verbose){
-		print("$compiler @gcc_params -I./$virtual_compilation_folder/$include @gcc_stub_params -include $virtual_compilation_folder/$include/$win_layer -c $merged_fast_source -o $build/$final_stub\n");
-	}
-
-	system("$compiler @gcc_params -I./$virtual_compilation_folder/$include @gcc_stub_params -include $virtual_compilation_folder/$include/$win_layer -c $merged_fast_source -o $build/$final_stub");
-	push(@built_objects, "$build/$final_stub");
-
-	if(!$verbose){
-		print("[*] compiling $final_stub\n");
-	}
-}else{
-	foreach(`$ls $virtual_compilation_folder/$stubs/$functions`){
-		$current_stub = $_;
-		chomp($current_stub);
-		$final_stub = $current_stub;
-		$final_stub =~ s/\..*$/.o/;
-		if($verbose){
-			print("$compiler @gcc_params -I./$virtual_compilation_folder/$include @gcc_stub_params -include $virtual_compilation_folder/$include/$win_layer -c $virtual_compilation_folder/$stubs/$functions/$current_stub -o $build/$final_stub\n");
-		}
-		system("$compiler @gcc_params -I./$virtual_compilation_folder/$include @gcc_stub_params -include $virtual_compilation_folder/$include/$win_layer -c $virtual_compilation_folder/$stubs/$functions/$current_stub -o $build/$final_stub");
-		push(@built_objects, "$build/$final_stub");
-		if(!$verbose){
-			print("[*] compiling $final_stub\n");
-		}
-	}
+$final_stub = "merged_functions.o";
+if($verbose){
+	print("$compiler @gcc_params -I./$virtual_compilation_folder/$include @gcc_stub_params -include $virtual_compilation_folder/$include/$win_layer -c $merged_source -o $build/$final_stub\n");
 }
 
-foreach(`$ls $virtual_compilation_folder/$stubs/$variables`){
-	$current_stub = $_;
-	chomp($current_stub);
-	$final_stub = $current_stub;
-	$final_stub =~ s/\..*$/.o/;
-	$stub_name = $final_stub;
-	$stub_name =~ s/\..*$//;
-	if($verbose){
-		print("$compiler @gcc_params -I./$virtual_compilation_folder/$include -include $virtual_compilation_folder/$include/$win_layer -c $virtual_compilation_folder/$stubs/$variables/$current_stub -o $build/$final_stub\n");
-	}
-	system("$compiler @gcc_params -I./$virtual_compilation_folder/$include -include $virtual_compilation_folder/$include/$win_layer -c $virtual_compilation_folder/$stubs/$variables/$current_stub -o $build/$final_stub");
-	push(@built_objects, "$build/$final_stub");
-	if(!$verbose){
-		print("[*] compiling $final_stub\n");
-	}
-}
+system("$compiler @gcc_params -I./$virtual_compilation_folder/$include @gcc_stub_params -include $virtual_compilation_folder/$include/$win_layer -c $merged_source -o $build/$final_stub");
+push(@built_objects, "$build/$final_stub");
+print("[*] compiling $final_stub\n");
 
 my $final_obj_line = join(' ', @built_objects);
 
