@@ -1,4 +1,4 @@
-struct usb_host_interface *usb_find_alt_setting(struct usb_host_config *config, unsigned int iface_num, unsigned int alt_num){
+stub struct usb_host_interface *usb_find_alt_setting(struct usb_host_config *config, unsigned int iface_num, unsigned int alt_num){
 	struct usb_interface_cache *intf_cache = NULL;
 
 	if (config == NULL){

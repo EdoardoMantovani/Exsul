@@ -84,16 +84,17 @@
 
 #define __stringify_1(x...)			#x
 #define __stringify(x...)			__stringify_1(x)
+
 #define INCREMENT_CALL_DEPTH
 
 __asm__(
-	".pushsection .rodata				\n"
-	".global skl_call_thunk_template		\n"
-	"skl_call_thunk_template:			\n"
-		__stringify(INCREMENT_CALL_DEPTH)"	\n"
-	".global skl_call_thunk_tail			\n"
-	"skl_call_thunk_tail:				\n"
-	".popsection					\n"
+	".pushsection .rodata                           \n"
+	".global skl_call_thunk_template                \n"
+	"skl_call_thunk_template:                       \n"
+	INCREMENT_CALL_DEPTH
+	".global skl_call_thunk_tail                    \n"
+	"skl_call_thunk_tail:                           \n"
+	".popsection                                    \n"
 );
 
 extern u8 skl_call_thunk_template[];
@@ -2053,6 +2054,93 @@ void apply_fineibt(s32 *start_retpoline, s32 *end_retpoline, s32 *start_cfi, s32
 	__apply_fineibt(start_retpoline, end_retpoline, start_cfi, end_cfi, /* .builtin = */ false);
 }
 
+int reg_from_indirect_thunk(void *thunk_addr){
+	const char *p = NULL;
+	const char *name = NULL;
+	static const struct {
+		const char *suffix;
+		int reg;
+	}map[] = {
+		{ "_rax", 0 },
+		{ "_rcx", 1 },
+		{ "_rdx", 2 },
+		{ "_rbx", 3 },
+		{ "_rbp", 5 },
+		{ "_rsi", 6 },
+		{ "_rdi", 7 },
+		{ "_r8",  8 },
+		{ "_r9",  9 },
+		{ "_r10",10 },
+		{ "_r11",11 },
+		{ "_r12",12 },
+		{ "_r13",13 },
+		{ "_r14",14 },
+		{ "_r15",15 },
+	};
+
+	for (int i = 0; sym_table[i].function_ptr != NULL; i++) {
+		if (sym_table[i].function_ptr != thunk_addr){
+			continue;
+		}
+		name = (const char *)sym_table[i].function_name;
+		if (!strstr(name, "__x86_indirect_thunk_")){
+			continue;
+		}
+		for (int j = 0; j < (int)(sizeof(map)/sizeof(map[0])); j++) {
+			p = strstr(name, map[j].suffix);
+			if (p && p[strlen(map[j].suffix)] == '\0'){
+				return map[j].reg;
+			}
+		}
+	}
+	return -1;
+}
+
+void apply_retpolines(s32 *start, s32 *end){
+	for (s32 *s = start; s < end; s++) {
+		void       *addr = (void *)((uintptr_t)s + (uintptr_t)*s);
+		struct insn insn  = {};
+		void       *thunk = NULL;
+		int         reg = 0;
+		u8          buf[CALL_INSN_SIZE];
+
+		if (insn_decode_kernel(&insn, addr)){
+			continue;
+		}
+
+		if (insn.opcode.bytes[0] != CALL_INSN_OPCODE){
+			continue;
+		}
+
+		thunk = (u8 *)addr + insn.length + insn.immediate.value;
+
+		reg = reg_from_indirect_thunk(thunk);
+		if (reg < 0) {
+			#ifdef ENABLE_DBG_PRINT
+			printf("[*] %s: unknown thunk at %p for site %p\n", __FUNCTION__, thunk, addr);
+			#endif
+			continue;
+		}
+
+		memset(buf, 0x90, CALL_INSN_SIZE);
+		if (reg < 8) {
+			buf[0] = 0xFF;
+			buf[1] = 0xD0 | (u8)(reg & 7);
+		}else{
+			buf[0] = 0x41;
+			buf[1] = 0xFF;
+			buf[2] = 0xD0 | (u8)(reg & 7);
+		}
+
+		#ifdef ENABLE_DBG_PRINT
+		printf("[*] %s: site %p -> %s (r%d): %02x %02x %02x %02x %02x\n", __FUNCTION__, addr, (reg < 8 ? "low" : "r8+"), reg,
+		buf[0], buf[1], buf[2], buf[3], buf[4]);
+		#endif
+		memcpy(addr, buf, CALL_INSN_SIZE);
+		__builtin___clear_cache((char *)addr, (char *)addr + CALL_INSN_SIZE);
+	}
+}
+
 int module_finalize(const Elf(Ehdr) *hdr, const Elf(Shdr) *sechdrs, struct module *mod){
 	unsigned int rsize      	= 0;
 	unsigned int csize      	= 0;
@@ -2153,7 +2241,7 @@ int module_finalize(const Elf(Ehdr) *hdr, const Elf(Shdr) *sechdrs, struct modul
 		 * support for full protection. The kernel may run slower.
 		 */
 
-                //apply_retpolines(rseg, rseg + retpolines->sh_size);
+		apply_retpolines(rseg, rseg + retpolines->sh_size);
         }
         if (returns) {
                 void *rseg              = (void *)returns->sh_addr;
@@ -2201,22 +2289,19 @@ int module_finalize(const Elf(Ehdr) *hdr, const Elf(Shdr) *sechdrs, struct modul
         if (ibt_endbr) {
                 void *iseg              = (void *)ibt_endbr->sh_addr;
 
-                /**
-
-                Build the kernel with support for Indirect Branch Tracking, a
-                hardware support course-grain forward-edge Control Flow Integrity
-                protection. It enforces that all indirect calls must land on
-                an ENDBR instruction, as such, the compiler will instrument the
-                code with them to make this happen.
-
-                In addition to building the kernel with IBT, seal all functions that
-                are not indirect call targets, avoiding them ever becoming one.
-
-                This requires LTO like objtool runs and will slow down the build. It
-                does significantly reduce the number of ENDBR instructions in the
-                kernel image.
-
-                **/
+                /*
+		 *
+		 * Build the kernel with support for Indirect Branch Tracking, a
+		 * hardware support course-grain forward-edge Control Flow Integrity
+		 * protection. It enforces that all indirect calls must land on
+		 * an ENDBR instruction, as such, the compiler will instrument the
+		 * code with them to make this happen.
+		 * In addition to building the kernel with IBT, seal all functions that
+		 * are not indirect call targets, avoiding them ever becoming one.
+		 * This requires LTO like objtool runs and will slow down the build. It
+		 * does significantly reduce the number of ENDBR instructions in the
+		 * kernel image.
+		 */
 
                 //apply_seal_endbr(iseg, iseg + ibt_endbr->sh_size);
         }
@@ -2225,47 +2310,38 @@ int module_finalize(const Elf(Ehdr) *hdr, const Elf(Shdr) *sechdrs, struct modul
                 void *text              = mod->mem[MOD_TEXT].base;
                 void *text_end          = text + mod->mem[MOD_TEXT].size;
 
-                /**
-
-                This enables support for systems with more than one CPU. If you have
-                a system with only one CPU, say N. If you have a system with more
-                than one CPU, say Y.
-
-                If you say N here, the kernel will run on uni- and multiprocessor
-                machines, but will use only one CPU of a multiprocessor machine. If
-                you say Y here, the kernel will run on many, but not all,
-                uniprocessor machines. On a uniprocessor machine, the kernel
-                will run faster if you say N here.
-
-                Note that if you say Y here and choose architecture "586" or
-                "Pentium" under "Processor family", the kernel will not work on 486
-                architectures. Similarly, multiprocessor kernels for the "PPro"
-                architecture may not work on all Pentium based boards.
-
-                People using multiprocessor machines who say Y here should also say
-                Y to "Enhanced Real Time Clock Support", below. The "Advanced Power
-                Management" code will be disabled if you say Y here.
-
-                **/
+                /*
+		 * This enables support for systems with more than one CPU. If you have
+		 * a system with only one CPU, say N. If you have a system with more
+		 * than one CPU, say Y.
+		 * If you say N here, the kernel will run on uni- and multiprocessor
+		 * machines, but will use only one CPU of a multiprocessor machine. If
+		 * you say Y here, the kernel will run on many, but not all,
+		 * uniprocessor machines. On a uniprocessor machine, the kernel
+		 * will run faster if you say N here.
+		 * Note that if you say Y here and choose architecture "586" or
+		 * "Pentium" under "Processor family", the kernel will not work on 486
+		 * architectures. Similarly, multiprocessor kernels for the "PPro"
+		 * architecture may not work on all Pentium based boards.
+		 * People using multiprocessor machines who say Y here should also say
+		 * Y to "Enhanced Real Time Clock Support", below. The "Advanced Power
+		 * Management" code will be disabled if you say Y here.
+		 */
 
                 alternatives_smp_module_add(mod, mod->name, lseg, lseg + locks->sh_size, text, text_end);
         }
 
         if (orc && orc_ip){
-                /**
-
-                This option enables the ORC (Oops Rewind Capability) unwinder for
-                unwinding kernel stack traces.  It uses a custom data format which is
-                a simplified version of the DWARF Call Frame Information standard.
-
-                This unwinder is more accurate across interrupt entry frames than the
-                frame pointer unwinder.  It also enables a 5-10% performance
-                improvement across the entire kernel compared to frame pointers.
-
-                Enabling this option will increase the kernel's runtime memory usage
-                by roughly 2-4MB, depending on your kernel config.
-
-                **/
+                /*
+		 * This option enables the ORC (Oops Rewind Capability) unwinder for
+		 * unwinding kernel stack traces.  It uses a custom data format which is
+		 * a simplified version of the DWARF Call Frame Information standard.
+		 * This unwinder is more accurate across interrupt entry frames than the
+		 * frame pointer unwinder.  It also enables a 5-10% performance
+		 * improvement across the entire kernel compared to frame pointers.
+		 * Enabling this option will increase the kernel's runtime memory usage
+		 * by roughly 2-4MB, depending on your kernel config.
+		 */
 
                 //unwind_module_init(me, (void *)orc_ip->sh_addr, orc_ip->sh_size, (void *)orc->sh_addr, orc->sh_size);
         }

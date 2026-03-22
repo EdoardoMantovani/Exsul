@@ -4,7 +4,7 @@
 # Rewritten with safer local alias inference and guarded field replacement.
 # version 1.1.0 (22 March 2026)
 
-no strict;
+use strict;
 use warnings;
 use Getopt::Long;
 use Cwd qw(getcwd);
@@ -46,6 +46,7 @@ my $functions = "functions";
 my $variables = "variables";
 
 my $function_proto_regex = q{^\h*[_A-Za-z]\w*(?:[\w\h\*]*\h+)+[_A-Za-z]\w*\h*\([^;{}]*\)\h*(?=\{)};
+my $find_command_arg = q{};
 
 my @built_objects = ();
 my $merged_source = undef;

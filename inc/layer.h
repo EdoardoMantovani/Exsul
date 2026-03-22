@@ -244,6 +244,13 @@ typedef _Atomic(unsigned int) atomic_uint;
 #define clang_static
 #endif
 
+/* workaround for stack alignment for the stubs in x86-64 */
+#ifdef __x86_64__
+#define stub			__attribute__((force_align_arg_pointer))
+#else
+#define stub
+#endif
+
 #define NR_KMALLOC_TYPES	8
 #define	NUMA_NO_NODE		(-1)
 
