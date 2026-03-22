@@ -485,6 +485,11 @@ typedef int (*wait_queue_func_t)(struct wait_queue_entry *wq_entry, unsigned mod
 struct wait_queue_head;
 typedef struct wait_queue_head wait_queue_head_t;
 
+struct va_format {
+	const char *fmt;
+	va_list *va;
+};
+
 typedef struct {
 	int counter;
 } atomic_t;

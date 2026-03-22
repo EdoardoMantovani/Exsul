@@ -940,6 +940,9 @@ long module_get_offset_and_type(struct module *mod, enum mod_mem_type type,
 	offset = ALIGN(mod->mem[type].size, sechdr->sh_addralign ?: 1);
 	mod->mem[type].size = offset + sechdr->sh_size;
 
+	#ifdef ENABLE_DBG_PRINT
+	printf("[*] %s: offset: %d section size: %d final size: %d\n", __FUNCTION__, offset, sechdr->sh_size, mod->mem[type].size);
+	#endif
 	return offset | mask;
 }
 
@@ -973,6 +976,10 @@ static void __layout_sections(struct module *mod, struct load_info *info,
 		for (i = 0; i < info->hdr->e_shnum; ++i) {
 			s     = &info->sechdrs[i];
 			sname = info->secstrings + s->sh_name;
+
+			if(strstr(sname, "debug") != NULL){
+				continue;
+			}
 
 			if ((s->sh_flags & masks[m][0]) != masks[m][0] ||
 			    (s->sh_flags & masks[m][1]) ||
@@ -2017,13 +2024,6 @@ void finalize_director(void){
 	if(director.ieee80211_local != NULL){
 
 	}
-	if(director.firmware_ptr != NULL){
-		if(director.firmware_ptr->data != NULL){
-			free(director.firmware_ptr->data);
-		}else{
-			free(director.firmware_ptr);
-		}
-	}
 	if(director.usb_device_ptr != NULL){
 		free(director.usb_device_ptr);
 	}
@@ -2398,14 +2398,15 @@ int elf_generator_handler(void){
 	int off_counter = 0;
 	int elf_dump_fd = 0;
 	u8 phdrs = 0;
+	u32 flags = 0;
 	u64 vaddr = 0;
 
 	Elf(Ehdr) header = {};
 	Elf(Phdr) program_header = {};
 
-	void  *phdr_base = NULL;
 	void  *entry_addr = NULL;
 	Elf(auxv_t) *auxv = NULL;
+	Elf(Phdr) *phdr_base =  NULL;
 	struct allocation_list *head = NULL;
 
 	head = director.module_allocation_list;
@@ -2432,10 +2433,22 @@ int elf_generator_handler(void){
 	while (*director.envp++ != NULL);
 	for (auxv = (Elf(auxv_t) *)director.envp; auxv->a_type != AT_NULL; auxv++){
 		if (auxv->a_type == AT_PHDR){
-			phdr_base = (void *)auxv->a_un.a_val;
+			phdr_base = (Elf(Phdr) *)auxv->a_un.a_val;
 		}
 		if(auxv->a_type == AT_PHNUM){
 			phdrs = auxv->a_un.a_val;
+		}
+	}
+
+	for(u8 k = 0; k < phdrs; k++){
+		printf("[*] internal segment number %d, vaddr: 0x%08x size: %d\n", k, phdr_base[k].p_vaddr, phdr_base[k].p_memsz);
+		if(phdr_base[k].p_memsz != 0){
+			director.module_allocation_list = new_allocation(
+				ALLOCATION_TYPE_MMAP,
+				phdr_base[k].p_vaddr,
+				phdr_base[k].p_memsz,
+				phdr_base[k].p_flags,
+				director.module_allocation_list);
 		}
 	}
 
@@ -2468,18 +2481,18 @@ int elf_generator_handler(void){
 	header.e_ident[1]		= 'E';
 	header.e_ident[2]		= 'L';
 	header.e_ident[3]		= 'F';
-	header.e_ident[4]		= 0x01;
-	header.e_ident[5]		= 0x01;
-	header.e_ident[6]		= 0x01;
+	header.e_ident[4]		= ELFCLASS64;
+	header.e_ident[5]		= 1;
+	header.e_ident[6]		= 1;
 
 	header.e_machine		= EM_CURRENT_ARCH;
 	header.e_entry			= vaddr;
 	header.e_phnum			= counter;
-	header.e_shoff			= sizeof(Elf(Ehdr));
-	header.e_phoff			= sizeof(Elf(Ehdr)) + sizeof(Elf(Shdr));
+	header.e_shoff			= 0;
+	header.e_phoff			= sizeof(Elf(Ehdr));
 	header.e_shnum			= 0;
 	header.e_phentsize		= sizeof(Elf(Phdr));
-	header.e_shentsize		= sizeof(Elf(Shdr));
+	header.e_shentsize		= 0;
 	header.e_type			= ET_EXEC;
 	header.e_version		= 1;
 	header.e_shstrndx		= 0;
@@ -2500,15 +2513,34 @@ int elf_generator_handler(void){
 		program_header.p_paddr  = vaddr;
 		program_header.p_memsz  = head->alloc_len;
 		program_header.p_filesz = head->alloc_len;
-		program_header.p_flags  = head->alloc_flags;
 		program_header.p_align  = 4;
+		/* convert the mmap flags into  the phdr flags, do this process here for not affecting the performance earlier */
+		if(head->alloc_flags & PROT_READ){
+			flags |= PF_R;
+		}
+		if(head->alloc_flags & PROT_WRITE){
+			flags |= PF_W;
+		}
+		if(head->alloc_flags & PROT_EXEC){
+			flags |= PF_X;
+		}
+		program_header.p_flags  = flags;
+		#ifdef ENABLE_DBG_PRINT
+		printf("[*] program header type %d vaddr 0x%08x memsz %d flags %d\n",
+			program_header.p_type,
+			program_header.p_vaddr,
+			program_header.p_memsz,
+			program_header.p_flags);
+		#endif
 		lseek(elf_dump_fd, pht_counter,	SEEK_SET);
-		write(elf_dump_fd, &program_header, sizeof(Elf(Phdr)));
-		pht_counter	       += sizeof(Elf(Phdr));
+		write(elf_dump_fd, &program_header, sizeof(program_header));
+		pht_counter	       += sizeof(program_header);
 		lseek(elf_dump_fd, off_counter, SEEK_SET);
 		write(elf_dump_fd, head->alloc_ptr, head->alloc_len);
 		off_counter += head->alloc_len;
 		head = head->alloc_next;
+		/* reset flags */
+		flags = 0;
 	}
 
 	close(elf_dump_fd);

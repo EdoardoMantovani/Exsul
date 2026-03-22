@@ -20,6 +20,7 @@ my $cd   = `which cd`;
 my $cp   = `which cp`;
 my $rm   = `which rm`;
 my $sed  = `which sed`;
+my $awk  = `which awk`;
 my $grep = `which grep`;
 my $find = `which find`;
 my $make = `which make`;
@@ -498,6 +499,7 @@ chomp($cd);
 chomp($cp);
 chomp($rm);
 chomp($sed);
+chomp($awk);
 chomp($grep);
 chomp($find);
 chomp($make);
@@ -612,25 +614,6 @@ sub get_field_index {
 	return undef if !exists $field_idx_by_name{$struct_name};
 	return $field_idx_by_name{$struct_name}{$field_name};
 }
-
-# deprecated function -- will be removed soon.
-#sub get_extended_ptr_variables {
-#	my ($line, $struct) = @_;
-#	my @vars = ();
-
-#	while ($line =~ /\b(?:const\s+)?struct\s+\Q$struct\E\b[^;{]*?\*+\s*([A-Za-z_]\w*)\s*(?=[,;\)=])/g) {
-#		push(@vars, $1);
-#	}
-
-#	if ($line =~ /\b(?:const\s+)?struct\s+\Q$struct\E\b([^;{]*)/) {
-#		my $rest = $1;
-#		while ($rest =~ /,\s*\*+\s*([A-Za-z_]\w*)\s*(?=[,;\)=])/g) {
-#			push(@vars, $1);
-#		}
-#	}
-
-#	return uniq(@vars);
-#}
 
 # new version of 'get_extended_ptr_variables' had a bug which didn't permit to detect "ieee80211_ops"
 sub get_extended_ptr_variables {
@@ -1039,6 +1022,10 @@ sub merge_rewritten_function_stubs {
 
 	close($out) or die $!;
 }
+
+# generate the inat-table.c file at build time
+`$awk -f tools/generate_inat/gen-insn-attr-x86.awk tools/generate_inat/x86-opcode-map.txt > $arch/x86_64/inat-tables.c`;
+print("[*] generated $arch/x86_64/inat-tables.c...\n");
 
 # generate the tempdir used for storing the files with the converted struct fields access
 $virtual_compilation_folder = tempdir("out_XXXX", CLEANUP => 0);

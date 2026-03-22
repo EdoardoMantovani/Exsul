@@ -39,7 +39,7 @@ struct module_controller {
         struct libusb_device_descriptor   usb_dev_desc;
 	pthread_mutex_t			  urb_anchor_mutex;
 
-	u8 *envp;
+	u8 **envp;
 	/* base pointer of the region header mapped in memory, used for creating the userspace independent executable */
 	u8 segments_in_memory;
 	void *segment_header_in_memory;
