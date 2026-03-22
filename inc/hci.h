@@ -10,6 +10,28 @@
 #define hci_skb_event(skb) bt_cb((skb))->hci.req_event
 #define hci_skb_sk(skb) bt_cb((skb))->hci.sk
 
+/* HCI timeouts */
+#define HCI_DISCONN_TIMEOUT		msecs_to_jiffies(2000)	/* 2 seconds */
+#define HCI_PAIRING_TIMEOUT		msecs_to_jiffies(60000)	/* 60 seconds */
+#define HCI_INIT_TIMEOUT		msecs_to_jiffies(10000)	/* 10 seconds */
+#define HCI_CMD_TIMEOUT			msecs_to_jiffies(2000)	/* 2 seconds */
+#define HCI_NCMD_TIMEOUT		msecs_to_jiffies(4000)	/* 4 seconds */
+#define HCI_ACL_TX_TIMEOUT		msecs_to_jiffies(45000)	/* 45 seconds */
+#define HCI_AUTO_OFF_TIMEOUT		msecs_to_jiffies(2000)	/* 2 seconds */
+#define HCI_ACL_CONN_TIMEOUT		msecs_to_jiffies(20000)	/* 20 seconds */
+#define HCI_LE_CONN_TIMEOUT		msecs_to_jiffies(20000)	/* 20 seconds */
+#define HCI_ISO_TX_TIMEOUT		usecs_to_jiffies(0x7fffff) /* 8388607 usecs */
+
+/* HCI data types */
+#define HCI_COMMAND_PKT			0x01
+#define HCI_ACLDATA_PKT			0x02
+#define HCI_SCODATA_PKT			0x03
+#define HCI_EVENT_PKT			0x04
+#define HCI_ISODATA_PKT			0x05
+#define HCI_DIAG_PKT			0xf0
+#define HCI_DRV_PKT			0xf1
+#define HCI_VENDOR_PKT			0xff
+
 /* HCI packet types */
 #define HCI_DM1				0x0008
 #define HCI_DM3				0x0400
@@ -21,6 +43,18 @@
 #define HCI_HV1				0x0020
 #define HCI_HV2				0x0040
 #define HCI_HV3				0x0080
+
+/* eSCO packet types */
+#define ESCO_HV1			0x0001
+#define ESCO_HV2			0x0002
+#define ESCO_HV3			0x0004
+#define ESCO_EV3			0x0008
+#define ESCO_EV4			0x0010
+#define ESCO_EV5			0x0020
+#define ESCO_2EV3			0x0040
+#define ESCO_3EV3			0x0080
+#define ESCO_2EV5			0x0100
+#define ESCO_3EV5			0x0200
 
 /* Bluetooth versions */
 #define BLUETOOTH_VER_1_1		1
@@ -50,6 +84,16 @@
 #define BTPROTO_ISO			8
 #define BTPROTO_LAST			BTPROTO_ISO
 
+/* Link modes */
+#define HCI_LM_ACCEPT			0x8000
+#define HCI_LM_MASTER			0x0001
+#define HCI_LM_AUTH			0x0002
+#define HCI_LM_ENCRYPT			0x0004
+#define HCI_LM_TRUSTED			0x0008
+#define HCI_LM_RELIABLE			0x0010
+#define HCI_LM_SECURE			0x0020
+#define HCI_LM_FIPS			0x0040
+
 /* HCI data types */
 #define HCI_COMMAND_PKT			0x01
 #define HCI_ACLDATA_PKT			0x02
@@ -78,8 +122,30 @@
 #define PA_LINK				0x84
 #define INVALID_LINK			0xff
 
+#define SMP_CMD_MAX			0x0e
+#define SMP_PASSKEY_ENTRY_FAILED	0x01
+#define SMP_OOB_NOT_AVAIL		0x02
+#define SMP_AUTH_REQUIREMENTS		0x03
+#define SMP_CONFIRM_FAILED		0x04
+#define SMP_PAIRING_NOTSUPP		0x05
+#define SMP_ENC_KEY_SIZE		0x06
+#define SMP_CMD_NOTSUPP			0x07
+#define SMP_UNSPECIFIED			0x08
+#define SMP_REPEATED_ATTEMPTS		0x09
+#define SMP_INVALID_PARAMS		0x0a
+#define SMP_DHKEY_CHECK_FAILED		0x0b
+#define SMP_NUMERIC_COMP_FAILED		0x0c
+#define SMP_BREDR_PAIRING_IN_PROGRESS	0x0d
+#define SMP_CROSS_TRANSP_NOT_ALLOWED	0x0e
+#define SMP_KEY_REJECTED		0x0f
+
+#define SMP_MIN_ENC_KEY_SIZE		7
+#define SMP_MAX_ENC_KEY_SIZE		16
+
 /* Default LE RPA expiry time, 15 minutes */
 #define HCI_DEFAULT_RPA_TIMEOUT		(15 * 60)
+
+#define HCI_MAX_EXT_AD_LENGTH		251
 
 /* Management interface */
 #define DISCOV_TYPE_BREDR		(BIT(BDADDR_BREDR))
@@ -132,6 +198,10 @@
 #define HCI_CONN_HANDLE_MAX			0x0eff
 #define HCI_CONN_HANDLE_UNSET(_handle)		(_handle > HCI_CONN_HANDLE_MAX)
 
+/* Default min/max age of connection information (1s/3s) */
+#define DEFAULT_CONN_INFO_MIN_AGE		1000
+#define DEFAULT_CONN_INFO_MAX_AGE		3000
+
 /* Min encryption key size to match with SMP */
 #define HCI_MIN_ENC_KEY_SIZE			7
 
@@ -150,13 +220,29 @@
 #define HCI_TX_POWER_INVALID			127
 #define HCI_RSSI_INVALID			127
 
-enum {
-	DISCOVERY_STOPPED,
-	DISCOVERY_STARTING,
-	DISCOVERY_FINDING,
-	DISCOVERY_RESOLVING,
-	DISCOVERY_STOPPING,
-};
+#define HCI_LE_SET_PHY_1M			0x01
+#define HCI_LE_SET_PHY_2M			0x02
+#define HCI_LE_SET_PHY_CODED			0x04
+
+#define HCI_OP_LE_SET_EXT_SCAN_PARAMS		0x2041
+
+#define HCI_MAX_ADV_INSTANCES			5
+#define HCI_DEFAULT_ADV_DURATION		2
+
+#define HCI_ADV_TX_POWER_NO_PREFERENCE		0x7F
+
+#define HCI_OP_WRITE_PAGE_SCAN_TYPE		0x0c47
+#define PAGE_SCAN_TYPE_STANDARD			0x00
+#define PAGE_SCAN_TYPE_INTERLACED		0x01
+#define HCI_OP_READ_RSSI			0x1405
+
+typedef void (*hci_req_complete_t)(struct hci_dev *hdev, u8 status, u16 opcode);
+typedef void (*hci_req_complete_skb_t)(struct hci_dev *hdev, u8 status, u16 opcode, struct sk_buff *skb);
+
+/* BD Address */
+typedef struct {
+	__u8 b[6];
+} __packed bdaddr_t;
 
 struct hci_command_hdr {
 	__le16	opcode;		/* OCF & OGF */
@@ -205,6 +291,35 @@ struct hci_request {
 	int			err;
 };
 
+struct discovery_state {
+	int			type;
+	enum {
+		DISCOVERY_STOPPED,
+		DISCOVERY_STARTING,
+		DISCOVERY_FINDING,
+		DISCOVERY_RESOLVING,
+		DISCOVERY_STOPPING,
+	} state;
+	struct list_head	all;	/* All devices found during inquiry */
+	struct list_head	unknown;	/* Name state not known */
+	struct list_head	resolve;	/* Name needs to be resolved */
+	__u32			timestamp;
+	bdaddr_t		last_adv_addr;
+	u8			last_adv_addr_type;
+	s8			last_adv_rssi;
+	u32			last_adv_flags;
+	u8			last_adv_data[HCI_MAX_EXT_AD_LENGTH];
+	u8			last_adv_data_len;
+	bool			report_invalid_rssi;
+	bool			result_filtering;
+	bool			limited;
+	s8			rssi;
+	u16			uuid_count;
+	u8			(*uuids)[16];
+	unsigned long		name_resolve_timeout;
+	u32			lock;
+};
+
 struct hci_drv_handler {
 	int (*func)(struct hci_dev *hdev, void *data, u16 data_len);
 	size_t data_len;
@@ -216,6 +331,52 @@ struct hci_drv {
 
 	size_t specific_handler_count;
 	const struct hci_drv_handler *specific_handlers;
+};
+
+struct l2cap_ctrl {
+	u8	sframe:1,
+		poll:1,
+		final:1,
+		fcs:1,
+		sar:2,
+		super:2;
+
+	u16	reqseq;
+	u16	txseq;
+	u8	retries;
+	__le16  psm;
+	bdaddr_t bdaddr;
+	struct l2cap_chan *chan;
+};
+
+struct hci_ctrl {
+	struct sock *sk;
+	u16 opcode;
+	u8 req_flags;
+	u8 req_event;
+	union {
+		hci_req_complete_t req_complete;
+		hci_req_complete_skb_t req_complete_skb;
+	};
+};
+
+struct mgmt_ctrl {
+	struct hci_dev *hdev;
+	u16 opcode;
+};
+
+struct bt_skb_cb {
+	u8 pkt_type;
+	u8 force_active;
+	u16 expect;
+	u16 pkt_seqnum;
+	u8 incoming:1;
+	u8 pkt_status:2;
+	union {
+		struct l2cap_ctrl l2cap;
+		struct hci_ctrl hci;
+		struct mgmt_ctrl mgmt;
+	};
 };
 
 static inline struct hci_event_hdr *hci_event_hdr(const struct sk_buff *skb){
@@ -252,7 +413,7 @@ static void *hci_cmd_data(struct sk_buff *skb, __u16 opcode){
 }
 
 /* Get data from the previously sent command */
-void *hci_sent_cmd_data(struct hci_dev *hdev, __u16 opcode){
+static void *hci_sent_cmd_data(struct hci_dev *hdev, __u16 opcode){
 	void *data = NULL;
 
 	/* Check if opcode matches last sent command */
@@ -277,13 +438,15 @@ static void hci_add_acl_hdr(struct sk_buff *skb, __u16 handle, __u16 flags){
 }
 
 static u8 hci_dev_classify_pkt_type(struct hci_dev *hdev, struct sk_buff *skb){
+	struct bt_skb_cb *cb = NULL;
 	u8 (*classify_pkt_type)(struct hci_dev *hdev, struct sk_buff *skb) = NULL;
 
 	if (hdev->classify_pkt_type != NULL){
 		classify_pkt_type = hdev->classify_pkt_type;
 		classify_pkt_type(hdev, skb);
 	}
-	return hci_skb_pkt_type(skb);
+	cb = (struct bt_skb_cb *)skb->cb;
+	return cb->pkt_type;
 }
 
 static inline void hci_cpu_to_le24(__u32 val, __u8 dst[3]){
@@ -345,28 +508,31 @@ static void hci_request_init(struct hci_request *req, struct hci_dev *hdev){
 }
 
 static inline void discovery_init(struct hci_dev *hdev){
-	hdev->discovery.state = DISCOVERY_STOPPED;
-	INIT_LIST_HEAD(&hdev->discovery.all);
-	INIT_LIST_HEAD(&hdev->discovery.unknown);
-	INIT_LIST_HEAD(&hdev->discovery.resolve);
-	hdev->discovery.report_invalid_rssi = true;
-	hdev->discovery.rssi = HCI_RSSI_INVALID;
+	struct discovery_state *discovery = &hdev->discovery;
+	discovery->state = DISCOVERY_STOPPED;
+	INIT_LIST_HEAD(&discovery->all);
+	INIT_LIST_HEAD(&discovery->unknown);
+	INIT_LIST_HEAD(&discovery->resolve);
+	discovery->report_invalid_rssi = true;
+	discovery->rssi = HCI_RSSI_INVALID;
 }
 
 static inline void hci_discovery_filter_clear(struct hci_dev *hdev){
-	hdev->discovery.result_filtering = false;
-	hdev->discovery.report_invalid_rssi = true;
-	hdev->discovery.rssi = HCI_RSSI_INVALID;
-	hdev->discovery.uuid_count = 0;
+	struct discovery_state *discovery = &hdev->discovery;
+	discovery->result_filtering = false;
+	discovery->report_invalid_rssi = true;
+	discovery->rssi = HCI_RSSI_INVALID;
+	discovery->uuid_count = 0;
 
-	kfree(hdev->discovery.uuids);
-	hdev->discovery.uuids =NULL;
+	kfree(discovery->uuids);
+	discovery->uuids = NULL;
 }
 
-struct sk_buff *hci_cmd_sync_alloc(struct hci_dev *hdev, u16 opcode, u32 plen, const void *param, struct sock *sk){
+static struct sk_buff *hci_cmd_sync_alloc(struct hci_dev *hdev, u16 opcode, u32 plen, const void *param, struct sock *sk){
 	int len = HCI_COMMAND_HDR_SIZE + plen;
 	struct hci_command_hdr *hdr = NULL;
 	struct sk_buff *skb = NULL;
+	struct bt_skb_cb *cb = NULL;
 
 	skb = bt_skb_alloc(len, GFP_ATOMIC);
 	if (skb == NULL){
@@ -381,16 +547,25 @@ struct sk_buff *hci_cmd_sync_alloc(struct hci_dev *hdev, u16 opcode, u32 plen, c
 		skb_put_data(skb, param, plen);
 	}
 
-	hci_skb_pkt_type(skb) = HCI_COMMAND_PKT;
-	hci_skb_opcode(skb) = opcode;
-
-	/* Grab a reference if command needs to be associated with a sock (e.g.
-	 * likely mgmt socket that initiated the command).
-	 */
-	if (sk) {
-		hci_skb_sk(skb) = sk;
-		sock_hold(sk);
-	}
+	cb = (struct bt_skb_cb *)skb->cb;
+	cb->pkt_type = HCI_COMMAND_PKT;
+	cb->hci.opcode = opcode;
 
 	return skb;
+}
+
+static void hci_cmd_sync_init(struct hci_dev *hdev){
+	/* still TODO */
+	#if 0
+	INIT_WORK(&hdev->cmd_sync_work, hci_cmd_sync_work);
+	INIT_LIST_HEAD(&hdev->cmd_sync_work_list);
+	mutex_init(&hdev->cmd_sync_work_lock);
+	mutex_init(&hdev->unregister_lock);
+
+	INIT_WORK(&hdev->cmd_sync_cancel_work, hci_cmd_sync_cancel_work);
+	INIT_WORK(&hdev->reenable_adv_work, reenable_adv);
+	INIT_DELAYED_WORK(&hdev->le_scan_disable, le_scan_disable);
+	INIT_DELAYED_WORK(&hdev->adv_instance_expire, adv_timeout_expire);
+	INIT_DELAYED_WORK(&hdev->interleave_scan, interleave_scan_work);
+	#endif
 }

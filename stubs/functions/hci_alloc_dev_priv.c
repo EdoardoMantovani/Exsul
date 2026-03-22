@@ -1,6 +1,7 @@
 struct hci_dev *hci_alloc_dev_priv(int sizeof_priv){
-	struct hci_dev *hdev = NULL;
 	unsigned int alloc_size = 0;
+	struct hci_dev *hdev = NULL;
+	struct hci_conn_hash *conn_hash = NULL;
 
 	alloc_size = get_struct_size("hci_dev");
 	if (sizeof_priv) {
@@ -77,10 +78,11 @@ struct hci_dev *hci_alloc_dev_priv(int sizeof_priv){
 	hdev->def_page_scan_int = 0x0800;
 	hdev->def_page_scan_window = 0x0012;
 
-	mutex_init(&hdev->lock);
-	mutex_init(&hdev->req_lock);
-	mutex_init(&hdev->mgmt_pending_lock);
+	mutex_init(&hdev->lock, "lock", NULL);
+	mutex_init(&hdev->req_lock, "req_lock", NULL);
+	mutex_init(&hdev->mgmt_pending_lock, "mgmt_pending_lock", NULL);
 
+	conn_hash = &hdev->conn_hash;
 	INIT_LIST_HEAD(&hdev->mesh_pending);
 	INIT_LIST_HEAD(&hdev->mgmt_pending);
 	INIT_LIST_HEAD(&hdev->reject_list);
@@ -95,12 +97,13 @@ struct hci_dev *hci_alloc_dev_priv(int sizeof_priv){
 	INIT_LIST_HEAD(&hdev->le_conn_params);
 	INIT_LIST_HEAD(&hdev->pend_le_conns);
 	INIT_LIST_HEAD(&hdev->pend_le_reports);
-	INIT_LIST_HEAD(&hdev->conn_hash.list);
 	INIT_LIST_HEAD(&hdev->adv_instances);
 	INIT_LIST_HEAD(&hdev->blocked_keys);
 	INIT_LIST_HEAD(&hdev->monitored_devices);
-
 	INIT_LIST_HEAD(&hdev->local_codecs);
+
+	INIT_LIST_HEAD(&conn_hash->list);
+
 	/* still TODO */
 	#if 0
 	INIT_WORK(&hdev->rx_work, hci_rx_work);
@@ -119,7 +122,7 @@ struct hci_dev *hci_alloc_dev_priv(int sizeof_priv){
 	skb_queue_head_init(&hdev->cmd_q);
 	skb_queue_head_init(&hdev->raw_q);
 
-	init_waitqueue_head(&hdev->req_wait_q);
+	__init_waitqueue_head(&hdev->req_wait_q, "read_wait_q", NULL);
 	#if 0
 	INIT_DELAYED_WORK(&hdev->cmd_timer, hci_cmd_timeout);
 	INIT_DELAYED_WORK(&hdev->ncmd_timer, hci_ncmd_timeout);

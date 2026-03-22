@@ -1697,6 +1697,15 @@ static void kobject_release(struct kref *kref){
 	kobject_cleanup(kobj);
 }
 
+static inline void mutex_init(struct mutex *lock, const char *name, void *key){
+	mutex_init_generic(lock);
+}
+
+static void __mutex_init_generic(struct mutex *lock){
+	atomic_store_explicit(&lock->owner, 0, memory_order_release);
+	INIT_LIST_HEAD(&lock->wait_list);
+}
+
 static inline int spin_lock_init(pthread_mutex_t *lock){
 	pthread_mutex_init(lock, NULL);
 }
@@ -1979,6 +1988,6 @@ static void *kthread_trampoline(void *arg){
 #include <hci.h>
 #include <crypto.h>
 #include <ieee80211.h>
-#include <module.h>
+//#include <module.h>
 
 #endif

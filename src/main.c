@@ -617,6 +617,25 @@ int parse_module_offset_table(void){
 	return ret;
 }
 
+#ifdef ENABLE_DBG_PRINT
+unsigned char *mem_type_to_string(enum mod_mem_type type){
+	switch(type){
+		case MOD_TEXT:
+		case MOD_INIT_TEXT:
+			return ".text";
+		case MOD_DATA:
+		case MOD_INIT_DATA:
+			return ".data";
+		case MOD_RODATA:
+		case MOD_RO_AFTER_INIT:
+		case MOD_INIT_RODATA:
+			return ".rodata";
+		default:
+			return "unknown";
+	}
+}
+#endif
+
 /* start of the core kernel functions related to the loading of lkm */
 unsigned char *module_next_tag_pair(char *string, unsigned long *secsize) {
 	while (string[0]) {
@@ -1000,7 +1019,7 @@ static int module_memory_alloc(struct module *mod, enum mod_mem_type type) {
 
 	mod->mem[type].size = size;
 #ifdef ENABLE_DBG_PRINT
-	printf("module memory alloc %d\n", size);
+	printf("[*] module memory alloc %d bytes for type '%s'\n", size, mem_type_to_string(type));
 #endif
 	if(type == MOD_TEXT || type == MOD_INIT_TEXT){
 		mem_flags |= PROT_EXEC;
@@ -1590,34 +1609,6 @@ void add_kallsyms(struct module *mod, const struct load_info *info) {
 	mod->core_kallsyms.num_symtab = ndst;
 }
 
-static inline bool within_coretext(const struct core_text *ct, void *addr) {
-	unsigned long p = (unsigned long)addr;
-
-	return ct->base <= p && p < ct->end;
-}
-
-static inline bool within_module_coretext(void *addr) {
-	bool	       ret = false;
-	struct module *mod = NULL;
-
-	/*
-	 * mod = __module_address((unsigned long)addr);
-	 * if (mod && within_module_core((unsigned long)addr, mod)){
-	 *	ret = true;
-	 * }
-	 */
-
-	return ret;
-}
-
-static bool is_coretext(const struct core_text *ct, void *addr) {
-	if (ct && within_coretext(ct, addr)) {
-		return true;
-	}
-
-	return true;
-}
-
 void sort_extable(struct exception_table_entry *start,
 		  struct exception_table_entry *finish) {
 	/* do nothing */
@@ -1768,16 +1759,19 @@ static inline bool within_module_init(unsigned long	   addr,
 }
 
 void trim_init_extable(struct module *mod) {
+	int num_entries_in_mod = 0;
+
 	while (mod->num_exentries &&
 	       within_module_init(ex_to_insn(&mod->extable[0]), mod)) {
 		mod->extable++;
 		mod->num_exentries--;
 	}
-
+	num_entries_in_mod = mod->num_exentries - 1;
 	while (mod->num_exentries &&
-	       within_module_init(ex_to_insn(&mod->extable[mod->num_exentries - 1]),
+	       within_module_init(ex_to_insn(&mod->extable[num_entries_in_mod]),
 				  mod)) {
 		mod->num_exentries--;
+		num_entries_in_mod = mod->num_exentries--;
 	}
 }
 

@@ -161,7 +161,7 @@ void *x86_64_make_trampoline(void *target_stub){
 	return current_stub;
 }
 
-int module_finalize(const Elf(Ehdr) *hdr, const Elf(Shdr) *sechdrs, struct module *me){
+int module_finalize(const Elf(Ehdr) *hdr, const Elf(Shdr) *sechdrs, struct module *mod){
 	unsigned int rsize      = 0;
 	unsigned int csize      = 0;
         const Elf(Shdr) *s              = NULL;
@@ -343,8 +343,8 @@ int module_finalize(const Elf(Ehdr) *hdr, const Elf(Shdr) *sechdrs, struct modul
         }
         if (locks) {
                 void *lseg              = (void *)locks->sh_addr;
-                void *text              = me->mem[MOD_TEXT].base;
-                void *text_end          = text + me->mem[MOD_TEXT].size;
+                void *text              = mod->mem[MOD_TEXT].base;
+                void *text_end          = text + mod->mem[MOD_TEXT].size;
 
                 /**
 
@@ -369,7 +369,7 @@ int module_finalize(const Elf(Ehdr) *hdr, const Elf(Shdr) *sechdrs, struct modul
 
                 **/
 
-                alternatives_smp_module_add(me, me->name, lseg, lseg + locks->sh_size, text, text_end);
+                alternatives_smp_module_add(mod, mod->name, lseg, lseg + locks->sh_size, text, text_end);
         }
 
         if (orc && orc_ip){
@@ -394,7 +394,7 @@ int module_finalize(const Elf(Ehdr) *hdr, const Elf(Shdr) *sechdrs, struct modul
         return 0;
 }
 
-int __write_relocate_add(Elf(Shdr) *sechdrs, const char *strtab, unsigned int symindex, unsigned int relsec,  struct module *me, void *(*write)(void *dest, const void *src, size_t len), bool apply){
+int __write_relocate_add(Elf(Shdr) *sechdrs, const char *strtab, unsigned int symindex, unsigned int relsec,  struct module *mod, void *(*write)(void *dest, const void *src, size_t len), bool apply){
         unsigned int i                                  = 0;
         Elf(Rela) *rel                                  = (void *)sechdrs[relsec].sh_addr;
         Elf(Sym) *sym                                   = NULL;
@@ -437,7 +437,7 @@ int __write_relocate_add(Elf(Shdr) *sechdrs, const char *strtab, unsigned int sy
                                 size = 8;
                         break;
                         default:
-                                printf("%s: Unknown rela relocation: %lu\n", me->name, ELF64_R_TYPE(rel[i].r_info));
+                                printf("%s: Unknown rela relocation: %lu\n", mod->name, ELF64_R_TYPE(rel[i].r_info));
                         return -ENOEXEC;
                 }
 
@@ -462,30 +462,30 @@ int __write_relocate_add(Elf(Shdr) *sechdrs, const char *strtab, unsigned int sy
 
 overflow:
         printf("overflow in relocation type %d val %lx name %s\n", (int)ELF64_R_TYPE(rel[i].r_info), val, (unsigned char *)(strtab + sym->st_name));
-        printf("`%s' likely not compiled with -mcmodel=kernel\n", me->name);
+        printf("`%s' likely not compiled with -mcmodel=kernel\n", mod->name);
         return -ENOEXEC;
 }
 
-int write_relocate_add(Elf(Shdr) *sechdrs, const char *strtab, unsigned int symindex, unsigned int relsec, struct module *me, bool apply){
+int write_relocate_add(Elf(Shdr) *sechdrs, const char *strtab, unsigned int symindex, unsigned int relsec, struct module *mod, bool apply){
         signed int ret                                  = 0;
-        bool early                                      = me->state == MODULE_STATE_UNFORMED;
+        bool early                                      = mod->state == MODULE_STATE_UNFORMED;
         void *(*write)(void *, const void *, size_t)    = memcpy;
 
         if (!early) {
                 //write                                         = text_poke;
         }
 
-        ret                                             = __write_relocate_add(sechdrs, strtab, symindex, relsec, me,  write, apply);
+        ret                                             = __write_relocate_add(sechdrs, strtab, symindex, relsec, mod,  write, apply);
 
         return ret;
 }
 
-int apply_relocate_add(Elf(Shdr) *sechdrs, const char *strtab, unsigned int symindex, unsigned int relsec, struct module *me){
-	return write_relocate_add(sechdrs, strtab, symindex, relsec, me, true);
+int apply_relocate_add(Elf(Shdr) *sechdrs, const char *strtab, unsigned int symindex, unsigned int relsec, struct module *mod){
+	return write_relocate_add(sechdrs, strtab, symindex, relsec, mod, true);
 }
 
 /** for 32 bit only **/
-int apply_relocate(Elf(Shdr) *sechdrs, const char *strtab, unsigned int symindex, unsigned int relsec, struct module *me){
+int apply_relocate(Elf(Shdr) *sechdrs, const char *strtab, unsigned int symindex, unsigned int relsec, struct module *mod){
         Elf(Rel) *rel           = (void *)sechdrs[relsec].sh_addr;
         Elf(Sym) *sym           = NULL;
         uint32_t *location      = NULL;
@@ -507,7 +507,7 @@ int apply_relocate(Elf(Shdr) *sechdrs, const char *strtab, unsigned int symindex
                         *location += sym->st_value - (uint32_t)location;
                         break;
                 default:
-                        printf("%s: Unknown relocation: %lu\n", me->name, ELF32_R_TYPE(rel[i].r_info));
+                        printf("%s: Unknown relocation: %lu\n", mod->name, ELF32_R_TYPE(rel[i].r_info));
                         return -ENOEXEC;
                 }
         }

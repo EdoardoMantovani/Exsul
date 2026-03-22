@@ -101,7 +101,6 @@ my @gcc_params = (
 	"-funwind-tables",
 	"-fasynchronous-unwind-tables",
 	"-fno-omit-frame-pointer",
-	"-I$arch",
 	"-march=native",
 	"-mtune=native",
 	"-mstackrealign",
@@ -120,7 +119,7 @@ my @gcc_final_params = (
 	"-fno-pie",
 	"-no-pie",
 );
-my @gcc_final_linkkings = (
+my @gcc_final_linkings = (
 	"-lusb-1.0",
 	"-lpthread",
 	"-ldwarf",
@@ -572,7 +571,7 @@ if($clean){
 	`$rm -rf out_* 2>/dev/null`;
 	# update: remove also crashdump files
 	`$rm -f crashreport*`;
-	`$rm -f sigabort_crash`;
+	`$rm -f sigabort_crash*`;
 
 	if($offset_generation_file){
 		`$rm $offset_generation_file 2>/dev/null`;
@@ -912,7 +911,8 @@ sub rewrite_source_file {
 	my $dir = dirname($in_path);
 	my ($out, $tmp_path) = tempfile(".tmp_XXXX", DIR => $dir, UNLINK => 0);
 	my %local_alias = %fixed_alias;
-	my $allow_array_mode = ($in_path =~ m{(?:^|/)src/main\.c$});
+	# fix: allow to use the array form for the regex in every file under './out_XXXX'
+	my $allow_array_mode = ($in_path);
 
 	while(my $line = <$in>){
 		my %new_aliases = harvest_declared_ptr_aliases($line);
@@ -1044,7 +1044,7 @@ sub merge_rewritten_function_stubs {
 $virtual_compilation_folder = tempdir("out_XXXX", CLEANUP => 0);
 make_path("$virtual_compilation_folder/$build");
 
-foreach(qw(inc src)){
+foreach(qw(inc src arch)){
 	print("[*] transferring $_ to the runtime struct converter...\n");
 	`$cp -R $_ $virtual_compilation_folder/$_`;
 }
@@ -1069,7 +1069,6 @@ $total_struct_number = scalar(keys %used_fields_by_struct);
 $offsets = "$include/struct_offset.h";
 print("[*] generating the struct_offset.h header!\n");
 emit_runtime_struct_header($offsets, $offset_generation_file);
-print("[*] done.\n");
 
 # second iteration:
 # 1) process header files under "./inc/"
@@ -1178,8 +1177,8 @@ print(color("red"));
 print("[*] compiling $final_program\n");
 print(color("reset"));
 if($verbose){
-	print("$compiler @gcc_params @gcc_final_params -I./$virtual_compilation_folder/$include $source/$main -o $bin/$final_program $final_obj_line @gcc_final_linkkings");
-	print("\n\n");
+	print("$compiler @gcc_params @gcc_final_params -I./$virtual_compilation_folder/$arch -I./$virtual_compilation_folder/$include $source/$main -o $bin/$final_program $final_obj_line @gcc_final_linkings");
+	print("\n");
 }
 
 # update: as the last step, if '--enable-fw' is enabled, creates an additional header which contains the byte arrays obtained via xxd of the firmwares
@@ -1190,9 +1189,9 @@ if($enable_firmware_builtin){
 	push(@gcc_final_params, "-DUSE_BUILTIN_FIRMWARE ");
 }
 
-system("$compiler @gcc_params @gcc_final_params -I./$virtual_compilation_folder/$include $virtual_compilation_folder/$source/$main -o $bin/$final_program $final_obj_line @gcc_final_linkkings");
+system("$compiler @gcc_params @gcc_final_params -I./$virtual_compilation_folder/$arch -I./$virtual_compilation_folder/$include $virtual_compilation_folder/$source/$main -o $bin/$final_program $final_obj_line @gcc_final_linkings");
 
 undef(@struct_fields);
 undef(@gcc_params);
 undef(@gcc_final_params);
-undef(@gcc_final_linkkings);
+undef(@gcc_final_linkings);

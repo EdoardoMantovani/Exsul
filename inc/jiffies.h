@@ -68,3 +68,14 @@ static unsigned long round_jiffies_common(unsigned long j, int cpu, bool force_u
 		return original;
 	}
 }
+
+static inline unsigned long msecs_to_jiffies(const unsigned int m){
+	if (__builtin_constant_p(m)) {
+		if ((int)m < 0){
+			return MAX_JIFFY_OFFSET;
+		}
+		return _msecs_to_jiffies(m);
+	}else{
+		return __msecs_to_jiffies(m);
+	}
+}

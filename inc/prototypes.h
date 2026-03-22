@@ -206,6 +206,7 @@ int param_set_invbool(const char *val, const struct kernel_param *kp);
 void kvfree(const void *addr);
 int pci_write_config_word(const struct pci_dev *dev, int where, u16 val);
 int cancel_delayed_work_sync(struct delayed_work *dwork);
+void mutex_init_generic(struct mutex *lock);
 void __tasklet_schedule(struct tasklet_struct *t);
 bool phy_check_valid(int speed, int duplex, unsigned long *features);
 int crypto_probing_notify(unsigned long val, void *v);
