@@ -1,26 +1,44 @@
 struct sk_buff *__alloc_skb(unsigned int size, int gfp_mask, int flags, int node){
 	int ret = 0;
+	int sk_buff_size = 0;
+	int sk_shared_info_size = 0;
 	unsigned char *head = NULL;
 	struct sk_buff *allocated_skb = NULL;
 
-	allocated_skb = (struct sk_buff *)malloc(SK_BUFF_STRUCT_SIZE);
-	if(allocated_skb == NULL){
-		ret = -ENOMEM;
-		return ERR_PTR(ret);
+	sk_buff_size = director.struct_sizes.sk_buff;
+	if(sk_buff_size <= 0){
+                printf("[!] failed for sk_buff %d\n", sk_buff_size);
+		ret = -EINVAL;
+		return NULL;
 	}
 
-	memset(allocated_skb, 0, size);
-	head = (unsigned char *)malloc(size + sizeof(struct skb_shared_info));
-	if (head == NULL) {
+	sk_shared_info_size = director.struct_sizes.skb_shared_info;
+	if(sk_shared_info_size <= 0){
+		printf("[!] failed for skb_shared_info\n");
+		ret = -EINVAL;
+		return NULL;
+	}
+	allocated_skb = (struct sk_buff *)calloc(1, sk_buff_size);
+	if(allocated_skb == NULL){
+                printf("[!] failed to allocate allocated_skb\n");
+		ret = -ENOMEM;
+		return NULL;
+	}
+
+	memset(allocated_skb, 0, sk_buff_size);
+	head = calloc(1, size + sk_shared_info_size);
+	if(head == NULL){
+		free(head);
 		free(allocated_skb);
 		ret = -ENOMEM;
-		return ERR_PTR(ret);
+		return NULL;
 	}
 
 	allocated_skb->head = head;
 	allocated_skb->data = head;
-	skb_set_tail_offset(allocated_skb, 0);
+
 	skb_set_end_offset(allocated_skb, size);
+	skb_set_tail_offset(allocated_skb, 0);
 
 	allocated_skb->len = 0;
 	allocated_skb->data_len = 0;
@@ -30,12 +48,8 @@ struct sk_buff *__alloc_skb(unsigned int size, int gfp_mask, int flags, int node
 	allocated_skb->nohdr = 0;
 	allocated_skb->head_frag = 0;
 
-	memset(skb_shinfo(allocated_skb), 0, sizeof(*skb_shinfo(allocated_skb)));
-	atomic_store(&skb_shinfo(allocated_skb)->dataref, 1);
+	allocated_skb->truesize = (unsigned int)(sk_buff_size + size + sk_shared_info_size);
 	refcount_set(&allocated_skb->users, 1);
-
-	allocated_skb->truesize = (unsigned int)(SK_BUFF_STRUCT_SIZE + size + sizeof(struct skb_shared_info));
 
 	return allocated_skb;
 }
-

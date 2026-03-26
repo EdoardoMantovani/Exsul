@@ -2029,6 +2029,77 @@ void finalize_director(void){
 	}
 }
 
+int collect_sizes(struct module_controller *director){
+        int ret = 0;
+        u16 current_struct_size = 0;
+        memset(&director->struct_sizes, 0, sizeof(director->struct_sizes));
+        current_struct_size = get_struct_size("ieee80211_hw");
+        if(current_struct_size != director->struct_sizes.ieee80211_hw && current_struct_size > 0){
+                director->struct_sizes.ieee80211_hw = current_struct_size;
+        }
+        current_struct_size = get_struct_size("ieee80211_ops");
+        if(current_struct_size != director->struct_sizes.ieee80211_ops && current_struct_size > 0){
+                director->struct_sizes.ieee80211_ops = current_struct_size;
+        }
+        current_struct_size = get_struct_size("module");
+        if(current_struct_size != director->struct_sizes.module && current_struct_size > 0){
+                director->struct_sizes.module = current_struct_size;
+        }
+        current_struct_size = get_struct_size("net_device");
+        if(current_struct_size != director->struct_sizes.net_device && current_struct_size > 0){
+                director->struct_sizes.net_device = current_struct_size;
+        }
+        current_struct_size = get_struct_size("rate_info");
+        if(current_struct_size != director->struct_sizes.rate_info && current_struct_size > 0){
+                director->struct_sizes.rate_info = current_struct_size;
+        }
+        current_struct_size = get_struct_size("sk_buff");
+        if(current_struct_size != director->struct_sizes.sk_buff && current_struct_size > 0){
+                director->struct_sizes.sk_buff = current_struct_size;
+        }
+        current_struct_size = get_struct_size("sk_buff_head");
+        if(current_struct_size != director->struct_sizes.sk_buff_head && current_struct_size > 0){
+                director->struct_sizes.sk_buff_head = current_struct_size;
+        }
+        current_struct_size = get_struct_size("skb_shared_info");
+        if(current_struct_size != director->struct_sizes.skb_shared_info && current_struct_size > 0){
+                director->struct_sizes.skb_shared_info = current_struct_size;
+        }
+        current_struct_size = get_struct_size("sock");
+        if(current_struct_size != director->struct_sizes.sock && current_struct_size > 0){
+                director->struct_sizes.sock = current_struct_size;
+        }
+        current_struct_size = get_struct_size("urb");
+        if(current_struct_size != director->struct_sizes.urb && current_struct_size > 0){
+                director->struct_sizes.urb = current_struct_size;
+        }
+        current_struct_size = get_struct_size("usb_device");
+        if(current_struct_size != director->struct_sizes.usb_device && current_struct_size > 0){
+                director->struct_sizes.usb_device = current_struct_size;
+        }
+        current_struct_size = get_struct_size("usb_driver");
+        if(current_struct_size != director->struct_sizes.usb_driver && current_struct_size > 0){
+                director->struct_sizes.usb_driver = current_struct_size;
+        }
+        current_struct_size = get_struct_size("usb_interface");
+        if(current_struct_size != director->struct_sizes.usb_interface && current_struct_size > 0){
+                director->struct_sizes.usb_interface = current_struct_size;
+        }
+        current_struct_size = get_struct_size("device");
+        if(current_struct_size != director->struct_sizes.device && current_struct_size > 0){
+                director->struct_sizes.device = current_struct_size;
+        }
+        current_struct_size = get_struct_size("hci_dev");
+        if(current_struct_size != director->struct_sizes.hci_dev && current_struct_size > 0){
+                director->struct_sizes.hci_dev = current_struct_size;
+        }
+
+        if(director->struct_sizes.skb_shared_info == 0){
+                director->struct_sizes.skb_shared_info = sizeof(struct skb_shared_info);
+        }
+        return ret;
+}
+
 /* fast api: a very minimal and direct way for executing an immediate action (load a kernel driver, executing a function..) */
 int fast_drv_load(struct module_controller *director, char *module_name) {
 	int ret = 0;
@@ -2053,6 +2124,9 @@ int fast_drv_load(struct module_controller *director, char *module_name) {
 
 	/* now call the main driver loading function */
 	ret = module_init(module_name, NULL, load_info);
+
+	/* before quitting, collect the struct sizes now for getting a fast access later */
+	ret = collect_sizes(director);
 	return ret;
 }
 

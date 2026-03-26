@@ -3,6 +3,24 @@ struct global_conf {
 	u8 strict_missing_syms;
 };
 
+struct fast_struct_size {
+        u16 ieee80211_hw;
+        u16 ieee80211_ops;
+        u16 module;
+        u16 net_device;
+        u16 rate_info;
+        u16 sk_buff;
+        u16 sk_buff_head;
+        u16 skb_shared_info;
+        u16 sock;
+        u16 urb;
+        u16 usb_device;
+        u16 usb_driver;
+        u16 usb_interface;
+        u16 device;
+        u16 hci_dev;
+};
+
 struct module_controller {
         char module_name[16];
 	/* mantain the count of the loaded modules in the current address space */
@@ -87,4 +105,11 @@ struct module_controller {
 
 	/* list of the allocated memory, used for freeing everything at the end */
 	struct allocation_list *allocation_list;
+
+	/* store some important struct sizes, done once foreach module loaded */
+	struct fast_struct_size struct_sizes;
+
+	/* hci specific data */
+	struct list_head hci_dev_list;
+	struct list_head hci_cb_list;
 };

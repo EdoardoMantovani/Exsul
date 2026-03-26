@@ -2,15 +2,15 @@ struct workqueue_struct *alloc_workqueue(const char *name, unsigned int flags, i
 	int ret = 0;
 	struct workqueue_struct *wq = NULL;
 	pthread_condattr_t cattr = {};
-
-	wq = (struct workqueue_struct *)malloc(sizeof(struct workqueue_struct));
+	printf("1\n");
+	wq = (struct workqueue_struct *)calloc(1, sizeof(struct workqueue_struct));
 	if (wq == NULL){
 		return NULL;
 	}
 
-	memset(wq, 0, sizeof(struct workqueue_struct));
+	printf("2\n");
 	snprintf(wq->name, sizeof(wq->name), "%s", name ? name : "wq");
-
+	printf("3\n");
 	pthread_mutex_init(&wq->lock, NULL);
 
 	pthread_condattr_init(&cattr);

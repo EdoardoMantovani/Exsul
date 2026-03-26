@@ -11,21 +11,23 @@ use Cwd qw(getcwd);
 use File::Copy qw(move);
 use List::Util qw(uniq);
 use File::Path qw(make_path);
-use Term::ANSIColor qw(color);
 use File::Temp qw(tempfile tempdir);
 use File::Basename qw(dirname basename);
 
-my $ls   = `which ls`;
-my $cd   = `which cd`;
-my $cp   = `which cp`;
-my $rm   = `which rm`;
-my $sed  = `which sed`;
-my $awk  = `which awk`;
-my $grep = `which grep`;
-my $find = `which find`;
-my $make = `which make`;
-my $xxd  = `which xxd`;
-my $sort = `which sort`;
+my $ls      = `which ls`;
+my $cd      = `which cd`;
+my $cp      = `which cp`;
+my $rm      = `which rm`;
+my $cat	    = `which cat`;
+my $sed     = `which sed`;
+my $awk     = `which awk`;
+my $grep    = `which grep`;
+my $find    = `which find`;
+my $make    = `which make`;
+my $xxd     = `which xxd`;
+my $sort    = `which sort`;
+my $mkdir   = `which mkdir`;
+my $readelf = `which readelf`;
 
 my $arch    = "./arch";
 my $source  = "src";
@@ -47,6 +49,8 @@ my $variables = "variables";
 
 my $function_proto_regex = q{^\h*[_A-Za-z]\w*(?:[\w\h\*]*\h+)+[_A-Za-z]\w*\h*\([^;{}]*\)\h*(?=\{)};
 my $find_command_arg = q{};
+my $cb_table_parse = q{'{print $6}'};
+my $readelf_table_parse = q{'{print $3}'};
 
 my @built_objects = ();
 my $merged_source = undef;
@@ -60,6 +64,7 @@ my $offsets = undef;
 my $cb_counter = 0;
 my $proto_header = undef;
 my $iterator = undef;
+my $sym_size = undef;
 my $word_processor = undef;
 my $base_folder = undef;
 my $offset_generation_file = undef;
@@ -67,6 +72,7 @@ my $virtual_compilation_folder = undef;
 
 my $compiler = undef;
 my $enable_firmware_builtin = undef;
+my $enable_fast_compilation = undef;
 my $generate_offset_file = undef;
 my $pahole_kernel = undef;
 my $windows_support = undef;
@@ -96,7 +102,6 @@ my %used_fields_by_struct = ();
 
 my @gcc_params = (
 	"-DARCH_INDEPENDENT_BITOPS",
-	"-DENABLE_DBG_PRINT",
 	"-DCONFIG_PM",
 	"-O2",
 	"-w",
@@ -129,6 +134,7 @@ my @gcc_final_linkings = (
 
 my %struct_whitelist = (
 	"skb"		=> "sk_buff",
+	"skb_info"	=> "skb_shared_info",
 	"mod"		=> "module",
 	"wiphy"		=> "wiphy",
 	"sock"		=> "sock",
@@ -144,6 +150,7 @@ my %struct_whitelist = (
 	"driver"	=> "device_driver",
 	"usb_driver"	=> "usb_driver",
 	"hdev"		=> "hci_dev",
+	"hci_conn"	=> "hci_conn",
 );
 
 my %field_ctype = (
@@ -485,6 +492,9 @@ my %field_ctype = (
 		"get_codec_config_data"		=> "void *",
 		"classify_pkt_type"		=> "void *",
 	},
+	hci_conn => {
+		"list"				=> "struct list_head",
+	},
 );
 
 my %inline_array_field = (
@@ -499,6 +509,7 @@ chomp($ls);
 chomp($cd);
 chomp($cp);
 chomp($rm);
+chomp($cat);
 chomp($sed);
 chomp($awk);
 chomp($grep);
@@ -506,10 +517,13 @@ chomp($find);
 chomp($make);
 chomp($xxd);
 chomp($sort);
+chomp($mkdir);
+chomp($readelf);
 
 GetOptions(
 	"compiler=s"      => \$compiler,
 	"enable-fw"	  => \$enable_firmware_builtin,
+	"fast"		  => \$enable_fast_compilation,
 	"generate_offset" => \$generate_offset_file,
 	"pahole_kernel=s" => \$pahole_kernel,
 	"windows"         => \$windows_support,
@@ -602,6 +616,10 @@ if($windows_support){
 # default compiler: gcc
 if(!$compiler){
 	$compiler = "gcc";
+}
+
+if($enable_fast_compilation){
+	goto FASTJUMP;
 }
 
 # utilities function for getting struct/fields index
@@ -1024,6 +1042,10 @@ sub merge_rewritten_function_stubs {
 	close($out) or die $!;
 }
 
+# create the build directory
+`$mkdir build 2>/dev/null`;
+`$mkdir bin 2>/dev/null`;
+
 # generate the inat-table.c file at build time
 `$awk -f tools/generate_inat/gen-insn-attr-x86.awk tools/generate_inat/x86-opcode-map.txt > $arch/x86_64/inat-tables.c`;
 print("[*] generated $arch/x86_64/inat-tables.c...\n");
@@ -1043,12 +1065,18 @@ merge_rewritten_function_stubs($virtual_compilation_folder, $merged_source);
 foreach(`$find $virtual_compilation_folder -type f`){
 	$iterator = $_;
 	chomp($iterator);
-	push(@sources, $iterator);
+	# dirty workaround due to mingw headers because "snprintf" is already defined..
+	if($windows_support){
+		if(!($iterator eq "snprintf")){
+			push(@sources, $iterator);
+		}
+	}else{
+		push(@sources, $iterator);
+	}
 }
 
 %struct_set = map { $_ => 1 } values %struct_whitelist;
 $struct_set{"sk_buff_head"}    = 1;
-$struct_set{"skb_shared_info"} = 1;
 
 # first pass: gather field usage using local alias inference
 %used_fields_by_struct = collect_used_fields(@sources);
@@ -1080,7 +1108,34 @@ foreach my $src (uniq(@sources)){
 	rewrite_source_file($src);
 }
 
-print("[*] conversion finished! creating the global callback table...\n");
+print("[*] conversion finished!\n");
+
+$final_stub = "merged_functions.o";
+if($verbose){
+	print("$compiler @gcc_params -I./$virtual_compilation_folder/$include @gcc_stub_params -include $virtual_compilation_folder/$include/$win_layer -c $merged_source -o $build/$final_stub\n");
+}
+
+system("$compiler @gcc_params -I./$virtual_compilation_folder/$include @gcc_stub_params -include $virtual_compilation_folder/$include/$win_layer -c $merged_source -o $build/$final_stub");
+push(@built_objects, "$build/$final_stub");
+print("[*] compiling $final_stub\n");
+
+my $final_obj_line = join(' ', @built_objects);
+
+print("[*] compiling $final_program\n");
+if($verbose){
+	print("$compiler @gcc_params @gcc_final_params -I./$virtual_compilation_folder/$arch -I./$virtual_compilation_folder/$include $source/$main -o $bin/$final_program $final_obj_line @gcc_final_linkings");
+	print("\n");
+}
+
+# update: as the last step, if '--enable-fw' is enabled, creates an additional header which contains the byte arrays obtained via xxd of the firmwares
+$fw_header = "$include/fw.h";
+
+if($enable_firmware_builtin){
+	push(@gcc_final_params, "-include $fw_header ");
+	push(@gcc_final_params, "-DUSE_BUILTIN_FIRMWARE ");
+}
+
+print("[*] creating the global callback table...\n");
 
 # set the symbols total entries to a specific value (quite high, must support at least 8192 different symbols,
 # 450+ from my implementation + every possible other symbol present in complex wifi drivers, at least 1k
@@ -1112,9 +1167,12 @@ foreach(`$find $stubs/$functions/ $find_command_arg`){
 	$stub_name = $final_stub;
 	$stub_name =~ s/\..*$//;
 	$iterator = (((split("/", $stub_name))[-1]));
-	print FH "    [$cb_counter] = { .function_name = \"$iterator\", .function_ptr = $iterator },\n";
+	# get the symbol size
+	$sym_size = `$readelf -sW $build/merged_functions.o 2>/dev/null | $grep \" $iterator\$\" 2>/dev/null | $awk $readelf_table_parse 2>/dev/null`;	
+	chomp($sym_size);
+	print FH "    [$cb_counter] = { .function_name = \"$iterator\", .function_ptr = $iterator, .function_size = $sym_size },\n";
 	$cb_counter++;
-	$proto = `grep -oP '$function_proto_regex' $current_stub`;
+	$proto = `$grep -oP '$function_proto_regex' $current_stub`;
 	chomp($proto);
 	if(length($proto) == 0){
 		$proto = `cat $current_stub | head -n 1`;
@@ -1147,38 +1205,29 @@ close(FH) or die $!;
 close(PROTO) or die $!;
 
 print("[*] global callback table generated...\n");
-`$cp $proto_header $virtual_compilation_folder/$include`;
+
 `$cp $cb_header $virtual_compilation_folder/$include`;
+`$cp $proto_header $virtual_compilation_folder/$include`;
 
-$final_stub = "merged_functions.o";
-if($verbose){
-	print("$compiler @gcc_params -I./$virtual_compilation_folder/$include @gcc_stub_params -include $virtual_compilation_folder/$include/$win_layer -c $merged_source -o $build/$final_stub\n");
+FASTJUMP:
+# this is a fastpath: if we have already compiled everything and we are re-running the Build.pl script, just assign again $virtual_compilation_folder and jump from this point.
+if($enable_fast_compilation){
+	foreach(`$ls | $grep out`){
+		$iterator = $_;
+		chomp($iterator);
+		$virtual_compilation_folder = $iterator;
+		last;
+	}
+	print("-- $virtual_compilation_folder/build/merged_functions.o\n");
+	$iterator .= "/build/merged_functions.o";
+	# check if exist 'merged_functions.c' or 'merged_functions.o'
+	if(-e $iterator){
+		$final_obj_line = $iterator;
+	}
 }
-
-system("$compiler @gcc_params -I./$virtual_compilation_folder/$include @gcc_stub_params -include $virtual_compilation_folder/$include/$win_layer -c $merged_source -o $build/$final_stub");
-push(@built_objects, "$build/$final_stub");
-print("[*] compiling $final_stub\n");
-
-my $final_obj_line = join(' ', @built_objects);
-
-print(color("red"));
-print("[*] compiling $final_program\n");
-print(color("reset"));
-if($verbose){
-	print("$compiler @gcc_params @gcc_final_params -I./$virtual_compilation_folder/$arch -I./$virtual_compilation_folder/$include $source/$main -o $bin/$final_program $final_obj_line @gcc_final_linkings");
-	print("\n");
-}
-
-# update: as the last step, if '--enable-fw' is enabled, creates an additional header which contains the byte arrays obtained via xxd of the firmwares
-$fw_header = "$include/fw.h";
-
-if($enable_firmware_builtin){
-	push(@gcc_final_params, "-include $fw_header ");
-	push(@gcc_final_params, "-DUSE_BUILTIN_FIRMWARE ");
-}
-
+print("[*] compiling main.c...\n");
 system("$compiler @gcc_params @gcc_final_params -I./$virtual_compilation_folder/$arch -I./$virtual_compilation_folder/$include $virtual_compilation_folder/$source/$main -o $bin/$final_program $final_obj_line @gcc_final_linkings");
-
+print("[*] compilation finished, output build available under ./bin!\n");
 undef(@struct_fields);
 undef(@gcc_params);
 undef(@gcc_final_params);

@@ -131,7 +131,7 @@ char *devm_kasprintf(struct device *dev, int gfp, const char *fmt, ...);
 struct sk_buff *ieee80211_nullfunc_get(struct ieee80211_hw *hw, struct ieee80211_vif *vif, int link_id, bool qos_ok);
 void cfg80211_report_wowlan_wakeup(void *vid, struct cfg80211_wowlan_wakeup *wowlan, int gfp);
 void ieee80211_connection_loss(struct ieee80211_vif *vif);
-struct workqueue_struct *alloc_workqueue_noprof(const char *fmt, unsigned int flags, int max_active, ...);
+struct workqueue_struct *alloc_workqueue_noprof(const char *fmt, unsigned int flags, int max_active);
 struct crypto_alg *crypto_find_alg(const char *alg_name, const struct crypto_type *frontend, u32 type, u32 mask);
 void wiphy_rfkill_start_polling(struct wiphy *wiphy);
 void *devm_kmemdup(void *dev, const void *src, size_t len, int gfp);
