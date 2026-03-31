@@ -149,7 +149,7 @@ extern u8 fineibt_caller_end[];
 	case 2: v = le16_to_cpu(r); break;				\
 	case 1:	v = r; break;						\
 	default:							\
-		BUILD_BUG(); break;					\
+		break;							\
 	}								\
 	v;								\
 })
@@ -2358,11 +2358,11 @@ int __write_relocate_add(Elf(Shdr) *sechdrs, const char *strtab, unsigned int sy
         u64 zero                                        = 0ULL;
 	size_t size = 0;
         for (i = 0; i < sechdrs[relsec].sh_size / sizeof(*rel); i++) {
-                size_t size                             = 0;
+		size					= 0;
 
-                loc                                     = (void *)sechdrs[sechdrs[relsec].sh_info].sh_addr + rel[i].r_offset;
-                sym                                     = (Elf(Sym) *)sechdrs[symindex].sh_addr + ELF64_R_SYM(rel[i].r_info);
-                val                                     = sym->st_value + rel[i].r_addend;
+                loc					= (void *)sechdrs[sechdrs[relsec].sh_info].sh_addr + rel[i].r_offset;
+                sym					= (Elf(Sym) *)sechdrs[symindex].sh_addr + ELF64_R_SYM(rel[i].r_info);
+                val					= sym->st_value + rel[i].r_addend;
 
                 switch (ELF64_R_TYPE(rel[i].r_info)) {
                         case R_X86_64_NONE:
@@ -2469,4 +2469,32 @@ int apply_relocate(Elf(Shdr) *sechdrs, const char *strtab, unsigned int symindex
         return 0;
 }
 
-#endif
+#ifdef ENABLE_UNWIND_DEBUGGING
+void unwind_backtrace(void){
+	int counter = 0;
+	size_t rip = 0;
+	size_t rsp = 0;
+	unw_context_t context;
+	unw_cursor_t cursor;
+	unsigned char *function_name = NULL;
+
+	unw_getcontext(&context);
+	unw_init_local(&cursor, &context);
+
+	do {
+		unw_get_reg(&cursor, UNW_X86_64_RIP, &rip);
+		unw_get_reg(&cursor, UNW_X86_64_RSP, &rsp);
+		fast_get_name_in_range((void *)rip, &function_name);
+		/* second chance: if 'function_name' is NULL, iterate the loaded libraries for getting the symbol name */
+		if(function_name == NULL){
+			fast_get_name_in_so((void *)rip, &function_name);
+		}
+
+		/* for every rip value, search a function associated to it */
+		printf("[%d] rip: 0x%08lx rsp: 0x%08lx -> %s\n", counter, rip, rsp, (function_name != NULL) ? function_name : "undefined");
+		counter++;
+	} while (unw_step(&cursor) > 0);
+
+}
+#endif /* ENABLE_UNWIND_DEBUGGING */
+#endif /* __x86_64__ */

@@ -1,11 +1,9 @@
+/* made by Edoardo Mantovani, 2026 */
 #include <layer.h>
 #include <ieee80211.h>
 #include <prototypes.h>
-#include <cb_table.h>
 
-#include <arm64/arm64.h>
-#include <x86_64/x86_64.h>
-
+struct internal_cb_table sym_table[8192];
 struct module_controller director;
 
 struct cmd_table_entry {
@@ -13,6 +11,10 @@ struct cmd_table_entry {
 	u8 cmd_args;
 	int (*cmd_ptr)(struct module_controller *, char **, int);
 };
+
+/* include here the headers for the various supported architectures */
+#include <arm64/arm64.h>
+#include <x86_64/x86_64.h>
 
 /* structures and definitions used for representing the command table used by
  * the main program.
@@ -28,6 +30,10 @@ enum {
 	DRV_CMD_SET,
 	DRV_CMD_GET,
 };
+
+void *__calloc(size_t num, size_t size){
+	return calloc(num, size);
+}
 
 int __snprintf(char *buf, size_t size, const char *fmt, ...){
         va_list args;
@@ -47,6 +53,7 @@ int parse_module_usb_table(struct usb_device_id **id){
 
 	usb_table_size = fast_get_symbol(USB_TABLE_SYM_NAME, &p);
 	if(p == NULL || usb_table_size == 0){
+		printf("[!] failed to get the usb_table_size symbol!\n");
 		ret = -ENOMEM;
 		return ret;
 	}
@@ -112,199 +119,239 @@ void dump_usb_host_interface(struct usb_interface *intf){
 }
 #endif
 
-int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface **in_intf){
-        int ret = 0;
-        u8 in = 0;
-	u8 int_number = 0;
-        u8 ep_is_bulk = 0;
-        u8 ep_is_intr = 0;
-        u8 ep_is_ctrl = 0;
-        u8 ep_is_isoc = 0;
-        u8 total_ep_num = 0;
-	u32 struct_device_sizeof = 0;
-	u32 struct_usb_interface = 0;
-	u32 struct_usb_device_sizeof = 0;
-	struct device *dev = NULL;
-	libusb_device *libusb_dev = NULL;
-        struct usb_interface *intf_ptr = NULL;
-	struct usb_device *usb_device_ptr = NULL;
-	struct libusb_config_descriptor *cfg = NULL;
-	struct libusb_interface *libusb_intf_ptr = NULL;
-	const struct libusb_interface_descriptor *alt = NULL;
-	const struct libusb_endpoint_descriptor *current_ep = NULL;
+int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface **in_intf) {
+        int ret                                         = 0;
+        int int_number                                  = 0;
+        u32 struct_usb_interface_size                   = 0;
+        u32 struct_usb_device_size                      = 0;
+        u32 struct_device_size                          = 0;
+        u8  num_altsetting                              = 0;
+        u8  num_ep                                      = 0;
+        libusb_device                       *libusb_dev = NULL;
+        struct libusb_config_descriptor     *cfg        = NULL;
+        const struct libusb_interface       *libusb_intf= NULL;
+        const struct libusb_interface_descriptor *alt   = NULL;
+        const struct libusb_endpoint_descriptor  *ep    = NULL;
+        struct usb_interface                *intf_ptr   = NULL;
+        struct usb_device                   *udev_ptr   = NULL;
 
-	libusb_dev = libusb_get_device(handler);
-
-	if(libusb_dev == NULL){
-		printf("[!] failed to acquire libusb_device!\n");
-		ret = -EINVAL;
-		return ret;
-	}
-	ret = libusb_get_active_config_descriptor(libusb_dev, &cfg);
-	if(ret < 0){
-                printf("[!] failed to get libusb_config_descriptor!\n");
-                ret = -EINVAL;
-                return ret;
+        if (handler == NULL || in_intf == NULL) {
+                return -EINVAL;
         }
-#ifdef ADVANCED_USB_DEBUGGING
-	printf("[*] number of interfaces detected: %d\n", cfg->bNumInterfaces);
-#endif
-	struct_usb_interface = get_struct_size("usb_interface");
-	struct_usb_device_sizeof = get_struct_size("usb_device");
 
-	intf_ptr = (struct usb_interface *)calloc(1, struct_usb_interface);
-	if(intf_ptr == NULL){
-		printf("[!] failed to allocate usb_interface!\n");
-		ret = -ENOMEM;
-		libusb_free_config_descriptor(cfg);
-		return ret;
-	}
-	printf("num altsetting: %d\n", cfg->interface[0].num_altsetting);
-	intf_ptr->altsetting = (struct usb_host_interface *)calloc(cfg->interface[0].num_altsetting, sizeof(struct usb_host_interface));
-	if(intf_ptr->altsetting == NULL){
-		printf("[!] failed to allocate usb_host_interface!\n");
-		free(intf_ptr);
-		ret = -ENOMEM;
-		libusb_free_config_descriptor(cfg);
-		return ret;
-	}
-	memset(intf_ptr->altsetting, 0, sizeof(struct usb_host_interface));
-	*in_intf = intf_ptr;
+        *in_intf = NULL;
+	printf("parse_usb_and_alloc_intf1\n");
 
-	for(u8 j = 0; j < cfg->bNumInterfaces; j++){
-		libusb_intf_ptr = &cfg->interface[j];
-		if(libusb_intf_ptr == NULL){
-			printf("[!] libusb_interface is null...aborting!\n");
-			ret = -EINVAL;
-			libusb_free_config_descriptor(cfg);
-			return ret;
-		}else{
-#ifdef ADVANCED_USB_DEBUGGING
-                        printf("[*] interface %d has %d altsettings!\n", j, libusb_intf_ptr->num_altsetting);
-#endif
-		}
+        libusb_dev = libusb_get_device(handler);
+        if (libusb_dev == NULL) {
+                printf("[!] failed to acquire libusb_device!\n");
+                return -EINVAL;
+        }
+	printf("parse_usb_and_alloc_intf2\n");
+        ret = libusb_get_active_config_descriptor(libusb_dev, &cfg);
+        if (ret < 0) {
+                printf("[!] failed to get libusb_config_descriptor!\n");
+                return -EINVAL;
+        }
+	printf("parse_usb_and_alloc_intf3\n");
+        if (cfg->bNumInterfaces == 0) {
+                printf("[!] device has no interfaces!\n");
+                ret = -ENODEV;
+                goto fail_free_cfg;
+        }
 
-		intf_ptr->num_altsetting = libusb_intf_ptr->num_altsetting;
-		intf_ptr->cur_altsetting = intf_ptr->altsetting;
-		for(u8 k = 0; k < libusb_intf_ptr->num_altsetting; k++){
-			alt = &libusb_intf_ptr->altsetting[k];
-			if(alt == NULL){
-#ifdef ADVANCED_USB_DEBUGGING
-				printf("[!] altsetting is null!\n");
-#endif
-				ret = -EINVAL;
-				libusb_free_config_descriptor(cfg);
-				return ret;
-			}
-#ifdef ADVANCED_USB_DEBUGGING
-			printf("[*] total number of endpoints: 0x%02x\n", alt->bNumEndpoints);
-#endif
-			int_number = alt->bInterfaceNumber;
-			intf_ptr->altsetting->desc.bLength = alt->bLength;
-			intf_ptr->altsetting->desc.bDescriptorType = alt->bDescriptorType;
-			intf_ptr->altsetting->desc.bInterfaceNumber = alt->bInterfaceNumber;
-			intf_ptr->altsetting->desc.bAlternateSetting = alt->bAlternateSetting;
-			intf_ptr->altsetting->desc.bNumEndpoints = alt->bNumEndpoints;
-			intf_ptr->altsetting->desc.bInterfaceClass = alt->bInterfaceClass;
-			intf_ptr->altsetting->desc.bInterfaceSubClass = alt->bInterfaceSubClass;
-			intf_ptr->altsetting->desc.bInterfaceProtocol = alt->bInterfaceProtocol;
-			intf_ptr->altsetting->desc.iInterface = alt->iInterface;
+        struct_usb_interface_size = director.struct_sizes.usb_interface;
+        struct_usb_device_size    = director.struct_sizes.usb_device;
+        struct_device_size        = director.struct_sizes.device;
+	printf("parse_usb_and_alloc_intf4 struct_usb_interface_size %d struct_usb_device_size %d struct_device_size %d\n", struct_usb_interface_size, struct_usb_device_size, struct_device_size);
+        if (struct_usb_interface_size == 0) {
+                printf("[!] failed to retrieve size for struct usb_interface!\n");
+                ret = -EINVAL;
+                goto fail_free_cfg;
+        }
+        if (struct_usb_device_size == 0) {
+                printf("[!] failed to retrieve size for struct usb_device!\n");
+                ret = -EINVAL;
+                goto fail_free_cfg;
+        }
+        if (struct_device_size == 0) {
+                printf("[!] failed to retrieve size for struct device!\n");
+                ret = -EINVAL;
+                goto fail_free_cfg;
+        }
+	printf("parse_usb_and_alloc_intf5\n");
 
-			total_ep_num = alt->bNumEndpoints;
+        intf_ptr = (struct usb_interface *)calloc(1, struct_usb_interface_size);
+        if (intf_ptr == NULL) {
+                printf("[!] failed to allocate usb_interface!\n");
+                ret = -ENOMEM;
+                goto fail_free_cfg;
+        }
 
-			intf_ptr->altsetting->endpoint = calloc(total_ep_num, sizeof(struct usb_host_endpoint));
-			if(intf_ptr->altsetting->endpoint == NULL){
-				printf("[!] failed to allocate endpoints!\n");
-				ret = -ENOMEM;
-				libusb_free_config_descriptor(cfg);
-				return ret;
-			}
-
-			for(u8 z = 0; z < alt->bNumEndpoints; z++){
-				current_ep = &alt->endpoint[z];
-#ifdef ADVANCED_USB_DEBUGGING
-				in = ((current_ep->bEndpointAddress & USB_ENDPOINT_DIR_MASK) == USB_DIR_IN);
-				ep_is_bulk = ((current_ep->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) == USB_ENDPOINT_XFER_BULK);
-				ep_is_intr = ((current_ep->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) == USB_ENDPOINT_XFER_INT);
-				ep_is_ctrl = ((current_ep->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) == USB_ENDPOINT_XFER_CONTROL);
-				ep_is_isoc = ((current_ep->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) == USB_ENDPOINT_XFER_ISOC);
-				printf("endpoint %d address: 0x%02x %s type ", z, current_ep->bEndpointAddress, in ? "IN" : "OUT");
-				if(ep_is_bulk == true){
-					printf("bulk\n");
-				}else if(ep_is_intr == true){
-					printf("interrupt\n");
-				}else if(ep_is_ctrl == true){
-					printf("control\n");
-				}else if(ep_is_isoc == true){
-					printf("isochronous\n");
-				}
-#endif
-				intf_ptr->altsetting->endpoint[z].desc.bLength = current_ep->bLength;
-				intf_ptr->altsetting->endpoint[z].desc.bDescriptorType = current_ep->bDescriptorType;
-				intf_ptr->altsetting->endpoint[z].desc.bEndpointAddress = current_ep->bEndpointAddress;
-				intf_ptr->altsetting->endpoint[z].desc.bmAttributes = current_ep->bmAttributes;
-				intf_ptr->altsetting->endpoint[z].desc.wMaxPacketSize = current_ep->wMaxPacketSize;
-				intf_ptr->altsetting->endpoint[z].desc.bInterval = current_ep->bInterval;
-				intf_ptr->altsetting->endpoint[z].desc.bRefresh = current_ep->bRefresh;
-				intf_ptr->altsetting->endpoint[z].desc.bSynchAddress = current_ep->bSynchAddress;
-			}
-		}
-	}
+        libusb_intf = &cfg->interface[0];
+	printf("parse_usb_and_alloc_intf6\n");
+        num_altsetting = (u8)libusb_intf->num_altsetting;
 
 #ifdef ADVANCED_USB_DEBUGGING
-	dump_usb_host_interface(*in_intf);
+        printf("[*] interface 0 has %d altsetting(s)\n", num_altsetting);
 #endif
-	/* last step: allocate a 'struct device' for usb_dev */
-	struct_device_sizeof = get_struct_size("device");
-	if(struct_device_sizeof == 0){
-		printf("[!] failed to retrieve the size for struct device!\n");
-		goto end;
-	}
 
-	/*
-	 * 'interface_to_usbdev' uses also .dev->parent, so we need to allocate both of them.
-	 */
-	usb_device_ptr = calloc(1, struct_usb_device_sizeof);
-	intf_ptr->dev.parent = &usb_device_ptr->dev;
-	director.usb_device_ptr = usb_device_ptr;
-	ret = libusb_get_device_speed(libusb_dev);
+        if (num_altsetting == 0) {
+                printf("[!] interface 0 has no altsettings!\n");
+                ret = -ENODEV;
+                goto fail_free_intf;
+        }
+	printf("parse_usb_and_alloc_intf7\n");
+        intf_ptr->altsetting = (struct usb_host_interface *)calloc(
+                num_altsetting, sizeof(struct usb_host_interface));
+        if (intf_ptr->altsetting == NULL) {
+                printf("[!] failed to allocate usb_host_interface array!\n");
+                ret = -ENOMEM;
+                goto fail_free_intf;
+        }
+	printf("parse_usb_and_alloc_intf8\n");
+        intf_ptr->num_altsetting = num_altsetting;
 
-	switch(ret){
-		case LIBUSB_SPEED_SUPER:
-			usb_device_ptr->speed = USB_SPEED_SUPER;
+        for (u8 k = 0; k < num_altsetting; k++) {
+                alt = &libusb_intf->altsetting[k];
+
+                num_ep = alt->bNumEndpoints;
+
+#ifdef ADVANCED_USB_DEBUGGING
+                printf("[*] altsetting %u: bInterfaceNumber=%u bNumEndpoints=%u\n",
+                       k, alt->bInterfaceNumber, num_ep);
+#endif
+		printf("parse_usb_and_alloc_intf9\n");
+                intf_ptr->altsetting[k].desc.bLength              = alt->bLength;
+                intf_ptr->altsetting[k].desc.bDescriptorType      = alt->bDescriptorType;
+                intf_ptr->altsetting[k].desc.bInterfaceNumber     = alt->bInterfaceNumber;
+                intf_ptr->altsetting[k].desc.bAlternateSetting    = alt->bAlternateSetting;
+                intf_ptr->altsetting[k].desc.bNumEndpoints        = alt->bNumEndpoints;
+                intf_ptr->altsetting[k].desc.bInterfaceClass      = alt->bInterfaceClass;
+                intf_ptr->altsetting[k].desc.bInterfaceSubClass   = alt->bInterfaceSubClass;
+                intf_ptr->altsetting[k].desc.bInterfaceProtocol   = alt->bInterfaceProtocol;
+                intf_ptr->altsetting[k].desc.iInterface           = alt->iInterface;
+		printf("parse_usb_and_alloc_intf10\n");
+                if (k == 0) {
+                        int_number = alt->bInterfaceNumber;
+                }
+
+                if (num_ep == 0) {
+                        intf_ptr->altsetting[k].endpoint = NULL;
+                        continue;
+                }
+		printf("parse_usb_and_alloc_intf11\n");
+                intf_ptr->altsetting[k].endpoint = (struct usb_host_endpoint *)calloc(
+                        num_ep, sizeof(struct usb_host_endpoint));
+                if (intf_ptr->altsetting[k].endpoint == NULL) {
+                        printf("[!] failed to allocate endpoints for altsetting %u!\n", k);
+                        ret = -ENOMEM;
+                        for (u8 m = 0; m < k; m++) {
+				printf("parse_usb_and_alloc_intf12\n");
+                                free(intf_ptr->altsetting[m].endpoint);
+                                intf_ptr->altsetting[m].endpoint = NULL;
+				printf("parse_usb_and_alloc_intf13\n");
+                        }
+                        goto fail_free_altsetting;
+                }
+
+                for (u8 z = 0; z < num_ep; z++) {
+                        ep = &alt->endpoint[z];
+
+#ifdef ADVANCED_USB_DEBUGGING
+                        {
+                                u8 ep_in   = ((ep->bEndpointAddress & USB_ENDPOINT_DIR_MASK) == USB_DIR_IN);
+                                u8 xfer    = ep->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK;
+                                const char *xfer_str =
+                                        (xfer == USB_ENDPOINT_XFER_BULK)    ? "bulk"         :
+                                        (xfer == USB_ENDPOINT_XFER_INT)     ? "interrupt"    :
+                                        (xfer == USB_ENDPOINT_XFER_CONTROL) ? "control"      :
+                                        (xfer == USB_ENDPOINT_XFER_ISOC)    ? "isochronous"  : "unknown";
+                                printf("  ep[%u] addr=0x%02x %s %s\n",
+                                       z, ep->bEndpointAddress,
+                                       ep_in ? "IN" : "OUT", xfer_str);
+                        }
+#endif
+			printf("parse_usb_and_alloc_intf14\n");
+                        intf_ptr->altsetting[k].endpoint[z].desc.bLength          = ep->bLength;
+                        intf_ptr->altsetting[k].endpoint[z].desc.bDescriptorType  = ep->bDescriptorType;
+                        intf_ptr->altsetting[k].endpoint[z].desc.bEndpointAddress = ep->bEndpointAddress;
+                        intf_ptr->altsetting[k].endpoint[z].desc.bmAttributes     = ep->bmAttributes;
+                        intf_ptr->altsetting[k].endpoint[z].desc.wMaxPacketSize   = ep->wMaxPacketSize;
+                        intf_ptr->altsetting[k].endpoint[z].desc.bInterval        = ep->bInterval;
+                        intf_ptr->altsetting[k].endpoint[z].desc.bRefresh         = ep->bRefresh;
+                        intf_ptr->altsetting[k].endpoint[z].desc.bSynchAddress    = ep->bSynchAddress;
+			printf("parse_usb_and_alloc_intf15\n");
+                }
+        }
+
+        intf_ptr->cur_altsetting = &intf_ptr->altsetting[0];
+
+        udev_ptr = (struct usb_device *)calloc(1, struct_usb_device_size);
+        if (udev_ptr == NULL) {
+                printf("[!] failed to allocate usb_device!\n");
+                ret = -ENOMEM;
+                goto fail_free_endpoints;
+        }
+	printf("parse_usb_and_alloc_intf16\n");
+        switch (libusb_get_device_speed(libusb_dev)) {
+        case LIBUSB_SPEED_SUPER:
+        case LIBUSB_SPEED_SUPER_PLUS:
+                udev_ptr->speed = USB_SPEED_SUPER;
 		break;
-		case LIBUSB_SPEED_HIGH:
-			usb_device_ptr->speed = USB_SPEED_HIGH;
+        case LIBUSB_SPEED_HIGH:
+                udev_ptr->speed = USB_SPEED_HIGH;
 		break;
-		case LIBUSB_SPEED_FULL:
-			usb_device_ptr->speed = USB_SPEED_FULL;
+        case LIBUSB_SPEED_FULL:
+                udev_ptr->speed = USB_SPEED_FULL;
 		break;
-		case LIBUSB_SPEED_LOW:
-			usb_device_ptr->speed = USB_SPEED_LOW;
+        case LIBUSB_SPEED_LOW:
+                udev_ptr->speed = USB_SPEED_LOW;
 		break;
-		default:
-			usb_device_ptr->speed = USB_SPEED_UNKNOWN;
+        default:
+                udev_ptr->speed = USB_SPEED_UNKNOWN;
 		break;
-	}
-	/* set ret to the interface number */
-	ret = int_number;
+        }
 
-	end:
-	libusb_free_config_descriptor(cfg);
-	return ret;
+        intf_ptr->dev.parent   = &udev_ptr->dev;
+        director.usb_device_ptr = udev_ptr;
+
+#ifdef ADVANCED_USB_DEBUGGING
+        dump_usb_host_interface(intf_ptr);
+#endif
+	printf("parse_usb_and_alloc_intf17\n");
+
+        *in_intf = intf_ptr;
+        libusb_free_config_descriptor(cfg);
+        return int_number;
+
+fail_free_endpoints:
+        for (u8 m = 0; m < num_altsetting; m++) {
+                free(intf_ptr->altsetting[m].endpoint);
+                intf_ptr->altsetting[m].endpoint = NULL;
+        }
+fail_free_altsetting:
+        free(intf_ptr->altsetting);
+        intf_ptr->altsetting = NULL;
+fail_free_intf:
+        free(intf_ptr);
+fail_free_cfg:
+        libusb_free_config_descriptor(cfg);
+        return ret;
 }
 
 /* main function for detecting the attached usb dongle, requires a full 'usb_dev_list' table */
 int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface **intf_out, const struct usb_device_id **matched_id_out){
 	int ret = 0;
 	struct usb_interface *usb_intf = NULL;
-
+	printf("detect_usb_device1\n");
 	for (struct usb_device_id *p = id_table; p && p->idVendor && p->idProduct; p++) {
-
+		printf("detect_usb_device2\n");
 		director.usb_dev = libusb_open_device_with_vid_pid(NULL, p->idVendor, p->idProduct);
 		if (director.usb_dev == NULL){
 			continue;
 		}
+		printf("detect_usb_device3\n");
 		ret = libusb_set_auto_detach_kernel_driver(director.usb_dev, 1);
 		if (ret < 0) {
 			libusb_close(director.usb_dev);
@@ -313,6 +360,7 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 		}else{
 			ret = libusb_detach_kernel_driver(director.usb_dev, 0);
 		}
+		printf("detect_usb_device4\n");
 		/* alloc the usb_interface which will be passed to the '->probe' callback */
 		ret = parse_usb_and_alloc_intf(director.usb_dev, &usb_intf);
 		if (ret < 0) {
@@ -320,7 +368,7 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 			director.usb_dev = NULL;
 			continue;
 		}
-
+		printf("detect_usb_device5\n");
 		director.usb_interface_number = ret;
 
 		ret = libusb_claim_interface(director.usb_dev, director.usb_interface_number);
@@ -329,9 +377,10 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 			director.usb_dev = NULL;
 			continue;
 		}
-
+		printf("detect_usb_device6\n");
 		*intf_out = usb_intf;
 		*matched_id_out = p;
+		printf("detect_usb_device7\n");
 		return ret;
 	}
 	ret = -ENODEV;
@@ -342,8 +391,9 @@ int invoke_usb_probe(struct usb_driver *new_driver, struct usb_device_id *id, st
 	int ret = 0;
 	int (*probe) (struct usb_interface *intf, const struct usb_device_id *id) = NULL;
 	probe = new_driver->probe;
-
+	printf("invoke_usb_probe1\n");
 	probe(intf, id);
+	printf("invoke_usb_probe2\n");
 	return ret;
 }
 
@@ -970,7 +1020,7 @@ static void __layout_sections(struct module *mod, struct load_info *info,
 	    MOD_INIT_DATA, MOD_INIT_DATA,
 	};
 
-	for (m = 0; m < sizeof(masks); ++m) {
+	for (m = 0; m < ARRAY_SIZE(masks); ++m) {
 		type = is_init ? init_m_to_mem_type[m] : core_m_to_mem_type[m];
 
 		for (i = 0; i < info->hdr->e_shnum; ++i) {
@@ -1034,10 +1084,10 @@ static int module_memory_alloc(struct module *mod, enum mod_mem_type type) {
 	ptr = mmap(NULL, size, mem_flags,
 		   MAP_PRIVATE | MAP_ANON | MAP_32BIT, -1, 0x00);
 
-	if (ptr == NULL) {
+	if (ptr == MAP_FAILED) {
 		return -ENOMEM;
 	}
-	director.module_allocation_list = new_allocation(ALLOCATION_TYPE_MMAP, ptr, size, mem_flags, director.module_allocation_list);
+	director.module_allocation_list = new_allocation(ALLOCATION_TYPE_MMAP, ptr, size, mem_flags, PT_LOAD, director.module_allocation_list);
 	memset(ptr, 0, size);
 	mod->mem[type].base = ptr;
 
@@ -1328,31 +1378,6 @@ static int find_module_sections(struct module *mod, struct load_info *info) {
 	    &mod->dyndbg_info.num_classes);
 	#endif
 	return ret;
-}
-
-uint64_t find_runtime_relocation_by_name(struct module	  *mod,
-					 struct load_info *info,
-					 unsigned char	  *name) {
-	Elf(Shdr) *symsec = (Elf(Shdr) *)&info->sechdrs[info->index.sym];
-	Elf(Sym) *sym	  = (void *)symsec->sh_addr;
-
-	Elf(Addr) st_value = 0;
-
-	unsigned char *text_runtime = find_runtime_section(mod, info, ".text");
-
-	for (unsigned int i = 1; i < info->hdr->e_shnum; i++) {
-		unsigned int infosec = info->sechdrs[i].sh_info;
-
-		if (info->sechdrs[i].sh_type == SHT_RELA) {
-			Elf(Rela) *tmp_rela =
-			    (Elf(Rela) *)(info->sechdrs[i].sh_addr);
-			for (unsigned int j = 0;
-			     j < info->sechdrs[i].sh_size /
-				     info->sechdrs[i].sh_entsize;
-			     j++) {
-			}
-		}
-	}
 }
 
 static int simplify_symbols(struct module *mod, struct load_info *info) {
@@ -1778,7 +1803,7 @@ void trim_init_extable(struct module *mod) {
 	       within_module_init(ex_to_insn(&mod->extable[num_entries_in_mod]),
 				  mod)) {
 		mod->num_exentries--;
-		num_entries_in_mod = mod->num_exentries--;
+		num_entries_in_mod = mod->num_exentries - 1;
 	}
 }
 
@@ -1897,7 +1922,7 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	    NULL, file_size, PROT_READ | PROT_WRITE,
 	    MAP_ANON | MAP_PRIVATE, -1, 0x00);
 
-	if(tmp_mapped_file == NULL || mapped_file == NULL){
+	if(tmp_mapped_file == MAP_FAILED || mapped_file == MAP_FAILED){
 		printf("[!] error during mmap! aborting...\n");
 		if(tmp_mapped_file != NULL){
 			munmap(tmp_mapped_file, file_size);
@@ -1997,9 +2022,31 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 
 	free(director.info);
 	director.info = NULL;
-	munmap(tmp_mapped_file, file_size);
 	director.loaded_lkm_num++;
 	return err;
+}
+
+/* internal function used for initialize a workqueue */
+int workqueue_init(struct workqueue_struct *wq, const char *name) {
+	int ret = 0;
+	pthread_condattr_t cattr = {};
+
+	strncpy(wq->name, name, sizeof(wq->name));
+	pthread_mutex_init(&wq->lock, NULL);
+
+	pthread_condattr_init(&cattr);
+	wq->clock_id = CLOCK_MONOTONIC;
+	pthread_condattr_setclock(&cattr, wq->clock_id);
+	pthread_cond_init(&wq->cond, &cattr);
+	pthread_condattr_destroy(&cattr);
+
+	INIT_LIST_HEAD(&wq->work_list);
+	INIT_LIST_HEAD(&wq->delayed_list);
+	wq->stop = 0;
+	wq->nr_active = 0;
+
+	ret = pthread_create(&wq->thread, NULL, worker_thread, wq);
+	return ret;
 }
 
 int initialize_director(struct module_controller *director, struct load_info **info) {
@@ -2012,6 +2059,18 @@ int initialize_director(struct module_controller *director, struct load_info **i
                 return ret;
         }
 
+	/* initialize workqueues if necessary */
+	if(system_wq == NULL){
+		workqueue_init(&director->system_wq,		"system_wq");
+
+		system_wq = &director->system_wq;
+	}
+
+	/* initialize usb i/o mutex */
+	pthread_mutex_init(&director->usb_io_lock, NULL);
+	pthread_cond_init(&director->usb_io_idle, NULL);
+	director->usb_io_depth = 0;
+
 	*info = director->info;
 	return ret;
 }
@@ -2020,12 +2079,14 @@ int initialize_director(struct module_controller *director, struct load_info **i
 void finalize_director(void){
 	if(director.info != NULL){
 		free(director.info);
+		director.info = NULL;
 	}
 	if(director.ieee80211_local != NULL){
 
 	}
 	if(director.usb_device_ptr != NULL){
 		free(director.usb_device_ptr);
+		director.usb_device_ptr = NULL;
 	}
 }
 
@@ -2122,11 +2183,12 @@ int fast_drv_load(struct module_controller *director, char *module_name) {
 		return ret;
 	}
 
+	/* before quitting, collect the struct sizes now for getting a fast access later */
+	ret = collect_sizes(director);
+
 	/* now call the main driver loading function */
 	ret = module_init(module_name, NULL, load_info);
 
-	/* before quitting, collect the struct sizes now for getting a fast access later */
-	ret = collect_sizes(director);
 	return ret;
 }
 
@@ -2169,6 +2231,145 @@ int fast_get_name(void *sym_addr, unsigned char **sym_name){
 	}
 	return ret;
 }
+
+/* similar to 'fast_get_name' but search the symbol inside a range (function_ptr + function_size) */
+int fast_get_name_in_range(void *sym_addr, unsigned char **sym_name){
+	int ret = 0;
+	*sym_name = NULL;
+
+	for (u16 i = 0; ; i++) {
+		if(sym_table[i + 1].function_name == NULL){
+			break;
+		}
+
+		if (sym_table[i].function_ptr <= sym_addr && sym_addr < sym_table[i].function_ptr + sym_table[i].function_size){
+			*sym_name = sym_table[i].function_name;
+			break;
+		}
+	}
+	return ret;
+}
+
+#ifdef __linux__
+struct so_context {
+	void *sym_addr;
+	unsigned char **sym_name;
+};
+
+/* callback used for walking through the loaded libraries */
+int walk_shared_libraries(struct dl_phdr_info *info, size_t info_size, void *data) {
+        int ret = 0;
+	uintptr_t min = 0;
+	uintptr_t max = 0;
+	uintptr_t seg_hi = 0;
+	uintptr_t seg_lo = 0;
+	u32 *sym_cnt = NULL;
+	void *sym_addr = NULL;
+	Elf(Dyn) *dyn = NULL;
+	Elf(Phdr) *ph = NULL;
+	Elf(Sym) *symtab = NULL;
+	Elf(Sym) *tmp_sym = NULL;
+	unsigned char *strtab = NULL;
+	struct so_context *so_ctx = (struct so_context *)data;
+
+	sym_addr = so_ctx->sym_addr;
+	if(sym_addr == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	min = UINTPTR_MAX;
+
+	for (ElfW(Half) i = 0; i < info->dlpi_phnum; i++) {
+		ph = &info->dlpi_phdr[i];
+		if (ph->p_type != PT_LOAD){
+			continue;
+		}
+		seg_lo = info->dlpi_addr + ph->p_vaddr;
+		seg_hi = seg_lo + ph->p_memsz;
+
+		if (seg_lo < min){
+			min = seg_lo;
+		}
+		if (seg_hi > max){
+			max = seg_hi;
+		}
+	}
+	if(min == UINTPTR_MAX){
+		min = 0;
+		max = 0;
+	}
+
+	for (int i = 0; i < info->dlpi_phnum; i++){
+		ph = &info->dlpi_phdr[i];
+		if (ph->p_type == PT_DYNAMIC) {
+			dyn = (Elf(Dyn) *)(uintptr_t)(info->dlpi_addr + ph->p_vaddr);
+			break;
+		}
+	}
+
+	if (dyn == NULL){
+		printf("[!] dynamic segment not found!\n");
+		return ret;
+	}
+
+	for (Elf(Dyn) *d = dyn; d->d_tag != DT_NULL; d++) {
+		switch(d->d_tag){
+			case DT_SYMTAB:
+				if(d->d_un.d_ptr >= min && d->d_un.d_ptr < max){
+					symtab = (Elf(Sym *))(uintptr_t)(d->d_un.d_ptr);
+				}else{
+					symtab = (Elf(Sym *))(uintptr_t)(info->dlpi_addr + d->d_un.d_ptr);
+				}
+			break;
+			case DT_STRTAB:
+				if(d->d_un.d_ptr >= min && d->d_un.d_ptr < max){
+					strtab = (unsigned char *)(d->d_un.d_ptr);
+				}else{
+					strtab = (unsigned char *)(info->dlpi_addr + d->d_un.d_ptr);
+				}
+			break;
+			case DT_HASH:
+				if(d->d_un.d_ptr >= min && d->d_un.d_ptr < max){
+					sym_cnt = (u32 *)(d->d_un.d_ptr);
+				}else{
+					sym_cnt = (u32 *)(info->dlpi_addr + d->d_un.d_ptr);
+				}
+			break;
+			default:
+			break;
+		}
+	}
+
+	if(symtab == NULL || strtab == NULL || sym_cnt == NULL){
+		return ret;
+	}
+
+	for (int i = 0; i < sym_cnt[1]; i++) {
+		tmp_sym = &symtab[i];
+
+		if (tmp_sym->st_shndx != SHN_UNDEF) {
+			if((info->dlpi_addr + tmp_sym->st_value) <= sym_addr && sym_addr < (info->dlpi_addr + tmp_sym->st_value + tmp_sym->st_size)){
+				*so_ctx->sym_name = (unsigned char *)(strtab + tmp_sym->st_name);
+				return ret;
+			}
+		}
+	}
+	return ret;
+}
+
+/* search the name of a symbol by walking in the shared objects, used mainly for the backtrace subsystem */
+int fast_get_name_in_so(void *sym_addr, unsigned char **sym_name){
+	int ret = 0;
+	struct so_context shared_object_context = {
+		.sym_addr = sym_addr,
+		.sym_name = sym_name,
+	};
+
+	dl_iterate_phdr(walk_shared_libraries, &shared_object_context);
+	return ret;
+}
+#endif
 
 int fast_execute_function(unsigned char *function_name){
 	int ret = 0;
@@ -2464,21 +2665,45 @@ int pe_generator_handler(void){
 }
 #endif
 
-/* generate a standalone elf by dumping the address space (v1) */
 int elf_generator_handler(void){
 	int ret = 0;
 	int counter = 0;
 	int pht_counter = 0;
-	int off_counter = 0;
 	int elf_dump_fd = 0;
-	u8 phdrs = 0;
+	int sym_table_size = 0;
+	int string_table_size = 1;
+	int current_symbol_name_len = 0;
+	int sym_count = 0;
+	u32 phdrs = 0;
 	u32 flags = 0;
+	u32 seg_prot = 0;
 	u64 vaddr = 0;
+	u64 current_off = 0;
+	u64 shstrtab_off = 0;
+	u64 strtab_off = 0;
+	u64 symtab_off = 0;
+	u64 shoff = 0;
+	u64 entry_vaddr = 0;
+	u64 page_off = 0;
+	u64 seg_off = 0;
+	u64 name_off = 1;
+
+	enum {
+		SEC_NULL = 0,
+		SEC_SHSTRTAB = 1,
+		SEC_STRTAB = 2,
+		SEC_SYMTAB = 3,
+		SEC_COUNT = 4
+	};
+
+	char shstrtab[] = "\0.shstrtab\0.strtab\0.symtab\0";
 
 	Elf(Ehdr) header = {};
-	Elf(Phdr) program_header = {};
+	Elf(Shdr) section_header = {};
+	Elf(Sym)  symbol_table = {};
 
 	void  *entry_addr = NULL;
+	char **envp = NULL;
 	Elf(auxv_t) *auxv = NULL;
 	Elf(Phdr) *phdr_base =  NULL;
 	struct allocation_list *head = NULL;
@@ -2501,32 +2726,54 @@ int elf_generator_handler(void){
 		return ret;
 	}
 
-	/* before proceeding, add as the last memory allocation node the executable segment of this process.
-	 * code taken from https://articles.manugarg.com/aboutelfauxiliaryvectors
-	 */
-	while (*director.envp++ != NULL);
-	for (auxv = (Elf(auxv_t) *)director.envp; auxv->a_type != AT_NULL; auxv++){
+	envp = director.envp;
+	while (*envp != NULL){
+		envp++;
+	}
+	envp++;
+
+	for (auxv = (Elf(auxv_t) *)envp; auxv->a_type != AT_NULL; auxv++){
 		if (auxv->a_type == AT_PHDR){
-			phdr_base = (Elf(Phdr) *)auxv->a_un.a_val;
+			phdr_base = (Elf(Phdr) *)(uintptr_t)auxv->a_un.a_val;
 		}
 		if(auxv->a_type == AT_PHNUM){
-			phdrs = auxv->a_un.a_val;
+			phdrs = (u32)auxv->a_un.a_val;
 		}
 	}
 
-	for(u8 k = 0; k < phdrs; k++){
-		printf("[*] internal segment number %d, vaddr: 0x%08x size: %d\n", k, phdr_base[k].p_vaddr, phdr_base[k].p_memsz);
-		if(phdr_base[k].p_memsz != 0){
+	if(phdr_base != NULL && phdrs != 0){
+		for(u32 k = 0; k < phdrs; k++){
+			if(phdr_base[k].p_memsz == 0 || (phdr_base[k].p_type != PT_DYNAMIC && phdr_base[k].p_type != PT_LOAD && phdr_base[k].p_type != PT_INTERP)){
+				continue;
+			}
+
+			seg_prot = 0;
+			if(phdr_base[k].p_flags & PF_R){
+				seg_prot |= PROT_READ;
+			}
+			if(phdr_base[k].p_flags & PF_W){
+				seg_prot |= PROT_WRITE;
+			}
+			if(phdr_base[k].p_flags & PF_X){
+				seg_prot |= PROT_EXEC;
+			}
+
+			printf("[*] internal segment number %d, vaddr: 0x%llx size: %llu\n",
+				(int)k,
+				(unsigned long long)phdr_base[k].p_vaddr,
+				(unsigned long long)phdr_base[k].p_memsz);
+
 			director.module_allocation_list = new_allocation(
-				ALLOCATION_TYPE_MMAP,
-				phdr_base[k].p_vaddr,
+				ALLOCATION_TYPE_MALLOC,
+				(void *)(uintptr_t)phdr_base[k].p_vaddr,
 				phdr_base[k].p_memsz,
-				phdr_base[k].p_flags,
+				seg_prot,
+				phdr_base[k].p_type,
 				director.module_allocation_list);
 		}
 	}
 
-	elf_dump_fd = open("userspace_driver.elf", O_RDWR | O_CREAT, 0777);
+	elf_dump_fd = open("dumped_driver.elf", O_RDWR | O_CREAT | O_TRUNC, 0777);
 	if(elf_dump_fd < 0){
 		ret = -EIO;
 		return ret;
@@ -2540,55 +2787,74 @@ int elf_generator_handler(void){
 		return ret;
 	}
 
-	vaddr = (uintptr_t)entry_addr;
+	entry_vaddr = (u64)(uintptr_t)entry_addr;
 	#ifdef ENABLE_DBG_PRINT
-	printf("[*] entry point of the output executable file at: 0x%08x\n", vaddr);
+	printf("[*] entry point of the output executable file at: 0x%llx\n",
+		(unsigned long long)entry_vaddr);
 	#endif
 
+	head = director.module_allocation_list;
+	counter = 0;
 	while(head != NULL){
-		counter++;
+		if(head->alloc_ptr != NULL && head->alloc_len != 0){
+			counter++;
+		}
 		head = head->alloc_next;
 	}
 	head = director.module_allocation_list;
 
-	header.e_ident[0]		= 0x7f;
-	header.e_ident[1]		= 'E';
-	header.e_ident[2]		= 'L';
-	header.e_ident[3]		= 'F';
-	header.e_ident[4]		= ELFCLASS64;
-	header.e_ident[5]		= 1;
-	header.e_ident[6]		= 1;
+	for(sym_count = 0; sym_table[sym_count].function_name != NULL; sym_count++){
+		string_table_size += (int)strlen(sym_table[sym_count].function_name) + 1;
+	}
+	sym_table_size = (sym_count + 1) * sizeof(Elf(Sym));
 
-	header.e_machine		= EM_CURRENT_ARCH;
-	header.e_entry			= vaddr;
-	header.e_phnum			= counter;
-	header.e_shoff			= 0;
-	header.e_phoff			= sizeof(Elf(Ehdr));
-	header.e_shnum			= 0;
-	header.e_phentsize		= sizeof(Elf(Phdr));
-	header.e_shentsize		= 0;
-	header.e_type			= ET_EXEC;
-	header.e_version		= 1;
-	header.e_shstrndx		= 0;
+	if(counter == 0){
+		close(elf_dump_fd);
+		ret = -EINVAL;
+		return ret;
+	}
 
-	pht_counter = sizeof(Elf(Ehdr));
-	off_counter = sizeof(Elf(Ehdr)) + (counter * sizeof(Elf(Phdr)));
-	lseek(elf_dump_fd, 0, SEEK_SET);
-	write(elf_dump_fd, &header, sizeof(header));
-	counter = 0;
+	Elf(Phdr) program_headers[counter];
+	Elf(Shdr) section_headers[SEC_COUNT];
+	Elf(Sym)  symbol_entries[sym_count + 1];
+	char      string_table[string_table_size];
+
+	memset(program_headers, 0, sizeof(program_headers));
+	memset(section_headers, 0, sizeof(section_headers));
+	memset(symbol_entries, 0, sizeof(symbol_entries));
+	memset(string_table, 0, sizeof(string_table));
+
+	for(int k = 0; k < sym_count; k++){
+		current_symbol_name_len = strlen(sym_table[k].function_name) + 1;
+
+		memcpy(&string_table[name_off],
+		       sym_table[k].function_name,
+		       current_symbol_name_len);
+
+		symbol_entries[k + 1].st_name  = name_off;
+		symbol_entries[k + 1].st_info  = ELF64_ST_INFO(STB_GLOBAL, STT_FUNC);
+		symbol_entries[k + 1].st_other = STV_DEFAULT;
+		symbol_entries[k + 1].st_shndx = SHN_ABS;
+		symbol_entries[k + 1].st_value = (u64)(uintptr_t)sym_table[k].function_ptr;
+		symbol_entries[k + 1].st_size  = sym_table[k].function_size;
+
+		#ifdef ENABLE_DBG_PRINT
+		printf("[*] string table added symbol: %s\n", sym_table[k].function_name);
+		#endif
+
+		name_off += current_symbol_name_len;
+	}
+
+	current_off = sizeof(Elf(Ehdr)) + (counter * sizeof(Elf(Phdr)));
+	pht_counter = 0;
+	head = director.module_allocation_list;
+
 	while(head != NULL){
-		if(head->alloc_ptr == NULL){
-			break;
+		if(head->alloc_ptr == NULL || head->alloc_len == 0){
+			head = head->alloc_next;
+			continue;
 		}
-		vaddr = (uintptr_t)head->alloc_ptr;
-
-		program_header.p_type   = PT_LOAD;
-		program_header.p_vaddr  = vaddr;
-		program_header.p_paddr  = vaddr;
-		program_header.p_memsz  = head->alloc_len;
-		program_header.p_filesz = head->alloc_len;
-		program_header.p_align  = 4;
-		/* convert the mmap flags into  the phdr flags, do this process here for not affecting the performance earlier */
+		flags = 0;
 		if(head->alloc_flags & PROT_READ){
 			flags |= PF_R;
 		}
@@ -2598,23 +2864,162 @@ int elf_generator_handler(void){
 		if(head->alloc_flags & PROT_EXEC){
 			flags |= PF_X;
 		}
-		program_header.p_flags  = flags;
+		vaddr = (u64)(uintptr_t)head->alloc_ptr;
+		page_off = vaddr & 0xfffULL;
+		seg_off = (((current_off) + ((0x1000ULL) - 1)) & ~((0x1000ULL) - 1));
+		if((seg_off & 0xfffULL) != page_off){
+			seg_off += ((page_off - (seg_off & 0xfffULL)) & 0xfffULL);
+		}
+
+		program_headers[pht_counter].p_type   = head->alloc_inmem_type;
+		program_headers[pht_counter].p_offset = seg_off;
+		program_headers[pht_counter].p_vaddr  = vaddr;
+		program_headers[pht_counter].p_paddr  = vaddr;
+		program_headers[pht_counter].p_memsz  = head->alloc_len;
+		program_headers[pht_counter].p_filesz = head->alloc_len;
+		program_headers[pht_counter].p_align  = 0x1000;
+		program_headers[pht_counter].p_flags  = flags;
+
 		#ifdef ENABLE_DBG_PRINT
-		printf("[*] program header type %d vaddr 0x%08x memsz %d flags %d\n",
-			program_header.p_type,
-			program_header.p_vaddr,
-			program_header.p_memsz,
-			program_header.p_flags);
+		printf("[*] program header type %d off 0x%llx vaddr 0x%llx memsz %llu flags %d\n",
+			program_headers[pht_counter].p_type,
+			(unsigned long long)program_headers[pht_counter].p_offset,
+			(unsigned long long)program_headers[pht_counter].p_vaddr,
+			(unsigned long long)program_headers[pht_counter].p_memsz,
+			program_headers[pht_counter].p_flags);
 		#endif
-		lseek(elf_dump_fd, pht_counter,	SEEK_SET);
-		write(elf_dump_fd, &program_header, sizeof(program_header));
-		pht_counter	       += sizeof(program_header);
-		lseek(elf_dump_fd, off_counter, SEEK_SET);
-		write(elf_dump_fd, head->alloc_ptr, head->alloc_len);
-		off_counter += head->alloc_len;
+
+		current_off = seg_off + head->alloc_len;
+		pht_counter++;
 		head = head->alloc_next;
-		/* reset flags */
-		flags = 0;
+	}
+
+	shstrtab_off = (((current_off) + ((8) - 1)) & ~((8) - 1));
+	strtab_off   = shstrtab_off + sizeof(shstrtab);
+	symtab_off   = (((strtab_off + string_table_size) + ((8) - 1)) & ~((8) - 1));
+	shoff        = (((symtab_off + sym_table_size) + ((8) - 1)) & ~((8) - 1));
+
+	header.e_ident[0]		= 0x7f;
+	header.e_ident[1]		= 'E';
+	header.e_ident[2]		= 'L';
+	header.e_ident[3]		= 'F';
+	header.e_ident[4]		= ELFCLASS64;
+	header.e_ident[5]		= ELFDATA2LSB;
+	header.e_ident[6]		= EV_CURRENT;
+	header.e_ident[7]		= ELFOSABI_SYSV;
+
+	header.e_machine		= EM_CURRENT_ARCH;
+	header.e_entry			= entry_vaddr;
+	header.e_phnum			= counter;
+	header.e_shoff			= shoff;
+	header.e_phoff			= sizeof(Elf(Ehdr));
+	header.e_shnum			= SEC_COUNT;
+	header.e_phentsize		= sizeof(Elf(Phdr));
+	header.e_shentsize		= sizeof(Elf(Shdr));
+	header.e_type			= ET_EXEC;
+	header.e_version		= EV_CURRENT;
+	header.e_shstrndx		= SEC_SHSTRTAB;
+	header.e_ehsize			= sizeof(Elf(Ehdr));
+	header.e_flags			= 0;
+
+	memset(&section_header, 0, sizeof(section_header));
+	section_header.sh_name		= 1;
+	section_header.sh_type		= SHT_STRTAB;
+	section_header.sh_flags		= 0;
+	section_header.sh_addr		= 0;
+	section_header.sh_offset	= shstrtab_off;
+	section_header.sh_size		= sizeof(shstrtab);
+	section_header.sh_link		= 0;
+	section_header.sh_info		= 0;
+	section_header.sh_addralign	= 1;
+	section_header.sh_entsize	= 0;
+	section_headers[SEC_SHSTRTAB] = section_header;
+
+	memset(&section_header, 0, sizeof(section_header));
+	section_header.sh_name		= 11;
+	section_header.sh_type		= SHT_STRTAB;
+	section_header.sh_flags		= 0;
+	section_header.sh_addr		= 0;
+	section_header.sh_offset	= strtab_off;
+	section_header.sh_size		= string_table_size;
+	section_header.sh_link		= 0;
+	section_header.sh_info		= 0;
+	section_header.sh_addralign	= 1;
+	section_header.sh_entsize	= 0;
+	section_headers[SEC_STRTAB] = section_header;
+
+	memset(&section_header, 0, sizeof(section_header));
+	section_header.sh_name		= 19;
+	section_header.sh_type		= SHT_SYMTAB;
+	section_header.sh_flags		= 0;
+	section_header.sh_addr		= 0;
+	section_header.sh_offset	= symtab_off;
+	section_header.sh_size		= sym_table_size;
+	section_header.sh_link		= SEC_STRTAB;
+	section_header.sh_info		= 1;
+	section_header.sh_addralign	= 8;
+	section_header.sh_entsize	= sizeof(Elf(Sym));
+	section_headers[SEC_SYMTAB] = section_header;
+
+	lseek(elf_dump_fd, 0, SEEK_SET);
+	if(write(elf_dump_fd, &header, sizeof(header)) != sizeof(header)){
+		close(elf_dump_fd);
+		ret = -EIO;
+		return ret;
+	}
+
+	lseek(elf_dump_fd, header.e_phoff, SEEK_SET);
+	if(write(elf_dump_fd, program_headers, sizeof(program_headers)) != sizeof(program_headers)){
+		close(elf_dump_fd);
+		ret = -EIO;
+		return ret;
+	}
+
+	pht_counter = 0;
+	head = director.module_allocation_list;
+	while(head != NULL){
+		if(head->alloc_ptr == NULL || head->alloc_len == 0){
+			head = head->alloc_next;
+			continue;
+		}
+
+		lseek(elf_dump_fd, program_headers[pht_counter].p_offset, SEEK_SET);
+		if(write(elf_dump_fd, head->alloc_ptr, head->alloc_len) != (ssize_t)head->alloc_len){
+			close(elf_dump_fd);
+			ret = -EIO;
+			return ret;
+		}
+
+		pht_counter++;
+		head = head->alloc_next;
+	}
+
+	lseek(elf_dump_fd, shstrtab_off, SEEK_SET);
+	if(write(elf_dump_fd, shstrtab, sizeof(shstrtab)) != sizeof(shstrtab)){
+		close(elf_dump_fd);
+		ret = -EIO;
+		return ret;
+	}
+
+	lseek(elf_dump_fd, strtab_off, SEEK_SET);
+	if(write(elf_dump_fd, string_table, string_table_size) != string_table_size){
+		close(elf_dump_fd);
+		ret = -EIO;
+		return ret;
+	}
+
+	lseek(elf_dump_fd, symtab_off, SEEK_SET);
+	if(write(elf_dump_fd, symbol_entries, sym_table_size) != sym_table_size){
+		close(elf_dump_fd);
+		ret = -EIO;
+		return ret;
+	}
+
+	lseek(elf_dump_fd, shoff, SEEK_SET);
+	if(write(elf_dump_fd, section_headers, sizeof(section_headers)) != sizeof(section_headers)){
+		close(elf_dump_fd);
+		ret = -EIO;
+		return ret;
 	}
 
 	close(elf_dump_fd);
@@ -2626,6 +3031,7 @@ int elf_generator_handler(void){
  * output file format is still wip, it should contains both the callback table and the offset table.
 */
 void crash_handler(int sig){
+	int nptrs = 0;
 	int dump_fd = 0;
 	int dump_fd_offset_count = 0;
 	int sym_table_section_size = 0;
@@ -2634,7 +3040,29 @@ void crash_handler(int sig){
 	struct tm tm = {};
 	u8 dumped_filename_buffer[128];
 	struct crashdump_section crash_sections[CRASH_SECTION_MAX];
+	char **backtrace_strings = NULL;
+	void *buffer[BACKTRACE_MAX_DEPTH];
 
+        #ifdef ENABLE_UNWIND_DEBUGGING
+        unwind_backtrace();
+        #else
+	if(sig != SIGABRT){
+		/* if we can use the memory allocation primitives, display the current stacktrace. */
+		printf("[!] getting backtrace...\n");
+		nptrs = backtrace(buffer, BACKTRACE_MAX_DEPTH);
+		backtrace_strings = backtrace_symbols(buffer, nptrs);
+		if (backtrace_strings == NULL) {
+			printf("[!] failed to obtain backtrace..\n");
+			goto after_backtrace;
+		}else{
+			for (int j = 0; j < nptrs; j++){
+				printf("[%d] %s\n", j, backtrace_strings[j]);
+			}
+			free(backtrace_strings);
+		}
+	}
+        #endif
+	after_backtrace:
 	if(sig != SIGABRT){
 		current_crash_time = time(NULL);
 		/* taken from 'https://stackoverflow.com/questions/1442116/how-can-i-get-the-date-and-time-values-in-a-c-program' */
@@ -2687,6 +3115,7 @@ void crash_handler(int sig){
 	if(sig != SIGABRT){
 		finalize_director();
 	}
+	elf_generator_handler();
 	exit(0);
 }
 
@@ -2754,11 +3183,17 @@ int main(int argc, char *argv[], char *envp[]) {
 	/* register now the signal handler */
 	signal(SIGSEGV, crash_handler);
 	signal(SIGABRT, crash_handler);
+	signal(SIGILL,  crash_handler);
 
 	director.internal_cb_table = &sym_table;
 	director.envp = envp;
 	libusb_init(NULL);
 
+	if(argc < 2){
+		printf("./%s <module_name> ... <function_name>!\n", argv[0]);
+		ret = -EINVAL;
+		return ret;
+	}
 	/* add a fast loading option: if the user insert as argv 1 or more '.ko', load them in the order given */
 	if(strstr(argv[1], ".ko") != NULL){
 		for(u8 argv_idx = 1; argv[argv_idx] != NULL; argv_idx++){
@@ -2808,3 +3243,5 @@ int main(int argc, char *argv[], char *envp[]) {
 
 	return ret;
 }
+
+#include <cb_table.h>

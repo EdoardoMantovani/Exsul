@@ -6,7 +6,7 @@ struct wiphy *wiphy_new_nm(const struct cfg80211_ops *ops, int sizeof_priv, cons
 	alloc_size = sizeof_priv + sizeof(struct cfg80211_registered_device);
 	rdev = (struct cfg80211_registered_device *)malloc(alloc_size);
 	director.rdev = rdev;
-	wiphy = rdev->wiphy;
+	wiphy = (struct wiphy *)(rdev + sizeof(struct cfg80211_registered_device));
 	rdev->ops = ops;
 	rdev->wiphy_idx = 0;
 	INIT_LIST_HEAD(&rdev->beacon_registrations);

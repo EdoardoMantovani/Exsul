@@ -3,7 +3,7 @@ struct hci_dev *hci_alloc_dev_priv(int sizeof_priv){
 	struct hci_dev *hdev = NULL;
 	struct hci_conn_hash *conn_hash = NULL;
 
-	alloc_size = get_struct_size("hci_dev");
+	alloc_size = director.struct_sizes.hci_dev;
 	if (sizeof_priv) {
 		/* Fixme: May need ALIGN-ment? */
 		alloc_size += sizeof_priv;

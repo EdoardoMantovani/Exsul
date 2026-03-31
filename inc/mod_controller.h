@@ -48,6 +48,10 @@ struct module_controller {
 	/* pointers to the 'usb_device' structs allocated for the 'probe' callback */
 	void *usb_device_ptr;
 
+	/* backup args used for running the 'xxx_driver_init' function */
+	struct usb_interface *usb_interface;
+	struct usb_device_id *usb_device_id;
+
 	struct file_layer file_table[MAX_FILE_IDX];
 
         /* data gathered when the usb device is attached to the host system */
@@ -56,6 +60,10 @@ struct module_controller {
         struct libusb_endpoint_descriptor usb_ep[USB_MAX_ENDPOINT_NUM];
         struct libusb_device_descriptor   usb_dev_desc;
 	pthread_mutex_t			  urb_anchor_mutex;
+	/* locks for usb i/o operations */
+	pthread_mutex_t usb_io_lock;
+	pthread_cond_t  usb_io_idle;
+	int usb_io_depth;
 
 	u8 **envp;
 	/* base pointer of the region header mapped in memory, used for creating the userspace independent executable */
@@ -90,6 +98,7 @@ struct module_controller {
 	struct list_head wakeup_sources;
 
 	/* global workqueues */
+	struct workqueue_struct system_wq;
 	struct workqueue_struct system_freezable_wq;
 	struct workqueue_struct system_dfl_wq;
 

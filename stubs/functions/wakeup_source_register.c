@@ -4,6 +4,9 @@ struct wakeup_source *wakeup_source_register(struct device *dev, const char *nam
 
 	/* inline here the function 'wakeup_source_create' */
 	ws = (struct wakeup_source *)malloc(sizeof(struct wakeup_source));
+	if(ws == NULL){
+		return NULL;
+	}
 	memset(ws, 0, sizeof(struct wakeup_source));
 	ws->name = strdup(name);
 

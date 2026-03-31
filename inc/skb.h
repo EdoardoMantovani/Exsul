@@ -13,6 +13,7 @@
 #define NET_SKB_PAD			max(32, L1_CACHE_BYTES)
 #endif
 
+#define NET_IP_ALIGN			2
 #define MAX_SKB_FRAGS			CONFIG_MAX_SKB_FRAGS
 
 #define SKB_ALLOC_FCLONE		0x01
@@ -26,6 +27,16 @@
 #define SKBFL_ZEROCOPY_FRAG		(SKBFL_ZEROCOPY_ENABLE | SKBFL_SHARED_FRAG)
 #define SKBFL_ALL_ZEROCOPY		(SKBFL_ZEROCOPY_FRAG | SKBFL_PURE_ZEROCOPY | SKBFL_DONT_ORPHAN | SKBFL_MANAGED_FRAG_REFS)
 
+#define MAX_TCP_HEADER			L1_CACHE_ALIGN(128 + MAX_HEADER)
+#define LL_MAX_HEADER			96
+#define MAX_HEADER			(LL_MAX_HEADER)
+#define GRO_MAX_HEAD			(MAX_HEADER + 128)
+#define GRO_MAX_HEAD_PAD		(GRO_MAX_HEAD + NET_SKB_PAD + NET_IP_ALIGN)
+#define SKB_SMALL_HEAD_SIZE		SKB_HEAD_ALIGN(max(MAX_TCP_HEADER, GRO_MAX_HEAD_PAD))
+
+#define SKB_SMALL_HEAD_CACHE_SIZE	(is_power_of_2(SKB_SMALL_HEAD_SIZE) ? (SKB_SMALL_HEAD_SIZE + L1_CACHE_BYTES) : SKB_SMALL_HEAD_SIZE)
+#define SKB_HEAD_ALIGN(X)		(SKB_DATA_ALIGN(X) + SKB_DATA_ALIGN(director.struct_sizes.skb_shared_info))
+
 #ifdef NET_SKBUFF_DATA_USES_OFFSET
 typedef unsigned int sk_buff_data_t;
 #else
@@ -33,7 +44,7 @@ typedef unsigned char *sk_buff_data_t;
 #endif
 
 #define SKB_DATA_ALIGN(X)		ALIGN(X, SMP_CACHE_BYTES)
-#define SKB_WITH_OVERHEAD(X)		((X) - SKB_DATA_ALIGN(sizeof(struct skb_shared_info)))
+#define SKB_WITH_OVERHEAD(X)		((X) - SKB_DATA_ALIGN(director.struct_sizes.skb_shared_info))
 
 /* return minimum truesize of one skb containing X bytes of data */
 #define SKB_TRUESIZE(X) ((X) +						\
@@ -1053,7 +1064,7 @@ static inline void skb_set_end_offset(struct sk_buff *skb, unsigned int offset){
  *      to the buffer.
  */
 static inline struct sk_buff *skb_get(struct sk_buff *skb){
-        refcount_inc(skb->users);
+        refcount_inc(&skb->users);
         return skb;
 }
 

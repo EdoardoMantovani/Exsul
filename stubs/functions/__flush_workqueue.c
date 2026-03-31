@@ -1,7 +1,7 @@
 int __flush_workqueue(struct workqueue_struct *wq){
 	int ret = 0;
 
-	if (!wq == NULL){
+	if (wq == NULL){
 		return ret;
 	}
 

@@ -11,7 +11,6 @@ struct sk_buff *__alloc_skb(unsigned int size, int gfp_mask, int flags, int node
 		ret = -EINVAL;
 		return NULL;
 	}
-
 	sk_shared_info_size = director.struct_sizes.skb_shared_info;
 	if(sk_shared_info_size <= 0){
 		printf("[!] failed for skb_shared_info\n");
@@ -24,11 +23,9 @@ struct sk_buff *__alloc_skb(unsigned int size, int gfp_mask, int flags, int node
 		ret = -ENOMEM;
 		return NULL;
 	}
-
-	memset(allocated_skb, 0, sk_buff_size);
+	printf("size: %d sk_buff_size: %d sk_shared_info_size: %d\n", size, sk_buff_size, sk_shared_info_size);
 	head = calloc(1, size + sk_shared_info_size);
 	if(head == NULL){
-		free(head);
 		free(allocated_skb);
 		ret = -ENOMEM;
 		return NULL;

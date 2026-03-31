@@ -4817,11 +4817,7 @@ struct cfg80211_registered_device {
 	struct list_head wiphy_work_list;
 	struct list_head beacon_registrations;
 	struct list_head sched_scan_req_list;
-	/*
-	 * we cannot hae a real wiphy struct because it would change drastically on other kernel versions,
-	 * the solution is to alloc a costant size, like 1024 bytes
-	 */
-	u8 wiphy[1024];
+	struct wiphy *wiphy;
 };
 
 /**

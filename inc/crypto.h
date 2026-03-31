@@ -514,6 +514,10 @@ struct aead_instance {
 	};
 };
 
+/* function prototypes guard for avoiding compilation errors */
+int shash_no_setkey(struct crypto_shash *tfm, const u8 *key, unsigned int keyle);
+unsigned int crypto_alg_extsize(struct crypto_alg *alg);
+
 static inline struct aead_instance *aead_instance(struct crypto_instance *inst){
 	return container_of(&inst->alg, struct aead_instance, alg.base);
 }

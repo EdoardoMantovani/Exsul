@@ -1,6 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #ifndef _ASM_X86_INAT_H
 #define _ASM_X86_INAT_H
+
+#include <stdio.h>
+#include <stdint.h>
+
 /*
  * x86 instruction attributes
  *

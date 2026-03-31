@@ -3,12 +3,17 @@ void cfg80211_bss_iter(struct wiphy *wiphy, struct cfg80211_chan_def *chandef, v
 	struct cfg80211_internal_bss *bss;
 	struct ieee80211_local *local = &director.ieee80211_local;
 
+	rdev = local->rdev;
+	if(rdev == NULL){
+		goto end;
+	}
+
 	pthread_mutex_lock(&local->bss_lock);
 	list_for_each_entry(bss, &rdev->bss_list, list) {
 		if (!chandef || cfg80211_is_sub_chan(chandef, bss->pub.channel, false)){
 			iter(wiphy, &bss->pub, iter_data);
 		}
 	}
-
 	pthread_mutex_unlock(&local->bss_lock);
+	end:
 }

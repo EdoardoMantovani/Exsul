@@ -1,4 +1,5 @@
 void destroy_workqueue(struct workqueue_struct *wq){
+	pthread_t thread;
 	struct list_head *pos = NULL;
 	struct list_head *n = NULL;
 	struct work_struct *work = NULL;
@@ -22,10 +23,13 @@ void destroy_workqueue(struct workqueue_struct *wq){
 	}
 
 	wq->stop = true;
+	thread = wq->thread;
 	pthread_cond_broadcast(&wq->cond);
 	pthread_mutex_unlock(&wq->lock);
 
-	pthread_join(wq->thread, NULL);
+	if (thread != 0){
+		pthread_join(thread, NULL);
+	}
 
 	pthread_cond_destroy(&wq->cond);
 	pthread_mutex_destroy(&wq->lock);

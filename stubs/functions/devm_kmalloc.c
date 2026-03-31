@@ -4,7 +4,7 @@ void *devm_kmalloc(void *dev, size_t size, int gfp){
 
 	if(p != NULL){
 		for(u8 j = 0; j < MAX_KMEM_ARRAY_SIZE; j++){
-			if(director.kmem_array[j] != NULL){
+			if(director.kmem_array[j] == NULL){
 				director.kmem_array[j] = p;
 			}
 		}

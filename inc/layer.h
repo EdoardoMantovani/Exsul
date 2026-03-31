@@ -2,6 +2,7 @@
 #define __LAYER_H__
 
 #ifdef __linux__
+#define _GNU_SOURCE
 #include <asm-generic/errno-base.h>
 #include <asm-generic/errno.h>
 #include <asm-generic/param.h>
@@ -12,6 +13,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <elf.h>
+#include <link.h>
 #include <fcntl.h>
 #include <execinfo.h>
 #include <libusb-1.0/libusb.h>
@@ -38,12 +40,16 @@
 #include <sys/random.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/resource.h>
 #include <time.h>
 #include <unistd.h>
 #include <stdatomic.h>
 #include <netinet/ether.h>
 #include <dwarf.h>
 #include <libdwarf/libdwarf.h>
+#ifdef ENABLE_UNWIND_DEBUGGING
+#include <libunwind.h>
+#endif
 #else
 #include <windows.h>
 #include <stddef.h>
@@ -225,8 +231,11 @@ typedef _Atomic(unsigned int) atomic_uint;
 /* maximun number of files that can be opened by the kernel module */
 #define MAX_FILE_IDX		32
 
+/* maximun size of the backtrace, called only in case of crash */
+#define BACKTRACE_MAX_DEPTH     24
+
 /* maximun number of usb endpoints possible */
-#define USB_MAX_ENDPOINT_NUM    12
+#define USB_MAX_ENDPOINT_NUM    30
 
 /* path for the firmware files, this will be used mainly in Linux, for Windows expect a local folder */
 #define DEFAULT_FW_PATH		"/lib/firmware/"
@@ -239,7 +248,7 @@ typedef _Atomic(unsigned int) atomic_uint;
 
 /* workaround for having clang -fsanitize flag working */
 #ifdef __clang__
-#define clang_static
+#define clang_static		static
 #else
 #define clang_static
 #endif
@@ -270,6 +279,7 @@ typedef _Atomic(unsigned int) atomic_uint;
 
 #define PAGE_SIZE		4096
 #define SMP_CACHE_BYTES		L1_CACHE_BYTES
+#define L1_CACHE_ALIGN(x)	__ALIGN_KERNEL(x, L1_CACHE_BYTES)
 
 #define WHITEOUT_MODE		0
 #define WHITEOUT_DEV		0
@@ -1094,7 +1104,10 @@ static inline bool __list_add_valid(struct list_head *new, struct list_head *pre
 		return ret;
 	}else{
 		ret = false;
-		return false;
+		#ifdef LIST_SECURE_CHECK
+		ret &= __list_add_valid_or_report(new, prev, next);
+		#endif
+		return ret;
 	}
 }
 
@@ -1115,6 +1128,9 @@ static inline bool __list_del_entry_valid(struct list_head *entry){
 		return ret;
 	}else{
 		ret = false;
+		#ifdef LIST_SECURE_CHECK
+		ret &= __list_del_entry_valid_or_report(entry);
+		#endif
 		return ret;
 	}
 }
@@ -1847,146 +1863,6 @@ static u64 read_uleb128(u8 *p, int len){
 	return v;
 }
 
-static struct task_struct *tls_current;
-static struct tasklet_head tasklet_global_queue;
-
-static inline void tasklet_schedule(struct tasklet_struct *t){
-	if (!test_and_set_bit(TASKLET_STATE_SCHED, &t->state)){
-		__tasklet_schedule(t);
-	}
-}
-
-/**
- * worker_thread - the worker thread function
- * @__worker: self
- *
- * The worker thread function.  All workers belong to a worker_pool -
- * either a per-cpu one or dynamic unbound one.  These workers process all
- * work items regardless of their specific target workqueue.  The only
- * exception is work items which belong to workqueues with a rescuer which
- * will be explained in rescuer_thread().
- *
- * Return: 0
- */
-static void *worker_thread(void *arg){
-	struct work_struct *work = NULL;
-	struct workqueue_struct *wq = NULL;
-
-	wq = (struct workqueue_struct *)arg;
-
-	pthread_mutex_lock(&wq->lock);
-
-	for (;;) {
-		if (wq->stop && list_empty(&wq->work_list) && list_empty(&wq->delayed_list) && wq->nr_active == 0){
-			break;
-		}
-		delayed_work_timer_fn(wq);
-
-		if (!list_empty(&wq->work_list)) {
-			work = list_first_entry(&wq->work_list, struct work_struct, entry);
-			list_del_init(&work->entry);
-
-			atomic_store_explicit(&work->data, work_encode(wq, WORK_STRUCT_RUNNING), memory_order_relaxed);
-			wq->nr_active++;
-
-			pthread_mutex_unlock(&wq->lock);
-			work->func(work);
-			pthread_mutex_lock(&wq->lock);
-
-			wq->nr_active--;
-			atomic_store_explicit(&work->data, 0, memory_order_release);
-			pthread_cond_broadcast(&wq->cond);
-			continue;
-		}
-
-		if (wq->stop) {
-			pthread_cond_wait(&wq->cond, &wq->lock);
-			continue;
-		}
-
-		if (list_empty(&wq->delayed_list)) {
-			pthread_cond_wait(&wq->cond, &wq->lock);
-		}else{
-			struct delayed_work *dw = NULL;
-			struct work_struct *w = NULL;
-
-			w = list_first_entry(&wq->delayed_list, struct work_struct, entry);
-			dw = container_of(w, struct delayed_work, work);
-
-			pthread_cond_timedwait(&wq->cond, &wq->lock, &dw->expires);
-		}
-	}
-
-	pthread_mutex_unlock(&wq->lock);
-	return NULL;
-}
-
-static struct task_struct *current_thread_info(void){
-	struct task_struct *current_task = NULL;
-	pthread_condattr_t current_condition_attr;
-
-	if (tls_current != NULL){
-		return tls_current;
-	}
-
-	current_task = (struct task_struct *)malloc(sizeof(struct task_struct));
-
-	if(current_task == NULL){
-		return NULL;
-	}
-
-	pthread_mutex_init(&current_task->lock, NULL);
-
-	pthread_condattr_init(&current_condition_attr);
-	pthread_condattr_setclock(&current_condition_attr, CLOCK_MONOTONIC);
-	pthread_cond_init(&current_task->cond, &current_condition_attr);
-	pthread_condattr_destroy(&current_condition_attr);
-
-	atomic_store(&current_task->__state, TASK_RUNNING);
-	atomic_store(&current_task->started, true);
-	atomic_store(&current_task->should_stop, false);
-
-	current_task->tid = pthread_self();
-	snprintf(current_task->name, sizeof(current_task->name), "main");
-
-	tls_current = current_task;
-	return current_task;
-}
-
-static inline bool wq_entry_is_linked(const struct wait_queue_entry *wq_entry){
-	return !(wq_entry->entry.next == &wq_entry->entry && wq_entry->entry.prev == &wq_entry->entry);
-}
-
-/* kthread_trampoline: main function used for invoking the kthread cb */
-static void *kthread_trampoline(void *arg){
-	int ret = 0;
-	struct task_struct *current_thread = NULL;
-	current_thread = (struct task_struct *)arg;
-	tls_current = current_thread;
-
-	pthread_mutex_lock(&current_thread->lock);
-
-	/* wait until the 'current_thread' has the 'started' flag set and the 'should_stop' flag isn't set */
-	while (!atomic_load(&current_thread->started) && !atomic_load(&current_thread->should_stop)){
-		pthread_cond_wait(&current_thread->cond, &current_thread->lock);
-	}
-	pthread_mutex_unlock(&current_thread->lock);
-
-	if (!atomic_load(&current_thread->should_stop) && current_thread->threadfn){
-		/* invoke the real thread callback */
-		ret = current_thread->threadfn(current_thread->data);
-	}
-	/* set the exit code of the thread callback */
-	current_thread->exit_code = ret;
-
-	atomic_store(&current_thread->__state, TASK_RUNNING);
-	pthread_mutex_lock(&current_thread->lock);
-	pthread_cond_broadcast(&current_thread->cond);
-	pthread_mutex_unlock(&current_thread->lock);
-
-	return NULL;
-}
-
 #include <single_offset.h>
 #include <struct_offset.h>
 #include <mod_controller.h>
@@ -2000,6 +1876,6 @@ static void *kthread_trampoline(void *arg){
 #include <hci.h>
 #include <crypto.h>
 #include <ieee80211.h>
-//#include <module.h>
+#include <wq.h>
 
 #endif

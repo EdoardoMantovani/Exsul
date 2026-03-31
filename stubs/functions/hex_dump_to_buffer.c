@@ -6,6 +6,17 @@ int hex_dump_to_buffer(const void *buf, size_t len, int rowsize, int groupsize, 
 	int ascii_column;
 	int ret;
 
+	#ifdef ENABLE_UNWIND_DEBUGGING
+	#define _U                              0x01    /* upper */
+	#define _L                              0x02    /* lower */
+	#define _D                              0x04    /* digit */
+	#define _C                              0x08    /* cntrl */
+	#define _P                              0x10    /* punct */
+	#define _S                              0x20    /* white space (space/lf/tab) */
+	#define _X                              0x40    /* hex digit */
+	#define _SP                             0x80    /* hard space (0x20) */
+	#endif
+
 	if (rowsize != 16 && rowsize != 32)
 		rowsize = 16;
 

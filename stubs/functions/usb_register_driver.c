@@ -1,8 +1,8 @@
 int usb_register_driver(struct usb_driver *new_driver, struct module *owner, const char *mod_name){
 	int ret = 0;
 	unsigned char *probe_name = NULL;
-	struct usb_interface *intf = NULL;
 	struct usb_device_id *id = NULL;
+	struct usb_interface *intf = NULL;
 	const struct usb_device_id *matched_id = NULL;
 
 	if(new_driver == NULL){
@@ -19,6 +19,8 @@ int usb_register_driver(struct usb_driver *new_driver, struct module *owner, con
 	printf("[*] probe address: 0x%08x probe name: %s module_name: %s\n", new_driver->probe, probe_name, mod_name);
 	if(ret == 0){
 		printf("[!] function has 0 size\n");
+		ret = -EINVAL;
+		return ret;
 	}
 
 	/*
@@ -32,16 +34,21 @@ int usb_register_driver(struct usb_driver *new_driver, struct module *owner, con
 		printf("[!] failed to parse the usb vid/pid table, aborting...\n");
 		ret = -EINVAL;
 		return ret;
+	}else{
+		director.usb_device_id = id;
 	}
 
+	usb_interface:
 	/* update: add a specific "matched_id" which refers to the 'usb_device_id' linked with the current attached usb dongle */
 	ret = detect_usb_device(id, &intf, &matched_id);
 	if(ret || intf == NULL || matched_id == NULL){
 		printf("[!] failed to detect the usb dongle! aborting...\n");
 		ret = -EIO;
 		return ret;
+	}else{
+		director.usb_interface = intf;
 	}
-
+	end:
 	/* finally, invoke the probe callback */
 	ret = invoke_usb_probe(new_driver, matched_id, intf);
 	return ret;

@@ -2,7 +2,7 @@
 
 # Made by Edoardo Mantovani, 2026
 # Rewritten with safer local alias inference and guarded field replacement.
-# version 1.1.0 (22 March 2026)
+# version 1.1.5 (29 March 2026)
 
 use strict;
 use warnings;
@@ -25,6 +25,7 @@ my $grep    = `which grep`;
 my $find    = `which find`;
 my $make    = `which make`;
 my $xxd     = `which xxd`;
+my $echo    = `which echo`;
 my $sort    = `which sort`;
 my $mkdir   = `which mkdir`;
 my $readelf = `which readelf`;
@@ -51,6 +52,7 @@ my $function_proto_regex = q{^\h*[_A-Za-z]\w*(?:[\w\h\*]*\h+)+[_A-Za-z]\w*\h*\([
 my $find_command_arg = q{};
 my $cb_table_parse = q{'{print $6}'};
 my $readelf_table_parse = q{'{print $3}'};
+my $sym_name_parse = q{'{print $8}'};
 
 my @built_objects = ();
 my $merged_source = undef;
@@ -64,6 +66,7 @@ my $offsets = undef;
 my $cb_counter = 0;
 my $proto_header = undef;
 my $iterator = undef;
+my $sym_name = undef;
 my $sym_size = undef;
 my $word_processor = undef;
 my $base_folder = undef;
@@ -73,6 +76,7 @@ my $virtual_compilation_folder = undef;
 my $compiler = undef;
 my $enable_firmware_builtin = undef;
 my $enable_fast_compilation = undef;
+my $enable_debugging = undef;
 my $generate_offset_file = undef;
 my $pahole_kernel = undef;
 my $windows_support = undef;
@@ -100,10 +104,15 @@ my %field_idx_by_name = ();
 my %struct_set = ();
 my %used_fields_by_struct = ();
 
+my @gcc_unwind_params = (
+	"-lunwind",
+	"-lunwind-x86_64"
+);
 my @gcc_params = (
 	"-DARCH_INDEPENDENT_BITOPS",
 	"-DCONFIG_PM",
-	"-O2",
+	"-DENABLE_UNWIND_DEBUGGING",
+	"-O1",
 	"-w",
 	"-funwind-tables",
 	"-fasynchronous-unwind-tables",
@@ -130,6 +139,8 @@ my @gcc_final_linkings = (
 	"-lusb-1.0",
 	"-lpthread",
 	"-ldwarf",
+	"-lunwind",
+	"-lunwind-x86_64"
 );
 
 my %struct_whitelist = (
@@ -273,7 +284,7 @@ my %field_ctype = (
 		"regulatory_flags"		=> "u32",
 		"features"			=> "u32",
 		"ext_features"			=> "u8",
-		"priv"				=> "char",
+		"priv"				=> "void *",
 		"max_num_csa_counters"		=> "u8",
 		"max_ap_assoc_sta"		=> "u16",
 		"bands"				=> "struct ieee80211_supported_band *",
@@ -516,6 +527,7 @@ chomp($grep);
 chomp($find);
 chomp($make);
 chomp($xxd);
+chomp($echo);
 chomp($sort);
 chomp($mkdir);
 chomp($readelf);
@@ -524,6 +536,7 @@ GetOptions(
 	"compiler=s"      => \$compiler,
 	"enable-fw"	  => \$enable_firmware_builtin,
 	"fast"		  => \$enable_fast_compilation,
+	"debug"		  => \$enable_debugging,
 	"generate_offset" => \$generate_offset_file,
 	"pahole_kernel=s" => \$pahole_kernel,
 	"windows"         => \$windows_support,
@@ -574,6 +587,10 @@ if($compiler){
 		push(@gcc_params, "-I/usr/include/ ");
 		push(@gcc_params, "-I/usr/include/x86_64-linux-gnu/ ");
 	}
+}
+
+if($enable_debugging){
+
 }
 
 # gcc ming for Windows doesn't support -rdynamic, this is just a workaround for not producing any errors during the compilation.
@@ -1170,6 +1187,9 @@ foreach(`$find $stubs/$functions/ $find_command_arg`){
 	# get the symbol size
 	$sym_size = `$readelf -sW $build/merged_functions.o 2>/dev/null | $grep \" $iterator\$\" 2>/dev/null | $awk $readelf_table_parse 2>/dev/null`;	
 	chomp($sym_size);
+	if(!$sym_size){
+		$sym_size = 0;
+	}
 	print FH "    [$cb_counter] = { .function_name = \"$iterator\", .function_ptr = $iterator, .function_size = $sym_size },\n";
 	$cb_counter++;
 	$proto = `$grep -oP '$function_proto_regex' $current_stub`;
@@ -1199,12 +1219,7 @@ foreach(`$find $stubs/$variables/ $find_command_arg`){
 	print PROTO "extern $proto;\n";
 }
 
-print FH "    [$cb_counter] = { .function_name = NULL, .function_ptr = NULL },\n";
-print FH "};\n\n";
-close(FH) or die $!;
-close(PROTO) or die $!;
-
-print("[*] global callback table generated...\n");
+print FH "};";
 
 `$cp $cb_header $virtual_compilation_folder/$include`;
 `$cp $proto_header $virtual_compilation_folder/$include`;
@@ -1226,6 +1241,42 @@ if($enable_fast_compilation){
 	}
 }
 print("[*] compiling main.c...\n");
+system("$compiler @gcc_params -c -I./$virtual_compilation_folder/$arch -I./$virtual_compilation_folder/$include $virtual_compilation_folder/$source/$main -o $bin/$final_program $final_obj_line");
+# now reads the defined symbols under /bin/translator
+close(FH);
+my $d = q{-i '$ d'};
+`$sed $d $cb_header`;
+open(FH, '>>', $cb_header) or die $!;
+
+my @cmd = `$readelf -sW $bin/$final_program | $grep -iv "UND" | $grep "FUNC"`;
+
+foreach my $iterator (@cmd){
+	chomp($iterator);
+
+	next if $iterator =~ /^\s*$/;
+	next if $iterator =~ /^\s*Symbol table/;
+	next if $iterator =~ /^\s*Num:/;
+
+	$sym_name = `$echo $iterator | $awk $sym_name_parse`;
+	$sym_size = `$echo $iterator | $awk $readelf_table_parse`;
+	chomp($sym_name);
+	chomp($sym_size);
+	if($verbose){
+		print("[*] adding new symbol $sym_name\n");
+	}
+	print FH "    [$cb_counter] = { .function_name = \"$sym_name\", .function_ptr = $sym_name, .function_size = $sym_size },\n";
+	$cb_counter++;
+}
+print FH "    [$cb_counter] = { .function_name = NULL, .function_ptr = NULL },\n";
+print FH "};\n\n";
+close(FH) or die $!;
+close(PROTO) or die $!;
+print("[*] global callback table generated...\n");
+# now delete 'translator'
+`$rm $bin/$final_program`;
+# copy the new 'cb_table.h' in the out directory
+`$cp $include/$cb_table $virtual_compilation_folder/$include/$cb_table`;
+# now run the real compilation command
 system("$compiler @gcc_params @gcc_final_params -I./$virtual_compilation_folder/$arch -I./$virtual_compilation_folder/$include $virtual_compilation_folder/$source/$main -o $bin/$final_program $final_obj_line @gcc_final_linkings");
 print("[*] compilation finished, output build available under ./bin!\n");
 undef(@struct_fields);

@@ -4,7 +4,7 @@
  * main source code (usually this is for 'struct device' or others which changes in every kernel version)
  */
 
-static unsigned int get_struct_size(unsigned char *struct_name){
+static int get_struct_size(unsigned char *struct_name){
 	int ret = 0;
 	struct runtime_struct *runtime_structs = NULL;
 	struct runtime_struct_layout *runtime_struct_layout = NULL;
@@ -31,4 +31,3 @@ static unsigned int get_struct_size(unsigned char *struct_name){
 	ret = -EINVAL;
 	return ret;
 }
-

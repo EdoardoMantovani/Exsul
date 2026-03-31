@@ -349,3 +349,16 @@ static const struct usb_host_endpoint *usb_find_endpoint(struct usb_interface *i
 	return NULL;
 }
 
+/* model the primitives for locking during usb i/o phases */
+static inline void usb_lock(void) {
+	pthread_mutex_lock(&director.usb_io_lock);
+	director.usb_io_depth++;
+}
+
+static inline void usb_unlock(void) {
+	director.usb_io_depth--;
+	if (director.usb_io_depth == 0){
+		pthread_cond_broadcast(&director.usb_io_idle);
+	}
+	pthread_mutex_unlock(&director.usb_io_lock);
+}

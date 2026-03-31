@@ -11,7 +11,7 @@
  * add them to a queue present in the main context.
  */
 #define MALLOC(alloc_ptr, alloc_size, alloc_flags)	alloc_ptr = malloc(alloc_size);										\
-							new_allocation(ALLOCATION_TYPE_MALLOC, alloc_ptr, alloc_size, alloc_flags, wdirector.allocation_list);
+							new_allocation(ALLOCATION_TYPE_MALLOC, alloc_ptr, alloc_size, alloc_flags, director.allocation_list);
 
 #define MMAP(alloc_ptr, alloc_size, alloc_flags)	alloc_ptr = mmap(NULL, alloc_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);		\
 							new_allocation(ALLOCATION_TYPE_MMAP, alloc_ptr, alloc_size, alloc_flags, director.allocation_list);
@@ -103,6 +103,12 @@
  * @name: name of the list_head
  */
 #define LIST_HEAD(name) struct list_head name = LIST_HEAD_INIT(name)
+
+#define CHECK_DATA_CORRUPTION(condition, addr, fmt, ...)		 \
+	check_data_corruption(({					 \
+		bool corruption = unlikely(condition);			 \
+		corruption;						 \
+	}))
 
 #define MAX_JIFFY_OFFSET ((LONG_MAX >> 1)-1)
 
@@ -1062,6 +1068,17 @@ out:										\
 #define isupper(c)			((__ismask(c)&(_U)) != 0)
 #define isxdigit(c)			((__ismask(c)&(_D|_X)) != 0)
 
+#ifdef ENABLE_UNWIND_DEBUGGING
+#undef _U
+#undef _L
+#undef _D
+#undef _C
+#undef _P
+#undef _S
+#undef _X
+#undef _SP
+#endif
+
 #define _U				0x01	/* upper */
 #define _L				0x02	/* lower */
 #define _D				0x04	/* digit */
@@ -1221,6 +1238,7 @@ struct word_at_a_time {
 struct allocation_list {
 	u8 alloc_type;
 	u8 alloc_flags;
+	u8 alloc_inmem_type;
 	int alloc_len;
 	void *alloc_ptr;
 	struct allocation_list *alloc_next;
@@ -1231,6 +1249,10 @@ struct crashdump_section {
 	int start_offset;
 	int length;
 };
+
+static inline bool check_data_corruption(bool v){
+	return v;
+}
 
 #ifdef ARCH_INDEPENDENT_BITOPS
 /* functions taken from 'https://github.com/chris1111/AppleIntelE1000e/blob/0604bc4bdfb1a12be7af6b7fe2ce5b9ad8582310/kcompat.h#L423-L440C2' */
@@ -1531,6 +1553,7 @@ static void *memdup(void *memarea, unsigned int size){
 	if(size > 0){
 		new_memarea = (void *)malloc(size);
 		memcpy(new_memarea, memarea, size);
+		return new_memarea;
 	}else{
 		return NULL;
 	}
@@ -1707,7 +1730,7 @@ static inline int futex_wait_timeout(atomic_int *addr, int expected, struct time
 
 static bool is_a_number(unsigned char character){
 	bool ret = false;
-	if(character <= '1' && character >= '9'){
+	if(character >= '0' && character <= '9'){
 		ret = true;
 	}
 	return ret;
@@ -1749,6 +1772,7 @@ static struct allocation_list *add_top_memory_zone(struct allocation_list *curre
                 head->alloc_ptr   = current_allocation->alloc_ptr;
                 head->alloc_len   = current_allocation->alloc_len;
 		head->alloc_flags = current_allocation->alloc_flags;
+		head->alloc_inmem_type  = current_allocation->alloc_inmem_type;
 		head->alloc_next  = next_memory_zone;
 	}else{
 		head = (struct allocation_list *)malloc(sizeof(struct allocation_list));
@@ -1756,6 +1780,7 @@ static struct allocation_list *add_top_memory_zone(struct allocation_list *curre
                 head->alloc_ptr   = current_allocation->alloc_ptr;
                 head->alloc_len   = current_allocation->alloc_len;
 		head->alloc_flags = current_allocation->alloc_flags;
+		head->alloc_inmem_type  = current_allocation->alloc_inmem_type;
 		head->alloc_next  = NULL;
 	}
 	return head;
@@ -1794,13 +1819,14 @@ static void dump_memory_allocation_list(struct allocation_list *head){
 }
 
 /* high level function which adds an allocation node to the main context */
-static struct allocation_list *new_allocation(u8 allocation_type, void *allocation_ptr, int allocation_length, u8 allocation_flags, struct allocation_list *allocation_head){
+static struct allocation_list *new_allocation(u8 allocation_type, void *allocation_ptr, int allocation_length, u8 allocation_flags, u8 allocation_inmem_type, struct allocation_list *allocation_head){
 	struct allocation_list *head = NULL;
 	struct allocation_list current_allocation = {
 		.alloc_type  = allocation_type,
 		.alloc_ptr   = allocation_ptr,
 		.alloc_flags = allocation_flags,
 		.alloc_len   = allocation_length,
+		.alloc_inmem_type = allocation_inmem_type,
 	};
 	head = add_memory_zone(&current_allocation, allocation_head);
 	return head;
@@ -1819,7 +1845,7 @@ static int convert_vermagic(unsigned char *vermagic_string, u8 *version, u8 *sub
 		return ret;
 	}
 
-	current_ver = strtok(vermagic_string, '.');
+	current_ver = strtok(vermagic_string, ".");
 	if(current_ver != NULL){
 		*version = atoi(current_ver);
 	}else{
@@ -1857,4 +1883,15 @@ static void DumpHex(const void* data, size_t size) {
 		}
 	}
 }
+
+#ifdef ENABLE_UNWIND_DEBUGGING
+#undef _U
+#undef _L
+#undef _D
+#undef _C
+#undef _P
+#undef _S
+#undef _X
+#undef _SP
+#endif
 #endif
