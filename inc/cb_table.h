@@ -504,7 +504,7 @@ struct internal_cb_table sym_table[8192] = {
     [495] = { .function_name = "__apply_fineibt", .function_ptr = __apply_fineibt, .function_size = 195 },
     [496] = { .function_name = "apply_fineibt", .function_ptr = apply_fineibt, .function_size = 195 },
     [497] = { .function_name = "reg_from_indirect_thunk", .function_ptr = reg_from_indirect_thunk, .function_size = 278 },
-    [498] = { .function_name = "apply_retpolines", .function_ptr = apply_retpolines, .function_size = 668 },
+    [498] = { .function_name = "apply_retpolines", .function_ptr = apply_retpolines, .function_size = 736 },
     [499] = { .function_name = "module_finalize", .function_ptr = module_finalize, .function_size = 949 },
     [500] = { .function_name = "__write_relocate_add", .function_ptr = __write_relocate_add, .function_size = 621 },
     [501] = { .function_name = "write_relocate_add", .function_ptr = write_relocate_add, .function_size = 33 },

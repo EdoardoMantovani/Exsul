@@ -2102,7 +2102,8 @@ void apply_retpolines(s32 *start, s32 *end){
 		struct insn insn  = {};
 		void       *thunk = NULL;
 		int         reg = 0;
-		u8          buf[CALL_INSN_SIZE];
+		u8          buf[8];
+		int         write_len;
 
 		if (insn_decode_kernel(&insn, addr)){
 			continue;
@@ -2122,7 +2123,8 @@ void apply_retpolines(s32 *start, s32 *end){
 			continue;
 		}
 
-		memset(buf, 0x90, CALL_INSN_SIZE);
+		write_len = insn.length;
+		memset(buf, 0x90, write_len);
 		if (reg < 8) {
 			buf[0] = 0xFF;
 			buf[1] = 0xD0 | (u8)(reg & 7);
@@ -2136,8 +2138,8 @@ void apply_retpolines(s32 *start, s32 *end){
 		printf("[*] %s: site %p -> %s (r%d): %02x %02x %02x %02x %02x\n", __FUNCTION__, addr, (reg < 8 ? "low" : "r8+"), reg,
 		buf[0], buf[1], buf[2], buf[3], buf[4]);
 		#endif
-		memcpy(addr, buf, CALL_INSN_SIZE);
-		__builtin___clear_cache((char *)addr, (char *)addr + CALL_INSN_SIZE);
+		memcpy(addr, buf, write_len);
+		__builtin___clear_cache((char *)addr, (char *)addr + write_len);
 	}
 }
 
