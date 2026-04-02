@@ -510,7 +510,7 @@ struct internal_cb_table sym_table[8192] = {
     [501] = { .function_name = "write_relocate_add", .function_ptr = write_relocate_add, .function_size = 33 },
     [502] = { .function_name = "apply_relocate_add", .function_ptr = apply_relocate_add, .function_size = 36 },
     [503] = { .function_name = "apply_relocate", .function_ptr = apply_relocate, .function_size = 286 },
-    [504] = { .function_name = "unwind_backtrace", .function_ptr = unwind_backtrace, .function_size = 370 },
+    [504] = { .function_name = "unwind_backtrace", .function_ptr = unwind_backtrace, .function_size = 356 },
     [505] = { .function_name = "walk_shared_libraries", .function_ptr = walk_shared_libraries, .function_size = 481 },
     [506] = { .function_name = "__calloc", .function_ptr = __calloc, .function_size = 18 },
     [507] = { .function_name = "__snprintf", .function_ptr = __snprintf, .function_size = 143 },

@@ -2,6 +2,8 @@
 
 #include "inat.h"
 
+#define MAX_UNWIND_ITERATIONS			16
+
 #define EM_CURRENT_ARCH				EM_X86_64
 #define TRAMP_REGION_SIZE			(64 * 1024)
 
@@ -2495,8 +2497,11 @@ void unwind_backtrace(void){
 		/* for every rip value, search a function associated to it */
 		printf("[%d] rip: 0x%08lx rsp: 0x%08lx -> %s\n", counter, rip, rsp, (function_name != NULL) ? function_name : "undefined");
 		counter++;
+		if(counter > MAX_UNWIND_ITERATIONS){
+			goto end;
+		}
 	} while (unw_step(&cursor) > 0);
-
+	end:
 }
 #endif /* ENABLE_UNWIND_DEBUGGING */
 #endif /* __x86_64__ */
