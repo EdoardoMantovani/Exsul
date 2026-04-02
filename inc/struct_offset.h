@@ -20,7 +20,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[0] = {
 				.struct_size = 0,
 				.struct_name = "device",
-				.struct_field_num = 7,
+				.struct_field_num = 6,
 				.fields = {
 					[0] = {
 						.field_name = "cfg",
@@ -39,14 +39,10 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[4] = {
-						.field_name = "parent",
-						.field_offset = 0,
-					},
-					[5] = {
 						.field_name = "rb_left",
 						.field_offset = 0,
 					},
-					[6] = {
+					[5] = {
 						.field_name = "rb_right",
 						.field_offset = 0,
 					},

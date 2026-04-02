@@ -359,7 +359,7 @@ void skb_unlink(struct sk_buff *skb, struct sk_buff_head *list);
 struct sk_buff *ieee80211_pspoll_get(struct ieee80211_hw *hw, struct ieee80211_vif *vif);
 void ieee80211_tx_status_irqsafe(struct ieee80211_hw *hw, struct sk_buff *skb);
 void udp6_set_csum(bool nocheck, struct sk_buff *skb, struct in6_addr *saddr, struct in6_addr *daddr, int len);
-int usb_control_msg(struct usb_device *dev, unsigned int pipe, __u8 request, __u8 requesttype, __u16 value, __u16 index, void *data, __u16 size, int timeout);
+stub int usb_control_msg(struct usb_device *dev, unsigned int pipe, __u8 request, __u8 requesttype, __u16 value, __u16 index, void *data, __u16 size, int timeout);
 void __x86_indirect_thunk_r15(void);
 void tasklet_init(struct tasklet_struct *t, void (*func)(unsigned long), unsigned long data);
 void ieee80211_stop_tx_ba_cb_irqsafe(struct ieee80211_vif *vif, u8 *ra, u16 tid);
