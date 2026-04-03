@@ -26,73 +26,50 @@ static void *worker_thread(void *arg){
 	struct workqueue_struct *wq = NULL;
 
 	wq = (struct workqueue_struct *)arg;
-	printf("worker_thread0\n");
 	pthread_mutex_lock(&wq->lock);
-	printf("worker_thread1\n");
 	for (;;) {
-		printf("worker_thread2\n");
 		if (wq->stop && list_empty(&wq->work_list) && list_empty(&wq->delayed_list) && wq->nr_active == 0){
 			break;
 		}
-		printf("worker_thread2\n");
 		delayed_work_timer_fn(wq);
-		printf("worker_thread3\n");
 
 		if (!list_empty(&wq->work_list)) {
-			printf("worker_thread4\n");
 			work = list_first_entry(&wq->work_list, struct work_struct, entry);
-			printf("worker_thread5\n");
 			list_del_init(&work->entry);
-			printf("worker_thread6\n");
 			atomic_store_explicit(&work->data, work_encode(wq, WORK_STRUCT_RUNNING), memory_order_relaxed);
-			printf("worker_thread7\n");
 			wq->nr_active++;
 
 			pthread_mutex_unlock(&wq->lock);
-			printf("worker_thread8\n");
 			pthread_mutex_lock(&director.usb_io_lock);
 			while (director.usb_io_depth > 0){
 				pthread_cond_wait(&director.usb_io_idle, &director.usb_io_lock);
 			}
 			pthread_mutex_unlock(&director.usb_io_lock);
-			printf("worker_thread8.1\n");
 			work->func(work);
-			printf("worker_thread9\n");
 			pthread_mutex_lock(&wq->lock);
 
 			wq->nr_active--;
 			atomic_store_explicit(&work->data, 0, memory_order_release);
-			printf("worker_thread10\n");
 			pthread_cond_broadcast(&wq->cond);
 			continue;
 		}
 
 		if (wq->stop) {
-			printf("worker_thread10.1\n");
 			pthread_cond_wait(&wq->cond, &wq->lock);
-			printf("worker_thread10.2\n");
 			continue;
 		}
-		printf("worker_thread11\n");
+
 		if (list_empty(&wq->delayed_list)) {
-			printf("worker_thread12\n");
 			pthread_cond_wait(&wq->cond, &wq->lock);
-			printf("worker_thread13\n");
 		}else{
 			struct delayed_work *dw = NULL;
 			struct work_struct *w = NULL;
-			printf("worker_thread14\n");
 			w = list_first_entry(&wq->delayed_list, struct work_struct, entry);
-			printf("worker_thread15\n");
 			dw = container_of(w, struct delayed_work, work);
-			printf("worker_thread16\n");
 			pthread_cond_timedwait(&wq->cond, &wq->lock, &dw->expires);
-			printf("worker_thread17\n");
 		}
 	}
-	printf("worker_thread18\n");
 	pthread_mutex_unlock(&wq->lock);
-	printf("worker_thread19\n");
 	return NULL;
 }
 

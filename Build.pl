@@ -109,7 +109,6 @@ my @gcc_unwind_params = (
 	"-lunwind-x86_64"
 );
 my @gcc_params = (
-	"-DENABLE_DBG_PRINT",
 	"-DARCH_INDEPENDENT_BITOPS",
 	"-DCONFIG_PM",
 	"-DENABLE_UNWIND_DEBUGGING",

@@ -1375,6 +1375,7 @@ static void skb_over_panic(struct sk_buff *skb, unsigned int sz, void *addr){
 }
 
 static void skb_under_panic(struct sk_buff *skb, unsigned int sz, void *addr){
+	printf("[!!] detected skb panic!...\n");
 	skb_panic(skb, sz, addr, __func__);
 }
 
