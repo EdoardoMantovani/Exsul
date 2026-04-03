@@ -29,7 +29,7 @@ int request_firmware(const struct firmware **firmware_p, const char *name, void 
 		return ret;
 	}
 
-	if (st.st_size < 0) {
+	if (st.st_size <= 0) {
 		close(fd);
 		ret = -EINVAL;
 		return ret;
@@ -50,7 +50,7 @@ int request_firmware(const struct firmware **firmware_p, const char *name, void 
 		return ret;
 	}
 
-	while (total < (size_t)st.st_size) {
+	while (total < st.st_size) {
 		nread = read(fd, buf + total, (size_t)st.st_size - total);
 		if (nread < 0) {
 			ret = -errno;

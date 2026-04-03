@@ -1064,7 +1064,7 @@ out:										\
 #define ispunct(c)			((__ismask(c)&(_P)) != 0)
 
 /* Note: isspace() must return false for %NUL-terminator */
-#define isspace(c)			((__ismask(c)&(_S)) != 0)
+#define isspace(c)			((__ismask(c)&(0x20)) != 0)
 #define isupper(c)			((__ismask(c)&(_U)) != 0)
 #define isxdigit(c)			((__ismask(c)&(_D|_X)) != 0)
 

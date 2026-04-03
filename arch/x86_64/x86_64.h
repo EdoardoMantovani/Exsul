@@ -1765,7 +1765,7 @@ void callthunks_setup(struct callthunk_sites *cs, const struct core_text *ct){
 	#endif
 	patch_call_sites(cs->call_start, cs->call_end, ct);
 	#ifdef ENABLE_DBG_PRINT
-	printf("Patching call sites done%s\n", ct->name);
+	printf("Patching call sites done: %s\n", ct->name);
 	#endif
 }
 

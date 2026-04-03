@@ -70,6 +70,8 @@ struct module_controller {
 	u8 segments_in_memory;
 	void *segment_header_in_memory;
 
+	/* special flags used for indicating that the offsets have already been given by a configuration file, this permits to skip the dwarf parsing part during the lkm loading */
+	u8 offset_init_by_conf;
         /* provide the support for loading multiple lkm, permitting thus to reuse the functions from every lkm loaded */
         u8 loaded_lkm_num;
 	/* track every memory region mapped in the actual memory, it doesn't matter much the original module they belongs to */

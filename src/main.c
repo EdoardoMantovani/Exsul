@@ -1949,7 +1949,10 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		return err;
 	}
 
-	parse_module_offset_table();
+	/* skip completely the dwarf module parsing if the end user has already issued the offset configuration file */
+	if(director.offset_init_by_conf == false){
+		parse_module_offset_table();
+	}
 
 	close(fd);
 
@@ -2628,6 +2631,40 @@ int drv_cmd_get(struct module_controller *director, char *argv[], int num_args) 
 		elf_generator_handler();
 	}
 
+	/* dump the structs and offsets of the actual loaded lkm */
+	if(strstr(get_req, "conf") != NULL){
+		ret = open("offsets.conf", O_RDWR | O_CREAT, 0777);
+		lseek(ret, 0, SEEK_SET);
+		unsigned char line[48] = {};
+
+		for (int i = 0; ; i++) {
+			const struct runtime_struct_layout *layout = &runtime_generated_structs.structs[i];
+
+			if (layout == NULL || layout->struct_name == NULL){
+				break;
+			}
+			if(layout->struct_size == 0){
+				continue;
+			}
+			memset(line, 0, sizeof(line));
+			snprintf(line, sizeof(line), "%s\n", layout->struct_name);
+			write(ret, line, strlen(line));
+			memset(line, 0, sizeof(line));
+			snprintf(line, sizeof(line), "$size: %d\n", layout->struct_size);
+			write(ret, line, strlen(line));
+
+			for (int j = 0; j < layout->struct_field_num; j++) {
+				memset(line, 0, sizeof(line));
+				snprintf(line, sizeof(line), "%s: %u\n", layout->fields[j].field_name, layout->fields[j].field_offset);
+				write(ret, line, strlen(line));
+			}
+			memset(line, 0, sizeof(line));
+			write(ret, "\n", 1);
+		}
+		close(ret);
+		ret = 0;
+	}
+
 	return ret;
 }
 
@@ -3119,12 +3156,221 @@ void crash_handler(int sig){
 	exit(0);
 }
 
+static void trim_inplace(unsigned char *line){
+	unsigned char *start = NULL;
+	unsigned char *end = NULL;
+
+	if (line == NULL){
+		goto quit;
+	}
+
+	start = line;
+
+	while (*start && isspace((unsigned char)*start)){
+		start++;
+	}
+
+	if (start != line){
+		memmove(line, start, strlen(start) + 1);
+	}
+
+	/* exit if line is blank */
+	if (*line == '\0'){
+		goto quit;
+	}
+
+	end = line + strlen(line) - 1;
+	while (end >= line && isspace((unsigned char)*end)) {
+		*end = '\0';
+		end--;
+	}
+	quit:
+}
+
+/* helper function used for searching a strut given it's name */
+static struct runtime_struct_layout *find_struct_by_name(struct runtime_struct *runtime_struct, unsigned char *name){
+	if(name == NULL || runtime_struct == NULL){
+		return NULL;
+	}
+
+	for (int i = 0; ; i++) {
+		if (runtime_struct->structs[i].struct_name == NULL){
+			break;
+		}
+
+		if (strcmp(runtime_struct->structs[i].struct_name, name) == 0){
+			return &runtime_struct->structs[i];
+		}
+	}
+	return NULL;
+}
+
+static struct struct_field *find_field_by_name(struct runtime_struct_layout *runtime_struct, unsigned char *name){
+	if (runtime_struct == NULL || name == NULL){
+		return NULL;
+	}
+
+	for (int i = 0; i < runtime_struct->struct_field_num; i++) {
+		if (strcmp(runtime_struct->fields[i].field_name, name) == 0){
+			return &runtime_struct->fields[i];
+		}
+	}
+	return NULL;
+}
+
+int handle_offset_config(unsigned char *offset_config_name){
+	int ret = 0;
+	int fd = 0;
+	int nread = 0;
+	int total = 0;
+	int file_size = 0;
+	char line[48] = {};
+	struct stat config_stats = {};
+	unsigned char *cursor = NULL;
+	unsigned char *config_buffer = NULL;
+	struct runtime_struct_layout *current_layout = NULL;
+
+	fd = open(offset_config_name, O_RDONLY);
+
+	if(fd < 0){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	fstat(fd, &config_stats);
+
+	file_size = config_stats.st_size;
+
+	if(file_size == 0){
+		ret = -EINVAL;
+		close(fd);
+		return ret;
+	}
+
+	config_buffer = malloc((size_t)file_size + 1);
+	if (config_buffer == NULL){
+		close(fd);
+		ret = -ENOMEM;
+		return ret;
+	}
+
+	/* copy the config file into the new allocated buffer */
+	while (total < file_size) {
+		nread = read(fd, config_buffer + total, file_size - total);
+		if (nread < 0) {
+			if (errno == EINTR){
+				continue;
+			}
+			goto fail;
+		}
+		if (nread == 0){
+			break;
+		}
+		total += nread;
+	}
+
+	config_buffer[total] = '\0';
+	close(fd);
+	cursor = config_buffer;
+
+	while (*cursor) {
+		unsigned char *line_start = cursor;
+		unsigned char *line_end = NULL;
+		unsigned char *separator = NULL;
+		size_t len = 0;
+
+		line_end = strchr(cursor, '\n');
+		if (line_end) {
+			*line_end = '\0';
+			cursor = line_end + 1;
+		}else{
+			cursor += strlen(cursor);
+		}
+
+		len = strlen(line_start);
+		if (len > 0 && line_start[len - 1] == '\r'){
+			line_start[len - 1] = '\0';
+		}
+
+		trim_inplace(line_start);
+		if (line_start[0] == '\0'){
+			continue;
+		}
+
+		separator = strchr(line_start, ':');
+
+		if (separator == NULL) {
+			current_layout = find_struct_by_name(&runtime_generated_structs, line_start);
+			continue;
+		}
+
+		if (current_layout == NULL) {
+			continue;
+		}
+
+		*separator = '\0';
+		{
+			unsigned char *name_part = line_start;
+			unsigned char *value_part = separator + 1;
+			unsigned long v = 0;
+
+			trim_inplace(name_part);
+			trim_inplace(value_part);
+			{
+				unsigned char *endp = NULL;
+				v = strtoul(value_part, &endp, 10);
+				if (errno != 0 || endp == value_part || *endp != '\0') {
+					errno = EINVAL;
+					goto fail;
+				}
+			}
+
+			if (strcmp(name_part, "$size") == 0) {
+			if (v > 32767) {
+				errno = EINVAL;
+				goto fail;
+			}
+
+			current_layout->struct_size = (u16)v;
+			continue;
+		}
+		{
+			struct struct_field *field = NULL;
+
+			if (v > 65535) {
+				errno = EINVAL;
+				goto fail;
+			}
+
+			field = find_field_by_name(current_layout, name_part);
+			if (field == NULL) {
+				continue;
+			}
+			field->field_offset = (unsigned short)v;
+		}
+		}
+	}
+
+	/* if everything went okay, set a special flags in the global context */
+	director.offset_init_by_conf = true;
+
+	fail:
+	if(config_buffer != NULL){
+		free(config_buffer);
+	}
+	if(fd > 0){
+		close(fd);
+	}
+	return ret;
+}
+
 int main(int argc, char *argv[], char *envp[]) {
 	int	       ret	     = 0;
 	int            fd            = 0;
 	char           line[64]      = {};
 	unsigned char *drv_arg[5]    = {};
 	unsigned char *function_name = NULL;
+	unsigned char *offset_config_name = NULL;
 
 	struct cmd_table_entry dispatch_cmd_table[] = {
 		[DRV_CMD_EXIT] =
@@ -3194,12 +3440,51 @@ int main(int argc, char *argv[], char *envp[]) {
 		ret = -EINVAL;
 		return ret;
 	}
+
+	/* start by searching for the offsets.conf file */
+	for(u8 argv_idx = 1; argv[argv_idx] != NULL; argv_idx++){
+		if(argv_idx != 1 && strstr(argv[argv_idx], ".conf") != NULL && strstr(argv[argv_idx], ".ko") == NULL){
+			offset_config_name = argv[argv_idx];
+			ret = handle_offset_config(offset_config_name);
+			#ifdef ENABLE_DBG_PRINT
+			struct runtime_struct *runtime_structs = NULL;
+			struct runtime_struct_layout *runtime_struct_layout = NULL;
+			struct struct_field *current_struct_fields = NULL;
+
+			runtime_structs = &runtime_generated_structs;
+			for (u16 counter = 0; counter < ARRAY_SIZE(runtime_structs->structs); counter++) {
+				runtime_struct_layout = &runtime_structs->structs[counter];
+				if(runtime_struct_layout->struct_field_num == 0){
+					continue;
+				}
+				current_struct_fields = runtime_struct_layout->fields;
+				for (u8 k = 0; k < runtime_struct_layout->struct_field_num; k++) {
+					if(current_struct_fields[k].field_name == NULL){
+						break;
+					}
+					printf("  - %s->%s offset: %d original struct size: %d\n",
+						runtime_struct_layout->struct_name,
+						current_struct_fields[k].field_name,
+						current_struct_fields[k].field_offset,
+						runtime_struct_layout->struct_size
+					);
+				}
+			}
+			#endif
+			break;
+		}
+	}
+
 	/* add a fast loading option: if the user insert as argv 1 or more '.ko', load them in the order given */
 	if(strstr(argv[1], ".ko") != NULL){
 		for(u8 argv_idx = 1; argv[argv_idx] != NULL; argv_idx++){
 			/* add a new fast option: if there is only 1 name without .ko, assume it is the function that needs to be executed */
-			if(argv_idx != 1 && strstr(argv[argv_idx], ".ko") == NULL){
+			if(argv_idx != 1 && strstr(argv[argv_idx], ".ko") == NULL && strstr(argv[argv_idx], ".conf") == NULL){
 				function_name = argv[argv_idx];
+				continue;
+			}
+			/* skip the .conf file */
+			if(argv_idx != 1 && strstr(argv[argv_idx], ".ko") == NULL && strstr(argv[argv_idx], ".conf") != NULL){
 				continue;
 			}
 			fd = open(argv[argv_idx], O_RDONLY);

@@ -213,6 +213,7 @@ void __tasklet_schedule(struct tasklet_struct *t);
 bool phy_check_valid(int speed, int duplex, unsigned long *features);
 int crypto_probing_notify(unsigned long val, void *v);
 void skb_append(struct sk_buff *old, struct sk_buff *newsk, struct sk_buff_head *list);
+bool schedule_work(struct work_struct *work);
 void _dev_err(const struct device *dev, const char *fmt, ...);
 void sock_gen_put(struct sock *sock);
 struct wiphy *wiphy_new_nm(const struct cfg80211_ops *ops, int sizeof_priv, const char *requested_name);

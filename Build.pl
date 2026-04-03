@@ -109,6 +109,7 @@ my @gcc_unwind_params = (
 	"-lunwind-x86_64"
 );
 my @gcc_params = (
+	"-DENABLE_DBG_PRINT",
 	"-DARCH_INDEPENDENT_BITOPS",
 	"-DCONFIG_PM",
 	"-DENABLE_UNWIND_DEBUGGING",
@@ -120,6 +121,7 @@ my @gcc_params = (
 	"-march=native",
 	"-mtune=native",
 	"-mstackrealign",
+	"-mno-avx512f",
 );
 my @gcc_stub_params = (
 	"-mno-sse",
@@ -606,6 +608,8 @@ if($clean){
 	# update: remove also crashdump files
 	`$rm -f crashreport*`;
 	`$rm -f sigabort_crash*`;
+	`$rm -f offsets.conf`;
+	`$rm -f dumped_driver.elf`;
 
 	if($offset_generation_file){
 		`$rm $offset_generation_file 2>/dev/null`;
@@ -1190,6 +1194,7 @@ foreach(`$find $stubs/$functions/ $find_command_arg`){
 	if(!$sym_size){
 		$sym_size = 0;
 	}
+
 	print FH "    [$cb_counter] = { .function_name = \"$iterator\", .function_ptr = $iterator, .function_size = $sym_size },\n";
 	$cb_counter++;
 	$proto = `$grep -oP '$function_proto_regex' $current_stub`;
@@ -1264,6 +1269,12 @@ foreach my $iterator (@cmd){
 	if($verbose){
 		print("[*] adding new symbol $sym_name\n");
 	}
+	# fix: clear the input that needs to be inserted in the 'cb_table.h' header, avoid '.L__FUNCTION__xxx' and in general every symbol which starts with '.'
+	next if !length($sym_name);
+	next if $sym_name =~ /^\./;
+	next if $sym_name =~ /__FUNCTION__/;
+	next if $sym_name !~ /^[_A-Za-z]\w*$/;
+
 	print FH "    [$cb_counter] = { .function_name = \"$sym_name\", .function_ptr = $sym_name, .function_size = $sym_size },\n";
 	$cb_counter++;
 }
