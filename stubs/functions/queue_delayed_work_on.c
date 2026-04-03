@@ -12,6 +12,10 @@ int queue_delayed_work_on(int cpu, struct workqueue_struct *wq, struct delayed_w
 		return ret;
 	}
 
+	expected = atomic_load_explicit(&dwork->work.data, memory_order_acquire);
+	if (expected & (WORK_STRUCT_PENDING | WORK_STRUCT_RUNNING)) {
+		return 0;
+	}
 	desired = work_encode(wq, WORK_STRUCT_PENDING | WORK_STRUCT_DELAYED);
 	ret = atomic_compare_exchange_strong_explicit(&dwork->work.data, &expected, desired, memory_order_acq_rel, memory_order_relaxed);
 

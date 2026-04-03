@@ -532,7 +532,7 @@ static struct bucket_table *bucket_table_alloc(struct rhashtable *ht, int nbucke
 	int size = 0;
 	struct bucket_table *tbl = NULL;
 
-	tbl = malloc(sizeof(struct bucket_table) + (sizeof(struct rhash_lock_head) * nbuckets));
+	tbl = malloc(sizeof(struct bucket_table) + (sizeof(struct rhash_lock_head *) * nbuckets));
 
 	size = nbuckets;
 

@@ -122,6 +122,7 @@ my @gcc_params = (
 	"-mtune=native",
 	"-mstackrealign",
 	"-mno-avx512f",
+	"-g",
 );
 my @gcc_stub_params = (
 	"-mno-sse",
