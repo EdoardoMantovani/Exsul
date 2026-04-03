@@ -60,6 +60,11 @@ struct module_controller {
         struct libusb_endpoint_descriptor usb_ep[USB_MAX_ENDPOINT_NUM];
         struct libusb_device_descriptor   usb_dev_desc;
 	pthread_mutex_t			  urb_anchor_mutex;
+
+	/* threads associated with libusb's async urb transfer, permits to implement the 'usb_send_urb' kernel function */
+	pthread_t			  libusb_event_thread;
+	atomic_bool			  libusb_thread_stop;
+
 	/* locks for usb i/o operations */
 	pthread_mutex_t usb_io_lock;
 	pthread_cond_t  usb_io_idle;

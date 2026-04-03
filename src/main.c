@@ -3435,6 +3435,9 @@ int main(int argc, char *argv[], char *envp[]) {
 	director.envp = envp;
 	libusb_init(NULL);
 
+	atomic_store(&director.libusb_thread_stop, false);
+	pthread_create(&director.libusb_event_thread, NULL, libusb_thread, NULL);
+
 	if(argc < 2){
 		printf("./%s <module_name> ... <function_name>!\n", argv[0]);
 		ret = -EINVAL;

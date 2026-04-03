@@ -241,6 +241,8 @@ my %field_ctype = (
 		"destructor_arg"		=> "void *",
 	},
 	urb => {
+		"status"			=> "int",
+		"interval"			=> "int",
 		"use_count"			=> "atomic_int",
 		"reject"			=> "atomic_int",
 		"kref"				=> "struct kref",

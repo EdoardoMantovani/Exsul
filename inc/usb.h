@@ -102,9 +102,9 @@ struct usb_host_endpoint {
 	struct ep_device			*ep_dev;	/* For sysfs info */
 
 	unsigned char				*extra;   /* Extra descriptors */
-	int extralen;
-	int enabled;
-	int streams;
+	int					extralen;
+	int					enabled;
+	int					streams;
 };
 
 struct usb_iso_packet_descriptor {
@@ -271,6 +271,8 @@ struct usb_driver {
 	void (*disconnect) (struct usb_interface *intf);
 };
 
+typedef void (*usb_complete_t)(struct urb *);
+
 static bool match_endpoint(struct usb_endpoint_descriptor *epd,
 		struct usb_endpoint_descriptor **bulk_in,
 		struct usb_endpoint_descriptor **bulk_out,
@@ -361,4 +363,60 @@ static inline void usb_unlock(void) {
 		pthread_cond_broadcast(&director.usb_io_idle);
 	}
 	pthread_mutex_unlock(&director.usb_io_lock);
+}
+
+/* main libusb callback used as a thin layer between the userspace and the kernelspace */
+static void libusb_urb_callback(struct libusb_transfer *transfer){
+	struct urb *urb = NULL;
+	usb_complete_t usb_completion_cb = NULL;
+
+	/* get the urb pointer from the 'transfer' data */
+	urb = (struct urb *)transfer->user_data;
+
+	/* convert the libusb error into the equivalent Linux kernel error */
+	switch (transfer->status) {
+		case LIBUSB_TRANSFER_COMPLETED:
+			urb->status = 0;
+		break;
+		case LIBUSB_TRANSFER_ERROR:
+			urb->status = -EIO;
+		break;
+		case LIBUSB_TRANSFER_TIMED_OUT:
+			urb->status = -ETIMEDOUT;
+		break;
+		case LIBUSB_TRANSFER_CANCELLED:
+			urb->status = -ENOENT;
+		break;
+		case LIBUSB_TRANSFER_STALL:
+			urb->status = -EPIPE;
+		break;
+		case LIBUSB_TRANSFER_NO_DEVICE:
+			urb->status = -ENODEV;
+		break;
+		case LIBUSB_TRANSFER_OVERFLOW:
+			urb->status = -EOVERFLOW;
+		break;
+		default:
+			urb->status = -EIO;
+		break;
+	}
+
+	urb->actual_length = transfer->actual_length;
+
+	urb->hcpriv = NULL;
+	atomic_fetch_sub_explicit(&urb->use_count, 1, memory_order_release);
+
+	usb_completion_cb = (usb_complete_t)(urb->complete);
+	if (usb_completion_cb != NULL){
+		usb_completion_cb(urb);
+	}
+
+	libusb_free_transfer(transfer);
+}
+
+static void *libusb_thread(void *unused){
+	while (!atomic_load_explicit(&director.libusb_thread_stop, memory_order_acquire)){
+		libusb_handle_events(NULL);
+	}
+	return NULL;
 }

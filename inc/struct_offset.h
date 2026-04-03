@@ -1253,49 +1253,73 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[11] = {
 				.struct_size = 0,
 				.struct_name = "urb",
-				.struct_field_num = 11,
+				.struct_field_num = 17,
 				.fields = {
 					[0] = {
-						.field_name = "anchor",
+						.field_name = "actual_length",
 						.field_offset = 0,
 					},
 					[1] = {
-						.field_name = "anchor_list",
+						.field_name = "anchor",
 						.field_offset = 0,
 					},
 					[2] = {
-						.field_name = "dev",
+						.field_name = "anchor_list",
 						.field_offset = 0,
 					},
 					[3] = {
-						.field_name = "ep",
+						.field_name = "complete",
 						.field_offset = 0,
 					},
 					[4] = {
-						.field_name = "kref",
+						.field_name = "dev",
 						.field_offset = 0,
 					},
 					[5] = {
-						.field_name = "reject",
+						.field_name = "ep",
 						.field_offset = 0,
 					},
 					[6] = {
-						.field_name = "transfer_buffer",
+						.field_name = "hcpriv",
 						.field_offset = 0,
 					},
 					[7] = {
-						.field_name = "transfer_dma",
+						.field_name = "kref",
 						.field_offset = 0,
 					},
 					[8] = {
-						.field_name = "transfer_flags",
+						.field_name = "pipe",
 						.field_offset = 0,
 					},
 					[9] = {
-						.field_name = "urb_list",
+						.field_name = "reject",
 						.field_offset = 0,
 					},
 					[10] = {
+						.field_name = "status",
+						.field_offset = 0,
+					},
+					[11] = {
+						.field_name = "transfer_buffer",
+						.field_offset = 0,
+					},
+					[12] = {
+						.field_name = "transfer_buffer_length",
+						.field_offset = 0,
+					},
+					[13] = {
+						.field_name = "transfer_dma",
+						.field_offset = 0,
+					},
+					[14] = {
+						.field_name = "transfer_flags",
+						.field_offset = 0,
+					},
+					[15] = {
+						.field_name = "urb_list",
+						.field_offset = 0,
+					},
+					[16] = {
 						.field_name = "use_count",
 						.field_offset = 0,
 					},
