@@ -7,19 +7,25 @@ struct sk_buff *__alloc_skb(unsigned int size, int gfp_mask, int flags, int node
 
 	sk_buff_size = director.struct_sizes.sk_buff;
 	if(sk_buff_size <= 0){
+		#ifdef ENABLE_DBG_PRINT
                 printf("[!] failed for sk_buff %d\n", sk_buff_size);
+		#endif
 		ret = -EINVAL;
 		return NULL;
 	}
 	sk_shared_info_size = director.struct_sizes.skb_shared_info;
 	if(sk_shared_info_size <= 0){
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] failed for skb_shared_info\n");
+		#endif
 		ret = -EINVAL;
 		return NULL;
 	}
 	allocated_skb = (struct sk_buff *)calloc(1, sk_buff_size);
 	if(allocated_skb == NULL){
-                printf("[!] failed to allocate allocated_skb\n");
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] failed to allocate allocated_skb\n");
+		#endif
 		ret = -ENOMEM;
 		return NULL;
 	}

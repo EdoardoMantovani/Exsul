@@ -1356,6 +1356,34 @@ static inline void __skb_queue_tail(struct sk_buff_head *list, struct sk_buff *n
 	__skb_queue_before(list, (struct sk_buff *)list, newsk);
 }
 
+static inline void __skb_unlink(struct sk_buff *skb, struct sk_buff_head *list){
+	struct sk_buff *next = skb->next;
+	struct sk_buff *prev = skb->prev;
+	skb->next = NULL;
+	skb->prev = NULL;
+	WRITE_ONCE(((struct sk_buff_list *)next)->prev, prev);
+	WRITE_ONCE(((struct sk_buff_list *)prev)->next, next);
+	WRITE_ONCE(list->qlen, list->qlen - 1);
+}
+
+static inline struct sk_buff *__skb_dequeue(struct sk_buff_head *list){
+	struct sk_buff *skb = list->next;
+	if (skb == (struct sk_buff *)list){
+		return NULL;
+	}
+	__skb_unlink(skb, list);
+	return skb;
+}
+
+static inline struct sk_buff *__skb_dequeue_tail(struct sk_buff_head *list){
+	struct sk_buff *skb = list->prev;
+	if (skb == (struct sk_buff *)list){
+		return NULL;
+	}
+	__skb_unlink(skb, list);
+	return skb;
+}
+
 static void skb_panic(struct sk_buff *skb, unsigned int sz, void *addr, const char msg[]){
 	printf("%s: text:%px len:%d put:%d head:%px data:%px tail:%#lx end:%#lx dev:%s\n",
 		msg,
@@ -1483,19 +1511,6 @@ static inline void __skb_ext_copy(struct sk_buff *dst, const struct sk_buff *src
 	#else
 	/* do nothing */
 	#endif
-}
-
-static inline void __skb_unlink(struct sk_buff *skb, struct sk_buff_head *list){
-	struct sk_buff *next = NULL;
-	struct sk_buff *prev = NULL;
-
-	WRITE_ONCE(list->qlen, list->qlen - 1);
-	next	   = skb->next;
-	prev	   = skb->prev;
-	skb->next  = NULL;
-	skb->prev  = NULL;
-	WRITE_ONCE(next->prev, prev);
-	WRITE_ONCE(prev->next, next);
 }
 
 static void __copy_skb_header(struct sk_buff *new, const struct sk_buff *old){
@@ -1644,14 +1659,6 @@ static inline void skb_queue_splice_tail(const struct sk_buff_head *list, struct
 		__skb_queue_splice(list, head->prev, (struct sk_buff *) head);
 		head->qlen += list->qlen;
 	}
-}
-
-static inline struct sk_buff *__skb_dequeue(struct sk_buff_head *list){
-	struct sk_buff *skb = skb_peek(list);
-	if (skb){
-		__skb_unlink(skb, list);
-	}
-	return skb;
 }
 
 static inline void kfree_skb_reason(struct sk_buff *skb, int reason){
@@ -1844,25 +1851,6 @@ static inline void __skb_frag_ref(skb_frag_t *frag){
  */
 static inline void skb_frag_ref(struct sk_buff *skb, int f){
 	__skb_frag_ref(&skb_shinfo(skb)->frags[f]);
-}
-
-
-/**
- *	__skb_dequeue_tail - remove from the tail of the queue
- *	@list: list to dequeue from
- *
- *	Remove the tail of the list. This function does not take any locks
- *	so must be used with appropriate locks held only. The tail item is
- *	returned or %NULL if the list is empty.
- */
-static inline struct sk_buff *__skb_dequeue_tail(struct sk_buff_head *list){
-	struct sk_buff *skb = NULL;
-
-	skb = skb_peek_tail(list);
-	if (skb != NULL){
-		__skb_unlink(skb, list);
-	}
-	return skb;
 }
 
 static inline void *__slab_build_skb(void *data, unsigned int *size){

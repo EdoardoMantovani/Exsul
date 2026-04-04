@@ -2,13 +2,10 @@ struct sk_buff *__netdev_alloc_skb(struct net_device *netdev, unsigned int len, 
 	struct sk_buff *skb = NULL;
 
 	len += NET_SKB_PAD;
-	if (len <= SKB_WITH_OVERHEAD(SKB_SMALL_HEAD_CACHE_SIZE) || len > SKB_WITH_OVERHEAD(PAGE_SIZE)){
-		skb = __alloc_skb(len, gfp_mask, SKB_ALLOC_RX, 0);
-		if (skb == NULL){
-			goto skb_fail;
-		}
-	}else{
-		return NULL;
+	/* always alloc an skb */
+	skb = __alloc_skb(len, gfp_mask, SKB_ALLOC_RX, 0);
+	if (skb == NULL){
+		goto skb_fail;
 	}
 skb_success:
 	skb_reserve(skb, NET_SKB_PAD);

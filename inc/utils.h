@@ -1577,7 +1577,7 @@ static inline struct timespec timespec_add_ms(struct timespec t, unsigned long m
 }
 
 /* convert_usb_pipe_to_ep: convert a kernel pipe into an usb endpoint for using it with libusb */
-static unsigned char convert_usb_pipe_to_ep(unsigned char pipe){
+static unsigned char convert_usb_pipe_to_ep(unsigned int pipe){
 	unsigned char ep_num = 0;
 	unsigned char epaddr = 0;
 
