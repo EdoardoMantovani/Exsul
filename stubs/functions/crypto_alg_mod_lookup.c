@@ -3,6 +3,7 @@ struct crypto_alg *crypto_alg_mod_lookup(const char *name, u32 type, u32 mask){
 	struct crypto_alg *alg = NULL;
 	struct crypto_alg *larval = NULL;
 
+	// TODO!
 	/*
 	 * If the internal flag is set for a cipher, require a caller to
 	 * invoke the cipher with the internal flag to use that cipher.
@@ -28,6 +29,6 @@ struct crypto_alg *crypto_alg_mod_lookup(const char *name, u32 type, u32 mask){
 		crypto_mod_put(larval);
 		alg = ERR_PTR(-ENOENT);
 	}
-//	crypto_larval_kill(container_of(larval, struct crypto_larval, alg));
+	//	crypto_larval_kill(container_of(larval, struct crypto_larval, alg));
 	return alg;
 }

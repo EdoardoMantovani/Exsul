@@ -12,7 +12,8 @@ int cdev_add(struct cdev *p, u32 dev, unsigned count){
 	kobject_get(p->kobj.parent);
 
 	return ret;
-err:
+
+	err:
 	kfree_const(p->kobj.name);
 	p->kobj.name = NULL;
 	return ret;

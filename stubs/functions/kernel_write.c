@@ -5,9 +5,8 @@ int kernel_write(struct file_layer *file, const void *buf, size_t count, u32 *po
 		ret = -EINVAL;
 		return ret;
 	}
-	printf("[!] position: %d\n", *pos);
 
-	//lseek(file->actual_fd, *pos, SEEK_SET);
+	lseek(file->actual_fd, *pos, SEEK_SET);
 	ret = write(file->actual_fd, buf, count);
 	return ret;
 }

@@ -24,7 +24,6 @@ struct task_struct *kthread_create_on_node(int (*kthread_function)(void *data), 
 	current_thread->data = data;
 
 	strncpy(current_thread->name, thread_name, sizeof(current_thread->name));
-	printf("current thread name: %s\n", current_thread->name);
 
 	/* do not call directly the callback but instead use a special function which acts as a 'trampoline' for invoking the cb */
 	ret = pthread_create(&current_thread->tid, NULL, kthread_trampoline, current_thread);

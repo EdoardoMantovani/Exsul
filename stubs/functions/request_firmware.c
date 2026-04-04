@@ -16,7 +16,7 @@ int request_firmware(const struct firmware **firmware_p, const char *name, void 
 	*firmware_p = NULL;
 
 	/* for now this is a temp fix, seems that the standard snprintf crash, so I had to reimplement it in my src/main.c */
-	ret = __snprintf(fw_path, sizeof(fw_path), "%s%s", DEFAULT_FW_PATH, name);
+	ret = snprintf(fw_path, sizeof(fw_path), "%s%s", DEFAULT_FW_PATH, name);
 	fd = open(fw_path, O_RDONLY);
 	if (fd < 0){
 		ret = -errno;

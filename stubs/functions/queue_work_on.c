@@ -20,7 +20,6 @@ int queue_work_on(int cpu, struct workqueue_struct *wq, struct work_struct *work
 
 	ret = atomic_compare_exchange_strong_explicit(&work->data, &expected, desired, memory_order_acq_rel, memory_order_relaxed);
 	if(ret == 0){
-		printf("atomic_compare_exchange_strong_explicit!\n");
 		return ret;
 	}
 

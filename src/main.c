@@ -31,21 +31,6 @@ enum {
 	DRV_CMD_GET,
 };
 
-void *__calloc(size_t num, size_t size){
-	return calloc(num, size);
-}
-
-int __snprintf(char *buf, size_t size, const char *fmt, ...){
-        va_list args;
-        int i;
-
-        va_start(args, fmt);
-        i = vsnprintf(buf, size, fmt, args);
-        va_end(args);
-
-        return i;
-}
-
 int parse_module_usb_table(struct usb_device_id **id){
 	int ret = 0;
 	int usb_table_size = 0;
@@ -140,21 +125,20 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
         }
 
         *in_intf = NULL;
-	printf("parse_usb_and_alloc_intf1\n");
 
         libusb_dev = libusb_get_device(handler);
         if (libusb_dev == NULL) {
                 printf("[!] failed to acquire libusb_device!\n");
                 return -EINVAL;
         }
-	printf("parse_usb_and_alloc_intf2\n");
-        ret = libusb_get_active_config_descriptor(libusb_dev, &cfg);
+
+	ret = libusb_get_active_config_descriptor(libusb_dev, &cfg);
         if (ret < 0) {
                 printf("[!] failed to get libusb_config_descriptor!\n");
                 return -EINVAL;
         }
-	printf("parse_usb_and_alloc_intf3\n");
-        if (cfg->bNumInterfaces == 0) {
+
+	if (cfg->bNumInterfaces == 0) {
                 printf("[!] device has no interfaces!\n");
                 ret = -ENODEV;
                 goto fail_free_cfg;
@@ -163,8 +147,8 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
         struct_usb_interface_size = director.struct_sizes.usb_interface;
         struct_usb_device_size    = director.struct_sizes.usb_device;
         struct_device_size        = director.struct_sizes.device;
-	printf("parse_usb_and_alloc_intf4 struct_usb_interface_size %d struct_usb_device_size %d struct_device_size %d\n", struct_usb_interface_size, struct_usb_device_size, struct_device_size);
-        if (struct_usb_interface_size == 0) {
+
+	if (struct_usb_interface_size == 0) {
                 printf("[!] failed to retrieve size for struct usb_interface!\n");
                 ret = -EINVAL;
                 goto fail_free_cfg;
@@ -179,18 +163,16 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
                 ret = -EINVAL;
                 goto fail_free_cfg;
         }
-	printf("parse_usb_and_alloc_intf5\n");
 
-        intf_ptr = (struct usb_interface *)calloc(1, struct_usb_interface_size);
+	intf_ptr = (struct usb_interface *)calloc(1, struct_usb_interface_size);
         if (intf_ptr == NULL) {
                 printf("[!] failed to allocate usb_interface!\n");
                 ret = -ENOMEM;
                 goto fail_free_cfg;
         }
 
-        libusb_intf = &cfg->interface[0];
-	printf("parse_usb_and_alloc_intf6\n");
-        num_altsetting = (u8)libusb_intf->num_altsetting;
+	libusb_intf = &cfg->interface[0];
+	num_altsetting = (u8)libusb_intf->num_altsetting;
 
 #ifdef ADVANCED_USB_DEBUGGING
         printf("[*] interface 0 has %d altsetting(s)\n", num_altsetting);
@@ -201,7 +183,7 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
                 ret = -ENODEV;
                 goto fail_free_intf;
         }
-	printf("parse_usb_and_alloc_intf7\n");
+
         intf_ptr->altsetting = (struct usb_host_interface *)calloc(
                 num_altsetting, sizeof(struct usb_host_interface));
         if (intf_ptr->altsetting == NULL) {
@@ -209,8 +191,7 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
                 ret = -ENOMEM;
                 goto fail_free_intf;
         }
-	printf("parse_usb_and_alloc_intf8\n");
-        intf_ptr->num_altsetting = num_altsetting;
+	intf_ptr->num_altsetting = num_altsetting;
 
         for (u8 k = 0; k < num_altsetting; k++) {
                 alt = &libusb_intf->altsetting[k];
@@ -221,7 +202,6 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
                 printf("[*] altsetting %u: bInterfaceNumber=%u bNumEndpoints=%u\n",
                        k, alt->bInterfaceNumber, num_ep);
 #endif
-		printf("parse_usb_and_alloc_intf9\n");
                 intf_ptr->altsetting[k].desc.bLength              = alt->bLength;
                 intf_ptr->altsetting[k].desc.bDescriptorType      = alt->bDescriptorType;
                 intf_ptr->altsetting[k].desc.bInterfaceNumber     = alt->bInterfaceNumber;
@@ -231,7 +211,7 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
                 intf_ptr->altsetting[k].desc.bInterfaceSubClass   = alt->bInterfaceSubClass;
                 intf_ptr->altsetting[k].desc.bInterfaceProtocol   = alt->bInterfaceProtocol;
                 intf_ptr->altsetting[k].desc.iInterface           = alt->iInterface;
-		printf("parse_usb_and_alloc_intf10\n");
+
                 if (k == 0) {
                         int_number = alt->bInterfaceNumber;
                 }
@@ -240,11 +220,10 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
                         intf_ptr->altsetting[k].endpoint = NULL;
                         continue;
                 }
-		printf("parse_usb_and_alloc_intf11\n");
+
                 intf_ptr->altsetting[k].endpoint = (struct usb_host_endpoint *)calloc(
                         num_ep, sizeof(struct usb_host_endpoint));
                 if (intf_ptr->altsetting[k].endpoint == NULL) {
-                        printf("[!] failed to allocate endpoints for altsetting %u!\n", k);
                         ret = -ENOMEM;
                         for (u8 m = 0; m < k; m++) {
 				printf("parse_usb_and_alloc_intf12\n");
@@ -272,8 +251,7 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
                                        ep_in ? "IN" : "OUT", xfer_str);
                         }
 #endif
-			printf("parse_usb_and_alloc_intf14\n");
-                        intf_ptr->altsetting[k].endpoint[z].desc.bLength          = ep->bLength;
+			intf_ptr->altsetting[k].endpoint[z].desc.bLength          = ep->bLength;
                         intf_ptr->altsetting[k].endpoint[z].desc.bDescriptorType  = ep->bDescriptorType;
                         intf_ptr->altsetting[k].endpoint[z].desc.bEndpointAddress = ep->bEndpointAddress;
                         intf_ptr->altsetting[k].endpoint[z].desc.bmAttributes     = ep->bmAttributes;
@@ -281,9 +259,8 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
                         intf_ptr->altsetting[k].endpoint[z].desc.bInterval        = ep->bInterval;
                         intf_ptr->altsetting[k].endpoint[z].desc.bRefresh         = ep->bRefresh;
                         intf_ptr->altsetting[k].endpoint[z].desc.bSynchAddress    = ep->bSynchAddress;
-			printf("parse_usb_and_alloc_intf15\n");
-                }
-        }
+		}
+	}
 
         intf_ptr->cur_altsetting = &intf_ptr->altsetting[0];
 
@@ -293,8 +270,8 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
                 ret = -ENOMEM;
                 goto fail_free_endpoints;
         }
-	printf("parse_usb_and_alloc_intf16\n");
-        switch (libusb_get_device_speed(libusb_dev)) {
+
+	switch (libusb_get_device_speed(libusb_dev)) {
         case LIBUSB_SPEED_SUPER:
         case LIBUSB_SPEED_SUPER_PLUS:
                 udev_ptr->speed = USB_SPEED_SUPER;
@@ -319,7 +296,6 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 #ifdef ADVANCED_USB_DEBUGGING
         dump_usb_host_interface(intf_ptr);
 #endif
-	printf("parse_usb_and_alloc_intf17\n");
 
         *in_intf = intf_ptr;
         libusb_free_config_descriptor(cfg);
@@ -344,14 +320,13 @@ fail_free_cfg:
 int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface **intf_out, const struct usb_device_id **matched_id_out){
 	int ret = 0;
 	struct usb_interface *usb_intf = NULL;
-	printf("detect_usb_device1\n");
+
 	for (struct usb_device_id *p = id_table; p && p->idVendor && p->idProduct; p++) {
-		printf("detect_usb_device2\n");
 		director.usb_dev = libusb_open_device_with_vid_pid(NULL, p->idVendor, p->idProduct);
 		if (director.usb_dev == NULL){
 			continue;
 		}
-		printf("detect_usb_device3\n");
+
 		ret = libusb_set_auto_detach_kernel_driver(director.usb_dev, 1);
 		if (ret < 0) {
 			libusb_close(director.usb_dev);
@@ -360,7 +335,7 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 		}else{
 			ret = libusb_detach_kernel_driver(director.usb_dev, 0);
 		}
-		printf("detect_usb_device4\n");
+
 		/* alloc the usb_interface which will be passed to the '->probe' callback */
 		ret = parse_usb_and_alloc_intf(director.usb_dev, &usb_intf);
 		if (ret < 0) {
@@ -368,7 +343,7 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 			director.usb_dev = NULL;
 			continue;
 		}
-		printf("detect_usb_device5\n");
+
 		director.usb_interface_number = ret;
 
 		ret = libusb_claim_interface(director.usb_dev, director.usb_interface_number);
@@ -377,10 +352,10 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 			director.usb_dev = NULL;
 			continue;
 		}
-		printf("detect_usb_device6\n");
+
 		*intf_out = usb_intf;
 		*matched_id_out = p;
-		printf("detect_usb_device7\n");
+
 		return ret;
 	}
 	ret = -ENODEV;
@@ -391,9 +366,10 @@ int invoke_usb_probe(struct usb_driver *new_driver, struct usb_device_id *id, st
 	int ret = 0;
 	int (*probe) (struct usb_interface *intf, const struct usb_device_id *id) = NULL;
 	probe = new_driver->probe;
-	printf("invoke_usb_probe1\n");
+
+	/* in normal conditions here a mutex would have been implemented, but in this case there is no necessity */
 	probe(intf, id);
-	printf("invoke_usb_probe2\n");
+
 	return ret;
 }
 

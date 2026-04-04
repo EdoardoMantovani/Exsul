@@ -2,7 +2,7 @@
 
 # Made by Edoardo Mantovani, 2026
 # Rewritten with safer local alias inference and guarded field replacement.
-# version 1.1.5 (29 March 2026)
+# version 1.2.0 (4 April 2026)
 
 use strict;
 use warnings;
