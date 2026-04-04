@@ -7,14 +7,14 @@ int flush_work(struct work_struct *work){
 	}
 
 	ret = atomic_load_explicit(&work->data, memory_order_acquire);
-	if(ret == 0){
-		return ret;
+	if(!(ret & (WORK_STRUCT_PENDING | WORK_STRUCT_RUNNING))){
+		return 0;
 	}
 
 	wq = (struct workqueue_struct *)(uintptr_t)(ret & ~(long)WORK_STRUCT_FLAG_MASK);
 
 	if(wq == NULL){
-		return ret;
+		return 0;
 	}
 
 	ret = wq_in_worker(wq);

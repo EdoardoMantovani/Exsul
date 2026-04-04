@@ -10,6 +10,11 @@ int cancel_delayed_work(struct delayed_work *dwork){
 	}
 
 	work = &dwork->work;
+
+	if (!(work_flags(work) & (WORK_STRUCT_PENDING | WORK_STRUCT_RUNNING))){
+		return ret;
+	}
+
 	wq = work_wq(work);
 
 	if (wq == NULL){

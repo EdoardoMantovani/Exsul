@@ -1386,7 +1386,7 @@ static inline bool skb_unref(struct sk_buff *skb){
 		return ret;
 	}
 
-	if (likely(!refcount_dec_and_test(skb->users))){
+	if (likely(!refcount_dec_and_test(&skb->users))){
 		ret = false;
 		return ret;
 	}

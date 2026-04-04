@@ -228,7 +228,7 @@ my %field_ctype = (
 		"queue_mapping"         	=> "unsigned int",
 		"reserved_tailroom"     	=> "unsigned int",
 		"destructor"            	=> "void *",
-		"users"				=> "refcount_t *",
+		"users"				=> "refcount_t",
 	},
 	sk_buff_head => {
 		"next"				=> "struct sk_buff *",
