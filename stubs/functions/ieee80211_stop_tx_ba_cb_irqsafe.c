@@ -4,7 +4,7 @@ void ieee80211_stop_tx_ba_cb_irqsafe(struct ieee80211_vif *vif, u8 *ra, u16 tid)
 	struct ieee80211_sub_if_data *sdata = NULL;
 	struct ieee80211_local *local = NULL;
 
-	local = &director.ieee80211_local;
+	local = director.ieee80211_local;
 	sdata = local->sdata;
 
 	#if 0

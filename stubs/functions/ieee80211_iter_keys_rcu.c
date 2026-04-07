@@ -2,7 +2,7 @@ void ieee80211_iter_keys_rcu(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 	struct ieee80211_local *local = NULL;
 	struct ieee80211_sub_if_data *sdata = NULL;
 
-	local = &director.ieee80211_local;
+	local = director.ieee80211_local;
 
 	if (vif != NULL) {
 		sdata = local->sdata;

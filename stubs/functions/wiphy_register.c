@@ -10,7 +10,7 @@ int wiphy_register(struct wiphy *wiphy){
 	struct cfg80211_registered_device *rdev = NULL;
 	struct ieee80211_ops *ieee80211_ops = NULL;
 
-	local = &director.ieee80211_local;
+	local = director.ieee80211_local;
 	if(local == NULL){
 
 	}

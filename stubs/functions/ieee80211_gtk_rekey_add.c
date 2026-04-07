@@ -7,7 +7,7 @@ struct ieee80211_key_conf *ieee80211_gtk_rekey_add(struct ieee80211_vif *vif, u8
 
 	struct ieee80211_link_data *link_data = NULL;
 
-	local = &director.ieee80211_local;
+	local = director.ieee80211_local;
 
 	link_data = link_id < 0 ? &sdata->deflink : sdata_dereference(sdata->link[link_id], sdata);
 

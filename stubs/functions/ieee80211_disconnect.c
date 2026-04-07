@@ -1,5 +1,5 @@
 void ieee80211_disconnect(struct ieee80211_vif *vif, bool reconnect){
-	struct ieee80211_local *local = &director.ieee80211_local;
+	struct ieee80211_local *local = director.ieee80211_local;
 	struct ieee80211_sub_if_data *sdata = NULL;
 
 	sdata = local->sdata;

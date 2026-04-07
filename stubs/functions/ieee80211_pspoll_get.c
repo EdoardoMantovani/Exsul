@@ -4,7 +4,7 @@ struct sk_buff *ieee80211_pspoll_get(struct ieee80211_hw *hw, struct ieee80211_v
 	struct ieee80211_local *local = NULL;
 	struct sk_buff *skb = NULL;
 
-	local = &director.ieee80211_local;
+	local = director.ieee80211_local;
 	sdata = local->sdata;
 
 	if (vif->type != NL80211_IFTYPE_STATION){

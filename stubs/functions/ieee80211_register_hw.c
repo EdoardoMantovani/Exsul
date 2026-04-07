@@ -15,36 +15,40 @@ int ieee80211_register_hw(struct ieee80211_hw *hw){
 	struct ieee80211_ops *ieee80211_ops = NULL;
 	struct wiphy *wiphy = NULL;
 
-	local = &director.ieee80211_local;
+	local = director.ieee80211_local;
 	if(local == NULL){
 		ret = -EINVAL;
 		return ret;
 	}
+
 	ieee80211_ops = local->ieee80211_ops;
 	if(ieee80211_ops == NULL){
 		ret = -EINVAL;
 		return ret;
 	}
+
 	wiphy = local->wiphy;
 	if(wiphy == NULL){
 		ret = -EINVAL;
 		return ret;
 	}
-	hw = &local->hw;
+
+	hw = local->ieee80211_hw;
 	if(hw == NULL){
 		ret = -EINVAL;
 		return ret;
 	}
+	printf("ieee80211_register_hw4\n");
 	if (ieee80211_hw_check(hw, QUEUE_CONTROL) && (hw->offchannel_tx_hw_queue == IEEE80211_INVAL_HW_QUEUE || hw->offchannel_tx_hw_queue >= hw->queues)){
 		ret = -EINVAL;
 		return ret;
 	}
-
+	printf("ieee80211_register_hw5\n");
 	if ((wiphy->features & NL80211_FEATURE_TDLS_CHANNEL_SWITCH) && (ieee80211_ops->tdls_channel_switch == NULL || ieee80211_ops->tdls_cancel_channel_switch == NULL || ieee80211_ops->tdls_recv_channel_switch == NULL)){
 		ret = -EOPNOTSUPP;
 		return ret;
 	}
-
+	printf("ieee80211_register_hw6\n");
 	if (ieee80211_hw_check(hw, SUPPORTS_TX_FRAG) && ieee80211_ops->set_frag_threshold == NULL){
 		ret = -EINVAL;
 		return ret;
@@ -265,7 +269,7 @@ int ieee80211_register_hw(struct ieee80211_hw *hw){
 	 * based on their support to transmit SW encrypted packets.
 	 */
 	if (wiphy->interface_modes & BIT(NL80211_IFTYPE_AP) &&
-	    !ieee80211_hw_check(&hw, SW_CRYPTO_CONTROL)) {
+	    !ieee80211_hw_check(hw, SW_CRYPTO_CONTROL)) {
 		wiphy->interface_modes |= BIT(NL80211_IFTYPE_AP_VLAN);
 		wiphy->software_iftypes |= BIT(NL80211_IFTYPE_AP_VLAN);
 	}

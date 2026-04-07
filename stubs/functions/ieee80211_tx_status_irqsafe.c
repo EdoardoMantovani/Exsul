@@ -3,7 +3,7 @@ void ieee80211_tx_status_irqsafe(struct ieee80211_hw *hw, struct sk_buff *skb){
 	struct ieee80211_local *local = NULL;
 	struct ieee80211_tx_info *info = NULL;
 
-	local = &director.ieee80211_local;
+	local = director.ieee80211_local;
 	info = skb->cb;
 
 	skb->pkt_type = IEEE80211_TX_STATUS_MSG;

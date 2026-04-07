@@ -1,7 +1,7 @@
 void cfg80211_bss_iter(struct wiphy *wiphy, struct cfg80211_chan_def *chandef, void (*iter)(struct wiphy *wiphy, struct cfg80211_bss *bss, void *data), void *iter_data){
 	struct cfg80211_registered_device *rdev = NULL;
 	struct cfg80211_internal_bss *bss;
-	struct ieee80211_local *local = &director.ieee80211_local;
+	struct ieee80211_local *local = director.ieee80211_local;
 
 	rdev = local->rdev;
 	if(rdev == NULL){

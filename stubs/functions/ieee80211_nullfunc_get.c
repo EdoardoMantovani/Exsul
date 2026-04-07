@@ -7,7 +7,7 @@ struct sk_buff *ieee80211_nullfunc_get(struct ieee80211_hw *hw, struct ieee80211
 	struct ieee80211_link_data *link = NULL;
 	struct ieee80211_hdr_3addr *nullfunc = NULL;
 
-	local = &director.ieee80211_local;
+	local = director.ieee80211_local;
 	sdata = local->sdata;
 
 	if (vif->type != NL80211_IFTYPE_STATION){

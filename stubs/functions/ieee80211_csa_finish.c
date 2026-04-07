@@ -4,7 +4,7 @@ void ieee80211_csa_finish(struct ieee80211_vif *vif, unsigned int link_id){
 	struct ieee80211_bss_conf *tx_bss_conf = NULL;
 	struct ieee80211_link_data *link_data = NULL;
 
-	local = &director.ieee80211_local;
+	local = director.ieee80211_local;
 	sdata = local->sdata;
 	if(sdata == NULL){
 		goto end;

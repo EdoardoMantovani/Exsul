@@ -6,7 +6,7 @@ void cfg80211_cqm_rssi_notify(struct net_device *netdev, enum nl80211_cqm_rssi_t
 		return;
 	}
 
-	local = &director.ieee80211_local;
+	local = director.ieee80211_local;
 	cqm_config = &local->cqm_config;
 
 	if (cqm_config != NULL) {

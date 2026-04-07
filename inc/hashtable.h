@@ -488,7 +488,7 @@ static void nested_bucket_table_free(const struct bucket_table *tbl){
 }
 
 static void bucket_table_free(const struct bucket_table *tbl){
-	if (!tbl->nest){
+	if (tbl->nest){
 		nested_bucket_table_free(tbl);
 	}
 
@@ -532,7 +532,7 @@ static struct bucket_table *bucket_table_alloc(struct rhashtable *ht, int nbucke
 	int size = 0;
 	struct bucket_table *tbl = NULL;
 
-	tbl = malloc(sizeof(struct bucket_table) + (sizeof(struct rhash_lock_head *) * nbuckets));
+	tbl = calloc(1, sizeof(struct bucket_table) + (sizeof(struct rhash_lock_head *) * nbuckets));
 
 	size = nbuckets;
 

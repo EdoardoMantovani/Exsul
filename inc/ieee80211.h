@@ -5850,8 +5850,7 @@ struct rate_control_ref {
 };
 
 struct ieee80211_local {
-	/* ieee80211_hw changes across kernel versions, for security, mantain a fixed size of 1024 even if is oversized */
-	u8 ieee80211_hw[1024];
+	struct ieee80211_hw *ieee80211_hw;
 	struct wiphy *wiphy;
 	struct cfg80211_registered_device *rdev;
 	struct rate_control_ref *rate_ctrl;
@@ -6599,7 +6598,8 @@ static inline bool _ieee80211_hw_check(struct ieee80211_hw *hw, enum ieee80211_h
 #define ieee80211_hw_check(hw, flg)	_ieee80211_hw_check(hw, IEEE80211_HW_##flg)
 
 static inline void _ieee80211_hw_set(struct ieee80211_hw *hw, enum ieee80211_hw_flags flg){
-	return __set_bit(flg, hw->flags);
+	struct ieee80211_emulated_hw *ehw = (struct ieee80211_emulated_hw *)hw;
+	__set_bit(flg, ehw->flags);
 }
 #define ieee80211_hw_set(hw, flg)	_ieee80211_hw_set(hw, IEEE80211_HW_##flg)
 

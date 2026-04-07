@@ -1,7 +1,7 @@
 void ieee80211_unregister_hw(struct ieee80211_hw *hw){
 	struct ieee80211_local *local = NULL;
 
-	local = &director.ieee80211_local;
+	local = director.ieee80211_local;
 	#if 0
 
 	/*

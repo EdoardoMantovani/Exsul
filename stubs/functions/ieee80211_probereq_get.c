@@ -5,7 +5,7 @@ struct sk_buff *ieee80211_probereq_get(struct ieee80211_hw *hw, u8 *src_addr, u8
 	struct ieee80211_local *local = NULL;
 	struct ieee80211_hdr_3addr *hdr = NULL;
 
-	local = &director.ieee80211_local;
+	local = director.ieee80211_local;
 	ie_ssid_len = 2 + ssid_len;
 
 	skb = dev_alloc_skb(local->hw.extra_tx_headroom + sizeof(*hdr) + ie_ssid_len + tailroom);

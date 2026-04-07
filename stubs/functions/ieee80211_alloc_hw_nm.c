@@ -115,12 +115,13 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, struct ieee8021
 	local = wiphy->priv;
 	director.ieee80211_local = (struct ieee80211_local *)calloc(1, (ALIGN(sizeof(struct ieee80211_local), 32) + priv_data_len));
 	local = director.ieee80211_local;
-
+	local->wiphy = wiphy;
 	if (sta_info_init(local)){
 		goto err_free;
 	}
 
-	hw = &local->hw;
+	hw = (struct ieee80211_hw *)&local->hw;
+	local->ieee80211_hw = hw;
 
 	hw->wiphy = wiphy;
 	hw->priv = (char *)local + ALIGN(sizeof(*local), 32); /** 'NETDEV_ALIGN' = 32 */

@@ -9,6 +9,7 @@ int rhashtable_init_noprof(struct rhashtable *ht, const struct rhashtable_params
 	}
 
 	memset(ht, 0, sizeof(*ht));
+	pthread_mutex_init((pthread_mutex_t *)&ht->mutex, NULL);
 	memcpy(&ht->p, params, sizeof(*params));
 
 	if (params->min_size){
