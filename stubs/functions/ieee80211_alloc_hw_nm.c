@@ -13,19 +13,6 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, struct ieee8021
 		return NULL;
 	}
 
-	/* exclude from the check 'ieee80211_ops->tx' because it is often the first pointer in the struct */
-	if (ieee80211_ops->start == NULL || ieee80211_ops->stop == NULL || ieee80211_ops->config == NULL){
-		return NULL;
-	}
-
-	if (ieee80211_ops->sta_state && (ieee80211_ops->sta_add || ieee80211_ops->sta_remove)){
-		return NULL;
-	}
-
-	if (!!ieee80211_ops->link_info_changed != !!ieee80211_ops->vif_cfg_changed || (ieee80211_ops->link_info_changed && ieee80211_ops->bss_info_changed)){
-		return NULL;
-	}
-
 	/* Ensure 32-byte alignment of our private data and hw private data.
 	 * We use the wiphy priv data for both our ieee80211_local and for
 	 * the driver's private data
@@ -113,9 +100,14 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, struct ieee8021
 	wiphy->bss_priv_size = sizeof(struct ieee80211_bss);
 
 	local = wiphy->priv;
+
 	director.ieee80211_local = (struct ieee80211_local *)calloc(1, (ALIGN(sizeof(struct ieee80211_local), 32) + priv_data_len));
 	local = director.ieee80211_local;
 	local->wiphy = wiphy;
+<<<<<<< HEAD
+=======
+
+>>>>>>> a3ff522 (fixed first stage of ieee80211_register_hw)
 	if (sta_info_init(local)){
 		goto err_free;
 	}

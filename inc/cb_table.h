@@ -130,7 +130,11 @@ struct internal_cb_table sym_table[8192] = {
     [121] = { .function_name = "ktime_get", .function_ptr = ktime_get, .function_size = 60 },
     [122] = { .function_name = "sysfs_streq", .function_ptr = sysfs_streq, .function_size = 128 },
     [123] = { .function_name = "devm_kasprintf", .function_ptr = devm_kasprintf, .function_size = 164 },
+<<<<<<< HEAD
     [124] = { .function_name = "ieee80211_nullfunc_get", .function_ptr = ieee80211_nullfunc_get, .function_size = 1044 },
+=======
+    [124] = { .function_name = "ieee80211_nullfunc_get", .function_ptr = ieee80211_nullfunc_get, .function_size = 1019 },
+>>>>>>> a3ff522 (fixed first stage of ieee80211_register_hw)
     [125] = { .function_name = "cfg80211_report_wowlan_wakeup", .function_ptr = cfg80211_report_wowlan_wakeup, .function_size = 13 },
     [126] = { .function_name = "ieee80211_connection_loss", .function_ptr = ieee80211_connection_loss, .function_size = 182 },
     [127] = { .function_name = "alloc_workqueue_noprof", .function_ptr = alloc_workqueue_noprof, .function_size = 18 },
@@ -247,7 +251,11 @@ struct internal_cb_table sym_table[8192] = {
     [238] = { .function_name = "memset64", .function_ptr = memset64, .function_size = 49 },
     [239] = { .function_name = "vscnprintf", .function_ptr = vscnprintf, .function_size = 48 },
     [240] = { .function_name = "cfg80211_calculate_bitrate", .function_ptr = cfg80211_calculate_bitrate, .function_size = 526 },
+<<<<<<< HEAD
     [241] = { .function_name = "ieee80211_alloc_hw_nm", .function_ptr = ieee80211_alloc_hw_nm, .function_size = 1237 },
+=======
+    [241] = { .function_name = "ieee80211_alloc_hw_nm", .function_ptr = ieee80211_alloc_hw_nm, .function_size = 1452 },
+>>>>>>> a3ff522 (fixed first stage of ieee80211_register_hw)
     [242] = { .function_name = "__check_object_size", .function_ptr = __check_object_size, .function_size = 13 },
     [243] = { .function_name = "usb_kill_urb", .function_ptr = usb_kill_urb, .function_size = 159 },
     [244] = { .function_name = "usb_deregister", .function_ptr = usb_deregister, .function_size = 54 },
@@ -257,8 +265,13 @@ struct internal_cb_table sym_table[8192] = {
     [248] = { .function_name = "kstrtobool", .function_ptr = kstrtobool, .function_size = 106 },
     [249] = { .function_name = "__sw_hweight32", .function_ptr = __sw_hweight32, .function_size = 71 },
     [250] = { .function_name = "nl80211_chan_width_to_mhz", .function_ptr = nl80211_chan_width_to_mhz, .function_size = 35 },
+<<<<<<< HEAD
     [251] = { .function_name = "ieee80211_register_hw", .function_ptr = ieee80211_register_hw, .function_size = 329 },
     [252] = { .function_name = "ieee80211_ready_on_channel", .function_ptr = ieee80211_ready_on_channel, .function_size = 152 },
+=======
+    [251] = { .function_name = "ieee80211_register_hw", .function_ptr = ieee80211_register_hw, .function_size = 217 },
+    [252] = { .function_name = "ieee80211_ready_on_channel", .function_ptr = ieee80211_ready_on_channel, .function_size = 155 },
+>>>>>>> a3ff522 (fixed first stage of ieee80211_register_hw)
     [253] = { .function_name = "get_random_bytes", .function_ptr = get_random_bytes, .function_size = 56 },
     [254] = { .function_name = "jiffies_to_usecs", .function_ptr = jiffies_to_usecs, .function_size = 19 },
     [255] = { .function_name = "__msecs_to_jiffies", .function_ptr = __msecs_to_jiffies, .function_size = 45 },
@@ -296,7 +309,11 @@ struct internal_cb_table sym_table[8192] = {
     [287] = { .function_name = "mutex_unlock", .function_ptr = mutex_unlock, .function_size = 18 },
     [288] = { .function_name = "__list_add_valid_or_report", .function_ptr = __list_add_valid_or_report, .function_size = 54 },
     [289] = { .function_name = "bt_info", .function_ptr = bt_info, .function_size = 107 },
+<<<<<<< HEAD
     [290] = { .function_name = "wiphy_work_queue", .function_ptr = wiphy_work_queue, .function_size = 142 },
+=======
+    [290] = { .function_name = "wiphy_work_queue", .function_ptr = wiphy_work_queue, .function_size = 150 },
+>>>>>>> a3ff522 (fixed first stage of ieee80211_register_hw)
     [291] = { .function_name = "__netdev_alloc_skb", .function_ptr = __netdev_alloc_skb, .function_size = 81 },
     [292] = { .function_name = "dmi_first_match", .function_ptr = dmi_first_match, .function_size = 15 },
     [293] = { .function_name = "mutex_lock", .function_ptr = mutex_lock, .function_size = 18 },
@@ -363,8 +380,13 @@ struct internal_cb_table sym_table[8192] = {
     [354] = { .function_name = "usb_anchor_urb", .function_ptr = usb_anchor_urb, .function_size = 178 },
     [355] = { .function_name = "dev_coredumpv", .function_ptr = dev_coredumpv, .function_size = 13 },
     [356] = { .function_name = "skb_unlink", .function_ptr = skb_unlink, .function_size = 94 },
+<<<<<<< HEAD
     [357] = { .function_name = "ieee80211_pspoll_get", .function_ptr = ieee80211_pspoll_get, .function_size = 418 },
     [358] = { .function_name = "ieee80211_tx_status_irqsafe", .function_ptr = ieee80211_tx_status_irqsafe, .function_size = 601 },
+=======
+    [357] = { .function_name = "ieee80211_pspoll_get", .function_ptr = ieee80211_pspoll_get, .function_size = 408 },
+    [358] = { .function_name = "ieee80211_tx_status_irqsafe", .function_ptr = ieee80211_tx_status_irqsafe, .function_size = 614 },
+>>>>>>> a3ff522 (fixed first stage of ieee80211_register_hw)
     [359] = { .function_name = "udp6_set_csum", .function_ptr = udp6_set_csum, .function_size = 674 },
     [360] = { .function_name = "usb_control_msg", .function_ptr = usb_control_msg, .function_size = 169 },
     [361] = { .function_name = "__x86_indirect_thunk_r15", .function_ptr = __x86_indirect_thunk_r15, .function_size = 13 },
