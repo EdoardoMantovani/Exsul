@@ -567,37 +567,6 @@ int dwarf_loader_parser(unsigned char *struct_to_search, unsigned char *field_to
 	return ret;
 }
 
-void *search_similar_function(unsigned char *function_name){
-	int n = 0;
-	void *fn = NULL;
-	void *strtab = NULL;
-	Elf(Sym) *sym = NULL;
-	Elf(Shdr) *symsect = NULL;
-	struct load_info *info = NULL;
-	unsigned char *cur_name = NULL;
-
-	info = director.info;
-
-	symsect = &info->sechdrs[info->index.sym];
-	sym = (void *)symsect->sh_addr;
-        strtab = (void *)info->sechdrs[info->index.str].sh_addr;
-        n = symsect->sh_size / sizeof(*sym);
-
-        for (int i = 0; i < n; i++) {
-		cur_name = &strtab[sym[i].st_name];
-
-		if (cur_name == NULL || cur_name[0] == '\0'){
-			continue;
-		}
-
-		if (strstr((char *)function_name, cur_name) != NULL) {
-			fn = (void *)sym[i].st_value;
-			return fn;
-		}
-	}
-	return fn;
-}
-
 int parse_module_offset_table(void){
 	int ret = 0;
 	u8 counter = 0;
@@ -2032,16 +2001,20 @@ int initialize_director(struct module_controller *director, struct load_info **i
 	int ret = 0;
 
 	director->runtime_generated_structs = &runtime_generated_structs;
-        director->info = malloc(sizeof(struct load_info));
-        if (director->info == NULL){
-                ret = -ENOMEM;
-                return ret;
-        }
+        director->info = calloc(1, sizeof(struct load_info));
+	if (director->info == NULL){
+		ret = -ENOMEM;
+		return ret;
+	}
+	director->rfkill = calloc(1, sizeof(struct rfkill));
+	if(director->rfkill == NULL){
+		ret = -ENOMEM;
+		return ret;
+	}
 
 	/* initialize workqueues if necessary */
 	if(system_wq == NULL){
 		workqueue_init(&director->system_wq,		"system_wq");
-
 		system_wq = &director->system_wq;
 	}
 

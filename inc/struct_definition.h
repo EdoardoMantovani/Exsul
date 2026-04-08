@@ -1,5 +1,7 @@
 /* header created for avoiding errors during the 'stubs' compilation phase */
 
+struct dentry;
+
 enum rfkill_hard_block_reasons;
 enum ieee80211_chanctx_switch_mode;
 

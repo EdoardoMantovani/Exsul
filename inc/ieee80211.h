@@ -7253,11 +7253,13 @@ static int ieee80211_init_rate_ctrl_alg(struct ieee80211_local *local, const cha
 
 	ieee80211_ops = local->ieee80211_ops;
 	if(ieee80211_ops == NULL){
+		printf("ieee80211_init_rate_ctrl_alg1\n");
 		ret = -EINVAL;
 		return ret;
 	}
 
 	if (local->open_count){
+		printf("ieee80211_init_rate_ctrl_alg2\n");
 		ret = -EBUSY;
 		return ret;
 	}
@@ -7269,14 +7271,14 @@ static int ieee80211_init_rate_ctrl_alg(struct ieee80211_local *local, const cha
 		}
 		return ret;
 	}
-
+	printf("ieee80211_init_rate_ctrl_alg3\n");
 	ref = rate_control_alloc(name, local);
 	if (ref == NULL) {
 		//wiphy_warn(local->hw.wiphy, "Failed to select rate control algorithm\n");
 		ret = -ENOENT;
 		return ret;
 	}
-
+	printf("ieee80211_init_rate_ctrl_alg4\n");
 	local->rate_ctrl = ref;
 
 	printf("[*][wiphy] Selected rate control algorithm '%s'\n", ref->rops->name);
@@ -7291,7 +7293,7 @@ static void ieee80211_txq_teardown_flows(struct ieee80211_local *local){
 }
 
 static int ieee80211_txq_setup_flows(struct ieee80211_local *local){
-
+	return 0;
 }
 
 static void ieee80211_check_wbrf_support(struct ieee80211_local *local){
@@ -8133,7 +8135,7 @@ static int ieee80211_init_cipher_suites(struct ieee80211_local *local){
 		return ret;
 	}
 
-	if (wiphy->cipher_suites) {
+	if (!wiphy->cipher_suites) {
 		/* assign the (software supported and perhaps offloaded)
 		 * cipher suites
 		 */

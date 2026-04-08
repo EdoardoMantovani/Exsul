@@ -518,6 +518,9 @@ my %inline_array_field = (
 		"name"				=> 1,
 		"build_id"			=> 1,
 	},
+	wiphy => {
+		"bands"				=> 1,
+	},
 );
 
 chomp($ls);

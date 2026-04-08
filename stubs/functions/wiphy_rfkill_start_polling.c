@@ -2,17 +2,18 @@ void wiphy_rfkill_start_polling(struct wiphy *wiphy){
 	struct cfg80211_registered_device *rdev = NULL;
 	void (*rfkill_poll_cb)(struct rfkill *rfkill, void *data) = NULL;
 
-	rfkill_poll_cb = search_similar_function("_rfkill_poll");
+	fast_get_symbol("_rfkill_poll", &rfkill_poll_cb);
 
 	if(rfkill_poll_cb == NULL){
-		return;
+		goto end;
 	}
 
 	rdev = director.rdev;
 	rdev->rfkill_ops.poll = rfkill_poll_cb;
 	director.rfkill->polling_paused = false;
 	if (director.rfkill->suspended == true){
-		return;
+		goto end;
 	}
-	//director.rdev->rfkill_ops.poll();
+	//rdev->rfkill_ops.poll();
+	end:
 }

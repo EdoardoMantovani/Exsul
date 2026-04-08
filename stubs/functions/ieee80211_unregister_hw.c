@@ -30,7 +30,7 @@ void ieee80211_unregister_hw(struct ieee80211_hw *hw){
 	skb_queue_purge(&local->skb_queue);
 	skb_queue_purge(&local->skb_queue_unreliable);
 
-	wiphy_unregister(local->hw.wiphy);
+	//wiphy_unregister(local->hw.wiphy);
 	destroy_workqueue(local->workqueue);
 	ieee80211_led_exit(local);
 	kfree(local->int_scan_req);

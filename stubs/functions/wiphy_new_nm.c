@@ -5,7 +5,7 @@ struct wiphy *wiphy_new_nm(const struct cfg80211_ops *ops, int sizeof_priv, cons
 	struct cfg80211_registered_device *rdev = NULL;
 
 	alloc_size = sizeof_priv + sizeof(struct cfg80211_registered_device);
-	rdev = (struct cfg80211_registered_device *)malloc(alloc_size);
+	rdev = (struct cfg80211_registered_device *)calloc(1, alloc_size);
 	director.rdev = rdev;
 	wiphy = (struct wiphy *)((char *)rdev + sizeof(struct cfg80211_registered_device));
 	rdev->ops = ops;

@@ -179,6 +179,7 @@ void kfree_strarray(char **array, size_t n);
 void __x86_indirect_thunk_r9(void);
 void wiphy_work_flush(struct wiphy *wiphy, struct wiphy_work *work);
 stub int usb_control_msg_send(struct usb_device *dev, __u8 endpoint, __u8 request, __u8 requesttype, __u16 value, __u16 index, const void *driver_data, __u16 size, int timeout, int memflags);
+struct dentry *debugfs_create_dir(const char *name, struct dentry *parent);
 int cancel_delayed_work(struct delayed_work *dwork);
 struct ieee80211_sta *ieee80211_find_sta(struct ieee80211_vif *vif, const u8 *addr);
 struct ieee80211_hw *wiphy_to_ieee80211_hw(struct wiphy *wiphy);
@@ -256,7 +257,7 @@ int simple_write_to_buffer(void *to, size_t available, loff_t *ppos, const void 
 int kstrtobool(const char *s, bool *res);
 unsigned int __sw_hweight32(unsigned int w);
 int nl80211_chan_width_to_mhz(enum nl80211_chan_width chan_width);
-int ieee80211_register_hw(struct ieee80211_hw *hw);
+int ieee80211_register_hw(struct ieee80211_hw *hw) ;
 void ieee80211_ready_on_channel(struct ieee80211_hw *hw);
 void get_random_bytes(void *buf, size_t len);
 unsigned int jiffies_to_usecs(const unsigned long j);

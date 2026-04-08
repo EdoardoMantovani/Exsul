@@ -104,10 +104,7 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, struct ieee8021
 	director.ieee80211_local = (struct ieee80211_local *)calloc(1, (ALIGN(sizeof(struct ieee80211_local), 32) + priv_data_len));
 	local = director.ieee80211_local;
 	local->wiphy = wiphy;
-<<<<<<< HEAD
-=======
 
->>>>>>> a3ff522 (fixed first stage of ieee80211_register_hw)
 	if (sta_info_init(local)){
 		goto err_free;
 	}
