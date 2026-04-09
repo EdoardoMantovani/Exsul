@@ -250,19 +250,6 @@ container_of(callback_timer, typeof(*var), timer_fieldname)
 #define __counted_by(member)
 #endif
 
-/* macro for translating a pipe (used only in the linux kernel) into an endpoint (used in libusb) */
-#define usb_pipeendpoint(pipe)	(((pipe) >> 15) & 0xf)
-
-/* macro used for finding out if the pipe is IN, otherwise is OUT */
-#define usb_pipein(pipe)	((pipe) & USB_DIR_IN)
-
-/* macros used for getting the endpoint/pipe type */
-#define usb_pipetype(pipe)	(((pipe) >> 30) & 3)
-#define usb_pipeisoc(pipe)	(usb_pipetype((pipe)) == PIPE_ISOCHRONOUS)
-#define usb_pipeint(pipe)	(usb_pipetype((pipe)) == PIPE_INTERRUPT)
-#define usb_pipecontrol(pipe)	(usb_pipetype((pipe)) == PIPE_CONTROL)
-#define usb_pipebulk(pipe)	(usb_pipetype((pipe)) == PIPE_BULK)
-
 #ifndef cpu_to_be16
 #define cpu_to_be16 __cpu_to_be16
 #endif
@@ -1591,16 +1578,6 @@ static inline struct timespec timespec_add_ms(struct timespec t, unsigned long m
 		t.tv_nsec -= 1000000000L;
 	}
 	return t;
-}
-
-/* convert_usb_pipe_to_ep: convert a kernel pipe into an usb endpoint for using it with libusb */
-static unsigned char convert_usb_pipe_to_ep(unsigned int pipe){
-	unsigned char ep_num = 0;
-	unsigned char epaddr = 0;
-
-	ep_num = usb_pipeendpoint(pipe);
-	epaddr = ep_num | (usb_pipein(pipe) ? USB_DIR_IN : 0);
-	return epaddr;
 }
 
 static inline unsigned int __ffs(unsigned long word){

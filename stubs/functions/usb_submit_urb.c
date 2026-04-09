@@ -38,7 +38,7 @@ int usb_submit_urb(struct urb *urb, int mem_flags){
 
 	ret = libusb_submit_transfer(transfer);
 	if (ret != LIBUSB_SUCCESS) {
-		printf("%s\n", libusb_strerror(ret));
+		printf("[!] %s\n", libusb_strerror(ret));
 		urb->hcpriv = NULL;
 		/* if the transfer fails, decrease the urb 'use_count' field by 1 */
 		atomic_fetch_sub_explicit(&urb->use_count, 1, memory_order_relaxed);

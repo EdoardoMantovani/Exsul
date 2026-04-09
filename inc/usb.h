@@ -1,5 +1,18 @@
 /* contains usb related stuff */
 
+/* macro for translating a pipe (used only in the linux kernel) into an endpoint (used in libusb) */
+#define usb_pipeendpoint(pipe)  (((pipe) >> 15) & 0xf)
+
+/* macro used for finding out if the pipe is IN, otherwise is OUT */
+#define usb_pipein(pipe)        ((pipe) & USB_DIR_IN)
+
+/* macros used for getting the endpoint/pipe type */
+#define usb_pipetype(pipe)      (((pipe) >> 30) & 3)
+#define usb_pipeisoc(pipe)      (usb_pipetype((pipe)) == PIPE_ISOCHRONOUS)
+#define usb_pipeint(pipe)       (usb_pipetype((pipe)) == PIPE_INTERRUPT)
+#define usb_pipecontrol(pipe)   (usb_pipetype((pipe)) == PIPE_CONTROL)
+#define usb_pipebulk(pipe)      (usb_pipetype((pipe)) == PIPE_BULK)
+
 /* Hard limit */
 #define USB_MAXENDPOINTS	30
 /* this maximum is arbitrary */
@@ -272,6 +285,22 @@ struct usb_driver {
 };
 
 typedef void (*usb_complete_t)(struct urb *);
+
+/* convert_usb_pipe_to_ep: convert a kernel pipe into an usb endpoint for using it with libusb */
+static unsigned char convert_usb_pipe_to_ep(unsigned int pipe){
+	unsigned char ep_num = 0;
+	unsigned char epaddr = 0;
+
+	ep_num = usb_pipeendpoint(pipe);
+	epaddr = ep_num | (usb_pipein(pipe) ? USB_DIR_IN : 0);
+	return epaddr;
+}
+
+static inline struct usb_host_endpoint *usb_pipe_endpoint(struct usb_device *dev, unsigned int pipe){
+	struct usb_host_endpoint **eps = NULL;
+	eps = usb_pipein(pipe) ? dev->ep_in : dev->ep_out;
+	return eps[usb_pipeendpoint(pipe)];
+}
 
 static bool match_endpoint(struct usb_endpoint_descriptor *epd,
 		struct usb_endpoint_descriptor **bulk_in,
