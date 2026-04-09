@@ -4,6 +4,9 @@ struct hci_dev *hci_alloc_dev_priv(int sizeof_priv){
 	struct hci_conn_hash *conn_hash = NULL;
 
 	alloc_size = director.struct_sizes.hci_dev;
+	if(alloc_size <= 0){
+		return NULL;
+	}
 	if (sizeof_priv) {
 		/* Fixme: May need ALIGN-ment? */
 		alloc_size += sizeof_priv;

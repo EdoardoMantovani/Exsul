@@ -35,6 +35,8 @@ struct notifier_block;
 struct sock;
 struct rfkill;
 struct device;
+struct hci_cb;
+struct hci_dev;
 struct pci_dev;
 struct pci_driver;
 struct net_device;

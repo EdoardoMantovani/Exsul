@@ -260,6 +260,29 @@ typedef _Atomic(unsigned int) atomic_uint;
 #define stub
 #endif
 
+/* include here the errno.h header data */
+#define ERESTARTSYS             512
+#define ERESTARTNOINTR          513
+#define ERESTARTNOHAND          514     /* restart if no handler.. */
+#define ENOIOCTLCMD             515     /* No ioctl command */
+#define ERESTART_RESTARTBLOCK   516 /* restart by calling sys_restart_syscall */
+#define EPROBE_DEFER            517     /* Driver requests probe retry */
+#define EOPENSTALE              518     /* open found a stale dentry */
+#define ENOPARAM                519     /* Parameter not supported */
+
+/* Defined for the NFSv3 protocol */
+#define EBADHANDLE              521     /* Illegal NFS file handle */
+#define ENOTSYNC                522     /* Update synchronization mismatch */
+#define EBADCOOKIE              523     /* Cookie is stale */
+#define ENOTSUPP                524     /* Operation is not supported */
+#define ETOOSMALL               525     /* Buffer or request is too small */
+#define ESERVERFAULT            526     /* An untranslatable error occurred */
+#define EBADTYPE                527     /* Type not supported by server */
+#define EJUKEBOX                528     /* Request initiated, but will not complete before timeout */
+#define EIOCBQUEUED             529     /* iocb queued, will get completion event */
+#define ERECALLCONFLICT         530     /* conflict with recalled state */
+#define ENOGRACE                531     /* NFS file lock reclaim refused */
+
 #define NR_KMALLOC_TYPES	8
 #define	NUMA_NO_NODE		(-1)
 
@@ -327,6 +350,19 @@ typedef _Atomic(unsigned int) atomic_uint;
 
 /* macro used for getting the current 'task_struct' */
 #define current (current_thread_info())
+
+/* macros used for waking up a task */
+#define wake_up(x)                      __wake_up(x, TASK_NORMAL, 1, NULL)
+#define wake_up_nr(x, nr)               __wake_up(x, TASK_NORMAL, nr, NULL)
+#define wake_up_all(x)                  __wake_up(x, TASK_NORMAL, 0, NULL)
+#define wake_up_locked(x)               __wake_up_locked((x), TASK_NORMAL, 1)
+#define wake_up_all_locked(x)           __wake_up_locked((x), TASK_NORMAL, 0)
+#define wake_up_sync(x)                 __wake_up_sync(x, TASK_NORMAL)
+
+#define wake_up_interruptible(x)        __wake_up(x, TASK_INTERRUPTIBLE, 1, NULL)
+#define wake_up_interruptible_nr(x, nr) __wake_up(x, TASK_INTERRUPTIBLE, nr, NULL)
+#define wake_up_interruptible_all(x)    __wake_up(x, TASK_INTERRUPTIBLE, 0, NULL)
+#define wake_up_interruptible_sync(x)   __wake_up_sync((x), TASK_INTERRUPTIBLE)
 
 /* sections for the crashdump */
 enum {

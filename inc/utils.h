@@ -57,6 +57,11 @@
 
 #define offsetof(TYPE, MEMBER)	__builtin_offsetof(TYPE, MEMBER)
 
+#define __put_unaligned_t(type, val, ptr) do {                                          \
+        struct { type x; } __packed * __put_pptr = (typeof(__put_pptr))(ptr);           \
+        __put_pptr->x = (val);                                                          \
+} while (0)
+
 /* The "volatile" is due to gcc bugs */
 # define barrier()		__asm__ __volatile__("": : :"memory")
 
@@ -116,20 +121,20 @@
 
 /* NOTE:  these are not the standard USB_ENDPOINT_XFER_* values!! */
 /* (yet ... they're the values used by usbfs) */
-#define PIPE_ISOCHRONOUS		0
-#define PIPE_INTERRUPT			1
-#define PIPE_CONTROL			2
-#define PIPE_BULK			3
+#define PIPE_ISOCHRONOUS			0
+#define PIPE_INTERRUPT				1
+#define PIPE_CONTROL				2
+#define PIPE_BULK				3
 
-#define NULLS_MARKER(value) (1UL | (((long)value) << 1))
-#define INIT_HLIST_NULLS_HEAD(ptr, nulls) ((ptr)->first = (struct hlist_nulls_node *) NULLS_MARKER(nulls))
-#define HLIST_NULLS_HEAD_INIT(nulls) {.first = (struct hlist_nulls_node *)NULLS_MARKER(nulls)}
+#define NULLS_MARKER(value)			(1UL | (((long)value) << 1))
+#define INIT_HLIST_NULLS_HEAD(ptr, nulls) 	((ptr)->first = (struct hlist_nulls_node *) NULLS_MARKER(nulls))
+#define HLIST_NULLS_HEAD_INIT(nulls) 		{.first = (struct hlist_nulls_node *)NULLS_MARKER(nulls)}
 
 #define DECLARE_BITMAP(name,bits)		unsigned long name[BITS_TO_LONGS(bits)]
 #define __ETHTOOL_DECLARE_LINK_MODE_MASK(name)	DECLARE_BITMAP(name, __ETHTOOL_LINK_MODE_MASK_NBITS)
 
-#define alloc_ordered_workqueue(fmt, flags, args...)			\
-	alloc_workqueue(fmt, WQ_UNBOUND | __WQ_ORDERED | (flags), 1, ##args)
+#define alloc_ordered_workqueue(fmt, flags, args)			\
+	alloc_workqueue(fmt, WQ_UNBOUND | __WQ_ORDERED | (flags), 1, args)
 
 #define create_workqueue(name)						\
 	alloc_workqueue("%s", __WQ_LEGACY | WQ_MEM_RECLAIM | WQ_PERCPU, 1, (name))
@@ -1509,6 +1514,18 @@ static inline u32 get_unaligned_le32(const void *p){
 
 static inline u64 get_unaligned_le64(const void *p){
 	return le64_to_cpu(__get_unaligned_t(__le64, p));
+}
+
+static inline void put_unaligned_le16(u16 val, void *p){
+	__put_unaligned_t(__le16, cpu_to_le16(val), p);
+}
+
+static inline void put_unaligned_le32(u32 val, void *p){
+	__put_unaligned_t(__le32, cpu_to_le32(val), p);
+}
+
+static inline void put_unaligned_le64(u64 val, void *p){
+	__put_unaligned_t(__le64, cpu_to_le64(val), p);
 }
 
 static inline int lockdep_rht_mutex_is_held(struct rhashtable *ht){

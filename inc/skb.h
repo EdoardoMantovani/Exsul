@@ -132,6 +132,13 @@ enum {
 	SKB_FCLONE_CLONE,	/* companion fclone skb (from fclone_cache) */
 };
 
+enum skb_tstamp_type {
+	SKB_CLOCK_REALTIME,
+	SKB_CLOCK_MONOTONIC,
+	SKB_CLOCK_TAI,
+	__SKB_CLOCK_MAX = SKB_CLOCK_TAI,
+};
+
 /* Definitions for flags in struct skb_shared_info */
 enum {
 	/* use zcopy routines */
@@ -805,6 +812,10 @@ struct sk_buff_head {
 
         __u32           qlen;
 };
+
+static inline void __net_timestamp(struct sk_buff *skb){
+	skb->tstamp_type = SKB_CLOCK_REALTIME;
+}
 
 static inline void skb_set_queue_mapping(struct sk_buff *skb, u16 queue_mapping){
 	skb->queue_mapping = queue_mapping;
@@ -1682,6 +1693,10 @@ static inline void __skb_queue_purge_reason(struct sk_buff_head *list, enum skb_
 	}
 }
 
+static inline void skb_queue_purge(struct sk_buff_head *list){
+	skb_queue_purge_reason(list, SKB_DROP_REASON_QUEUE_PURGE);
+}
+
 static inline struct ubuf_info *skb_zcopy(struct sk_buff *skb){
 	bool is_zcopy = skb && skb_shinfo(skb)->flags & SKBFL_ZEROCOPY_ENABLE;
 	return is_zcopy ? skb_uarg(skb) : NULL;
@@ -2011,4 +2026,10 @@ static inline __wsum lco_csum(struct sk_buff *skb){
 	return csum_partial(l4_hdr, csum_start - l4_hdr, partial);
 }
 
+/* place here also the 'sock' functions */
+static inline void sock_put(struct sock *sk){
+        if (refcount_dec_and_test(&sk->sk_refcnt)){
+                sk_free(sk);
+        }
+}
 #endif
