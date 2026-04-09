@@ -6001,7 +6001,6 @@ struct ieee80211_local {
 
 const struct element * cfg80211_find_elem_match(u8 eid, const u8 *ies, unsigned int len,  const u8 *match, unsigned int match_len, unsigned int match_offset);
 
-
 static u32 cfg80211_calculate_bitrate_ht(struct rate_info *rate){
 	int modulation = 0;
 	int streams = 0;

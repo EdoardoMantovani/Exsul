@@ -150,6 +150,7 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, struct ieee8021
 
 	INIT_LIST_HEAD(&local->interfaces);
 	INIT_LIST_HEAD(&local->mon_list);
+	INIT_LIST_HEAD(&local->reg_requests_list);
 
 	pthread_mutex_init(&local->iflist_mtx, NULL);
 	local->airtime_flags = AIRTIME_USE_TX | AIRTIME_USE_RX;

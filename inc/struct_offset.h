@@ -1460,7 +1460,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[16] = {
 				.struct_size = 0,
 				.struct_name = "wiphy",
-				.struct_field_num = 34,
+				.struct_field_num = 35,
 				.fields = {
 					[0] = {
 						.field_name = "addresses",
@@ -1571,30 +1571,34 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[27] = {
-						.field_name = "regd",
+						.field_name = "reg_notifier",
 						.field_offset = 0,
 					},
 					[28] = {
-						.field_name = "regulatory_flags",
+						.field_name = "regd",
 						.field_offset = 0,
 					},
 					[29] = {
-						.field_name = "retry_long",
+						.field_name = "regulatory_flags",
 						.field_offset = 0,
 					},
 					[30] = {
-						.field_name = "retry_short",
+						.field_name = "retry_long",
 						.field_offset = 0,
 					},
 					[31] = {
-						.field_name = "rts_threshold",
+						.field_name = "retry_short",
 						.field_offset = 0,
 					},
 					[32] = {
-						.field_name = "signal_type",
+						.field_name = "rts_threshold",
 						.field_offset = 0,
 					},
 					[33] = {
+						.field_name = "signal_type",
+						.field_offset = 0,
+					},
+					[34] = {
 						.field_name = "software_iftypes",
 						.field_offset = 0,
 					},

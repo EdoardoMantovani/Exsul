@@ -306,14 +306,14 @@ unsigned long _find_first_zero_bit(const unsigned long *addr, unsigned long size
 void delayed_work_timer_fn(struct workqueue_struct *wq);
 void crypto_destroy_alg(struct crypto_alg *alg);
 unsigned long _inline_copy_to_user(void *to, void *from, unsigned long n);
-void mutex_unlock(pthread_mutex_t *lock);
+void mutex_unlock(struct mutex *lock);
 bool __list_add_valid_or_report(struct list_head *new, struct list_head *prev, struct list_head *next);
 void bt_info(const char *format, ...);
 void wiphy_work_queue(struct wiphy *wiphy, struct wiphy_work *work);
 struct sk_buff *__netdev_alloc_skb(struct net_device *netdev, unsigned int len, int gfp_mask);
 int hci_register_cb(struct hci_cb *cb);
 const void *dmi_first_match(const void *list);
-void mutex_lock(pthread_mutex_t *lock);
+void mutex_lock(struct mutex *lock);
 void ieee80211_csa_finish(struct ieee80211_vif *vif, unsigned int link_id);
 struct task_struct *kthread_create_on_node(int (*kthread_function)(void *data), void *data, int node, unsigned char *thread_name);
 __wsum csum_partial(const void *buff, int len, __wsum wsum);

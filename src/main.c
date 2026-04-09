@@ -2743,12 +2743,12 @@ int elf_generator_handler(void){
 			if(phdr_base[k].p_flags & PF_X){
 				seg_prot |= PROT_EXEC;
 			}
-
+			#ifdef ENABLE_DBG_PRINT
 			printf("[*] internal segment number %d, vaddr: 0x%llx size: %llu\n",
 				(int)k,
 				(unsigned long long)phdr_base[k].p_vaddr,
 				(unsigned long long)phdr_base[k].p_memsz);
-
+			#endif
 			director.module_allocation_list = new_allocation(
 				ALLOCATION_TYPE_MALLOC,
 				(void *)(uintptr_t)phdr_base[k].p_vaddr,

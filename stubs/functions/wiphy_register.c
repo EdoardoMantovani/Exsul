@@ -4,11 +4,12 @@ int wiphy_register(struct wiphy *wiphy){
 	u16 ifmodes = 0;
 	bool have_band = false;
 	enum nl80211_band band = 0;
-	struct ieee80211_supported_band *sband = NULL;
-
 	struct ieee80211_local *local = NULL;
-	struct cfg80211_registered_device *rdev = NULL;
+	struct regulatory_request *request = NULL;
 	struct ieee80211_ops *ieee80211_ops = NULL;
+	struct ieee80211_supported_band *sband = NULL;
+	struct cfg80211_registered_device *rdev = NULL;
+	void (*reg_notifier)(struct wiphy *wiphy, struct regulatory_request *request) = NULL;
 
 	local = director.ieee80211_local;
 	if(local == NULL){
@@ -58,15 +59,18 @@ int wiphy_register(struct wiphy *wiphy){
 		}
 
 		if (wiphy->ap_sme_capa && !(wiphy->flags & WIPHY_FLAG_HAVE_AP_SME)){
-			return -EINVAL;
+			ret = -EINVAL;
+			return ret;
 		}
 
 		if (wiphy->addresses && !wiphy->n_addresses){
-			return -EINVAL;
+			ret = -EINVAL;
+			return ret;
 		}
 
 		if (wiphy->max_acl_mac_addrs && (!(wiphy->flags & WIPHY_FLAG_HAVE_AP_SME) || !ieee80211_ops->set_mac_acl)){
-			return -EINVAL;
+			ret = -EINVAL;
+			return ret;
 		}
 
 		/* sanity check supported bands/channels */
@@ -81,27 +85,23 @@ int wiphy_register(struct wiphy *wiphy){
 			}
 			sband->band = band;
 			if (!sband->n_channels){
-				return -EINVAL;
+				ret = -EINVAL;
+				return ret;
 			}
-			/*
-			 * on 60GHz or sub-1Ghz band, there are no legacy rates, so
-			 * n_bitrates is 0
-			 */
+
 			if ((band != NL80211_BAND_60GHZ && band != NL80211_BAND_S1GHZ) && !sband->n_bitrates){
-				return -EINVAL;
+				ret = -EINVAL;
+				return ret;
 			}
 
 			if (band == NL80211_BAND_6GHZ && (sband->ht_cap.ht_supported || sband->vht_cap.vht_supported)){
-				return -EINVAL;
+				ret = -EINVAL;
+				return ret;
 			}
 
-			/*
-			 * Since we use a u32 for rate bitmaps in
-			 * ieee80211_get_response_rate, we cannot
-			 * have more than 32 legacy rates.
-			 */
 			if (sband->n_bitrates > 32){
-				return -EINVAL;
+				ret = -EINVAL;
+				return ret;
 			}
 
 			for (i = 0; i < sband->n_channels; i++) {
@@ -111,7 +111,8 @@ int wiphy_register(struct wiphy *wiphy){
 				sband->channels[i].band = band;
 
 				if (sband->channels[i].freq_offset >= 1000){
-					return -EINVAL;
+					ret = -EINVAL;
+					return ret;
 				}
 			}
 
@@ -120,14 +121,17 @@ int wiphy_register(struct wiphy *wiphy){
 				u32 ap_bits = BIT(NL80211_IFTYPE_AP) | BIT(NL80211_IFTYPE_P2P_GO);
 
 				if (!iftd->types_mask){
-					return -EINVAL;
+					ret = -EINVAL;
+					return ret;
 				}
 				if (types & iftd->types_mask){
-					return -EINVAL;
+					ret = -EINVAL;
+					return ret;
 				}
 				/* at least one piece of information must be present */
 				if (!iftd->he_cap.has_he){
-					return -EINVAL;
+					ret = -EINVAL;
+					return ret;
 				}
 				types |= iftd->types_mask;
 
@@ -146,14 +150,46 @@ int wiphy_register(struct wiphy *wiphy){
 				 * reject if so.
 				 */
 				if (iftd->eht_cap.has_eht && has_ap && has_non_ap){
-					return -EINVAL;
+					ret = -EINVAL;
+					return ret;
 				}
 			}
 
 			if (!have_he && band == NL80211_BAND_6GHZ){
-				return -EINVAL;
+				ret = -EINVAL;
+				return ret;
 			}
 			have_band = true;
+		}
+	}
+
+	/* set up regulatory info */
+	if (wiphy->reg_notifier != NULL) {
+		request = NULL;
+		if (!list_empty(&local->reg_requests_list)) {
+			request = list_last_entry(&local->reg_requests_list, struct regulatory_request, list);
+		}
+
+		if (request == NULL) {
+			request = __kmalloc_large_noprof(sizeof(struct regulatory_request), GFP_KERNEL);
+			if (request == NULL) {
+				ret = -ENOMEM;
+				return ret;
+			}
+			memset(request, 0, sizeof(*request));
+			request->initiator   = NL80211_REGDOM_SET_BY_CORE;
+			request->alpha2[0]   = '0';
+			request->alpha2[1]   = '0';
+			request->alpha2[2]   = '0';
+		}
+
+		reg_notifier = wiphy->reg_notifier;
+		if(reg_notifier != NULL){
+			reg_notifier(wiphy, request);
+		}
+
+		if (request != NULL){
+			kfree(request);
 		}
 	}
 	return ret;

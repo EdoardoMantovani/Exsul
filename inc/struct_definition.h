@@ -8,6 +8,7 @@ enum ieee80211_chanctx_switch_mode;
 struct rb_node;
 struct rb_root;
 
+struct mutex;
 struct module;
 struct list_head;
 
