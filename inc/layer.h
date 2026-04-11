@@ -108,6 +108,7 @@ typedef off_t	loff_t;
         } ATTRS
 
 /* overwrite the 'pthread_xxx' types with windows based definitions */
+typedef int		   pthread_attr_t;
 typedef SRWLOCK            pthread_mutex_t;
 typedef CONDITION_VARIABLE pthread_cond_t;
 typedef HANDLE             pthread_t;

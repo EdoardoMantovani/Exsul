@@ -377,18 +377,37 @@ int invoke_usb_probe(struct usb_driver *new_driver, struct usb_device_id *id, st
 	return ret;
 }
 
-int dwarf_search_field(unsigned char *field_input_name, Dwarf_Debug dbg, Dwarf_Die struct_die){
+/* Read the DW_AT_data_member_location of a DWARF member DIE. */
+static Dwarf_Unsigned dwarf_get_member_offset(Dwarf_Debug dbg, Dwarf_Die member_die){
+	Dwarf_Error err = 0;
+	Dwarf_Attribute attr = 0;
+	Dwarf_Unsigned offset = 0;
+	Dwarf_Unsigned exprlen = 0;
+	char *block = NULL;
+
+	if (dwarf_attr(member_die, DW_AT_data_member_location, &attr, &err) != DW_DLV_OK)
+		return 0;
+	if (dwarf_formudata(attr, &offset, &err) != DW_DLV_OK) {
+		if (dwarf_formexprloc(attr, &exprlen, &block, &err) == DW_DLV_OK && exprlen > 0 && block) {
+			if (block[0] == DW_OP_plus_uconst || block[0] == DW_OP_constu){
+				offset = read_uleb128(block + 1, (size_t)exprlen - 1);
+			}
+		}
+	}
+	dwarf_dealloc(dbg, attr, DW_DLA_ATTR);
+	return offset;
+}
+
+static int dwarf_search_field_recursive(unsigned char *field_input_name, Dwarf_Debug dbg, Dwarf_Die struct_die, unsigned int base_offset){
 	int ret = 0;
+	int nested = 0;
 	int sibling = 0;
+	unsigned int member_off = 0;
 	Dwarf_Error err = 0;
 	Dwarf_Die cur = 0;
 	Dwarf_Die sib = 0;
 	Dwarf_Die child = 0;
 	Dwarf_Half tag = 0;
-	Dwarf_Attribute attr = 0;
-	Dwarf_Unsigned exprlen = 0;
-	Dwarf_Unsigned field_offset = 0;
-	char *block = NULL;
 	char *field_name = NULL;
 
 	ret = dwarf_child(struct_die, &child, &err);
@@ -396,28 +415,48 @@ int dwarf_search_field(unsigned char *field_input_name, Dwarf_Debug dbg, Dwarf_D
 		ret = -ENOENT;
 		return ret;
 	}
-
 	cur = child;
 
 	for (;;) {
 		tag = 0;
 		ret = dwarf_tag(cur, &tag, &err);
 		if (ret == DW_DLV_OK && tag == DW_TAG_member) {
+			member_off = (unsigned int)dwarf_get_member_offset(dbg, cur);
+
+			field_name = NULL;
 			ret = dwarf_diename(cur, &field_name, &err);
+
 			if (ret == DW_DLV_OK && field_name && strcmp(field_name, (char *)field_input_name) == 0) {
-				field_offset = 0;
-				ret = dwarf_attr(cur, DW_AT_data_member_location, &attr, &err);
-				if (ret == DW_DLV_OK) {
-					if (dwarf_formudata(attr, &field_offset, &err) != DW_DLV_OK) {
-						if (dwarf_formexprloc(attr, &exprlen, &block, &err) == DW_DLV_OK && exprlen > 0 && block) {
-							if (block[0] == DW_OP_plus_uconst || block[0] == DW_OP_constu)
-								field_offset = read_uleb128(block + 1, (size_t)exprlen - 1);
+				/* Found the named field */
+				dwarf_dealloc(dbg, cur, DW_DLA_DIE);
+				return (int)(base_offset + member_off);
+			}
+
+			if (ret != DW_DLV_OK || !field_name) {
+				/* Anonymous member: resolve its type and recurse */
+				Dwarf_Attribute type_attr = 0;
+				if (dwarf_attr(cur, DW_AT_type, &type_attr, &err) == DW_DLV_OK) {
+					Dwarf_Off type_off = 0;
+					if (dwarf_global_formref(type_attr, &type_off, &err) == DW_DLV_OK) {
+						Dwarf_Die type_die = 0;
+						if (dwarf_offdie(dbg, type_off, &type_die, &err) == DW_DLV_OK) {
+							Dwarf_Half type_tag = 0;
+							if (dwarf_tag(type_die, &type_tag, &err) == DW_DLV_OK &&
+							    (type_tag == DW_TAG_structure_type || type_tag == DW_TAG_union_type)) {
+								nested = dwarf_search_field_recursive(field_input_name, dbg, type_die, base_offset + member_off);
+								if (nested >= 0) {
+									dwarf_dealloc(dbg, type_die, DW_DLA_DIE);
+									dwarf_dealloc(dbg, type_attr, DW_DLA_ATTR);
+									dwarf_dealloc(dbg, cur, DW_DLA_DIE);
+									return nested;
+								}
 							}
+							dwarf_dealloc(dbg, type_die, DW_DLA_DIE);
 						}
-						dwarf_dealloc(dbg, attr, DW_DLA_ATTR);
 					}
-					return (int)field_offset;
+					dwarf_dealloc(dbg, type_attr, DW_DLA_ATTR);
 				}
+			}
 		}
 		sibling = dwarf_siblingof(dbg, cur, &sib, &err);
 		dwarf_dealloc(dbg, cur, DW_DLA_DIE);
@@ -428,6 +467,12 @@ int dwarf_search_field(unsigned char *field_input_name, Dwarf_Debug dbg, Dwarf_D
 	}
 
 	ret = -ENOENT;
+	return ret;
+}
+
+int dwarf_search_field(unsigned char *field_input_name, Dwarf_Debug dbg, Dwarf_Die struct_die){
+	int ret = 0;
+	ret = dwarf_search_field_recursive(field_input_name, dbg, struct_die, 0);
 	return ret;
 }
 
@@ -473,7 +518,6 @@ int dwarf_detect_struct(Dwarf_Debug dbg, Dwarf_Die die, unsigned char *struct_to
 			return ret;
 		}
 	}
-
 	ret = dwarf_child(die, &child, &err);
 	if (ret != DW_DLV_OK){
 		ret = false;
@@ -3057,7 +3101,7 @@ void crash_handler(int sig){
 	char **backtrace_strings = NULL;
 	void *buffer[BACKTRACE_MAX_DEPTH];
 
-        #ifdef ENABLE_UNWIND_DEBUGGING
+        #ifdef ENABLE_UNWIND_DEBUGGING && defined(__linux__)
         unwind_backtrace();
         #else
 	if(sig != SIGABRT){

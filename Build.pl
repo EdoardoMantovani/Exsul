@@ -1046,7 +1046,14 @@ sub merge_rewritten_function_stubs {
 	foreach (`$find $functions_dir -type f -name "*.c" | $sort`) {
 		my $file = $_;
 		chomp($file);
-		push(@function_files, $file);
+		# dirty workaround due to mingw headers because "snprintf" is already defined..
+		if($windows_support){
+			if(!($file eq "snprintf.c")){
+				push(@function_files, $file);
+			}
+		}else{
+			push(@function_files, $file);
+		}
 	}
 
 	foreach(`$find $variables_dir -type f -name "*.c" | $sort`) {
@@ -1124,7 +1131,14 @@ foreach(`$find $virtual_compilation_folder`){
 		if($verbose){
 			print("[*] adding $iterator to the compilation list!\n");
 		}
-		push(@sources, $iterator);
+		# dirty workaround due to mingw headers because "snprintf" is already defined..
+		if($windows_support){
+			if(!($iterator eq "snprintf")){
+				push(@sources, $iterator);
+			}
+		}else{
+			push(@sources, $iterator);
+		}
 	}
 }
 

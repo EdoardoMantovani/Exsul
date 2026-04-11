@@ -2473,7 +2473,7 @@ int apply_relocate(Elf(Shdr) *sechdrs, const char *strtab, unsigned int symindex
         return 0;
 }
 
-#ifdef ENABLE_UNWIND_DEBUGGING
+#if defined(ENABLE_UNWIND_DEBUGGING) && defined(__linux__)
 void unwind_backtrace(void){
 	int counter = 0;
 	size_t rip = 0;

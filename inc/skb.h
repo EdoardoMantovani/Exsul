@@ -1263,9 +1263,13 @@ static inline void __skb_insert(struct sk_buff *skb,
 				struct sk_buff_head *list){
 	/* See skb_queue_empty_lockless() and skb_peek_tail()
 	 * for the opposite READ_ONCE()
+	 *
+	 * Use sk_buff_list cast (hardcoded offsets 0/8) for next/prev on skb
+	 * nodes, bypassing the dynamic DWARF offsets that fail to resolve these
+	 * fields when they are nested inside anonymous unions in sk_buff.
 	 */
-	WRITE_ONCE(skb->next, next);
-	WRITE_ONCE(skb->prev, prev);
+	WRITE_ONCE(((struct sk_buff_list *)skb)->next, next);
+	WRITE_ONCE(((struct sk_buff_list *)skb)->prev, prev);
 	WRITE_ONCE(((struct sk_buff_list *)next)->prev, skb);
 	WRITE_ONCE(((struct sk_buff_list *)prev)->next, skb);
 	WRITE_ONCE(list->qlen, list->qlen + 1);
@@ -1276,7 +1280,7 @@ static inline bool skb_frags_readable(const struct sk_buff *skb){
 }
 
 static inline void skb_mark_not_on_list(struct sk_buff *skb){
-	skb->next = NULL;
+	((struct sk_buff_list *)skb)->next = NULL;
 }
 
 static inline bool skb_is_nonlinear(const struct sk_buff *skb){
@@ -1368,10 +1372,10 @@ static inline void __skb_queue_tail(struct sk_buff_head *list, struct sk_buff *n
 }
 
 static inline void __skb_unlink(struct sk_buff *skb, struct sk_buff_head *list){
-	struct sk_buff *next = skb->next;
-	struct sk_buff *prev = skb->prev;
-	skb->next = NULL;
-	skb->prev = NULL;
+	struct sk_buff *next = ((struct sk_buff_list *)skb)->next;
+	struct sk_buff *prev = ((struct sk_buff_list *)skb)->prev;
+	((struct sk_buff_list *)skb)->next = NULL;
+	((struct sk_buff_list *)skb)->prev = NULL;
 	WRITE_ONCE(((struct sk_buff_list *)next)->prev, prev);
 	WRITE_ONCE(((struct sk_buff_list *)prev)->next, next);
 	WRITE_ONCE(list->qlen, list->qlen - 1);

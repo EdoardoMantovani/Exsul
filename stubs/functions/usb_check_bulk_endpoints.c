@@ -1,4 +1,4 @@
-stub bool usb_check_bulk_endpoints(struct usb_interface *intf, const u8 *ep_addrs){
+bool usb_check_bulk_endpoints(struct usb_interface *intf, const u8 *ep_addrs){
 	const struct usb_host_endpoint *ep = NULL;
 
 	for (; *ep_addrs; ++ep_addrs) {

@@ -8099,6 +8099,26 @@ static void ieee80211_wep_init(struct ieee80211_local *local){
 	get_random_bytes(&local->wep_iv, IEEE80211_WEP_IV_LEN);
 }
 
+static void cfg80211_process_wiphy_works(struct cfg80211_registered_device *rdev, struct wiphy_work *end){
+	unsigned int runaway_limit = 100;
+	struct wiphy_work *wk = NULL;
+
+	while (!list_empty(&rdev->wiphy_work_list)) {
+		wk = NULL;
+
+		wk = list_first_entry(&rdev->wiphy_work_list, struct wiphy_work, entry);
+		list_del_init(&wk->entry);
+		wk->func(&rdev->wiphy, wk);
+
+		if (wk == end){
+			break;
+		}
+		if (--runaway_limit == 0){
+			INIT_LIST_HEAD(&rdev->wiphy_work_list);
+		}
+	}
+}
+
 static int ieee80211_init_cipher_suites(struct ieee80211_local *local){
 	int ret = 0;
 	bool have_mfp = ieee80211_hw_check(&local->hw, MFP_CAPABLE);

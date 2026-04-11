@@ -9,4 +9,5 @@ void dev_kfree_skb_irq_reason(struct sk_buff *skb, int reason){
 		return;
 	}
 	get_kfree_skb_cb(skb)->reason = reason;
+	__kfree_skb(skb);
 }

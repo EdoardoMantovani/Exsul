@@ -1,4 +1,4 @@
-stub int usb_find_common_endpoints(struct usb_host_interface *alt, struct usb_endpoint_descriptor **bulk_in,	struct usb_endpoint_descriptor **bulk_out, struct usb_endpoint_descriptor **int_in, struct usb_endpoint_descriptor **int_out){
+int usb_find_common_endpoints(struct usb_host_interface *alt, struct usb_endpoint_descriptor **bulk_in,	struct usb_endpoint_descriptor **bulk_out, struct usb_endpoint_descriptor **int_in, struct usb_endpoint_descriptor **int_out){
 	int ret = 0;
 	struct usb_endpoint_descriptor *epd = NULL;
 
