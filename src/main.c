@@ -81,26 +81,26 @@ int parse_module_usb_table(struct usb_device_id **id){
 
 #ifdef ADVANCED_USB_DEBUGGING
 void dump_usb_host_interface(struct usb_interface *intf){
-        if(intf == NULL){
-                return;
-        }
-        if(intf->altsetting == NULL){
-                return;
-        }
-        if(intf->altsetting->endpoint == NULL){
-                return;
-        }
+	if(intf == NULL){
+		return;
+	}
+	if(intf->altsetting == NULL){
+		return;
+	}
+	if(intf->altsetting->endpoint == NULL){
+		return;
+	}
 
-        for(u8 z = 0; z < intf->altsetting->desc.bNumEndpoints; z++){
-                printf("[DUMP] endpoint %d length %d\n", z, intf->altsetting->endpoint[z].desc.bLength);
-                printf("[DUMP] endpoint %d desc: %d\n", z, intf->altsetting->endpoint[z].desc.bDescriptorType);
-                printf("[DUMP] endpoint %d ep_addr: %d\n", z, intf->altsetting->endpoint[z].desc.bEndpointAddress);
-                printf("[DUMP] endpoint %d attributes: %d\n", z, intf->altsetting->endpoint[z].desc.bmAttributes);
-                printf("[DUMP] endpoint %d max pkt size: %d\n", z, intf->altsetting->endpoint[z].desc.wMaxPacketSize);
-                printf("[DUMP] endpoint %d interval: %d\n", z, intf->altsetting->endpoint[z].desc.bInterval);
-                printf("[DUMP] endpoint %d refresh: %d\n", z, intf->altsetting->endpoint[z].desc.bRefresh);
-                printf("[DUMP] endpoint %d sync address: %d\n", z, intf->altsetting->endpoint[z].desc.bSynchAddress);
-        }
+	for(u8 z = 0; z < intf->altsetting->desc.bNumEndpoints; z++){
+		printf("[DUMP] endpoint %d length %d\n", z, intf->altsetting->endpoint[z].desc.bLength);
+		printf("[DUMP] endpoint %d desc: %d\n", z, intf->altsetting->endpoint[z].desc.bDescriptorType);
+		printf("[DUMP] endpoint %d ep_addr: %d\n", z, intf->altsetting->endpoint[z].desc.bEndpointAddress);
+		printf("[DUMP] endpoint %d attributes: %d\n", z, intf->altsetting->endpoint[z].desc.bmAttributes);
+		printf("[DUMP] endpoint %d max pkt size: %d\n", z, intf->altsetting->endpoint[z].desc.wMaxPacketSize);
+		printf("[DUMP] endpoint %d interval: %d\n", z, intf->altsetting->endpoint[z].desc.bInterval);
+		printf("[DUMP] endpoint %d refresh: %d\n", z, intf->altsetting->endpoint[z].desc.bRefresh);
+		printf("[DUMP] endpoint %d sync address: %d\n", z, intf->altsetting->endpoint[z].desc.bSynchAddress);
+	}
 }
 #endif
 
@@ -119,6 +119,8 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
         const struct libusb_endpoint_descriptor  *ep    = NULL;
         struct usb_interface                *intf_ptr   = NULL;
         struct usb_device                   *udev_ptr   = NULL;
+
+	struct libusb_device_descriptor dev_desc	= {};
 
         if (handler == NULL || in_intf == NULL) {
                 return -EINVAL;
@@ -184,8 +186,7 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
                 goto fail_free_intf;
         }
 
-        intf_ptr->altsetting = (struct usb_host_interface *)calloc(
-                num_altsetting, sizeof(struct usb_host_interface));
+        intf_ptr->altsetting = (struct usb_host_interface *)calloc(num_altsetting, sizeof(struct usb_host_interface));
         if (intf_ptr->altsetting == NULL) {
                 printf("[!] failed to allocate usb_host_interface array!\n");
                 ret = -ENOMEM;
@@ -221,48 +222,30 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
                         continue;
                 }
 
-                intf_ptr->altsetting[k].endpoint = (struct usb_host_endpoint *)calloc(
-                        num_ep, sizeof(struct usb_host_endpoint));
+                intf_ptr->altsetting[k].endpoint = (struct usb_host_endpoint *)calloc(num_ep, sizeof(struct usb_host_endpoint));
                 if (intf_ptr->altsetting[k].endpoint == NULL) {
                         ret = -ENOMEM;
                         for (u8 m = 0; m < k; m++) {
-				printf("parse_usb_and_alloc_intf12\n");
                                 free(intf_ptr->altsetting[m].endpoint);
                                 intf_ptr->altsetting[m].endpoint = NULL;
-				printf("parse_usb_and_alloc_intf13\n");
-                        }
+			}
                         goto fail_free_altsetting;
                 }
 
-                for (u8 z = 0; z < num_ep; z++) {
-                        ep = &alt->endpoint[z];
-
-#ifdef ADVANCED_USB_DEBUGGING
-                        {
-                                u8 ep_in   = ((ep->bEndpointAddress & USB_ENDPOINT_DIR_MASK) == USB_DIR_IN);
-                                u8 xfer    = ep->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK;
-                                const char *xfer_str =
-                                        (xfer == USB_ENDPOINT_XFER_BULK)    ? "bulk"         :
-                                        (xfer == USB_ENDPOINT_XFER_INT)     ? "interrupt"    :
-                                        (xfer == USB_ENDPOINT_XFER_CONTROL) ? "control"      :
-                                        (xfer == USB_ENDPOINT_XFER_ISOC)    ? "isochronous"  : "unknown";
-                                printf("  ep[%u] addr=0x%02x %s %s\n",
-                                       z, ep->bEndpointAddress,
-                                       ep_in ? "IN" : "OUT", xfer_str);
-                        }
-#endif
+		for (u8 z = 0; z < num_ep; z++) {
+			ep = &alt->endpoint[z];
 			intf_ptr->altsetting[k].endpoint[z].desc.bLength          = ep->bLength;
-                        intf_ptr->altsetting[k].endpoint[z].desc.bDescriptorType  = ep->bDescriptorType;
-                        intf_ptr->altsetting[k].endpoint[z].desc.bEndpointAddress = ep->bEndpointAddress;
-                        intf_ptr->altsetting[k].endpoint[z].desc.bmAttributes     = ep->bmAttributes;
-                        intf_ptr->altsetting[k].endpoint[z].desc.wMaxPacketSize   = ep->wMaxPacketSize;
-                        intf_ptr->altsetting[k].endpoint[z].desc.bInterval        = ep->bInterval;
-                        intf_ptr->altsetting[k].endpoint[z].desc.bRefresh         = ep->bRefresh;
-                        intf_ptr->altsetting[k].endpoint[z].desc.bSynchAddress    = ep->bSynchAddress;
+			intf_ptr->altsetting[k].endpoint[z].desc.bDescriptorType  = ep->bDescriptorType;
+			intf_ptr->altsetting[k].endpoint[z].desc.bEndpointAddress = ep->bEndpointAddress;
+			intf_ptr->altsetting[k].endpoint[z].desc.bmAttributes     = ep->bmAttributes;
+			intf_ptr->altsetting[k].endpoint[z].desc.wMaxPacketSize   = ep->wMaxPacketSize;
+			intf_ptr->altsetting[k].endpoint[z].desc.bInterval        = ep->bInterval;
+			intf_ptr->altsetting[k].endpoint[z].desc.bRefresh         = ep->bRefresh;
+			intf_ptr->altsetting[k].endpoint[z].desc.bSynchAddress    = ep->bSynchAddress;
 		}
 	}
 
-        intf_ptr->cur_altsetting = &intf_ptr->altsetting[0];
+	intf_ptr->cur_altsetting = &intf_ptr->altsetting[0];
 
         udev_ptr = (struct usb_device *)calloc(1, struct_usb_device_size);
         if (udev_ptr == NULL) {
@@ -270,6 +253,27 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
                 ret = -ENOMEM;
                 goto fail_free_endpoints;
         }
+
+	ret = libusb_get_device_descriptor(libusb_dev, &dev_desc);
+	if(ret == 0) {
+		udev_ptr->descriptor.bLength            = dev_desc.bLength;
+		udev_ptr->descriptor.bDescriptorType    = dev_desc.bDescriptorType;
+		udev_ptr->descriptor.bcdUSB             = dev_desc.bcdUSB;
+		udev_ptr->descriptor.bDeviceClass       = dev_desc.bDeviceClass;
+		udev_ptr->descriptor.bDeviceSubClass    = dev_desc.bDeviceSubClass;
+		udev_ptr->descriptor.bDeviceProtocol    = dev_desc.bDeviceProtocol;
+		udev_ptr->descriptor.bMaxPacketSize0    = dev_desc.bMaxPacketSize0;
+		udev_ptr->descriptor.idVendor           = dev_desc.idVendor;
+		udev_ptr->descriptor.idProduct          = dev_desc.idProduct;
+		udev_ptr->descriptor.bcdDevice          = dev_desc.bcdDevice;
+		udev_ptr->descriptor.iManufacturer      = dev_desc.iManufacturer;
+		udev_ptr->descriptor.iProduct           = dev_desc.iProduct;
+		udev_ptr->descriptor.iSerialNumber      = dev_desc.iSerialNumber;
+		udev_ptr->descriptor.bNumConfigurations = dev_desc.bNumConfigurations;
+	}else{
+		printf("[!] failed to get libusb device descriptor, defaulting bNumConfigurations=1\n");
+                udev_ptr->descriptor.bNumConfigurations = 1;
+	}
 
 	switch (libusb_get_device_speed(libusb_dev)) {
         case LIBUSB_SPEED_SUPER:
@@ -1890,8 +1894,11 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	err = dwarf_init(director.fd, DW_DLC_READ, NULL, NULL, &director.dbg, &director.err);
 	if(err != DW_DLV_OK){
 		printf("[!] failed to initialize libdwarf!\n");
-		close(director.fd);
-		return err;
+		/*
+		 * instead of not loading the kernel object,
+		 * skip this phase, we may rely on other kernel objects loaded alongisde this module!
+		 */
+		goto skip_dwarf;
 	}
 
 	/* skip completely the dwarf module parsing if the end user has already issued the offset configuration file */
@@ -1899,6 +1906,7 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		parse_module_offset_table();
 	}
 
+	skip_dwarf:
 	close(fd);
 
 	info->hdr = (Elf(Ehdr) *)mapped_file;
@@ -2022,6 +2030,9 @@ int initialize_director(struct module_controller *director, struct load_info **i
 	pthread_mutex_init(&director->usb_io_lock, NULL);
 	pthread_cond_init(&director->usb_io_idle, NULL);
 	director->usb_io_depth = 0;
+
+	/* initialize skb queue mutex */
+	pthread_mutex_init(&director->skb_queue_lock, NULL);
 
 	*info = director->info;
 	return ret;
@@ -2800,7 +2811,7 @@ int elf_generator_handler(void){
 		return ret;
 	}
 
-	Elf(Phdr) program_headers[counter];
+	Elf(Phdr) program_headers[counter + 1];
 	Elf(Shdr) section_headers[SEC_COUNT];
 	Elf(Sym)  symbol_entries[sym_count + 1];
 	char      string_table[string_table_size];
@@ -2831,8 +2842,25 @@ int elf_generator_handler(void){
 		name_off += current_symbol_name_len;
 	}
 
-	current_off = sizeof(Elf(Ehdr)) + (counter * sizeof(Elf(Phdr)));
-	pht_counter = 0;
+	current_off = sizeof(Elf(Ehdr)) + ((counter + 1) * sizeof(Elf(Phdr)));
+
+	/*
+	 * The kernel computes AT_PHDR = first_PT_LOAD.p_vaddr - first_PT_LOAD.p_offset + e_phoff.
+	 * Without a PT_LOAD covering file offset 0, that address is unmapped and ld.so
+	 * faults immediately on the AT_PHDR walk.  Put a read-only PT_LOAD first that
+	 * maps the ELF header + program-header table at a safe VA (0x200000, safely below
+	 * the translator at 0x400000 and far from module segments at 0x4xxxxxxx).
+	 */
+	program_headers[0].p_type   = PT_LOAD;
+	program_headers[0].p_offset = 0;
+	program_headers[0].p_vaddr  = 0x200000ULL;
+	program_headers[0].p_paddr  = 0x200000ULL;
+	program_headers[0].p_filesz = current_off;
+	program_headers[0].p_memsz  = current_off;
+	program_headers[0].p_flags  = PF_R;
+	program_headers[0].p_align  = 0x1000;
+
+	pht_counter = 1;
 	head = director.module_allocation_list;
 
 	while(head != NULL){
@@ -2881,9 +2909,9 @@ int elf_generator_handler(void){
 	}
 
 	shstrtab_off = (((current_off) + ((8) - 1)) & ~((8) - 1));
-	strtab_off   = shstrtab_off + sizeof(shstrtab);
-	symtab_off   = (((strtab_off + string_table_size) + ((8) - 1)) & ~((8) - 1));
-	shoff        = (((symtab_off + sym_table_size) + ((8) - 1)) & ~((8) - 1));
+	strtab_off			= shstrtab_off + sizeof(shstrtab);
+	symtab_off			= (((strtab_off + string_table_size) + ((8) - 1)) & ~((8) - 1));
+	shoff				= (((symtab_off + sym_table_size) + ((8) - 1)) & ~((8) - 1));
 
 	header.e_ident[0]		= 0x7f;
 	header.e_ident[1]		= 'E';
@@ -2896,7 +2924,7 @@ int elf_generator_handler(void){
 
 	header.e_machine		= EM_CURRENT_ARCH;
 	header.e_entry			= entry_vaddr;
-	header.e_phnum			= counter;
+	header.e_phnum			= counter + 1;
 	header.e_shoff			= shoff;
 	header.e_phoff			= sizeof(Elf(Ehdr));
 	header.e_shnum			= SEC_COUNT;
@@ -2919,7 +2947,7 @@ int elf_generator_handler(void){
 	section_header.sh_info		= 0;
 	section_header.sh_addralign	= 1;
 	section_header.sh_entsize	= 0;
-	section_headers[SEC_SHSTRTAB] = section_header;
+	section_headers[SEC_SHSTRTAB]	= section_header;
 
 	memset(&section_header, 0, sizeof(section_header));
 	section_header.sh_name		= 11;
@@ -2932,7 +2960,7 @@ int elf_generator_handler(void){
 	section_header.sh_info		= 0;
 	section_header.sh_addralign	= 1;
 	section_header.sh_entsize	= 0;
-	section_headers[SEC_STRTAB] = section_header;
+	section_headers[SEC_STRTAB]	= section_header;
 
 	memset(&section_header, 0, sizeof(section_header));
 	section_header.sh_name		= 19;
@@ -2961,7 +2989,7 @@ int elf_generator_handler(void){
 		return ret;
 	}
 
-	pht_counter = 0;
+	pht_counter = 1;
 	head = director.module_allocation_list;
 	while(head != NULL){
 		if(head->alloc_ptr == NULL || head->alloc_len == 0){

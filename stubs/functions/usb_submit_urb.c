@@ -13,7 +13,6 @@ int usb_submit_urb(struct urb *urb, int mem_flags){
 
 	pipe = urb->pipe;
 	ep   = convert_usb_pipe_to_ep(pipe);
-
 	transfer = libusb_alloc_transfer(0);
 	if (transfer == NULL){
 		printf("[!] failed to alloc usb transfer\n");

@@ -61,6 +61,9 @@ struct module_controller {
         struct libusb_device_descriptor   usb_dev_desc;
 	pthread_mutex_t			  urb_anchor_mutex;
 
+	/* lock for skb queue operations (skb_dequeue, skb_queue_tail, etc.) — replaces the spinlock_t embedded in the real sk_buff_head */
+	pthread_mutex_t			  skb_queue_lock;
+
 	/* threads associated with libusb's async urb transfer, permits to implement the 'usb_send_urb' kernel function */
 	pthread_t			  libusb_event_thread;
 	atomic_bool			  libusb_thread_stop;

@@ -16,11 +16,12 @@ int usb_register_driver(struct usb_driver *new_driver, struct module *owner, con
 	}
 
 	ret = fast_get_name(new_driver->probe, &probe_name);
-	printf("[*] probe address: 0x%08x probe name: %s module_name: %s\n", new_driver->probe, probe_name, mod_name);
 	if(ret == 0){
-		printf("[!] function has 0 size\n");
+		printf("[!] function has size 0!\n");
 		ret = -EINVAL;
 		return ret;
+	}else{
+		printf("[*] probe address: 0x%08x probe name: %s module_name: %s\n", new_driver->probe, probe_name, mod_name);
 	}
 
 	/*
