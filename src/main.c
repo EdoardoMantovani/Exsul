@@ -2109,6 +2109,10 @@ void finalize_director(void){
 		free(director.usb_device_ptr);
 		director.usb_device_ptr = NULL;
 	}
+	if(percpu_area != NULL){
+		free(percpu_area);
+		percpu_area = NULL;
+	}
 }
 
 int collect_sizes(struct module_controller *director){

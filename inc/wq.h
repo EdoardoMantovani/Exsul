@@ -1,5 +1,27 @@
 /* this header will contain everything related to the workqueues and concurrency */
 
+#ifndef ARCH_SET_GS
+#define ARCH_SET_GS 0x1001
+#endif
+
+static __thread void *percpu_area = NULL;
+
+static inline void setup_percpu(void){
+	#ifdef __linux__
+	if (percpu_area == NULL) {
+		percpu_area = mmap(NULL, 1024, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+		if (percpu_area == MAP_FAILED){
+			percpu_area = NULL;
+		}
+	}
+	if (percpu_area != NULL){
+		syscall(SYS_arch_prctl, ARCH_SET_GS, (unsigned long)percpu_area);
+	}
+	#else
+	/* need to find a fix for Windows too, apparently it doesn't permit to manipulate the GS register safely */
+	#endif
+}
+
 static __thread struct task_struct *tls_current;
 static struct tasklet_head tasklet_global_queue;
 
@@ -25,6 +47,7 @@ static void *worker_thread(void *arg){
 	struct work_struct *work = NULL;
 	struct workqueue_struct *wq = NULL;
 
+	setup_percpu();
 	wq = (struct workqueue_struct *)arg;
 	pthread_mutex_lock(&wq->lock);
 	for (;;) {
@@ -113,6 +136,7 @@ static inline bool wq_entry_is_linked(const struct wait_queue_entry *wq_entry){
 static void *kthread_trampoline(void *arg){
 	int ret = 0;
 	struct task_struct *current_thread = NULL;
+	setup_percpu();
 	current_thread = (struct task_struct *)arg;
 	tls_current = current_thread;
 
