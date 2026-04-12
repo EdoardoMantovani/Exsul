@@ -54,6 +54,7 @@ struct skb_seq_state;
 
 struct wiphy;
 struct wiphy_work;
+struct wiphy_delayed_work;
 struct rate_info;
 struct napi_struct;
 

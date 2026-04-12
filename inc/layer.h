@@ -41,7 +41,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/resource.h>
-#include <time.h>
 #include <unistd.h>
 #include <stdatomic.h>
 #include <netinet/ether.h>
@@ -70,7 +69,6 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <time.h>
 
 #include <sys/mman.h>
 #include <linux/const.h>

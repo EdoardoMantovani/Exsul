@@ -29,6 +29,7 @@ enum {
 	DRV_CMD_RUN,
 	DRV_CMD_SET,
 	DRV_CMD_GET,
+	DRV_CMD_OPS,
 };
 
 int parse_module_usb_table(struct usb_device_id **id){
@@ -2066,7 +2067,7 @@ int initialize_director(struct module_controller *director, struct load_info **i
 
 	/* initialize workqueues if necessary */
 	if(system_wq == NULL){
-		workqueue_init(&director->system_wq,		"system_wq");
+		workqueue_init(&director->system_wq, "system_wq");
 		system_wq = &director->system_wq;
 	}
 
@@ -2077,6 +2078,10 @@ int initialize_director(struct module_controller *director, struct load_info **i
 
 	/* initialize skb queue mutex */
 	pthread_mutex_init(&director->skb_queue_lock, NULL);
+
+	pthread_mutex_init(&director->timer_lock, NULL);
+	pthread_cond_init(&director->timer_cond, NULL);
+	director->timer_once  = PTHREAD_ONCE_INIT;
 
 	*info = director->info;
 	return ret;
@@ -2669,6 +2674,53 @@ int drv_cmd_get(struct module_controller *director, char *argv[], int num_args) 
 		ret = 0;
 	}
 
+	return ret;
+}
+
+/* permits to invoke various 'ops' struct registered by running the loaded kernel module, like 'ieee80211_ops' */
+int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args) {
+        int ret = 0;
+        unsigned char *ops_req = NULL;
+	struct ieee80211_ops *ops = NULL;
+	struct ieee80211_local *local = NULL;
+	int (*start)(struct ieee80211_hw *hw) = NULL;
+	void (*stop)(struct ieee80211_hw *hw, bool suspend) = NULL;
+
+	if(argv[1] == NULL){
+		printf("> ops <callback name>\n");
+		ret = -EINVAL;
+		return ret;
+	}
+
+	ops_req = argv[1];
+
+	/* for now use only 'ieee80211_ops' as reference */
+	ops = __director->ieee80211_ops;
+	if(ops == NULL){
+		printf("[!] ieee80211_ops is NULL!\n");
+		ret = -EINVAL;
+		return ret;
+	}
+
+	local = __director->ieee80211_local;
+	if(local->ieee80211_hw == NULL){
+		printf("[!] local->ieee80211_hw is NULL!\n");
+		ret = -EINVAL;
+		return ret;
+	}
+
+	if(strcmp(ops_req, "start") == 0){
+		start = ops->start;
+		if(start != NULL){
+			ret = start(local->ieee80211_hw);
+		}
+	}
+	if(strcmp(ops_req, "stop") == 0){
+		stop = ops->stop;
+		if(stop != NULL){
+			stop(local->ieee80211_hw, false);
+		}
+	}
 	return ret;
 }
 
@@ -3445,6 +3497,11 @@ int main(int argc, char *argv[], char *envp[]) {
 			.cmd_name = "get",
 			.cmd_args = 1,
 			.cmd_ptr  = drv_cmd_get,
+		},
+		[DRV_CMD_OPS] = {
+			.cmd_name = "ops",
+			.cmd_args = 1,
+			.cmd_ptr  = drv_cmd_ops,
 		},
 	};
 	/* register now the signal handler */

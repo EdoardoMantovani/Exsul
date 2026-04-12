@@ -1202,6 +1202,10 @@ $find_command_arg = q{-name "*.c"};
 foreach(`$find $stubs/$functions/ $find_command_arg`){
 	$current_stub = $_;
 	chomp($current_stub);
+	# dirty workaround: 'timer_delete' is a different function defined in 'time.h'
+	if($current_stub eq "timer_delete"){
+		next;
+	}
 	$final_stub = $current_stub;
 	$final_stub =~ s/\..*$/.o/;
 	$stub_name = $final_stub;

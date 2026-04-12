@@ -166,6 +166,9 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, struct ieee8021
 	skb_queue_head_init(&local->skb_queue);
 	skb_queue_head_init(&local->skb_queue_unreliable);
 
+	/* if everything went fine, attach 'ieee80211_ops' to the main controller! */
+	director.ieee80211_ops = ieee80211_ops;
+
 	return hw;
 err_free:
 	wiphy_free(wiphy);

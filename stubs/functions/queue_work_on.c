@@ -8,13 +8,15 @@ int queue_work_on(int cpu, struct workqueue_struct *wq, struct work_struct *work
 		if(wq == NULL){
 			printf("[%s] wq is null!\n", __FUNCTION__);
 		}
-		return 0;
+		return ret;
 	}
 
 	expected = atomic_load_explicit(&work->data, memory_order_acquire);
 	if (expected & (WORK_STRUCT_PENDING | WORK_STRUCT_RUNNING)) {
+		#ifdef ENABLE_DBG_PRINT
 		printf("[%s] work already pending or running!\n", __FUNCTION__);
-		return 0;
+		#endif
+		return ret;
 	}
 	desired = work_encode(wq, WORK_STRUCT_PENDING);
 

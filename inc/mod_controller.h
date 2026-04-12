@@ -88,6 +88,9 @@ struct module_controller {
 	struct ieee80211_local *ieee80211_local;
         struct cfg80211_registered_device *rdev;
 
+	/* store here the backup for every 'ops' struct, it will be called later via the 'ops' command */
+	struct ieee80211_ops *ieee80211_ops;
+
 	/* array of pointers which emulates the functions 'devm_kxxx', when the driver will quit, every element of the array will be freed */
 	void *kmem_array[MAX_KMEM_ARRAY_SIZE];
 
@@ -126,6 +129,16 @@ struct module_controller {
 
 	/* store some important struct sizes, done once foreach module loaded */
 	struct fast_struct_size struct_sizes;
+
+	/* timing synchronization primitives used in 'timer_xxx' functions */
+	pthread_mutex_t   	timer_lock;
+	pthread_cond_t    	timer_cond;
+	struct hlist_head 	timer_head;
+	pthread_once_t  	timer_once;
+	pthread_t 		timer_thread;
+	struct timespec 	timer_base;
+	/* pointer to the timer whose callback is currently executing, NULL otherwise */
+	struct timer_list	*timer_executing;
 
 	/* hci specific data */
 	struct list_head hci_dev_list;

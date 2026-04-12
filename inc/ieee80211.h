@@ -842,6 +842,27 @@
 	     i++, iftd = (const void __force *)&(sband)->iftype_data[i])
 
 /**
+ * enum ieee80211_interface_iteration_flags - interface iteration flags
+ * @IEEE80211_IFACE_ITER_NORMAL: Iterate over all interfaces that have
+ *	been added to the driver; However, note that during hardware
+ *	reconfiguration (after restart_hw) it will iterate over a new
+ *	interface and over all the existing interfaces even if they
+ *	haven't been re-added to the driver yet.
+ * @IEEE80211_IFACE_ITER_RESUME_ALL: During resume, iterate over all
+ *	interfaces, even if they haven't been re-added to the driver yet.
+ * @IEEE80211_IFACE_ITER_ACTIVE: Iterate only active interfaces (netdev is up).
+ * @IEEE80211_IFACE_SKIP_SDATA_NOT_IN_DRIVER: Skip any interfaces where SDATA
+ *	is not in the driver.  This may fix crashes during firmware recovery
+ *	for instance.
+ */
+enum ieee80211_interface_iteration_flags {
+	IEEE80211_IFACE_ITER_NORMAL		= 0,
+	IEEE80211_IFACE_ITER_RESUME_ALL		= BIT(0),
+	IEEE80211_IFACE_ITER_ACTIVE		= BIT(1),
+	IEEE80211_IFACE_SKIP_SDATA_NOT_IN_DRIVE = BIT(2),
+};
+
+/**
  * enum ieee80211_sta_info_flags - Stations flags
  *
  * These flags are used with &struct sta_info's @flags member, but
@@ -8408,6 +8429,22 @@ static void ieee80211_report_used_skb(struct ieee80211_local *local, struct sk_b
 	#endif
 }
 
+static void __iterate_interfaces(struct ieee80211_local *local, u32 iter_flags, void (*iterator)(void *data, u8 *mac, struct ieee80211_vif *vif), void *data){
+	bool active_only = false;
+	struct ieee80211_sub_if_data *sdata = NULL;
+	active_only = !!(iter_flags & IEEE80211_IFACE_ITER_ACTIVE);
+
+	list_for_each_entry_rcu(sdata, &local->interfaces, list) {
+		if (sdata->vif->type == NL80211_IFTYPE_AP_VLAN){
+			continue;
+		}
+		if (active_only && !ieee80211_sdata_running(sdata)){
+			continue;
+		}
+		iterator(data, sdata->vif->addr, sdata->vif);
+	}
+}
+
 /* add/remove interface */
 static int ieee80211_if_add(struct ieee80211_local *local, const char *name, unsigned char name_assign_type, struct wireless_dev **new_wdev, enum nl80211_iftype type, struct vif_params *params){
 	struct net_device *netdev = NULL;
@@ -8561,8 +8598,9 @@ static int ieee80211_if_add(struct ieee80211_local *local, const char *name, uns
 	list_add_tail_rcu(&sdata->list, &local->interfaces);
 	mutex_unlock(&local->iflist_mtx);
 
-	if (new_wdev)
+	if (new_wdev != NULL){
 		*new_wdev = &sdata->wdev;
+	}
 	#endif
 	return 0;
 }
