@@ -56,10 +56,6 @@ int skb_copy_ubufs(struct sk_buff *skb, int gfp_mask){
 	skb->len = old_len;
 	skb->data_len = 0;
 
-	for (int i = 0; i < nr_frags; i++){
-		//skb_frag_unref(skb, i);
-	}
-
 	memset(shinfo->frags, 0, sizeof(shinfo->frags));
 	shinfo->nr_frags = 0;
 

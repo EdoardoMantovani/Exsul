@@ -1,6 +1,6 @@
 int __skb_pad(struct sk_buff *skb, int pad, bool free_on_error){
-	int err;
-	int ntail;
+	int ret = 0;
+	int ntail = 0;
 
 	/* If the skbuff is non linear tailroom is always zero.. */
 	if (!skb_cloned(skb) && skb_tailroom(skb) >= pad) {
@@ -10,23 +10,22 @@ int __skb_pad(struct sk_buff *skb, int pad, bool free_on_error){
 
 	ntail = skb->data_len + pad - (skb->end - skb->tail);
 	if (likely(skb_cloned(skb) || ntail > 0)) {
-		err = pskb_expand_head(skb, 0, ntail, GFP_ATOMIC);
-		if (unlikely(err))
+		ret = pskb_expand_head(skb, 0, ntail, GFP_ATOMIC);
+		if (unlikely(ret)){
 			goto free_skb;
+		}
 	}
 
-	/* FIXME: The use of this function with non-linear skb's really needs
-	 * to be audited.
-	 */
-	//err = skb_linearize(skb);
-	if (unlikely(err))
+	ret = skb_linearize(skb);
+	if (unlikely(ret)){
 		goto free_skb;
-
+	}
 	memset(skb->data + skb->len, 0, pad);
 	return 0;
 
 free_skb:
-	if (free_on_error)
+	if (free_on_error){
 		kfree_skb(skb);
-	return err;
+	}
+	return ret;
 }

@@ -109,6 +109,7 @@ my @gcc_unwind_params = (
 	"-lunwind-x86_64"
 );
 my @gcc_params = (
+	"-g",
 	"-DARCH_INDEPENDENT_BITOPS",
 	"-DCONFIG_PM",
 	"-DENABLE_UNWIND_DEBUGGING",
@@ -121,7 +122,6 @@ my @gcc_params = (
 	"-mtune=native",
 	"-mstackrealign",
 	"-mno-avx512f",
-	"-g",
 );
 my @gcc_stub_params = (
 	"-mno-sse",
@@ -521,6 +521,9 @@ my %inline_array_field = (
 	wiphy => {
 		"bands"				=> 1,
 	},
+	skb_shared_info => {
+		"frags"				=> 1,
+	}
 );
 
 chomp($ls);

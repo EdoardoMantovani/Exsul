@@ -37,6 +37,8 @@
 #define SKB_SMALL_HEAD_CACHE_SIZE	(is_power_of_2(SKB_SMALL_HEAD_SIZE) ? (SKB_SMALL_HEAD_SIZE + L1_CACHE_BYTES) : SKB_SMALL_HEAD_SIZE)
 #define SKB_HEAD_ALIGN(X)		(SKB_DATA_ALIGN(X) + SKB_DATA_ALIGN(director.struct_sizes.skb_shared_info))
 
+#define dev_kfree_skb(a)		consume_skb(a)
+
 #ifdef NET_SKBUFF_DATA_USES_OFFSET
 typedef unsigned int sk_buff_data_t;
 #else
@@ -817,6 +819,15 @@ static inline void __net_timestamp(struct sk_buff *skb){
 	skb->tstamp_type = SKB_CLOCK_REALTIME;
 }
 
+/* disable the PHY timestamp */
+static inline void skb_clone_tx_timestamp(struct sk_buff *skb){
+
+}
+
+static inline bool skb_defer_rx_timestamp(struct sk_buff *skb){
+	return false;
+}
+
 static inline void skb_set_queue_mapping(struct sk_buff *skb, u16 queue_mapping){
 	skb->queue_mapping = queue_mapping;
 }
@@ -917,7 +928,17 @@ static inline void skb_copy_to_linear_data_offset(struct sk_buff *skb, const int
 	memcpy(skb->data + offset, from, len);
 }
 
-/**
+static inline int __pskb_trim(struct sk_buff *skb, unsigned int len){
+	int ret = 0;
+	if (skb->data_len){
+		ret = ___pskb_trim(skb, len);
+		return ret;
+	}
+	__skb_trim(skb, len);
+	return ret;
+}
+
+/*
  *	skb_shared - is the buffer shared
  *	@skb: buffer to check
  *
@@ -928,7 +949,7 @@ static inline int skb_shared(const struct sk_buff *skb){
 	return refcount_read(&skb->users) != 1;
 }
 
-/**
+/*
  * skb_pfmemalloc - Test if the skb was allocated from PFMEMALLOC reserves
  * @skb: buffer
  */
@@ -943,7 +964,7 @@ static inline int skb_alloc_rx_flag(const struct sk_buff *skb){
 	return 0;
 }
 
-/**
+/*
  * skb_frag_size() - Returns the size of a skb fragment
  * @frag: skb fragment
  */
@@ -951,7 +972,7 @@ static inline unsigned int skb_frag_size(const skb_frag_t *frag){
 	return frag->len;
 }
 
-/**
+/*
  * skb_frag_size_set() - Sets the size of a skb fragment
  * @frag: skb fragment
  * @size: size of fragment
@@ -960,7 +981,7 @@ static inline void skb_frag_size_set(skb_frag_t *frag, unsigned int size){
 	frag->len = size;
 }
 
-/**
+/*
  * skb_frag_size_add() - Increments the size of a skb fragment by @delta
  * @frag: skb fragment
  * @delta: value to add
@@ -969,13 +990,48 @@ static inline void skb_frag_size_add(skb_frag_t *frag, int delta){
 	frag->len += delta;
 }
 
-/**
+/*
  * skb_frag_size_sub() - Decrements the size of a skb fragment by @delta
  * @frag: skb fragment
  * @delta: value to subtract
  */
 static inline void skb_frag_size_sub(skb_frag_t *frag, int delta){
 	frag->len -= delta;
+}
+
+/*
+ * skb_frag_off() - Returns the offset of a skb fragment
+ * @frag: the paged fragment
+ */
+static inline unsigned int skb_frag_off(const skb_frag_t *frag){
+	return frag->offset;
+}
+
+/*
+ * skb_frag_off_add() - Increments the offset of a skb fragment by @delta
+ * @frag: skb fragment
+ * @delta: value to add
+ */
+static inline void skb_frag_off_add(skb_frag_t *frag, int delta){
+	frag->offset += delta;
+}
+
+/*
+ * skb_frag_off_set() - Sets the offset of a skb fragment
+ * @frag: skb fragment
+ * @offset: offset of fragment
+ */
+static inline void skb_frag_off_set(skb_frag_t *frag, unsigned int offset){
+	frag->offset = offset;
+}
+
+/*
+ * skb_frag_off_copy() - Sets the offset of a skb fragment from another fragment
+ * @fragto: skb fragment where offset is set
+ * @fragfrom: skb fragment offset is copied from
+ */
+static inline void skb_frag_off_copy(skb_frag_t *fragto, const skb_frag_t *fragfrom){
+	fragto->offset = fragfrom->offset;
 }
 
 /**
@@ -1291,6 +1347,11 @@ static inline unsigned int skb_headlen(const struct sk_buff *skb){
         return skb->len - skb->data_len;
 }
 
+static inline void skb_list_del_init(struct sk_buff *skb){
+	__list_del_entry(&skb->list);
+	skb_mark_not_on_list(skb);
+}
+
 /**
  *	skb_headroom - bytes at buffer head
  *	@skb: buffer to check
@@ -1499,6 +1560,31 @@ static inline struct sk_buff *__pskb_copy(struct sk_buff *skb, int headroom, int
 
 static inline struct sk_buff *pskb_copy(struct sk_buff *skb, int gfp_mask){
 	return __pskb_copy(skb, skb_headroom(skb), gfp_mask);
+}
+
+static inline enum skb_drop_reason pskb_may_pull_reason(struct sk_buff *skb, unsigned int len){
+	if (likely(len <= skb_headlen(skb))){
+		return SKB_NOT_DROPPED_YET;
+	}
+	if (unlikely(len > skb->len)){
+		return SKB_DROP_REASON_PKT_TOO_SMALL;
+	}
+	if (unlikely(!__pskb_pull_tail(skb, len - skb_headlen(skb)))){
+		return SKB_DROP_REASON_NOMEM;
+	}
+	return SKB_NOT_DROPPED_YET;
+}
+
+static inline bool pskb_may_pull(struct sk_buff *skb, unsigned int len){
+	return pskb_may_pull_reason(skb, len) == SKB_NOT_DROPPED_YET;
+}
+
+static inline void *pskb_pull(struct sk_buff *skb, unsigned int len){
+	if (!pskb_may_pull(skb, len)){
+		return NULL;
+	}
+	skb->len -= len;
+	return skb->data += len;
 }
 
 static inline void __skb_dst_copy(struct sk_buff *skb, unsigned long refdst){
@@ -1815,15 +1901,6 @@ static inline int skb_orphan_frags_rx(struct sk_buff *skb, int gfp_mask){
 		return 0;
 	}
 	return skb_copy_ubufs(skb, gfp_mask);
-}
-
-/**
- * skb_frag_off_copy() - Sets the offset of a skb fragment from another fragment
- * @fragto: skb fragment where offset is set
- * @fragfrom: skb fragment offset is copied from
- */
-static inline void skb_frag_off_copy(skb_frag_t *fragto, const skb_frag_t *fragfrom){
-	fragto->offset = fragfrom->offset;
 }
 
 /**

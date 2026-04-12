@@ -10,34 +10,37 @@
  * of addresses for an interface increase beyond this value, hardware ARP
  * filtering will be disabled.
  */
-#define IEEE80211_BSS_ARP_ADDR_LIST_LEN 4
+#define IEEE80211_BSS_ARP_ADDR_LIST_LEN		4
 
-#define NUM_DEFAULT_KEYS 4
-#define NUM_DEFAULT_MGMT_KEYS 2
-#define NUM_DEFAULT_BEACON_KEYS 2
-#define INVALID_PTK_KEYIDX 2 /* Keyidx always pointing to a NULL key for PTK */
+#define NUM_DEFAULT_KEYS			4
+#define NUM_DEFAULT_MGMT_KEYS			2
+#define NUM_DEFAULT_BEACON_KEYS			2
+#define INVALID_PTK_KEYIDX			2 /* Keyidx always pointing to a NULL key for PTK */
 
-#define IEEE80211_MAX_CNTDWN_COUNTERS_NUM 2
+#define IEEE80211_MAX_CNTDWN_COUNTERS_NUM 	2
 
-#define AVG_PKT_SIZE 1024
-#define IEEE80211_CB_PTR 96
-#define IEEE80211_MAX_CHAINS 4
-#define IEEE80211_HT_MCS_MASK_LEN 10
-#define IEEE80211_HE_PPE_THRES_MAX_LEN 25
-#define IEEE80211_EHT_PPE_THRES_MAX_LEN	32
-#define CONFIG_MAC80211_STA_HASH_MAX_SIZE 0
-#define IEEE80211_MAX_NAN_INSTANCE_ID 255
+#define IEEE80211_LINK_UNSPECIFIED		0xf
+#define IEEE80211_TX_CTRL_MLO_LINK_UNSPEC	u32_encode_bits(IEEE80211_LINK_UNSPECIFIED, IEEE80211_TX_CTRL_MLO_LINK)
+
+#define AVG_PKT_SIZE				1024
+#define IEEE80211_CB_PTR			96
+#define IEEE80211_MAX_CHAINS			4
+#define IEEE80211_HT_MCS_MASK_LEN 		10
+#define IEEE80211_HE_PPE_THRES_MAX_LEN		25
+#define IEEE80211_EHT_PPE_THRES_MAX_LEN		32
+#define CONFIG_MAC80211_STA_HASH_MAX_SIZE	0
+#define IEEE80211_MAX_NAN_INSTANCE_ID		255
 /* there are 40 bytes if you don't need the rateset to be kept */
-#define IEEE80211_TX_INFO_DRIVER_DATA_SIZE 40
+#define IEEE80211_TX_INFO_DRIVER_DATA_SIZE	40
 
 /* if you do need the rateset, then you have less space */
 #define IEEE80211_TX_INFO_RATE_DRIVER_DATA_SIZE 24
 
 /* maximum number of rate stages */
-#define IEEE80211_TX_MAX_RATES	4
+#define IEEE80211_TX_MAX_RATES			4
 
 /* maximum number of rate table entries */
-#define IEEE80211_TX_RATE_TABLE_SIZE	4
+#define IEEE80211_TX_RATE_TABLE_SIZE		4
 
 /* The per TXQ device queue limit in airtime */
 #define IEEE80211_DEFAULT_AQL_TXQ_LIMIT_L	5000
@@ -84,12 +87,12 @@
  * TDLS capabililites to be enabled in the 5th byte of the
  * @WLAN_EID_EXT_CAPABILITY information element
  */
-#define WLAN_EXT_CAPA5_TDLS_ENABLED	BIT(5)
-#define WLAN_EXT_CAPA5_TDLS_PROHIBITED	BIT(6)
+#define WLAN_EXT_CAPA5_TDLS_ENABLED		BIT(5)
+#define WLAN_EXT_CAPA5_TDLS_PROHIBITED		BIT(6)
 #define WLAN_EXT_CAPA5_TDLS_CH_SW_PROHIBITED	BIT(7)
 
 #define WLAN_EXT_CAPA8_TDLS_WIDE_BW_ENABLED	BIT(5)
-#define WLAN_EXT_CAPA8_OPMODE_NOTIF	BIT(6)
+#define WLAN_EXT_CAPA8_OPMODE_NOTIF		BIT(6)
 
 /* Defines the maximal number of MSDUs in an A-MSDU. */
 #define WLAN_EXT_CAPA8_MAX_MSDU_IN_AMSDU_LSB	BIT(7)
@@ -99,7 +102,7 @@
  * Fine Timing Measurement Initiator - bit 71 of @WLAN_EID_EXT_CAPABILITY
  * information element
  */
-#define WLAN_EXT_CAPA9_FTM_INITIATOR	BIT(7)
+#define WLAN_EXT_CAPA9_FTM_INITIATOR		BIT(7)
 
 /* Defines support for TWT Requester and TWT Responder */
 #define WLAN_EXT_CAPA10_TWT_REQUESTER_SUPPORT	BIT(5)
@@ -155,7 +158,7 @@
  * The TX headroom reserved by mac80211 for its own tx_status functions.
  * This is enough for the radiotap header.
  */
-#define IEEE80211_TX_STATUS_HEADROOM	ALIGN(14, 4)
+#define IEEE80211_TX_STATUS_HEADROOM		ALIGN(14, 4)
 
 /*
  * A-MPDU buffer sizes
@@ -473,7 +476,7 @@
 
 #define VHT_GROUP_SHIFT(_streams, _sgi, _bw)				\
 	GROUP_SHIFT(MCS_DURATION(_streams, _sgi,			\
-				 BW2VBPS(_bw, 243, 117,  54,  26)))
+				 BW2VBPS(_bw, 234, 117,  54,  26)))
 
 #define VHT_GROUP(_streams, _sgi, _bw)					\
 	__VHT_GROUP(_streams, _sgi, _bw,				\
@@ -859,7 +862,155 @@ enum ieee80211_interface_iteration_flags {
 	IEEE80211_IFACE_ITER_NORMAL		= 0,
 	IEEE80211_IFACE_ITER_RESUME_ALL		= BIT(0),
 	IEEE80211_IFACE_ITER_ACTIVE		= BIT(1),
-	IEEE80211_IFACE_SKIP_SDATA_NOT_IN_DRIVE = BIT(2),
+	IEEE80211_IFACE_SKIP_SDATA_NOT_IN_DRIVER = BIT(2),
+};
+
+/**
+ * enum mac80211_rx_flags - receive flags
+ *
+ * These flags are used with the @flag member of &struct ieee80211_rx_status.
+ * @RX_FLAG_MMIC_ERROR: Michael MIC error was reported on this frame.
+ *	Use together with %RX_FLAG_MMIC_STRIPPED.
+ * @RX_FLAG_DECRYPTED: This frame was decrypted in hardware.
+ * @RX_FLAG_MMIC_STRIPPED: the Michael MIC is stripped off this frame,
+ *	verification has been done by the hardware.
+ * @RX_FLAG_IV_STRIPPED: The IV and ICV are stripped from this frame.
+ *	If this flag is set, the stack cannot do any replay detection
+ *	hence the driver or hardware will have to do that.
+ * @RX_FLAG_PN_VALIDATED: Currently only valid for CCMP/GCMP frames, this
+ *	flag indicates that the PN was verified for replay protection.
+ *	Note that this flag is also currently only supported when a frame
+ *	is also decrypted (ie. @RX_FLAG_DECRYPTED must be set)
+ * @RX_FLAG_DUP_VALIDATED: The driver should set this flag if it did
+ *	de-duplication by itself.
+ * @RX_FLAG_FAILED_FCS_CRC: Set this flag if the FCS check failed on
+ *	the frame.
+ * @RX_FLAG_FAILED_PLCP_CRC: Set this flag if the PCLP check failed on
+ *	the frame.
+ * @RX_FLAG_MACTIME: The timestamp passed in the RX status (@mactime
+ *	field) is valid if this field is non-zero, and the position
+ *	where the timestamp was sampled depends on the value.
+ * @RX_FLAG_MACTIME_START: The timestamp passed in the RX status (@mactime
+ *	field) is valid and contains the time the first symbol of the MPDU
+ *	was received. This is useful in monitor mode and for proper IBSS
+ *	merging.
+ * @RX_FLAG_MACTIME_END: The timestamp passed in the RX status (@mactime
+ *	field) is valid and contains the time the last symbol of the MPDU
+ *	(including FCS) was received.
+ * @RX_FLAG_MACTIME_PLCP_START: The timestamp passed in the RX status (@mactime
+ *	field) is valid and contains the time the SYNC preamble was received.
+ * @RX_FLAG_MACTIME_IS_RTAP_TS64: The timestamp passed in the RX status @mactime
+ *	is only for use in the radiotap timestamp header, not otherwise a valid
+ *	@mactime value. Note this is a separate flag so that we continue to see
+ *	%RX_FLAG_MACTIME as unset. Also note that in this case the timestamp is
+ *	reported to be 64 bits wide, not just 32.
+ * @RX_FLAG_NO_SIGNAL_VAL: The signal strength value is not present.
+ *	Valid only for data frames (mainly A-MPDU)
+ * @RX_FLAG_AMPDU_DETAILS: A-MPDU details are known, in particular the reference
+ *	number (@ampdu_reference) must be populated and be a distinct number for
+ *	each A-MPDU
+ * @RX_FLAG_AMPDU_LAST_KNOWN: last subframe is known, should be set on all
+ *	subframes of a single A-MPDU
+ * @RX_FLAG_AMPDU_IS_LAST: this subframe is the last subframe of the A-MPDU
+ * @RX_FLAG_AMPDU_DELIM_CRC_ERROR: A delimiter CRC error has been detected
+ *	on this subframe
+ * @RX_FLAG_MIC_STRIPPED: The mic was stripped of this packet. Decryption was
+ *	done by the hardware
+ * @RX_FLAG_ONLY_MONITOR: Report frame only to monitor interfaces without
+ *	processing it in any regular way.
+ *	This is useful if drivers offload some frames but still want to report
+ *	them for sniffing purposes.
+ * @RX_FLAG_SKIP_MONITOR: Process and report frame to all interfaces except
+ *	monitor interfaces.
+ *	This is useful if drivers offload some frames but still want to report
+ *	them for sniffing purposes.
+ * @RX_FLAG_AMSDU_MORE: Some drivers may prefer to report separate A-MSDU
+ *	subframes instead of a one huge frame for performance reasons.
+ *	All, but the last MSDU from an A-MSDU should have this flag set. E.g.
+ *	if an A-MSDU has 3 frames, the first 2 must have the flag set, while
+ *	the 3rd (last) one must not have this flag set. The flag is used to
+ *	deal with retransmission/duplication recovery properly since A-MSDU
+ *	subframes share the same sequence number. Reported subframes can be
+ *	either regular MSDU or singly A-MSDUs. Subframes must not be
+ *	interleaved with other frames.
+ * @RX_FLAG_RADIOTAP_TLV_AT_END: This frame contains radiotap TLVs in the
+ *	skb->data (before the 802.11 header).
+ *	If used, the SKB's mac_header pointer must be set to point
+ *	to the 802.11 header after the TLVs, and any padding added after TLV
+ *	data to align to 4 must be cleared by the driver putting the TLVs
+ *	in the skb.
+ * @RX_FLAG_ALLOW_SAME_PN: Allow the same PN as same packet before.
+ *	This is used for AMSDU subframes which can have the same PN as
+ *	the first subframe.
+ * @RX_FLAG_ICV_STRIPPED: The ICV is stripped from this frame. CRC checking must
+ *	be done in the hardware.
+ * @RX_FLAG_AMPDU_EOF_BIT: Value of the EOF bit in the A-MPDU delimiter for this
+ *	frame
+ * @RX_FLAG_AMPDU_EOF_BIT_KNOWN: The EOF value is known
+ * @RX_FLAG_RADIOTAP_HE: HE radiotap data is present
+ *	(&struct ieee80211_radiotap_he, mac80211 will fill in
+ *
+ *	 - DATA3_DATA_MCS
+ *	 - DATA3_DATA_DCM
+ *	 - DATA3_CODING
+ *	 - DATA5_GI
+ *	 - DATA5_DATA_BW_RU_ALLOC
+ *	 - DATA6_NSTS
+ *	 - DATA3_STBC
+ *
+ *	from the RX info data, so leave those zeroed when building this data)
+ * @RX_FLAG_RADIOTAP_HE_MU: HE MU radiotap data is present
+ *	(&struct ieee80211_radiotap_he_mu)
+ * @RX_FLAG_RADIOTAP_LSIG: L-SIG radiotap data is present
+ * @RX_FLAG_NO_PSDU: use the frame only for radiotap reporting, with
+ *	the "0-length PSDU" field included there.  The value for it is
+ *	in &struct ieee80211_rx_status.  Note that if this value isn't
+ *	known the frame shouldn't be reported.
+ * @RX_FLAG_8023: the frame has an 802.3 header (decap offload performed by
+ *	hardware or driver)
+ * @RX_FLAG_RADIOTAP_VHT: VHT radiotap data is present
+ */
+enum mac80211_rx_flags {
+	RX_FLAG_MMIC_ERROR		= BIT(0),
+	RX_FLAG_DECRYPTED		= BIT(1),
+	RX_FLAG_ONLY_MONITOR		= BIT(2),
+	RX_FLAG_MMIC_STRIPPED		= BIT(3),
+	RX_FLAG_IV_STRIPPED		= BIT(4),
+	RX_FLAG_FAILED_FCS_CRC		= BIT(5),
+	RX_FLAG_FAILED_PLCP_CRC 	= BIT(6),
+	RX_FLAG_MACTIME_IS_RTAP_TS64	= BIT(7),
+	RX_FLAG_NO_SIGNAL_VAL		= BIT(8),
+	RX_FLAG_AMPDU_DETAILS		= BIT(9),
+	RX_FLAG_PN_VALIDATED		= BIT(10),
+	RX_FLAG_DUP_VALIDATED		= BIT(11),
+	RX_FLAG_AMPDU_LAST_KNOWN	= BIT(12),
+	RX_FLAG_AMPDU_IS_LAST		= BIT(13),
+	RX_FLAG_AMPDU_DELIM_CRC_ERROR	= BIT(14),
+	/* one free bit at 15 */
+	RX_FLAG_MACTIME			= BIT(16) | BIT(17),
+	RX_FLAG_MACTIME_PLCP_START	= 1 << 16,
+	RX_FLAG_MACTIME_START		= 2 << 16,
+	RX_FLAG_MACTIME_END		= 3 << 16,
+	RX_FLAG_SKIP_MONITOR		= BIT(18),
+	RX_FLAG_AMSDU_MORE		= BIT(19),
+	RX_FLAG_RADIOTAP_TLV_AT_END	= BIT(20),
+	RX_FLAG_MIC_STRIPPED		= BIT(21),
+	RX_FLAG_ALLOW_SAME_PN		= BIT(22),
+	RX_FLAG_ICV_STRIPPED		= BIT(23),
+	RX_FLAG_AMPDU_EOF_BIT		= BIT(24),
+	RX_FLAG_AMPDU_EOF_BIT_KNOWN	= BIT(25),
+	RX_FLAG_RADIOTAP_HE		= BIT(26),
+	RX_FLAG_RADIOTAP_HE_MU		= BIT(27),
+	RX_FLAG_RADIOTAP_LSIG		= BIT(28),
+	RX_FLAG_NO_PSDU			= BIT(29),
+	RX_FLAG_8023			= BIT(30),
+	RX_FLAG_RADIOTAP_VHT		= BIT(31),
+};
+
+enum ieee80211_radiotap_zero_len_psdu_type {
+	IEEE80211_RADIOTAP_ZERO_LEN_PSDU_SOUNDING	= 0,
+	IEEE80211_RADIOTAP_ZERO_LEN_PSDU_NOT_CAPTURED	= 1,
+	IEEE80211_RADIOTAP_ZERO_LEN_PSDU_VENDOR		= 0xff,
 };
 
 /**
@@ -3047,6 +3198,36 @@ struct element {
         u8 data[];
 } __packed;
 
+struct ieee80211_radiotap_vht {
+	__le16 known;
+	u8 flags;
+	u8 bandwidth;
+	u8 mcs_nss[4];
+	u8 coding;
+	u8 group_id;
+	__le16 partial_aid;
+} __packed;
+
+struct ieee80211_radiotap_he {
+	__le16 data1;
+	__le16 data2;
+	__le16 data3;
+	__le16 data4;
+	__le16 data5;
+	__le16 data6;
+};
+
+struct ieee80211_radiotap_he_mu {
+	__le16 flags1;
+	__le16 flags2;
+	u8 ru_ch1[4];
+	u8 ru_ch2[4];
+};
+
+struct ieee80211_radiotap_lsig {
+	__le16 data1;
+	__le16 data2;
+};
 /* Management MIC information element (IEEE 802.11w) for CMAC */
 struct ieee80211_mmie {
 	u8 element_id;
@@ -4119,7 +4300,79 @@ struct ieee80211_sub_if_data {
 	struct ieee80211_vif *vif;
 };
 
-/**
+struct ieee80211_rx_data {
+	struct list_head *list;
+	struct sk_buff *skb;
+	struct ieee80211_local *local;
+	struct ieee80211_sub_if_data *sdata;
+	struct ieee80211_link_data *link;
+	struct sta_info *sta;
+	struct link_sta_info *link_sta;
+	struct ieee80211_key *key;
+
+	unsigned int flags;
+
+	/*
+	 * Index into sequence numbers array, 0..16
+	 * since the last (16) is used for non-QoS,
+	 * will be 16 on non-QoS frames.
+	 */
+	int seqno_idx;
+
+	/*
+	 * Index into the security IV/PN arrays, 0..16
+	 * since the last (16) is used for CCMP-encrypted
+	 * management frames, will be set to 16 on mgmt
+	 * frames and 0 on non-QoS frames.
+	 */
+	int security_idx;
+
+	int link_id;
+
+	union {
+		struct {
+			u32 iv32;
+			u16 iv16;
+		} tkip;
+		struct {
+			u8 pn[IEEE80211_CCMP_PN_LEN];
+		} ccm_gcm;
+	};
+};
+
+/*
+ * struct ieee80211_fast_rx - RX fastpath information
+ * @dev: netdevice for reporting the SKB
+ * @vif_type: (P2P-less) interface type of the original sdata (sdata->vif.type)
+ * @vif_addr: interface address
+ * @rfc1042_hdr: copy of the RFC 1042 SNAP header (to have in cache)
+ * @control_port_protocol: control port protocol copied from sdata
+ * @expected_ds_bits: from/to DS bits expected
+ * @icv_len: length of the MIC if present
+ * @key: bool indicating encryption is expected (key is set)
+ * @internal_forward: forward froms internally on AP/VLAN type interfaces
+ * @uses_rss: copy of USES_RSS hw flag
+ * @da_offs: offset of the DA in the header (for header conversion)
+ * @sa_offs: offset of the SA in the header (for header conversion)
+ * @rcu_head: RCU head for freeing this structure
+ */
+struct ieee80211_fast_rx {
+	struct net_device *dev;
+	enum nl80211_iftype vif_type;
+	u8 vif_addr[ETH_ALEN] __aligned(2);
+	u8 rfc1042_hdr[6] __aligned(2);
+	__be16 control_port_protocol;
+	__le16 expected_ds_bits;
+	u8 icv_len;
+	u8 key:1;
+	u8 internal_forward:1;
+	u8 uses_rss:1;
+	u8 da_offs;
+	u8 sa_offs;
+	struct rcu_head rcu_head;
+};
+
+/*
  * struct ieee80211_bss_conf - holds the BSS's changing parameters
  *
  * This structure keeps information about a BSS (and an association
@@ -6574,6 +6827,14 @@ warn:
 	return 0;
 }
 
+static inline struct ieee80211_tx_info *IEEE80211_SKB_CB(struct sk_buff *skb){
+	return (struct ieee80211_tx_info *)skb->cb;
+}
+
+static inline struct ieee80211_rx_status *IEEE80211_SKB_RXCB(struct sk_buff *skb){
+	return (struct ieee80211_rx_status *)skb->cb;
+}
+
 /* avoid any debugfs function */
 static inline void rate_control_add_debugfs(struct ieee80211_local *local){
 	/* do nothing */
@@ -6754,8 +7015,7 @@ static inline bool wiphy_ext_feature_isset(struct wiphy *wiphy, enum nl80211_ext
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame has to-DS set
  */
-static inline bool ieee80211_has_tods(__le16 fc)
-{
+static inline bool ieee80211_has_tods(__le16 fc){
 	return (fc & cpu_to_le16(IEEE80211_FCTL_TODS)) != 0;
 }
 
@@ -6764,8 +7024,7 @@ static inline bool ieee80211_has_tods(__le16 fc)
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame has from-DS set
  */
-static inline bool ieee80211_has_fromds(__le16 fc)
-{
+static inline bool ieee80211_has_fromds(__le16 fc){
 	return (fc & cpu_to_le16(IEEE80211_FCTL_FROMDS)) != 0;
 }
 
@@ -7239,6 +7498,81 @@ static inline bool ieee80211_is_frag(struct ieee80211_hdr *hdr)
 {
 	return ieee80211_has_morefrags(hdr->frame_control) ||
 	       hdr->seq_ctrl & cpu_to_le16(IEEE80211_SCTL_FRAG);
+}
+
+
+/**
+ * ieee80211_get_qos_ctl - get pointer to qos control bytes
+ * @hdr: the frame
+ * Return: a pointer to the QoS control field in the frame header
+ *
+ * The qos ctrl bytes come after the frame_control, duration, seq_num
+ * and 3 or 4 addresses of length ETH_ALEN. Checks frame_control to choose
+ * between struct ieee80211_qos_hdr_4addr and struct ieee80211_qos_hdr.
+ */
+static inline u8 *ieee80211_get_qos_ctl(struct ieee80211_hdr *hdr)
+{
+	union {
+		struct ieee80211_qos_hdr	addr3;
+		struct ieee80211_qos_hdr_4addr	addr4;
+	} *qos;
+
+	qos = (void *)hdr;
+	if (ieee80211_has_a4(qos->addr3.frame_control))
+		return (u8 *)&qos->addr4.qos_ctrl;
+	else
+		return (u8 *)&qos->addr3.qos_ctrl;
+}
+
+/**
+ * ieee80211_get_tid - get qos TID
+ * @hdr: the frame
+ * Return: the TID from the QoS control field
+ */
+static inline u8 ieee80211_get_tid(struct ieee80211_hdr *hdr){
+	u8 *qc = NULL;
+	qc = ieee80211_get_qos_ctl(hdr);
+	return qc[0] & IEEE80211_QOS_CTL_TID_MASK;
+}
+
+/**
+ * ieee80211_get_SA - get pointer to SA
+ * @hdr: the frame
+ * Return: a pointer to the source address (SA)
+ *
+ * Given an 802.11 frame, this function returns the offset
+ * to the source address (SA). It does not verify that the
+ * header is long enough to contain the address, and the
+ * header must be long enough to contain the frame control
+ * field.
+ */
+static inline u8 *ieee80211_get_SA(struct ieee80211_hdr *hdr){
+	if (ieee80211_has_a4(hdr->frame_control)){
+		return hdr->addr4;
+	}
+	if (ieee80211_has_fromds(hdr->frame_control)){
+		return hdr->addr3;
+	}
+	return hdr->addr2;
+}
+
+/**
+ * ieee80211_get_DA - get pointer to DA
+ * @hdr: the frame
+ * Return: a pointer to the destination address (DA)
+ *
+ * Given an 802.11 frame, this function returns the offset
+ * to the destination address (DA). It does not verify that
+ * the header is long enough to contain the address, and the
+ * header must be long enough to contain the frame control
+ * field.
+ */
+static inline u8 *ieee80211_get_DA(struct ieee80211_hdr *hdr){
+	if (ieee80211_has_tods(hdr->frame_control)){
+		return hdr->addr3;
+	}else{
+		return hdr->addr1;
+	}
 }
 
 static struct rate_control_ref *rate_control_alloc(const char *name, struct ieee80211_local *local){
@@ -8129,7 +8463,7 @@ static void cfg80211_process_wiphy_works(struct cfg80211_registered_device *rdev
 
 		wk = list_first_entry(&rdev->wiphy_work_list, struct wiphy_work, entry);
 		list_del_init(&wk->entry);
-		wk->func(&rdev->wiphy, wk);
+		wk->func(rdev->wiphy, wk);
 
 		if (wk == end){
 			break;
@@ -8735,8 +9069,329 @@ static int sta_info_init(struct ieee80211_local *local){
 	return ret;
 }
 
-/* nl80211 based function wrappers (must be working for both Linux and Windows) */
+static inline void ieee80211_tpt_led_trig_rx(struct ieee80211_local *local, int bytes){
 
+}
+
+/*
+ * monitor mode reception
+ *
+ * This function cleans up the SKB, i.e. it removes all the stuff
+ * only useful for monitoring.
+ */
+static struct sk_buff *ieee80211_clean_skb(struct sk_buff *skb, unsigned int present_fcs_len, unsigned int rtap_space){
+	__le16 fc = 0;
+	unsigned int hdrlen = 0;
+	struct ieee80211_hdr *hdr = NULL;
+	struct ieee80211_rx_status *status = NULL;
+	status = IEEE80211_SKB_RXCB(skb);
+
+	if (present_fcs_len){
+		__pskb_trim(skb, skb->len - present_fcs_len);
+	}
+	pskb_pull(skb, rtap_space);
+
+	/* After pulling radiotap header, clear all flags that indicate
+	 * info in skb->data.
+	 */
+	status->flag &= ~(RX_FLAG_RADIOTAP_TLV_AT_END |
+			  RX_FLAG_RADIOTAP_LSIG |
+			  RX_FLAG_RADIOTAP_HE_MU |
+			  RX_FLAG_RADIOTAP_HE |
+			  RX_FLAG_RADIOTAP_VHT);
+
+	hdr = (void *)skb->data;
+	fc = hdr->frame_control;
+
+	/*
+	 * Remove the HT-Control field (if present) on management
+	 * frames after we've sent the frame to monitoring. We
+	 * (currently) don't need it, and don't properly parse
+	 * frames with it present, due to the assumption of a
+	 * fixed management header length.
+	 */
+	if (likely(!ieee80211_is_mgmt(fc) || !ieee80211_has_order(fc))){
+		return skb;
+	}
+	hdrlen = ieee80211_hdrlen(fc);
+	hdr->frame_control &= ~cpu_to_le16(IEEE80211_FCTL_ORDER);
+
+	if (!pskb_may_pull(skb, hdrlen)) {
+		dev_kfree_skb(skb);
+		return NULL;
+	}
+
+	memmove(skb->data + IEEE80211_HT_CTL_LEN, skb->data, hdrlen - IEEE80211_HT_CTL_LEN);
+	pskb_pull(skb, IEEE80211_HT_CTL_LEN);
+
+	return skb;
+}
+
+/*
+ * This function copies a received frame to all monitor interfaces and
+ * returns a cleaned-up SKB that no longer includes the FCS nor the
+ * radiotap header the driver might have added.
+ */
+static struct sk_buff *ieee80211_rx_monitor(struct ieee80211_local *local, struct sk_buff *origskb, struct ieee80211_rate *rate){
+	struct ieee80211_rx_status *status = IEEE80211_SKB_RXCB(origskb);
+	struct ieee80211_sub_if_data *sdata, *prev_sdata = NULL;
+	struct sk_buff *skb, *monskb = NULL;
+	int present_fcs_len = 0;
+	unsigned int rtap_space = 0;
+	bool only_monitor = false;
+	unsigned int min_head_len = 0;
+
+	if (status->flag & RX_FLAG_RADIOTAP_TLV_AT_END && !skb_mac_header_was_set(origskb)) {
+		/* with this skb no way to know where frame payload starts */
+		dev_kfree_skb(origskb);
+		return NULL;
+	}
+
+	if (status->flag & RX_FLAG_RADIOTAP_VHT){
+		rtap_space += sizeof(struct ieee80211_radiotap_vht);
+	}
+	if (status->flag & RX_FLAG_RADIOTAP_HE){
+		rtap_space += sizeof(struct ieee80211_radiotap_he);
+	}
+	if (status->flag & RX_FLAG_RADIOTAP_HE_MU){
+		rtap_space += sizeof(struct ieee80211_radiotap_he_mu);
+	}
+	if (status->flag & RX_FLAG_RADIOTAP_LSIG){
+		rtap_space += sizeof(struct ieee80211_radiotap_lsig);
+	}
+	if (status->flag & RX_FLAG_RADIOTAP_TLV_AT_END){
+		//	rtap_space += skb_mac_header(origskb) - (&origskb->data + rtap_space);
+	}
+	min_head_len = rtap_space;
+
+	/*
+	 * First, we may need to make a copy of the skb because
+	 *  (1) we need to modify it for radiotap (if not present), and
+	 *  (2) the other RX handlers will modify the skb we got.
+	 *
+	 * We don't need to, of course, if we aren't going to return
+	 * the SKB because it has a bad FCS/PLCP checksum.
+	 */
+
+	if (!(status->flag & RX_FLAG_NO_PSDU)) {
+		if (ieee80211_hw_check(&local->hw, RX_INCLUDES_FCS)) {
+			if (unlikely(origskb->len <= FCS_LEN + rtap_space)) {
+				/* driver bug */
+				dev_kfree_skb(origskb);
+				return NULL;
+			}
+			present_fcs_len = FCS_LEN;
+		}
+
+		/* also consider the hdr->frame_control */
+		min_head_len += 2;
+	}
+
+	return ieee80211_clean_skb(origskb, present_fcs_len, rtap_space);
+}
+
+/*
+ * This is the actual Rx frames handler. as it belongs to Rx path it must
+ * be called with rcu_read_lock protection.
+ */
+static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, struct sk_buff *skb, struct list_head *list){
+	int ret = 0;
+	__le16 fc = 0;
+	struct rhlist_head *tmp = NULL;
+	struct list_head *pos = NULL;
+	struct ieee80211_hdr *hdr = NULL;
+	struct ieee80211_local *local = NULL;
+	struct ieee80211_sub_if_data *prev = NULL;
+	struct ieee80211_sub_if_data *sdata = NULL;
+	struct ieee80211_rx_status *status = IEEE80211_SKB_RXCB(skb);
+	struct ieee80211_rx_data rx = {};
+
+	local = director.ieee80211_local;
+	fc = ((struct ieee80211_hdr *)skb->data)->frame_control;
+	memset(&rx, 0, sizeof(rx));
+	rx.skb = skb;
+	rx.local = local;
+	rx.list = list;
+	rx.link_id = -1;
+
+	if (ieee80211_is_mgmt(fc)) {
+		if (skb->len < ieee80211_hdrlen(fc)){
+			ret = -ENOBUFS;
+		}else{
+			ret = skb_linearize(skb);
+		}
+	}else{
+		ret = !pskb_may_pull(skb, ieee80211_hdrlen(fc));
+	}
+
+	if (ret) {
+		dev_kfree_skb(skb);
+		return;
+	}
+
+	hdr = (struct ieee80211_hdr *)skb->data;
+	ieee80211_parse_qos(&rx);
+	ieee80211_verify_alignment(&rx);
+
+	if (unlikely(ieee80211_is_probe_resp(hdr->frame_control) || ieee80211_is_beacon(hdr->frame_control) || ieee80211_is_s1g_beacon(hdr->frame_control))){
+		ieee80211_scan_rx(local, skb);
+	}
+	if (ieee80211_is_data(fc)) {
+		struct sta_info *sta = NULL;
+		struct sta_info *prev_sta = NULL;
+		int link_id = -1;
+
+		if (status->link_valid){
+			link_id = status->link_id;
+		}
+		if (pubsta) {
+			/* sta_info.sta is a pointer in this emulator — recover
+			 * sta_info via hash lookup on the sender address.      */
+			for (tmp = sta_info_hash_lookup(local, hdr->addr2); tmp; tmp = tmp->next) {
+				sta = (struct sta_info *)((char *)tmp - offsetof(struct sta_info, hash_node));
+				if (sta->sta == pubsta)
+					break;
+				sta = NULL;
+			}
+			if (!sta || !ieee80211_rx_data_set_sta(&rx, sta, link_id))
+				goto out;
+
+			if (!status->link_valid && sta->sta) {
+				struct link_sta_info *link_sta = link_sta_info_get_bss(rx.sdata, hdr->addr2);
+				if (!link_sta)
+					goto out;
+				ieee80211_rx_data_set_link(&rx, link_sta->link_id);
+			}
+
+			if (ieee80211_prepare_and_rx_handle(&rx, skb, true))
+				return;
+			goto out;
+		}
+
+		prev_sta = NULL;
+
+		for (tmp = sta_info_hash_lookup(local, hdr->addr2);
+		     tmp && (sta = (struct sta_info *)((char *)tmp - offsetof(struct sta_info, hash_node)), 1);
+		     tmp = tmp->next) {
+			if (!prev_sta) {
+				prev_sta = sta;
+				continue;
+			}
+
+			rx.sdata = &prev_sta->sdata;
+			if (!status->link_valid && prev_sta->sta) {
+				struct link_sta_info *link_sta = link_sta_info_get_bss(rx.sdata, hdr->addr2);
+				if (!link_sta) {
+					prev_sta = sta;
+					continue;
+				}
+				link_id = link_sta->link_id;
+			}
+
+			if (!ieee80211_rx_data_set_sta(&rx, prev_sta, link_id))
+				goto out;
+
+			ieee80211_prepare_and_rx_handle(&rx, skb, false);
+			prev_sta = sta;
+		}
+
+		if (prev_sta) {
+			rx.sdata = &prev_sta->sdata;
+			if (!status->link_valid && prev_sta->sta) {
+				struct link_sta_info *link_sta = link_sta_info_get_bss(rx.sdata, hdr->addr2);
+				if (!link_sta)
+					goto out;
+				link_id = link_sta->link_id;
+			}
+
+			if (!ieee80211_rx_data_set_sta(&rx, prev_sta, link_id))
+				goto out;
+
+			if (ieee80211_prepare_and_rx_handle(&rx, skb, true))
+				return;
+			goto out;
+		}
+	}
+
+	prev = NULL;
+
+	/* ieee80211_sub_if_data.list is at offset 0 — direct cast is valid */
+	for (pos = local->interfaces.next; pos != &local->interfaces; pos = pos->next) {
+		sdata = (struct ieee80211_sub_if_data *)pos;
+		if (!ieee80211_sdata_running(sdata))
+			continue;
+		if (sdata->vif->type == NL80211_IFTYPE_MONITOR || sdata->vif->type == NL80211_IFTYPE_AP_VLAN){
+			continue;
+		}
+		if (!prev) {
+			prev = sdata;
+			continue;
+		}
+		rx.sdata = prev;
+		ieee80211_rx_for_interface(&rx, skb, false);
+		prev = sdata;
+	}
+
+	if (prev) {
+		rx.sdata = prev;
+		if (ieee80211_rx_for_interface(&rx, skb, true))
+			return;
+	}
+
+out:
+	dev_kfree_skb(skb);
+}
+
+static void __ieee80211_rx_handle_8023(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, struct sk_buff *skb, struct list_head *list){
+	struct ieee80211_local *local = NULL;
+	struct ieee80211_rx_status *status = IEEE80211_SKB_RXCB(skb);
+	struct ieee80211_rx_data rx = {};
+	struct sta_info *sta = NULL;
+	struct rhlist_head *tmp = NULL;
+	int link_id = -1;
+
+	local = director.ieee80211_local;
+	memset(&rx, 0, sizeof(rx));
+	rx.skb = skb;
+	rx.local = local;
+	rx.list = list;
+	rx.link_id = -1;
+
+	if (skb->len < sizeof(struct ethhdr))
+		goto drop;
+	if (pubsta == NULL)
+		goto drop;
+
+	if (status->link_valid)
+		link_id = status->link_id;
+
+	/*
+	 * TODO: Should the frame be dropped if the right link_id is not
+	 * available? Or may be it is fine in the current form to proceed with
+	 * the frame processing because with frame being in 802.3 format,
+	 * link_id is used only for stats purpose and updating the stats on
+	 * the deflink is fine?
+	 */
+	for (tmp = sta_info_hash_lookup(local, ((struct ethhdr *)skb->data)->h_source);
+	     tmp; tmp = tmp->next) {
+		sta = (struct sta_info *)((char *)tmp - offsetof(struct sta_info, hash_node));
+		if (sta->sta == pubsta)
+			break;
+		sta = NULL;
+	}
+	if (!sta)
+		goto drop;
+
+	if (!ieee80211_rx_data_set_sta(&rx, sta, link_id))
+		goto drop;
+
+	ieee80211_rx_8023(&rx, NULL, skb->len);
+	return;
+drop:
+	dev_kfree_skb(skb);
+}
+
+/* nl80211 based function wrappers (must be working for both Linux and Windows) */
 static void nl80211_gtk_rekey_notify(struct cfg80211_registered_device *rdev, struct net_device *netdev, u8 *bssid, u8 *replay_ctr, int gfp){
 
 }

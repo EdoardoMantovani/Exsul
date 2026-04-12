@@ -2070,6 +2070,15 @@ int initialize_director(struct module_controller *director, struct load_info **i
 		workqueue_init(&director->system_wq, "system_wq");
 		system_wq = &director->system_wq;
 	}
+	if(system_dfl_wq == NULL){
+		workqueue_init(&director->system_dfl_wq, "system_dfl_wq");
+		system_dfl_wq = &director->system_dfl_wq;
+	}
+
+	if(system_freezable_wq == NULL){
+		workqueue_init(&director->system_freezable_wq, "system_freezable_wq");
+		system_freezable_wq = &director->system_freezable_wq;
+	}
 
 	/* initialize usb i/o mutex */
 	pthread_mutex_init(&director->usb_io_lock, NULL);

@@ -1060,7 +1060,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[8] = {
 				.struct_size = 0,
 				.struct_name = "sk_buff",
-				.struct_field_num = 54,
+				.struct_field_num = 55,
 				.fields = {
 					[0] = {
 						.field_name = "_skb_refdst",
@@ -1179,102 +1179,106 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[29] = {
-						.field_name = "mac_header",
+						.field_name = "list",
 						.field_offset = 0,
 					},
 					[30] = {
-						.field_name = "mac_len",
+						.field_name = "mac_header",
 						.field_offset = 0,
 					},
 					[31] = {
-						.field_name = "network_header",
+						.field_name = "mac_len",
 						.field_offset = 0,
 					},
 					[32] = {
-						.field_name = "next",
+						.field_name = "network_header",
 						.field_offset = 0,
 					},
 					[33] = {
-						.field_name = "nohdr",
+						.field_name = "next",
 						.field_offset = 0,
 					},
 					[34] = {
-						.field_name = "peeked",
+						.field_name = "nohdr",
 						.field_offset = 0,
 					},
 					[35] = {
-						.field_name = "pfmemalloc",
+						.field_name = "peeked",
 						.field_offset = 0,
 					},
 					[36] = {
-						.field_name = "pkt_type",
+						.field_name = "pfmemalloc",
 						.field_offset = 0,
 					},
 					[37] = {
-						.field_name = "prev",
+						.field_name = "pkt_type",
 						.field_offset = 0,
 					},
 					[38] = {
-						.field_name = "priority",
+						.field_name = "prev",
 						.field_offset = 0,
 					},
 					[39] = {
-						.field_name = "protocol",
+						.field_name = "priority",
 						.field_offset = 0,
 					},
 					[40] = {
-						.field_name = "queue_mapping",
+						.field_name = "protocol",
 						.field_offset = 0,
 					},
 					[41] = {
-						.field_name = "reserved_tailroom",
+						.field_name = "queue_mapping",
 						.field_offset = 0,
 					},
 					[42] = {
-						.field_name = "sk",
+						.field_name = "reserved_tailroom",
 						.field_offset = 0,
 					},
 					[43] = {
-						.field_name = "slow_gro",
+						.field_name = "sk",
 						.field_offset = 0,
 					},
 					[44] = {
-						.field_name = "tail",
+						.field_name = "slow_gro",
 						.field_offset = 0,
 					},
 					[45] = {
-						.field_name = "transport_header",
+						.field_name = "tail",
 						.field_offset = 0,
 					},
 					[46] = {
-						.field_name = "truesize",
+						.field_name = "transport_header",
 						.field_offset = 0,
 					},
 					[47] = {
-						.field_name = "tstamp",
+						.field_name = "truesize",
 						.field_offset = 0,
 					},
 					[48] = {
-						.field_name = "tstamp_type",
+						.field_name = "tstamp",
 						.field_offset = 0,
 					},
 					[49] = {
-						.field_name = "unreadable",
+						.field_name = "tstamp_type",
 						.field_offset = 0,
 					},
 					[50] = {
-						.field_name = "users",
+						.field_name = "unreadable",
 						.field_offset = 0,
 					},
 					[51] = {
-						.field_name = "wifi_acked",
+						.field_name = "users",
 						.field_offset = 0,
 					},
 					[52] = {
-						.field_name = "wifi_acked_valid",
+						.field_name = "wifi_acked",
 						.field_offset = 0,
 					},
 					[53] = {
+						.field_name = "wifi_acked_valid",
+						.field_offset = 0,
+					},
+					[54] = {
 						.field_name = "x",
 						.field_offset = 0,
 					},

@@ -1,7 +1,8 @@
 struct net_device *alloc_netdev_mqs(int sizeof_priv, char *name, unsigned char name_assign_type, void (*setup)(struct net_device *), unsigned int txqs, unsigned int rxqs){
-	struct net_device *netdev = NULL;
-	size_t napi_config_sz = 0;
+	int netdev_size = 0;
 	unsigned int maxqs = 0;
+	size_t napi_config_sz = 0;
+	struct net_device *netdev = NULL;
 
 	if (txqs < 1) {
 		pr_err("alloc_netdev: Unable to allocate device with zero queues\n");
@@ -15,7 +16,12 @@ struct net_device *alloc_netdev_mqs(int sizeof_priv, char *name, unsigned char n
 
 	maxqs = max(txqs, rxqs);
 
-	netdev = malloc(NET_DEVICE_STRUCT_SIZE);
+	if(director.struct_sizes.net_device == 0){
+		netdev_size = NET_DEVICE_STRUCT_SIZE;
+	}else{
+		netdev_size = director.struct_sizes.net_device;
+	}
+	netdev = calloc(1, netdev_size);
 	if (netdev == NULL){
 		return NULL;
 	}
@@ -43,7 +49,6 @@ struct net_device *alloc_netdev_mqs(int sizeof_priv, char *name, unsigned char n
 	netdev->priv_flags = IFF_XMIT_DST_RELEASE | IFF_XMIT_DST_RELEASE_PERM;
 	setup(netdev);
 
-	#if 0
 	if (netdev->tx_queue_len == 0) {
 		netdev->priv_flags |= IFF_NO_QUEUE;
 		netdev->tx_queue_len = DEFAULT_TX_QUEUE_LEN;
@@ -51,6 +56,7 @@ struct net_device *alloc_netdev_mqs(int sizeof_priv, char *name, unsigned char n
 
 	netdev->num_tx_queues = txqs;
 	netdev->real_num_tx_queues = txqs;
+	#if 0
 	if (netif_alloc_netdev_queues(netdev)){
 		goto free_all;
 	}

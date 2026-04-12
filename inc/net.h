@@ -1,12 +1,18 @@
 /* contains generic functions from the networking subsystem */
 
 #ifndef MAX_ADDR_LEN
-#define MAX_ADDR_LEN	  32
+#define MAX_ADDR_LEN	  		32
 #endif
 
 #ifndef INIT_NETDEV_GROUP
-#define INIT_NETDEV_GROUP 0
+#define INIT_NETDEV_GROUP 		0
 #endif
+
+#define NET_RX_SUCCESS			0	/* keep 'em coming, baby */
+#define NET_RX_DROP			1	/* packet dropped */
+
+#define DEFAULT_TX_QUEUE_LEN		1000
+#define STAB_SIZE_LOG_MAX		30
 
 #define NETDEV_HW_ADDR_T_LAN		1
 #define NETDEV_HW_ADDR_T_SAN		2
@@ -14,18 +20,18 @@
 #define NETDEV_HW_ADDR_T_MULTICAST	4
 
 /* for setting kernel sock attribute on TCP connection setup */
-#define GSO_MAX_SEGS		65535u
-#define GSO_LEGACY_MAX_SIZE	65536u
+#define GSO_MAX_SEGS			65535u
+#define GSO_LEGACY_MAX_SIZE		65536u
 /* TCP minimal MSS is 8 (TCP_MIN_GSO_SIZE),
  * and shinfo->gso_segs is a 16bit field.
  */
-#define GSO_MAX_SIZE		(8 * GSO_MAX_SEGS)
-#define TSO_LEGACY_MAX_SIZE	65536
+#define GSO_MAX_SIZE			(8 * GSO_MAX_SEGS)
+#define TSO_LEGACY_MAX_SIZE		65536
 
 
 /* copy'n'paste compression ;) */
-#define __NETIF_F_BIT(bit)	((netdev_features_t)1 << (bit))
-#define __NETIF_F(name)		__NETIF_F_BIT(NETIF_F_##name##_BIT)
+#define __NETIF_F_BIT(bit)		((netdev_features_t)1 << (bit))
+#define __NETIF_F(name)			__NETIF_F_BIT(NETIF_F_##name##_BIT)
 
 #define NETIF_F_FCOE_CRC	__NETIF_F(FCOE_CRC)
 #define NETIF_F_FRAGLIST	__NETIF_F(FRAGLIST)
@@ -443,10 +449,12 @@ static int __hw_addr_add_ex(struct netdev_hw_addr_list *list, unsigned char *add
 }
 
 static int __hw_addr_add(struct netdev_hw_addr_list *list, unsigned char *addr, int addr_len, unsigned char addr_type){
-	return __hw_addr_add_ex(list, addr, addr_len, addr_type, false, false, 0, false);
+	int ret = 0;
+	ret = __hw_addr_add_ex(list, addr, addr_len, addr_type, false, false, 0, false);
+	return ret;
 }
 
-/**
+/*
  *	dev_addr_init - Init device address list
  *	@dev: device
  *
@@ -495,4 +503,71 @@ static void init_dummy_netdev(struct net_device *netdev){
 	 * because users of this 'device' dont need to change
 	 * its refcount.
 	 */
+}
+
+static int __netif_receive_skb_one_core(struct sk_buff *skb, bool pfmemalloc){
+	int ret = 0;
+	return ret;
+}
+
+static int __netif_receive_skb(struct sk_buff *skb){
+	int ret = 0;
+	ret = __netif_receive_skb_one_core(skb, false);
+	return ret;
+}
+
+static void __netif_receive_skb_list(struct list_head *head){
+	bool pfmemalloc = false;
+	struct list_head *pos = NULL;
+	struct list_head *tmp = NULL;
+	struct sk_buff *skb = NULL;
+
+	pos = head->next;
+	while (pos != head) {
+		tmp = pos->next;
+		skb = (struct sk_buff *)pos;
+		struct list_head sublist;
+		list_cut_before(&sublist, head, pos);
+		if (!list_empty(&sublist)){
+			__netif_receive_skb_list_core(&sublist, pfmemalloc);
+		}
+		pos = tmp;
+	}
+	if (!list_empty(head)){
+		__netif_receive_skb_list_core(head, pfmemalloc);
+	}
+}
+
+static void netif_receive_skb_list_internal(struct list_head *head){
+	struct sk_buff *skb = NULL;
+	struct sk_buff *next = NULL;
+	struct list_head *pos = NULL;
+	struct list_head *tmp = NULL;
+	LIST_HEAD(sublist);
+
+	pos = head->next;
+	while (pos != head) {
+		tmp = pos->next;
+		skb = (struct sk_buff *)pos;
+		skb_list_del_init(skb);
+		if (!skb_defer_rx_timestamp(skb)){
+			list_add_tail(&skb->list, &sublist);
+		}
+		pos = tmp;
+	}
+
+	list_splice_init(&sublist, head);
+	__netif_receive_skb_list(head);
+}
+
+static int netif_receive_skb_internal(struct sk_buff *skb){
+	int ret = 0;
+
+	if (skb_defer_rx_timestamp(skb)){
+		ret = NET_RX_SUCCESS;
+		return ret;
+	}
+
+	ret = __netif_receive_skb(skb);
+	return ret;
 }
