@@ -83,7 +83,6 @@ static inline unsigned long msecs_to_jiffies(const unsigned int m){
 }
 
 /* timers related functions */
-
 static void *timer_thread_fn(void *arg){
 	long long fire_ns = 0;
 	long long elapsed_ns = 0;
@@ -95,6 +94,8 @@ static void *timer_thread_fn(void *arg){
 	struct hlist_node *next = NULL;
 	struct hlist_node **pprev = NULL;
 
+	/* timer callbacks run driver code with GS-relative per-CPU accesses */
+	setup_percpu();
 	pthread_mutex_lock(&director.timer_lock);
 	for (;;) {
 		if (director.timer_head.first == NULL) {

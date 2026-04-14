@@ -3,8 +3,17 @@ void ieee80211_rx_list(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, st
 	struct ieee80211_rate *rate = NULL;
 	struct ieee80211_local *local = NULL;
 	struct ieee80211_supported_band *sband = NULL;
-	struct ieee80211_rx_status *status = IEEE80211_SKB_RXCB(skb);
-	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+	struct ieee80211_rx_status *status = NULL;
+	struct ieee80211_hdr *hdr = NULL;
+
+	if (skb == NULL || IS_ERR(skb)){
+		goto end;
+	}
+	status = IEEE80211_SKB_RXCB(skb);
+	if (!status || IS_ERR(status)){
+		goto drop;
+	}
+	hdr = (struct ieee80211_hdr *)skb->data;
 
 	local = director.ieee80211_local;
 	if (status->band >= NUM_NL80211_BANDS){
@@ -13,7 +22,7 @@ void ieee80211_rx_list(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, st
 
 	wiphy = local->wiphy;
 	sband = wiphy->bands[status->band];
-	if (!sband){
+	if (sband == NULL){
 		goto drop;
 	}
 
@@ -32,16 +41,12 @@ void ieee80211_rx_list(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, st
 	if (unlikely(local->in_reconfig)){
 		goto drop;
 	}
-	/*
-	 * The same happens when we're not even started,
-	 * but that's worth a warning.
-	 */
+
 	if (!local->started){
 		goto drop;
 	}
 
-	if (likely(!(status->flag & RX_FLAG_FAILED_PLCP_CRC) &&
-		   !(status->flag & RX_FLAG_NO_PSDU && status->zero_length_psdu_type == IEEE80211_RADIOTAP_ZERO_LEN_PSDU_NOT_CAPTURED))) {
+	if (likely(!(status->flag & RX_FLAG_FAILED_PLCP_CRC) && !(status->flag & RX_FLAG_NO_PSDU && status->zero_length_psdu_type == IEEE80211_RADIOTAP_ZERO_LEN_PSDU_NOT_CAPTURED))) {
 		/*
 		 * Validate the rate, unless there was a PLCP error which may
 		 * have an invalid rate or the PSDU was not capture and may be
@@ -115,6 +120,7 @@ void ieee80211_rx_list(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, st
 	}
 
 	return;
- drop:
+	drop:
 	kfree_skb(skb);
+	end:
 }

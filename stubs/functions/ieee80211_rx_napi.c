@@ -1,5 +1,7 @@
 void ieee80211_rx_napi(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, struct sk_buff *skb, struct napi_struct *napi){
-	struct sk_buff *tmp = NULL;
+	struct sk_buff *entry = NULL;
+	struct list_head *pos = NULL;
+	struct list_head *next = NULL;
 	LIST_HEAD(list);
 
 	/*
@@ -14,8 +16,12 @@ void ieee80211_rx_napi(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, st
 		return;
 	}
 
-	//list_for_each_entry_safe(skb, tmp, &list, list) {
-	//	skb_list_del_init(skb);
-	//	napi_gro_receive(napi, skb);
-	//}
+	pos = list.next;
+	while (pos != &list) {
+		next = pos->next;
+		entry = (struct sk_buff *)pos;
+		skb_list_del_init(entry);
+		netif_receive_skb(entry);
+		pos = next;
+	}
 }

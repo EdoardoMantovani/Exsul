@@ -523,7 +523,10 @@ my %inline_array_field = (
 	},
 	skb_shared_info => {
 		"frags"				=> 1,
-	}
+	},
+	sk_buff => {
+		"cb"				=> 1,
+	},
 );
 
 chomp($ls);

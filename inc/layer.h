@@ -366,7 +366,7 @@ typedef _Atomic(unsigned int) atomic_uint;
 /* sections for the crashdump */
 enum {
 	CRASH_SECTION_SYMBOL_TABLE,
-
+	/* ... */
 	CRASH_SECTION_MAX,
 };
 
@@ -382,6 +382,16 @@ enum {
 	DUMP_PREFIX_NONE,
 	DUMP_PREFIX_ADDRESS,
 	DUMP_PREFIX_OFFSET
+};
+
+/*
+ * ktime_t based interfaces
+ */
+enum tk_offsets {
+	TK_OFFS_REAL,
+	TK_OFFS_BOOT,
+	TK_OFFS_TAI,
+	TK_OFFS_MAX,
 };
 
 /**
@@ -1930,6 +1940,7 @@ static u64 read_uleb128(u8 *p, int len){
 #include <mod_controller.h>
 #include <controller_utils.h>
 #include <hashtable.h>
+#include <wq.h>
 #include <jiffies.h>
 #include <usb.h>
 #include <bits.h>
@@ -1938,6 +1949,5 @@ static u64 read_uleb128(u8 *p, int len){
 #include <hci.h>
 #include <crypto.h>
 #include <ieee80211.h>
-#include <wq.h>
 
 #endif

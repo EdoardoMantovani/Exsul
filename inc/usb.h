@@ -444,6 +444,9 @@ static void libusb_urb_callback(struct libusb_transfer *transfer){
 }
 
 static void *libusb_thread(void *unused){
+	/* USB completion callbacks run driver code that contains GS-relative
+	 * per-CPU accesses; set up a per-CPU area for this thread too. */
+	setup_percpu();
 	while (!atomic_load_explicit(&director.libusb_thread_stop, memory_order_acquire)){
 		libusb_handle_events(NULL);
 	}
