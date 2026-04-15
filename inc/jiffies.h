@@ -134,7 +134,9 @@ static void *timer_thread_fn(void *arg){
 			fn = first->function;
 			director.timer_executing = first;
 			pthread_mutex_unlock(&director.timer_lock);
-			fn(first);
+			if (fn != NULL){
+				fn(first);
+			}
 			pthread_mutex_lock(&director.timer_lock);
 			director.timer_executing = NULL;
 			pthread_cond_broadcast(&director.timer_cond);

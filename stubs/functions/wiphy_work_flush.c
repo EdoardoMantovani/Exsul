@@ -9,6 +9,6 @@ void wiphy_work_flush(struct wiphy *wiphy, struct wiphy_work *work){
 	pthread_mutex_unlock(&local->wiphy_work_queue_mutex);
 
 	if (run){
-		cfg80211_process_wiphy_works(NULL, work);
+		cfg80211_process_wiphy_works(director.rdev, work);
 	}
 }

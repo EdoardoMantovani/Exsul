@@ -303,6 +303,7 @@ void *__kmalloc_large_noprof(size_t size, int flags);
 int kstrtouint(const char *s, unsigned int base, unsigned int *res);
 int futex_wait(atomic_int *addr, int expected);
 int filp_close(struct file_layer *filp, void *id);
+u32 ieee80211_calc_rx_airtime(struct ieee80211_hw *hw, struct ieee80211_rx_status *status, int len);
 void kfree(void *addr);
 int kstrtoint(const char *s, unsigned int base, int *res);
 void __x86_indirect_thunk_rbp(void);

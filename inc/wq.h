@@ -9,7 +9,7 @@ static __thread void *percpu_area = NULL;
 static inline void setup_percpu(void){
 	#ifdef __linux__
 	if (percpu_area == NULL) {
-		percpu_area = mmap(NULL, 1024 * 1024 * 128, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+		percpu_area = mmap(NULL, 1024 * 1024 * 8, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 		if (percpu_area == MAP_FAILED){
 			percpu_area = NULL;
 		}

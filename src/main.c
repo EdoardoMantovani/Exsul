@@ -1878,6 +1878,7 @@ static int call_final_function(struct module *mod, struct load_info *info,
 	return -ENOENT;
 }
 
+
 /* main entry point of the kernel "module_init" function, permits to load entirely a kernel module, in our case instead, it will load it only in memory and wait for the function to run */
 int module_init(unsigned char *file_name, unsigned char *function_name, struct load_info *info) {
 	int	       fd		= 0;
@@ -1936,20 +1937,21 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	munmap(tmp_mapped_file, file_size);
 
 	director.fd = fd;
-	err = dwarf_init(director.fd, DW_DLC_READ, NULL, NULL, &director.dbg, &director.err);
-	if(err != DW_DLV_OK){
-		printf("[!] failed to initialize libdwarf!\n");
-		/*
-		 * instead of not loading the kernel object,
-		 * skip this phase, we may rely on other kernel objects loaded alongisde this module!
-		 */
-		goto skip_dwarf;
-	}
-
 	/* skip completely the dwarf module parsing if the end user has already issued the offset configuration file */
-	if(director.offset_init_by_conf == false){
-		parse_module_offset_table();
+        if(director.offset_init_by_conf == true){
+		goto skip_dwarf;
+	}else{
+		err = dwarf_init(director.fd, DW_DLC_READ, NULL, NULL, &director.dbg, &director.err);
+		if(err != DW_DLV_OK){
+			printf("[!] failed to initialize libdwarf!\n");
+			/*
+			 * instead of not loading the kernel object,
+			 * skip this phase, we may rely on other kernel objects loaded alongisde this module!
+			 */
+			goto skip_dwarf;
+		}
 	}
+	parse_module_offset_table();
 
 	skip_dwarf:
 	close(fd);
@@ -2024,6 +2026,9 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	free(director.info);
 	director.info = NULL;
 	director.loaded_lkm_num++;
+	munmap(mapped_file, file_size);
+	mapped_file = NULL;
+	file_size = 0;
 	return err;
 }
 
@@ -2105,12 +2110,21 @@ void finalize_director(void){
 	if(director.ieee80211_local != NULL){
 
 	}
+	/* Stop the libusb event thread BEFORE freeing USB resources it accesses;
+	 * otherwise Thread 3 races on the freed usb_device_ptr block. */
+	atomic_store_explicit(&director.libusb_thread_stop, true, memory_order_release);
+	libusb_interrupt_event_handler(NULL);
+	if (director.libusb_event_thread != 0) {
+		pthread_join(director.libusb_event_thread, NULL);
+		director.libusb_event_thread = 0;
+	}
+
 	if(director.usb_device_ptr != NULL){
 		free(director.usb_device_ptr);
 		director.usb_device_ptr = NULL;
 	}
 	if(percpu_area != NULL){
-		free(percpu_area);
+		munmap(percpu_area, 1024 * 1024 * 8);
 		percpu_area = NULL;
 	}
 }

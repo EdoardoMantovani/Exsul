@@ -82,6 +82,7 @@ my $pahole_kernel = undef;
 my $windows_support = undef;
 my $make_examples = undef;
 my $verbose = undef;
+my $enable_exported_symbols_tracing = undef;
 my $clean = undef;
 my $help = undef;
 
@@ -109,7 +110,7 @@ my @gcc_unwind_params = (
 	"-lunwind-x86_64"
 );
 my @gcc_params = (
-	"-g",
+	"-g3",
 	"-DARCH_INDEPENDENT_BITOPS",
 	"-DCONFIG_PM",
 	"-DENABLE_UNWIND_DEBUGGING",
@@ -527,6 +528,13 @@ my %inline_array_field = (
 	sk_buff => {
 		"cb"				=> 1,
 	},
+	ieee80211_sub_if_data => {
+		"vif"				=> 1,
+	},
+	ieee80211_vif => {
+		"cfg"				=> 1,
+		"addr"				=> 1,
+	},
 );
 
 chomp($ls);
@@ -555,6 +563,7 @@ GetOptions(
 	"windows"         => \$windows_support,
 	"examples"        => \$make_examples,
 	"verbose"	  => \$verbose,
+	"trace"		  => \$enable_exported_symbols_tracing,
 	"clean"           => \$clean,
 	"help"            => \$help,
 );
@@ -564,12 +573,13 @@ if($help){
 	print("Build script for \n");
 	print("Made by Edoardo Mantovani, 2026\n");
 	print("options:\n");
-	print("compiler=[gcc|clang|tcc] (only working for now: gcc)\n");
-	print("enable-fw: enable static firmware embedding in the main application, this permits to not use the Linux standard path for loading a firmware\n");
-	print("generate_offset -> generate a special json file which can be used for creating the offset backup plan\n");
-	print("windows -> enable windows compilation\n");
-	print("examples -> compile every kernel object example under the ./example folder\n");
-	print("verbose -> show compilation command line\n");
+	print("--compiler=[gcc|clang|tcc] (only working for now: gcc)\n");
+	print("--enable-fw: enable static firmware embedding in the main application, this permits to not use the Linux standard path for loading a firmware\n");
+	print("--generate_offset -> generate a special json file which can be used for creating the offset backup plan\n");
+	print("--windows -> enable windows compilation\n");
+	print("--examples -> compile every kernel object example under the ./example folder\n");
+	print("--verbose -> show compilation command line\n");
+	print("--trace -> trace every exported function, used mainly for debugging!\n");
 	print("clean -> clear every compilation file\n");
 	print("help -> display this help text\n");
 	exit(0);
@@ -1159,6 +1169,30 @@ print("[*] conversion finished!\n");
 $final_stub = "merged_functions.o";
 if($verbose){
 	print("$compiler @gcc_params -I./$virtual_compilation_folder/$include @gcc_stub_params -include $virtual_compilation_folder/$include/$win_layer -c $merged_source -o $build/$final_stub\n");
+}
+
+if($enable_exported_symbols_tracing){
+	my $coccinelle = `which spatch`;
+	my $coccinelle_file = undef;
+	my $coccinelle_file_name = "Exsul_export_tracing.cocci";
+
+	if(!$coccinelle){
+		print("[!] coccinelle not installed!\n");
+	}else{
+		chomp($coccinelle);
+		# create the coccinelle patching file
+		open($coccinelle_file, '>', $coccinelle_file_name);
+		print $coccinelle_file "@@\n";
+		print $coccinelle_file "identifier fn !~ \"^(memcpy|memset)\$\";\n";
+		print $coccinelle_file "@@\n\n";
+		print $coccinelle_file "fn(...) {\n";
+		print $coccinelle_file "+ printf(\"-> %s\", __FUNCTION__);\n";
+		print $coccinelle_file "...\n";
+		print $coccinelle_file "}\n";
+		close($coccinelle_file);
+		`$coccinelle --sp-file $coccinelle_file_name --in-place $merged_source`;
+		`$rm $coccinelle_file`;
+	}
 }
 
 system("$compiler @gcc_params -I./$virtual_compilation_folder/$include @gcc_stub_params -include $virtual_compilation_folder/$include/$win_layer -c $merged_source -o $build/$final_stub");

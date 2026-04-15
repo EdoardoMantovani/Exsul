@@ -80,6 +80,7 @@ struct ieee80211_key_conf;
 struct ieee80211_key_seq;
 struct ieee80211_tx_info;
 struct ieee80211_chan_def;
+struct ieee80211_rx_status;
 struct ieee80211_sub_if_data;
 struct ieee80211_chanctx_conf;
 struct ieee80211_supported_band;

@@ -8175,40 +8175,6 @@ static u32 ieee80211_calc_legacy_rate_duration(u16 bitrate, bool short_pre, bool
 	return duration;
 }
 
-static u32 ieee80211_calc_rx_airtime(struct ieee80211_hw *hw, struct ieee80211_rx_status *status, int len){
-	struct ieee80211_supported_band *sband = NULL;
-	u32 duration, overhead = 0;
-
-	if (status->encoding == RX_ENC_LEGACY) {
-		const struct ieee80211_rate *rate;
-		bool sp = status->enc_flags & RX_ENC_FLAG_SHORTPRE;
-		bool cck;
-
-		/* on 60GHz or sub-1GHz band, there are no legacy rates */
-		if (status->band == NL80211_BAND_60GHZ || status->band == NL80211_BAND_S1GHZ){
-			return 0;
-		}
-		sband = &director.ieee80211_local->bands[status->band];
-		if (!sband || status->rate_idx >= sband->n_bitrates){
-			return 0;
-		}
-		rate = &sband->bitrates[status->rate_idx];
-		cck = rate->flags & IEEE80211_RATE_MANDATORY_B;
-
-		return ieee80211_calc_legacy_rate_duration(rate->bitrate, sp, cck, len);
-	}
-
-	duration = ieee80211_get_rate_duration(hw, status, &overhead);
-	if (duration == 0){
-		return 0;
-	}
-	duration *= len;
-	duration /= AVG_PKT_SIZE;
-	duration /= 1024;
-
-	return duration + overhead;
-}
-
 static u32 ieee80211_calc_tx_airtime_rate(struct ieee80211_hw *hw, struct ieee80211_tx_rate *rate, struct rate_info *rate_info, u8 band, int len){
 	struct ieee80211_rx_status stat = {};
 
@@ -8472,6 +8438,10 @@ static void cfg80211_process_wiphy_works(struct cfg80211_registered_device *rdev
 			INIT_LIST_HEAD(&rdev->wiphy_work_list);
 		}
 	}
+}
+
+static void cfg80211_wiphy_worker(struct work_struct *work){
+	cfg80211_process_wiphy_works(director.rdev, NULL);
 }
 
 static int ieee80211_init_cipher_suites(struct ieee80211_local *local){

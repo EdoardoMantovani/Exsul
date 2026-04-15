@@ -12,6 +12,9 @@ struct wiphy *wiphy_new_nm(const struct cfg80211_ops *ops, int sizeof_priv, cons
 	rdev->wiphy_idx = 0;
 	INIT_LIST_HEAD(&rdev->beacon_registrations);
 	INIT_LIST_HEAD(&rdev->sched_scan_req_list);
+	INIT_LIST_HEAD(&rdev->wiphy_work_list);
+	rdev->wiphy = wiphy;
+	rdev->wiphy_work.func = cfg80211_wiphy_worker;
 	/*
 	 * Initialize wiphy parameters to IEEE 802.11 MIB default values.
 	 * Fragmentation and RTS threshold are disabled by default with the
@@ -19,8 +22,8 @@ struct wiphy *wiphy_new_nm(const struct cfg80211_ops *ops, int sizeof_priv, cons
 	 */
 	wiphy->retry_short = 7;
 	wiphy->retry_long = 4;
-	wiphy->frag_threshold = (u32) -1;
-	wiphy->rts_threshold = (u32) -1;
+	wiphy->frag_threshold = (u32)-1;
+	wiphy->rts_threshold = (u32)-1;
 	wiphy->coverage_class = 0;
 
 	wiphy->max_num_csa_counters = 1;
