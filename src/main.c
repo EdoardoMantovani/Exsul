@@ -114,16 +114,16 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
         u8  num_altsetting                              = 0;
         u8  num_ep                                      = 0;
         libusb_device                       *libusb_dev = NULL;
-        struct libusb_config_descriptor     *cfg        = NULL;
-        const struct libusb_interface       *libusb_intf= NULL;
-        const struct libusb_interface_descriptor *alt   = NULL;
-        const struct libusb_endpoint_descriptor  *ep    = NULL;
-        struct usb_interface                *intf_ptr   = NULL;
-        struct usb_device                   *udev_ptr   = NULL;
+	struct libusb_config_descriptor     *cfg        = NULL;
+	const struct libusb_interface       *libusb_intf= NULL;
+	struct usb_interface                *intf_ptr   = NULL;
+	struct usb_device                   *udev_ptr   = NULL;
+	const struct libusb_interface_descriptor *alt   = NULL;
+	const struct libusb_endpoint_descriptor  *ep    = NULL;
 
 	struct libusb_device_descriptor dev_desc	= {};
 
-        if (handler == NULL || in_intf == NULL) {
+	if (handler == NULL || in_intf == NULL) {
                 return -EINVAL;
         }
 
@@ -2712,6 +2712,10 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	struct ieee80211_local *local = NULL;
 	int (*start)(struct ieee80211_hw *hw) = NULL;
 	void (*stop)(struct ieee80211_hw *hw, bool suspend) = NULL;
+	void (*cancel_hw_scan)(struct ieee80211_hw *hw, struct ieee80211_vif *vif) = NULL;
+	int (*hw_scan)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_scan_request *req) = NULL;
+	int (*start_ap)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_bss_conf *link_conf) = NULL;
+	void (*stop_ap)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_bss_conf *link_conf) = NULL;
 
 	if(argv[1] == NULL){
 		printf("> ops <callback name>\n");
@@ -2739,13 +2743,37 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	if(strcmp(ops_req, "start") == 0){
 		start = ops->start;
 		if(start != NULL){
-			ret = start(local->ieee80211_hw);
+		//	ret = start(local->ieee80211_hw);
 		}
 	}
 	if(strcmp(ops_req, "stop") == 0){
 		stop = ops->stop;
 		if(stop != NULL){
-			stop(local->ieee80211_hw, false);
+		//	stop(local->ieee80211_hw, false);
+		}
+	}
+	if(strcmp(ops_req, "scan") == 0){
+		hw_scan = ops->hw_scan;
+		if(hw_scan != NULL){
+		//	ret = hw_scan(local->ieee80211_hw, );
+		}
+	}
+	if(strcmp(ops_req, "cancel_scan") == 0){
+		cancel_hw_scan = ops->cancel_hw_scan;
+		if(cancel_hw_scan != NULL){
+		//	cancel_hw_scan(local->ieee80211_hw, );
+		}
+	}
+	if(strcmp(ops_req, "start_ap") == 0){
+		start_ap = ops->start_ap;
+		if(start_ap != NULL){
+		//	ret = start_ap(local->ieee80211_hw, );
+		}
+	}
+	if(strcmp(ops_req, "stop_ap") == 0){
+		stop_ap = ops->stop_ap;
+		if(stop_ap != NULL){
+		//	stop_ap(local->ieee80211_hw, );
 		}
 	}
 	return ret;

@@ -9366,4 +9366,15 @@ static void nl80211_gtk_rekey_notify(struct cfg80211_registered_device *rdev, st
 
 }
 
+/* functions for filling driver-based callbacks */
+
+/* fill the 'start_ap' parameters */
+static int fill_start_ap_req(struct ieee80211_bss_conf **link_conf){
+	int ret = 0;
+	struct ieee80211_bss_conf *bss_conf = *link_conf;
+
+
+	return ret;
+}
+
 #endif

@@ -676,7 +676,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[4] = {
 				.struct_size = 0,
 				.struct_name = "ieee80211_ops",
-				.struct_field_num = 17,
+				.struct_field_num = 20,
 				.fields = {
 					[0] = {
 						.field_name = "add_nan_func",
@@ -687,62 +687,74 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[2] = {
-						.field_name = "del_nan_func",
+						.field_name = "cancel_hw_scan",
 						.field_offset = 0,
 					},
 					[3] = {
-						.field_name = "hw_scan",
+						.field_name = "del_nan_func",
 						.field_offset = 0,
 					},
 					[4] = {
-						.field_name = "link_info_changed",
+						.field_name = "hw_scan",
 						.field_offset = 0,
 					},
 					[5] = {
-						.field_name = "remain_on_channel",
+						.field_name = "link_info_changed",
 						.field_offset = 0,
 					},
 					[6] = {
-						.field_name = "set_key",
+						.field_name = "remain_on_channel",
 						.field_offset = 0,
 					},
 					[7] = {
-						.field_name = "set_mac_acl",
+						.field_name = "set_key",
 						.field_offset = 0,
 					},
 					[8] = {
-						.field_name = "set_rts_threshold",
+						.field_name = "set_mac_acl",
 						.field_offset = 0,
 					},
 					[9] = {
-						.field_name = "start",
+						.field_name = "set_rts_threshold",
 						.field_offset = 0,
 					},
 					[10] = {
-						.field_name = "start_nan",
+						.field_name = "start",
 						.field_offset = 0,
 					},
 					[11] = {
-						.field_name = "stop",
+						.field_name = "start_ap",
 						.field_offset = 0,
 					},
 					[12] = {
-						.field_name = "stop_nan",
+						.field_name = "start_nan",
 						.field_offset = 0,
 					},
 					[13] = {
-						.field_name = "tdls_cancel_channel_switch",
+						.field_name = "stop",
 						.field_offset = 0,
 					},
 					[14] = {
-						.field_name = "tdls_channel_switch",
+						.field_name = "stop_ap",
 						.field_offset = 0,
 					},
 					[15] = {
-						.field_name = "tdls_recv_channel_switch",
+						.field_name = "stop_nan",
 						.field_offset = 0,
 					},
 					[16] = {
+						.field_name = "tdls_cancel_channel_switch",
+						.field_offset = 0,
+					},
+					[17] = {
+						.field_name = "tdls_channel_switch",
+						.field_offset = 0,
+					},
+					[18] = {
+						.field_name = "tdls_recv_channel_switch",
+						.field_offset = 0,
+					},
+					[19] = {
 						.field_name = "vif_cfg_changed",
 						.field_offset = 0,
 					},
