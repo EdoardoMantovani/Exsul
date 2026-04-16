@@ -1598,8 +1598,8 @@ void add_kallsyms(struct module *mod, const struct load_info *info) {
 	((struct mod_kallsyms *)rcu_dereference(mod->kallsyms))->typetab =
 	    init_data_base + info->init_typeoffs;
 
-	mod->core_kallsyms.symtab = dst = data_base + info->symoffs;
-	mod->core_kallsyms.strtab = s = data_base + info->stroffs;
+	mod->core_kallsyms.symtab     = dst = data_base + info->symoffs;
+	mod->core_kallsyms.strtab     = s = data_base + info->stroffs;
 	mod->core_kallsyms.typetab    = data_base + info->core_typeoffs;
 	strtab_size		      = info->core_typeoffs - info->stroffs;
 	src			      = rcu_dereference(mod->kallsyms)->symtab;
@@ -2710,15 +2710,17 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
         unsigned char *ops_req = NULL;
 	struct ieee80211_ops *ops = NULL;
 	struct ieee80211_local *local = NULL;
+	struct ieee80211_scan_request *scan_req = NULL;
 	int (*start)(struct ieee80211_hw *hw) = NULL;
 	void (*stop)(struct ieee80211_hw *hw, bool suspend) = NULL;
 	void (*cancel_hw_scan)(struct ieee80211_hw *hw, struct ieee80211_vif *vif) = NULL;
 	int (*hw_scan)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_scan_request *req) = NULL;
 	int (*start_ap)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_bss_conf *link_conf) = NULL;
 	void (*stop_ap)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_bss_conf *link_conf) = NULL;
+	int (*ampdu_action)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_ampdu_params *params) = NULL;
 
 	if(argv[1] == NULL){
-		printf("> ops <callback name>\n");
+		printf("[!] ops <callback name>\n");
 		ret = -EINVAL;
 		return ret;
 	}
@@ -2743,18 +2745,20 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	if(strcmp(ops_req, "start") == 0){
 		start = ops->start;
 		if(start != NULL){
-		//	ret = start(local->ieee80211_hw);
+			ret = start(local->ieee80211_hw);
 		}
 	}
 	if(strcmp(ops_req, "stop") == 0){
 		stop = ops->stop;
 		if(stop != NULL){
-		//	stop(local->ieee80211_hw, false);
+			stop(local->ieee80211_hw, false);
 		}
 	}
 	if(strcmp(ops_req, "scan") == 0){
 		hw_scan = ops->hw_scan;
 		if(hw_scan != NULL){
+		/* generate the callback parameters */
+		ret = fill_hw_scan_req(&scan_req);
 		//	ret = hw_scan(local->ieee80211_hw, );
 		}
 	}
@@ -2779,7 +2783,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	return ret;
 }
 
-#ifdef __WIN64__
+#ifdef _WIN64
 int pe_generator_handler(void){
 	int ret = 0;
 	BYTE *base_addr = NULL;

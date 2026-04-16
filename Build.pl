@@ -1059,17 +1059,15 @@ sub merge_rewritten_function_stubs {
 	}
 
 	my @function_files = ();
+	my @win_excluded_stubs = qw(snprintf.c sscanf.c);
 	foreach (`$find $functions_dir -type f -name "*.c" | $sort`) {
 		my $file = $_;
 		chomp($file);
-		# dirty workaround due to mingw headers because "snprintf" is already defined..
 		if($windows_support){
-			if(!($file eq "snprintf.c")){
-				push(@function_files, $file);
-			}
-		}else{
-			push(@function_files, $file);
+			my $bn = basename($file);
+			next if grep { $bn eq $_ } @win_excluded_stubs;
 		}
+		push(@function_files, $file);
 	}
 
 	foreach(`$find $variables_dir -type f -name "*.c" | $sort`) {

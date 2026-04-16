@@ -640,7 +640,7 @@ struct internal_cb_table sym_table[8192] = {
     [631] = { .function_name = "drv_cmd_set", .function_ptr = drv_cmd_set, .function_size = 15 },
     [632] = { .function_name = "drv_cmd_get", .function_ptr = drv_cmd_get, .function_size = 1029 },
     [633] = { .function_name = "elf_generator_handler", .function_ptr = elf_generator_handler, .function_size = 2277 },
-    [634] = { .function_name = "drv_cmd_ops", .function_ptr = drv_cmd_ops, .function_size = 81 },
+    [634] = { .function_name = "drv_cmd_ops", .function_ptr = drv_cmd_ops, .function_size = 389 },
     [635] = { .function_name = "crash_handler", .function_ptr = crash_handler, .function_size = 557 },
     [636] = { .function_name = "handle_offset_config", .function_ptr = handle_offset_config, .function_size = 1376 },
     [637] = { .function_name = "main", .function_ptr = main, .function_size = 1066 },

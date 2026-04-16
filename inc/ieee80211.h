@@ -1131,6 +1131,48 @@ enum ieee80211_ac_numbers {
 	IEEE80211_AC_BK		= 3,
 };
 
+/**
+ * enum ieee80211_ampdu_mlme_action - A-MPDU actions
+ *
+ * These flags are used with the ampdu_action() callback in
+ * &struct ieee80211_ops to indicate which action is needed.
+ *
+ * Note that drivers MUST be able to deal with a TX aggregation
+ * session being stopped even before they OK'ed starting it by
+ * calling ieee80211_start_tx_ba_cb_irqsafe, because the peer
+ * might receive the addBA frame and send a delBA right away!
+ *
+ * @IEEE80211_AMPDU_RX_START: start RX aggregation
+ * @IEEE80211_AMPDU_RX_STOP: stop RX aggregation
+ * @IEEE80211_AMPDU_TX_START: start TX aggregation, the driver must either
+ *	call ieee80211_start_tx_ba_cb_irqsafe() or
+ *	call ieee80211_start_tx_ba_cb_irqsafe() with status
+ *	%IEEE80211_AMPDU_TX_START_DELAY_ADDBA to delay addba after
+ *	ieee80211_start_tx_ba_cb_irqsafe is called, or just return the special
+ *	status %IEEE80211_AMPDU_TX_START_IMMEDIATE.
+ * @IEEE80211_AMPDU_TX_OPERATIONAL: TX aggregation has become operational
+ * @IEEE80211_AMPDU_TX_STOP_CONT: stop TX aggregation but continue transmitting
+ *	queued packets, now unaggregated. After all packets are transmitted the
+ *	driver has to call ieee80211_stop_tx_ba_cb_irqsafe().
+ * @IEEE80211_AMPDU_TX_STOP_FLUSH: stop TX aggregation and flush all packets,
+ *	called when the station is removed. There's no need or reason to call
+ *	ieee80211_stop_tx_ba_cb_irqsafe() in this case as mac80211 assumes the
+ *	session is gone and removes the station.
+ * @IEEE80211_AMPDU_TX_STOP_FLUSH_CONT: called when TX aggregation is stopped
+ *	but the driver hasn't called ieee80211_stop_tx_ba_cb_irqsafe() yet and
+ *	now the connection is dropped and the station will be removed. Drivers
+ *	should clean up and drop remaining packets when this is called.
+ */
+enum ieee80211_ampdu_mlme_action {
+	IEEE80211_AMPDU_RX_START,
+	IEEE80211_AMPDU_RX_STOP,
+	IEEE80211_AMPDU_TX_START,
+	IEEE80211_AMPDU_TX_STOP_CONT,
+	IEEE80211_AMPDU_TX_STOP_FLUSH,
+	IEEE80211_AMPDU_TX_STOP_FLUSH_CONT,
+	IEEE80211_AMPDU_TX_OPERATIONAL,
+};
+
 #define UL(x) (_UL(x))
 #define ULL(x) (_ULL(x))
 #define BIT(nr) (UL(1) << (nr))
@@ -3340,7 +3382,6 @@ struct ieee80211_vht_cap {
 	struct ieee80211_vht_mcs_info supp_mcs;
 } __packed;
 
-
 /**
  * struct ieee80211_sta_vht_cap - STA's VHT capabilities
  *
@@ -3489,6 +3530,33 @@ struct ieee80211_eht_cap_elem {
 	 */
 	u8 optional[];
 } __packed;
+
+/**
+ * struct ieee80211_ampdu_params - AMPDU action parameters
+ *
+ * @action: the ampdu action, value from %ieee80211_ampdu_mlme_action.
+ * @sta: peer of this AMPDU session
+ * @tid: tid of the BA session
+ * @ssn: start sequence number of the session. TX/RX_STOP can pass 0. When
+ *	action is set to %IEEE80211_AMPDU_RX_START the driver passes back the
+ *	actual ssn value used to start the session and writes the value here.
+ * @buf_size: reorder buffer size  (number of subframes). Valid only when the
+ *	action is set to %IEEE80211_AMPDU_RX_START or
+ *	%IEEE80211_AMPDU_TX_OPERATIONAL
+ * @amsdu: indicates the peer's ability to receive A-MSDU within A-MPDU.
+ *	valid when the action is set to %IEEE80211_AMPDU_TX_OPERATIONAL
+ * @timeout: BA session timeout. Valid only when the action is set to
+ *	%IEEE80211_AMPDU_RX_START
+ */
+struct ieee80211_ampdu_params {
+	enum ieee80211_ampdu_mlme_action action;
+	struct ieee80211_sta *sta;
+	u16 tid;
+	u16 ssn;
+	u16 buf_size;
+	bool amsdu;
+	u16 timeout;
+};
 
 struct ieee80211_bss {
 	u32 device_ts_beacon;
@@ -9374,6 +9442,32 @@ static int fill_start_ap_req(struct ieee80211_bss_conf **link_conf){
 	struct ieee80211_bss_conf *bss_conf = *link_conf;
 
 
+	return ret;
+}
+
+/* fill the 'hw_scan' request */
+static int fill_hw_scan_req(struct ieee80211_scan_request **scan_request){
+	int ret = 0;
+	struct ieee80211_scan_request *scan_req = *scan_request;
+
+	scan_req->ies.common_ies = NULL;
+	scan_req->ies.common_ie_len = 0;
+
+	scan_req->req.ssids = NULL;
+	scan_req->req.n_ssids = 0;
+	scan_req->req.n_channels = 1;
+	scan_req->req.ie = NULL;
+	scan_req->req.ie_len = 0;
+	scan_req->req.duration = 0;
+	scan_req->req.duration_mandatory = false;
+	scan_req->req.flags = 0;
+	scan_req->req.scan_start = 0;
+	scan_req->req.no_cck = false;
+	scan_req->req.scan_6ghz = false;
+	scan_req->req.first_part = false;
+	scan_req->req.n_6ghz_params = 0;
+	scan_req->req.scan_6ghz_params = NULL;
+	scan_req->req.tsf_report_link_id = -1;
 	return ret;
 }
 

@@ -112,6 +112,8 @@ typedef CONDITION_VARIABLE pthread_cond_t;
 typedef HANDLE             pthread_t;
 /* ''pthread_condattr_t' hasn't a direct translation, is just an attribute to 'pthread_cond_t' */
 typedef int		   pthread_condattr_t;
+typedef volatile LONG	   pthread_once_t;
+#define PTHREAD_ONCE_INIT  0
 
 /* for windows also '_UL' and '_ULL' needs to be defined... */
 #ifdef __ASSEMBLY__
