@@ -653,6 +653,9 @@ if($make_examples){
 if($windows_support){
 	$compiler = "x86_64-w64-mingw32-gcc";
 	push(@gcc_params, "-I./win/include/ ");
+	# set also a variant of readelf
+	$readelf = "x86_64-w64-mingw32-nm";
+	$readelf_table_parse = q{'{print $2}'};
 }
 
 # default compiler: gcc
@@ -1250,7 +1253,15 @@ foreach(`$find $stubs/$functions/ $find_command_arg`){
 	$stub_name =~ s/\..*$//;
 	$iterator = (((split("/", $stub_name))[-1]));
 	# get the symbol size
-	$sym_size = `$readelf -sW $build/merged_functions.o 2>/dev/null | $grep \" $iterator\$\" 2>/dev/null | $awk $readelf_table_parse 2>/dev/null`;	
+	if($windows_support){
+		$sym_size = `$readelf -S --size-sort --radix=d build/merged_functions.o 2>/dev/null | $grep \" $iterator\$\" 2>/dev/null | $awk $readelf_table_parse 2>/dev/null`;
+		if($iterator eq "snprintf" || $iterator eq "sscanf"){
+			$sym_size = "00";
+		}
+		$sym_size = "0x" . $sym_size;
+	}else{
+		$sym_size = `$readelf -sW $build/merged_functions.o 2>/dev/null | $grep \" $iterator\$\" 2>/dev/null | $awk $readelf_table_parse 2>/dev/null`;	
+	}
 	chomp($sym_size);
 	if(!$sym_size){
 		$sym_size = 0;

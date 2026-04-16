@@ -89,6 +89,7 @@
 
 #define INCREMENT_CALL_DEPTH
 
+#ifdef __linux__
 __asm__(
 	".pushsection .rodata                           \n"
 	".global skl_call_thunk_template                \n"
@@ -98,10 +99,21 @@ __asm__(
 	"skl_call_thunk_tail:                           \n"
 	".popsection                                    \n"
 );
+#else
+__asm__(".section .rdata,\"dr\"				\n"
+        ".global skl_call_thunk_template                \n"
+        "skl_call_thunk_template:                       \n"
+        INCREMENT_CALL_DEPTH
+        ".global skl_call_thunk_tail                    \n"
+        "skl_call_thunk_tail:                           \n"
+        ".section .text					\n"
+);
+#endif
 
 extern u8 skl_call_thunk_template[];
 extern u8 skl_call_thunk_tail[];
 
+#ifdef __linux__
 /*
  * <fineibt_caller_start>:
  *  0:   b8 78 56 34 12          mov    $0x12345678, %eax
@@ -116,7 +128,16 @@ __asm__(".pushsection .rodata			\n"
 	"fineibt_caller_end:			\n"
 	".popsection				\n"
 );
-
+#else
+__asm__(".section .rdata,\"dr\"              \n"
+	"fineibt_caller_start:               \n"
+	"    movl    $0x12345678, %eax       \n"
+	"    lea     -0x10(%r11), %r11       \n"
+	ASM_NOP5
+	"fineibt_caller_end:                 \n"
+	".section .text                      \n"
+);
+#endif
 extern u8 fineibt_caller_start[];
 extern u8 fineibt_caller_end[];
 
