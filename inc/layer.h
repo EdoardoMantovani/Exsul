@@ -110,7 +110,7 @@ typedef int		   pthread_attr_t;
 typedef SRWLOCK            pthread_mutex_t;
 typedef CONDITION_VARIABLE pthread_cond_t;
 typedef HANDLE             pthread_t;
-/* ''pthread_condattr_t' hasn't a direct translation, is just an attribute to 'pthread_cond_t' */
+/* 'pthread_condattr_t' hasn't a direct translation, is just an attribute to 'pthread_cond_t' */
 typedef int		   pthread_condattr_t;
 typedef volatile LONG	   pthread_once_t;
 #define PTHREAD_ONCE_INIT  0
@@ -200,12 +200,6 @@ typedef _Atomic(unsigned int) atomic_uint;
 #define be16 __be16
 #define be32 __be32
 #define be64 __be64
-
-#ifdef __WIN64__
-#define win_static	static
-#else
-#define win_static
-#endif
 
 #include <utils.h>
 #include <jhash.h>
@@ -1044,6 +1038,269 @@ struct module_controller;
 extern struct module_controller director;
 
 #include <prototypes.h>
+
+/* defines pthread functions for Windows below */
+#ifdef _WIN64
+
+#define __ALIGN_KERNEL(x, a)		__ALIGN_KERNEL_MASK(x, (__typeof__(x))(a) - 1)
+#define __ALIGN_KERNEL_MASK(x, mask)	(((x) + (mask)) & ~(mask))
+
+static int munmap(void *addr, size_t length){
+	int ret = 0;
+	if (addr == NULL || addr == MAP_FAILED) {
+		ret = EINVAL;
+		return ret;
+	}
+
+	if (VirtualFree(addr, 0, MEM_RELEASE) == NULL) {
+		ret = EINVAL;
+		return ret;
+	}
+
+	return ret;
+}
+
+static inline int getrandom(void *buf, int len, int unused) {
+	int ret = 0;
+        if (BCryptGenRandom(NULL, (PUCHAR)buf, (ULONG)len, BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0) {
+                ret = -EINVAL;
+        }
+        return (int)len;
+}
+
+static inline void usleep(unsigned long usec) {
+        DWORD ms = 0;
+        ms       = (DWORD)((usec + 999) / 1000);
+        Sleep(ms);
+}
+
+/* rewrite also the 'pthread_xxx' functions but adapted for the Windows style */
+struct pthread_start {
+        void *(*fn)(void *);
+        void *arg;
+};
+
+static inline void pthread_mutex_init(pthread_mutex_t *mutex, void *unused) {
+        InitializeSRWLock(mutex);
+}
+
+static inline void pthread_mutex_lock(pthread_mutex_t *mutex) {
+        AcquireSRWLockExclusive(mutex);
+}
+
+static inline void pthread_mutex_unlock(pthread_mutex_t *mutex) {
+        ReleaseSRWLockExclusive(mutex);
+}
+
+static inline void pthread_cond_init(pthread_cond_t *cond, void *unused) {
+        InitializeConditionVariable(cond);
+}
+
+static inline void pthread_cond_signal(pthread_cond_t *cond) {
+        WakeConditionVariable(cond);
+}
+
+static inline int pthread_cond_wait(pthread_cond_t  *cond, pthread_mutex_t *mutex) {
+        int  ret = 0;
+        BOOL ok  = false;
+        ok       = SleepConditionVariableSRW(cond, mutex, INFINITE, 0);
+        if (ok) {
+                ret = 0;
+        } else {
+                ret = -1;
+        }
+        return ret;
+}
+
+static int pthread_condattr_init(pthread_condattr_t *attr){
+	int ret = 0;
+	if (attr == NULL) {
+		ret = -EINVAL;
+		return ret;
+	}
+
+	*attr = CLOCK_REALTIME;
+	return ret;
+}
+
+static int pthread_condattr_setclock(pthread_condattr_t *attr, int clock_id){
+	int ret = 0;
+	if (attr == NULL || clock_id != CLOCK_MONOTONIC) {
+		ret = -EINVAL;
+		return ret;
+	}
+
+	*attr = clock_id;
+	return ret;
+}
+
+static int pthread_condattr_destroy(pthread_condattr_t *attr){
+	int ret = 0;
+	if (attr == NULL) {
+		ret = -EINVAL;
+		return ret;
+	}
+	*attr = 0;
+	return ret;
+}
+
+static int pthread_cond_broadcast(pthread_cond_t *cond){
+	int ret = 0;
+	if (cond == NULL) {
+		ret = -EINVAL;
+		return ret;
+	}
+
+	WakeAllConditionVariable(cond);
+	return ret;
+}
+
+static int pthread_attr_init(pthread_attr_t *attr){
+	int ret = 0;
+	if (attr == NULL) {
+		ret = -EINVAL;
+		return ret;
+	}
+
+	*attr = CLOCK_REALTIME;
+	return ret;
+}
+
+static int pthread_attr_destroy(pthread_attr_t *attr){
+	int ret = 0;
+	if (attr == NULL) {
+		ret = EINVAL;
+		return ret;
+	}
+
+	*attr = 0;
+	return ret;
+}
+
+static pthread_t pthread_self(void){
+	return GetCurrentThreadId();
+}
+
+static unsigned int pthread_trampoline(void *p) {
+        unsigned int          ret        = 0;
+        struct pthread_start *s          = NULL;
+        void                 *return_val = NULL;
+        s                                = (struct pthread_start *)p;
+        return_val                       = s->fn(s->arg);
+        HeapFree(GetProcessHeap(), 0, s);
+        ret = (unsigned)(uintptr_t)return_val;
+        return ret;
+}
+
+static inline int pthread_create(pthread_t *out, void *attr, void *(*start_routine)(void *), void *arg) {
+        int                   ret = 0;
+        unsigned int          tid = 0;
+        struct pthread_start *s   = NULL;
+        HANDLE                h;
+
+        s = (struct pthread_start *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*s));
+        if (!s) {
+                ret = -1;
+                return ret;
+        }
+        s->fn  = start_routine;
+        s->arg = arg;
+
+        h = (HANDLE)_beginthreadex(NULL, 0, pthread_trampoline, s, 0, &tid);
+        if (!h) {
+                HeapFree(GetProcessHeap(), 0, s);
+                ret = -1;
+                return ret;
+        }
+
+        *out = h;
+        return ret;
+}
+
+static inline int pthread_join(HANDLE th, DWORD *exit_code_out) {
+        int   ret  = 0;
+        DWORD code = 0;
+        DWORD wr   = 0;
+        wr         = WaitForSingleObject(th, INFINITE);
+        if (wr != WAIT_OBJECT_0) {
+                ret = -1;
+                return ret;
+        }
+
+        if (exit_code_out) {
+                code = 0;
+                if (!GetExitCodeThread(th, &code)) {
+                        ret = -1;
+                        return ret;
+                }
+                *exit_code_out = code;
+        }
+
+        CloseHandle(th);
+        return ret;
+}
+
+static void __pthread_cancel_apc(ULONG_PTR unused){
+        _endthreadex((unsigned)0xDEAD);
+}
+
+static inline int pthread_cancel(pthread_t th){
+        int ret = 0;
+        DWORD wr = 0;
+
+        CancelSynchronousIo(th);
+
+        QueueUserAPC(__pthread_cancel_apc, th, 0);
+
+        wr = WaitForSingleObject(th, 50);
+        if (wr == WAIT_OBJECT_0){
+                return ret;
+        }
+
+        if (wr == WAIT_FAILED){
+                ret = -EAGAIN;
+                return ret;
+        }
+
+        if (!TerminateThread(th, (DWORD)0xDEAD)){
+                ret = -EAGAIN;
+                return ret;
+        }
+
+        return ret;
+}
+
+static int clock_gettime_realtime(struct timespec *ts) {
+	FILETIME ft;
+	ULARGE_INTEGER ui;
+	GetSystemTimePreciseAsFileTime(&ft);
+
+	ui.LowPart  = ft.dwLowDateTime;
+	ui.HighPart = ft.dwHighDateTime;
+
+	uint64_t t = ui.QuadPart - 116444736000000000ULL;
+	ts->tv_sec  = (time_t)(t / 10000000ULL);
+	ts->tv_nsec = (long)((t % 10000000ULL) * 100);
+	return 0;
+}
+
+static int clock_gettime_monotonic(struct timespec *ts) {
+	static LARGE_INTEGER freq;
+	static int init = 0;
+	LARGE_INTEGER now;
+
+	if (!init) {
+		QueryPerformanceFrequency(&freq);
+		init = 1;
+	}
+
+	QueryPerformanceCounter(&now);
+
+	ts->tv_sec  = (time_t)(now.QuadPart / freq.QuadPart);
+	ts->tv_nsec = (long)(((now.QuadPart % freq.QuadPart) * 1000000000LL) / freq.QuadPart);
+	return 0;
+}
+#endif
 
 /**
  * refcount_set - set a refcount's value

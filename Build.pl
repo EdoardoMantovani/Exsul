@@ -2,7 +2,7 @@
 
 # Made by Edoardo Mantovani, 2026
 # Rewritten with safer local alias inference and guarded field replacement.
-# version 1.2.0 (4 April 2026)
+# version 1.3.0 (17 April 2026)
 
 use strict;
 use warnings;
@@ -105,12 +105,7 @@ my %field_idx_by_name = ();
 my %struct_set = ();
 my %used_fields_by_struct = ();
 
-my @gcc_unwind_params = (
-	"-lunwind",
-	"-lunwind-x86_64"
-);
 my @gcc_params = (
-	"-g3",
 	"-DARCH_INDEPENDENT_BITOPS",
 	"-DCONFIG_PM",
 	"-DENABLE_UNWIND_DEBUGGING",
@@ -656,6 +651,18 @@ if($windows_support){
 	# set also a variant of readelf
 	$readelf = "x86_64-w64-mingw32-nm";
 	$readelf_table_parse = q{'{print $2}'};
+	# remove the -lunwind flags
+	pop(@gcc_final_linkings);
+	pop(@gcc_final_linkings);
+	pop(@gcc_final_linkings);
+	pop(@gcc_final_linkings);
+	pop(@gcc_final_linkings);
+	push(@gcc_final_linkings, "-lbcrypt");
+	# now add the Windows .dlls
+	push(@gcc_final_linkings, "win/libs/libdwarf.dll.a");
+	push(@gcc_final_linkings, "win/libs/libdwarfp.dll.a");
+	push(@gcc_final_linkings, "win/libs/libusb-1.0.a");
+	push(@gcc_final_linkings, "win/libs/libusb-1.0.dll.a");
 }
 
 # default compiler: gcc

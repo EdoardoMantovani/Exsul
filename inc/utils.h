@@ -1710,7 +1710,7 @@ static inline const bool is_power_of_2(unsigned long n){
 
 /* variant of 'futex_wait' which isn't exported in the kernel API. */
 static inline int futex_wait_timeout(atomic_int *addr, int expected, struct timespec *rel_timeout){
-	#ifdef __WIN64__
+	#ifdef _WIN64
 	if (expected == 1) {
 		WakeByAddressSingle(addr);
 		return true;

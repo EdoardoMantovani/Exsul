@@ -1416,10 +1416,12 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 					break;
 				}
 			}
+			#ifdef __linux__
 			if (target == NULL) {
 				dlopen_ctx = dlopen(NULL, 0);
 				target	   = dlsym(dlopen_ctx, (char *)name);
 			}
+			#endif
 			if (target == NULL) {
 #ifdef ENABLE_DBG_PRINT
 				printf("[!] missing function: %s\n", name);
