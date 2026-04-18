@@ -1,7 +1,7 @@
 /* made by Edoardo Mantovani, 2026 */
 #include <layer.h>
 #include <ieee80211.h>
-#include <prototypes.h>
+//#include <prototypes.h>
 
 struct internal_cb_table sym_table[8192];
 struct module_controller director;
@@ -2819,6 +2819,11 @@ int pe_generator_handler(void){
 }
 #endif
 
+int fake_entry(int argc, char *argv[]){
+	printf("hello world!\n");
+	return 0;
+}
+
 int elf_generator_handler(void){
 	int ret = 0;
 	int counter = 0;
@@ -2978,7 +2983,7 @@ int elf_generator_handler(void){
 	memset(symbol_entries, 0, sizeof(symbol_entries));
 	memset(string_table, 0, sizeof(string_table));
 
-	for(int k = 0; k < sym_count; k++){
+	for(int k = 0; k < sym_count - 1; k++){
 		current_symbol_name_len = strlen(sym_table[k].function_name) + 1;
 
 		memcpy(&string_table[name_off],
@@ -3065,7 +3070,7 @@ int elf_generator_handler(void){
 		head = head->alloc_next;
 	}
 
-	shstrtab_off = (((current_off) + ((8) - 1)) & ~((8) - 1));
+	shstrtab_off			= (((current_off) + ((8) - 1)) & ~((8) - 1));
 	strtab_off			= shstrtab_off + sizeof(shstrtab);
 	symtab_off			= (((strtab_off + string_table_size) + ((8) - 1)) & ~((8) - 1));
 	shoff				= (((symtab_off + sym_table_size) + ((8) - 1)) & ~((8) - 1));
@@ -3080,7 +3085,7 @@ int elf_generator_handler(void){
 	header.e_ident[7]		= ELFOSABI_SYSV;
 
 	header.e_machine		= EM_CURRENT_ARCH;
-	header.e_entry			= entry_vaddr;
+	header.e_entry			= fake_entry;
 	header.e_phnum			= counter + 1;
 	header.e_shoff			= shoff;
 	header.e_phoff			= sizeof(Elf(Ehdr));
@@ -3130,7 +3135,7 @@ int elf_generator_handler(void){
 	section_header.sh_info		= 1;
 	section_header.sh_addralign	= 8;
 	section_header.sh_entsize	= sizeof(Elf(Sym));
-	section_headers[SEC_SYMTAB] = section_header;
+	section_headers[SEC_SYMTAB]	= section_header;
 
 	lseek(elf_dump_fd, 0, SEEK_SET);
 	if(write(elf_dump_fd, &header, sizeof(header)) != sizeof(header)){

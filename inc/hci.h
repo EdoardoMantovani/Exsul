@@ -707,6 +707,12 @@ typedef void (*coredump_t)(struct hci_dev *hdev);
 typedef void (*dmp_hdr_t)(struct hci_dev *hdev, struct sk_buff *skb);
 typedef void (*notify_change_t)(struct hci_dev *hdev, int state);
 
+typedef int (*hci_cmd_sync_work_func_t)(struct hci_dev *hdev, void *data);
+typedef void (*hci_cmd_sync_work_destroy_t)(struct hci_dev *hdev, void *data, int err);
+
+typedef int (*hci_cmd_sync_work_func_t)(struct hci_dev *hdev, void *data);
+typedef void (*hci_cmd_sync_work_destroy_t)(struct hci_dev *hdev, void *data, int err);
+
 /* BD Address */
 typedef struct {
 	__u8 b[6];
@@ -817,6 +823,12 @@ struct hci_drv {
 
 	size_t specific_handler_count;
 	const struct hci_drv_handler *specific_handlers;
+};
+
+struct l2cap_user {
+	struct list_head list;
+	int (*probe) (struct l2cap_conn *conn, struct l2cap_user *user);
+	void (*remove) (struct l2cap_conn *conn, struct l2cap_user *user);
 };
 
 struct l2cap_ctrl {
@@ -1169,6 +1181,13 @@ struct hci_drv_ev_cmd_complete {
 	__u8	data[];
 } __packed;
 
+struct hci_cmd_sync_work_entry {
+	struct list_head list;
+	hci_cmd_sync_work_func_t func;
+	void *data;
+	hci_cmd_sync_work_destroy_t destroy;
+};
+
 static inline struct hci_event_hdr *hci_event_hdr(const struct sk_buff *skb){
 	return (struct hci_event_hdr *) skb->data;
 }
@@ -1520,3 +1539,24 @@ static int hci_req_sync_run(struct hci_request *req){
 
 	return 0;
 }
+
+static struct hci_cmd_sync_work_entry *_hci_cmd_sync_lookup_entry(struct hci_dev *hdev, hci_cmd_sync_work_func_t func, void *data, hci_cmd_sync_work_destroy_t destroy){
+	struct hci_cmd_sync_work_entry *entry = NULL;
+	struct hci_cmd_sync_work_entry *tmp = NULL;
+
+	list_for_each_entry_safe(entry, tmp, &hdev->cmd_sync_work_list, list) {
+		if (func && entry->func != func)
+			continue;
+
+		if (data && entry->data != data)
+			continue;
+
+		if (destroy && entry->destroy != destroy)
+			continue;
+
+		return entry;
+	}
+
+	return NULL;
+}
+

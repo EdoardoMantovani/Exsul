@@ -41,8 +41,6 @@ struct sk_buff *__hci_cmd_sync_sk(struct hci_dev *hdev, u16 opcode, u32 plen, co
 	skb = hdev->req_rsp;
 	hdev->req_rsp = NULL;
 
-	printf("[hdev] end: err %d", err);
-
 	if (err < 0) {
 		kfree_skb(skb);
 		return ERR_PTR(err);

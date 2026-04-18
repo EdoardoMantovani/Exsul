@@ -1107,6 +1107,37 @@ sub merge_rewritten_function_stubs {
 `$awk -f tools/generate_inat/gen-insn-attr-x86.awk tools/generate_inat/x86-opcode-map.txt > $arch/x86_64/inat-tables.c`;
 print("[*] generated $arch/x86_64/inat-tables.c...\n");
 
+# fix: generate early prototypes.h for avoiding any error related to the compilation of 'merged_functions.h'
+$proto_header = "$include/$proto_gen";
+{
+	open(my $early_fh, '>', $proto_header) or die $!;
+	print $early_fh "/* Copyright (C) Edoardo Mantovani - All Rights Reserved\n";
+	print $early_fh "* Unauthorized copying of this file, via any medium is strictly prohibited\n";
+	print $early_fh "* Proprietary and confidential\n";
+	print $early_fh "*/\n\n";
+	print $early_fh "/** automatically generated file, don't edit! **/\n\n";
+	foreach(`$find $stubs/$functions/ -name "*.c" | $sort`){
+		my $cs = $_; chomp($cs);
+		my $p = `$grep -oP '$function_proto_regex' $cs`;
+		chomp($p);
+		if(length($p) == 0){
+			$p = `$cat $cs | head -n 1`;
+			chomp($p);
+			$p =~ s/{//;
+		}
+		print $early_fh "$p;\n" if length($p);
+	}
+	foreach(`$find $stubs/$variables/ -name "*.c" | $sort`){
+		my $cs = $_; chomp($cs);
+		my $p = `$cat $cs | head -n 1`;
+		chomp($p);
+		$p =~ s/=//;
+		$p =~ s/{//;
+		print $early_fh "extern $p;\n" if length($p);
+	}
+	close($early_fh) or die $!;
+}
+
 # generate the tempdir used for storing the files with the converted struct fields access
 $virtual_compilation_folder = tempdir("out_XXXX", CLEANUP => 0);
 make_path("$virtual_compilation_folder/$build");

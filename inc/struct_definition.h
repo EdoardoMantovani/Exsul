@@ -39,8 +39,12 @@ struct device;
 struct hci_cb;
 struct hci_dev;
 struct pci_dev;
+struct usb_device;
 struct pci_driver;
 struct net_device;
+
+struct l2cap_conn;
+struct l2cap_user;
 
 struct work_struct;
 struct lock_class_key;
@@ -57,6 +61,8 @@ struct wiphy_work;
 struct wiphy_delayed_work;
 struct rate_info;
 struct napi_struct;
+
+struct element;
 
 struct sta_info;
 struct cfg80211_bss;
