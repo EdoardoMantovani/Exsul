@@ -160,6 +160,8 @@ my %struct_whitelist = (
 	"usb_driver"	=> "usb_driver",
 	"hdev"		=> "hci_dev",
 	"hci_conn"	=> "hci_conn",
+	"settings"	=> "cfg80211_ap_settings",
+	"link_conf"	=> "ieee80211_bss_conf",
 );
 
 my %field_ctype = (
@@ -833,10 +835,17 @@ sub collect_used_fields {
 	foreach my $src (@srcs) {
 		open(my $fh, '<', $src) or die $!;
 		my %local_alias = %fixed_alias;
+		my %alias_depth = ();
+		my $brace_depth = 0;
 
 		while (my $line = <$fh>) {
 			my %new_aliases = harvest_declared_ptr_aliases($line);
-			@local_alias{keys %new_aliases} = values %new_aliases if %new_aliases;
+			if (%new_aliases) {
+				for my $k (keys %new_aliases) {
+					$local_alias{$k} = $new_aliases{$k};
+					$alias_depth{$k} = $brace_depth;
+				}
+			}
 
 			while ($line =~ /\b([A-Za-z_]\w*)->([A-Za-z_]\w*)/g) {
 				my ($var, $field) = ($1, $2);
@@ -844,6 +853,18 @@ sub collect_used_fields {
 				next if !defined $st;
 				print("[*] $src:$st->$field\n");
 				$used{$st}{$field} = 1;
+			}
+
+			my $opens  = () = $line =~ /\{/g;
+			my $closes = () = $line =~ /\}/g;
+			$brace_depth += $opens - $closes;
+			if ($closes > 0) {
+				for my $k (keys %alias_depth) {
+					if ($alias_depth{$k} > $brace_depth) {
+						delete $local_alias{$k};
+						delete $alias_depth{$k};
+					}
+				}
 			}
 		}
 
@@ -965,12 +986,19 @@ sub rewrite_source_file {
 	my $dir = dirname($in_path);
 	my ($out, $tmp_path) = tempfile(".tmp_XXXX", DIR => $dir, UNLINK => 0);
 	my %local_alias = %fixed_alias;
+	my %alias_depth = ();
+	my $brace_depth = 0;
 	# fix: allow to use the array form for the regex in every file under './out_XXXX'
 	my $allow_array_mode = ($in_path);
 
 	while(my $line = <$in>){
 		my %new_aliases = harvest_declared_ptr_aliases($line);
-		@local_alias{keys %new_aliases} = values %new_aliases if %new_aliases;
+		if (%new_aliases) {
+			for my $k (keys %new_aliases) {
+				$local_alias{$k} = $new_aliases{$k};
+				$alias_depth{$k} = $brace_depth;
+			}
+		}
 
 		if (%local_alias) {
 			# resolve the sizeof(struct <not defined>) by converting it
@@ -1032,6 +1060,18 @@ sub rewrite_source_file {
 		}
 
 		print $out $line;
+
+		my $opens  = () = $line =~ /\{/g;
+		my $closes = () = $line =~ /\}/g;
+		$brace_depth += $opens - $closes;
+		if ($closes > 0) {
+			for my $k (keys %alias_depth) {
+				if ($alias_depth{$k} > $brace_depth) {
+					delete $local_alias{$k};
+					delete $alias_depth{$k};
+				}
+			}
+		}
 	}
 
 	close($out) or die $!;
@@ -1173,6 +1213,7 @@ $total_struct_number = scalar(keys %used_fields_by_struct);
 $offsets = "$include/struct_offset.h";
 print("[*] generating the struct_offset.h header!\n");
 emit_runtime_struct_header($offsets, $offset_generation_file);
+`$cp $offsets $virtual_compilation_folder/$include/`;
 
 # second iteration:
 # 1) process header files under "./inc/"
