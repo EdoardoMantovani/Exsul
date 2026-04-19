@@ -608,7 +608,7 @@ struct internal_cb_table sym_table[8192] = {
     [599] = { .function_name = "walk_shared_libraries", .function_ptr = walk_shared_libraries, .function_size = 481 },
     [600] = { .function_name = "parse_module_usb_table", .function_ptr = parse_module_usb_table, .function_size = 361 },
     [601] = { .function_name = "parse_usb_and_alloc_intf", .function_ptr = parse_usb_and_alloc_intf, .function_size = 1551 },
-    [602] = { .function_name = "detect_usb_device", .function_ptr = detect_usb_device, .function_size = 261 },
+    [602] = { .function_name = "detect_usb_device", .function_ptr = detect_usb_device, .function_size = 310 },
     [603] = { .function_name = "invoke_usb_probe", .function_ptr = invoke_usb_probe, .function_size = 38 },
     [604] = { .function_name = "dwarf_search_field", .function_ptr = dwarf_search_field, .function_size = 20 },
     [605] = { .function_name = "dwarf_detect_struct", .function_ptr = dwarf_detect_struct, .function_size = 461 },

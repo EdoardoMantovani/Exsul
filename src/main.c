@@ -332,6 +332,11 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 			continue;
 		}
 
+		ret = libusb_kernel_driver_active(director.usb_dev, 1);
+		if(ret){
+			/* if there is a kernel driver attached to the interface, reset the usb device */
+			ret = libusb_reset_device(director.usb_dev);
+		}
 		ret = libusb_set_auto_detach_kernel_driver(director.usb_dev, 1);
 		if (ret < 0) {
 			libusb_close(director.usb_dev);
