@@ -34,8 +34,7 @@ int ieee80211_register_hw(struct ieee80211_hw *hw) {
 		ret = -EINVAL;
 		return ret;
 	}
-	if (ieee80211_hw_check(hw, QUEUE_CONTROL) &&
-		(hw->offchannel_tx_hw_queue == IEEE80211_INVAL_HW_QUEUE || hw->offchannel_tx_hw_queue >= hw->queues)){
+	if (ieee80211_hw_check(hw, QUEUE_CONTROL) && (hw->offchannel_tx_hw_queue == IEEE80211_INVAL_HW_QUEUE || hw->offchannel_tx_hw_queue >= hw->queues)){
 		ret = -EINVAL;
 		return ret;
 	}
@@ -50,56 +49,10 @@ int ieee80211_register_hw(struct ieee80211_hw *hw) {
 		return ret;
 	}
 
-	if (wiphy->flags & WIPHY_FLAG_SUPPORTS_MLO) {
-		if (local->emulate_chanctx){
-			ret = -EINVAL;
-			return ret;
-		}
-		if (!ops->link_info_changed){
-			ret = -EINVAL;
-			return ret;
-		}
-		if (!ieee80211_hw_check(hw, HAS_RATE_CONTROL)){
-			ret = -EINVAL;
-			return ret;
-		}
-		if (!ieee80211_hw_check(hw, AMPDU_AGGREGATION)){
-			ret = -EINVAL;
-			return ret;
-		}
-		if (!ieee80211_hw_check(hw, HOST_BROADCAST_PS_BUFFERING)){
-			ret = -EINVAL;
-			return ret;
-		}
-		if (ieee80211_hw_check(hw, SUPPORTS_PS) &&
-		    (!ieee80211_hw_check(hw, SUPPORTS_DYNAMIC_PS) ||
-		      ieee80211_hw_check(hw, PS_NULLFUNC_STACK))){
-			ret = -EINVAL;
-			return ret;
-		}
-		if (!ieee80211_hw_check(hw, MFP_CAPABLE)){
-			ret = -EINVAL;
-			return ret;
-		}
-		if (ieee80211_hw_check(hw, NEED_DTIM_BEFORE_ASSOC)){
-			ret = -EINVAL;
-			return ret;
-		}
-		if (ieee80211_hw_check(hw, TIMING_BEACON_ONLY)){
-			ret = -EINVAL;
-			return ret;
-		}
-		if (!ieee80211_hw_check(hw, AP_LINK_PS)){
-			ret = -EINVAL;
-			return ret;
-		}
-	}
-
 	if (hw->netdev_features & ~MAC80211_SUPPORTED_FEATURES){
 		ret = -EINVAL;
 		return ret;
 	}
-
 	if (!hw->max_report_rates){
 		hw->max_report_rates = hw->max_rates;
 	}

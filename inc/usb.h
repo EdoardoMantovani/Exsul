@@ -286,6 +286,10 @@ struct usb_driver {
 
 typedef void (*usb_complete_t)(struct urb *);
 
+static int usb_anchor_check_wakeup(struct usb_anchor *anchor){
+	return anchor->suspend_wakeups == 0 && list_empty(&anchor->urb_list);
+}
+
 /* convert_usb_pipe_to_ep: convert a kernel pipe into an usb endpoint for using it with libusb */
 static unsigned char convert_usb_pipe_to_ep(unsigned int pipe){
 	unsigned char ep_num = 0;

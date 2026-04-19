@@ -181,6 +181,7 @@ bool napi_schedule_prep(struct napi_struct *n);
 void ieee80211_rx_napi(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, struct sk_buff *skb, struct napi_struct *napi);
 void dev_kfree_skb_any_reason(struct sk_buff *skb, int reason);
 void __x86_indirect_thunk_r11(void);
+void usb_kill_anchored_urbs(struct usb_anchor *anchor);
 void ieee80211_rx_irqsafe(struct ieee80211_hw *hw, struct sk_buff *skb);
 void __x86_indirect_thunk_rbx(void);
 void l2cap_unregister_user(struct l2cap_conn *conn, struct l2cap_user *user);
