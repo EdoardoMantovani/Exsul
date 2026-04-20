@@ -6,6 +6,8 @@ struct global_conf {
 struct fast_struct_size {
         u16 ieee80211_hw;
         u16 ieee80211_ops;
+	u16 ieee80211_vif;
+	u16 ieee80211_bss_conf;
         u16 module;
         u16 net_device;
         u16 rate_info;

@@ -633,7 +633,7 @@ struct internal_cb_table sym_table[8192] = {
     [624] = { .function_name = "workqueue_init", .function_ptr = workqueue_init, .function_size = 189 },
     [625] = { .function_name = "initialize_director", .function_ptr = initialize_director, .function_size = 898 },
     [626] = { .function_name = "finalize_director", .function_ptr = finalize_director, .function_size = 167 },
-    [627] = { .function_name = "collect_sizes", .function_ptr = collect_sizes, .function_size = 1761 },
+    [627] = { .function_name = "collect_sizes", .function_ptr = collect_sizes, .function_size = 1991 },
     [628] = { .function_name = "fast_drv_load", .function_ptr = fast_drv_load, .function_size = 138 },
     [629] = { .function_name = "fast_get_symbol", .function_ptr = fast_get_symbol, .function_size = 140 },
     [630] = { .function_name = "fast_get_name", .function_ptr = fast_get_name, .function_size = 81 },

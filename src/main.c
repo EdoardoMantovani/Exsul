@@ -2144,6 +2144,14 @@ int collect_sizes(struct module_controller *director){
         if(current_struct_size != director->struct_sizes.ieee80211_hw && current_struct_size > 0){
                 director->struct_sizes.ieee80211_hw = current_struct_size;
         }
+        current_struct_size = get_struct_size("ieee80211_vif");
+        if(current_struct_size != director->struct_sizes.ieee80211_vif && current_struct_size > 0){
+                director->struct_sizes.ieee80211_vif = current_struct_size;
+        }
+        current_struct_size = get_struct_size("ieee80211_bss_conf");
+        if(current_struct_size != director->struct_sizes.ieee80211_bss_conf && current_struct_size > 0){
+                director->struct_sizes.ieee80211_bss_conf = current_struct_size;
+        }
         current_struct_size = get_struct_size("ieee80211_ops");
         if(current_struct_size != director->struct_sizes.ieee80211_ops && current_struct_size > 0){
                 director->struct_sizes.ieee80211_ops = current_struct_size;
