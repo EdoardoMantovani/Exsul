@@ -1,1 +1,1 @@
-unsigned long random_kmalloc_seed;
+unsigned long long random_kmalloc_seed;

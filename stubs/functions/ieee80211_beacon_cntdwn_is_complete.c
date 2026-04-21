@@ -1,4 +1,4 @@
-bool ieee80211_beacon_cntdwn_is_complete(struct ieee80211_vif *vif, unsigned int link_id){
+bool ieee80211_beacon_cntdwn_is_complete(struct ieee80211_vif *ieee80211_vif, unsigned int link_id){
 	int ret = 0;
 	struct ieee80211_sub_if_data *sdata = NULL;
 	struct ieee80211_link_data *link = NULL;
@@ -19,7 +19,7 @@ bool ieee80211_beacon_cntdwn_is_complete(struct ieee80211_vif *vif, unsigned int
 		goto out;
 	}
 
-	if (vif->type == NL80211_IFTYPE_AP) {
+	if (ieee80211_vif->type == NL80211_IFTYPE_AP) {
 		beacon = rcu_dereference(link->u.ap.beacon);
 		if (!beacon || !beacon->tail){
 			goto out;

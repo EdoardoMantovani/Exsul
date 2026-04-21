@@ -1,4 +1,4 @@
-struct ieee80211_key_conf *ieee80211_gtk_rekey_add(struct ieee80211_vif *vif, u8 idx, u8 *key_data, u8 key_len, int link_id){
+struct ieee80211_key_conf *ieee80211_gtk_rekey_add(struct ieee80211_vif *ieee80211_vif, u8 idx, u8 *key_data, u8 key_len, int link_id){
 	int ret = 0;
 	struct ieee80211_sub_if_data *sdata = NULL;
 	struct ieee80211_local *local = NULL;
@@ -19,7 +19,7 @@ struct ieee80211_key_conf *ieee80211_gtk_rekey_add(struct ieee80211_vif *vif, u8
 		return ERR_PTR(-EINVAL);
 	}
 
-	if (vif->type != NL80211_IFTYPE_STATION){
+	if (ieee80211_vif->type != NL80211_IFTYPE_STATION){
 		return ERR_PTR(-EINVAL);
 	}
 

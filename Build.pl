@@ -162,6 +162,7 @@ my %struct_whitelist = (
 	"hci_conn"	=> "hci_conn",
 	"settings"	=> "cfg80211_ap_settings",
 	"link_conf"	=> "ieee80211_bss_conf",
+	"ieee80211_vif" => "ieee80211_vif",
 );
 
 my %field_ctype = (
@@ -633,6 +634,25 @@ my %field_ctype = (
 		"bss_param_ch_cnt_link_id"		=> "u8",
 		"s1g_long_beacon_period"		=> "u8",
 	},
+	ieee80211_vif => {
+		"type"					=> "enum nl80211_iftype",
+		"cfg"					=> "struct ieee80211_vif_cfg",
+		"bss_conf"				=> "struct ieee80211_bss_conf",
+		"reg_ttlm"				=> "struct ieee80211_neg_ttlm",
+		"addr"					=> "u8",
+		"addr_valid"				=> "bool",
+		"p2p"					=> "bool",
+		"cab_queue"				=> "u8",
+		"hw_queue"				=> "u8",
+		"driver_flags"				=> "u32",
+		"offload_flags"				=> "u32",
+		"valid_links"				=> "u16",
+		"active_links"				=> "u16",
+		"dormant_links"				=> "u16",
+		"suspended_link"			=> "u16",
+		"probe_req_reg"				=> "bool",
+		"rx_mcast_action_reg"			=> "bool",
+	},
 );
 
 my %inline_array_field = (
@@ -654,8 +674,8 @@ my %inline_array_field = (
 		"vif"				=> 1,
 	},
 	ieee80211_vif => {
-		"cfg"				=> 1,
 		"addr"				=> 1,
+		"hw_queue"			=> 1,
 	},
 );
 
@@ -1017,7 +1037,7 @@ sub emit_runtime_struct_header {
 	print OFFSETS "};\n\n";
 	print OFFSETS "struct runtime_struct {\n";
 	print OFFSETS "	int compilation_time_generated_structs;\n";
-	print OFFSETS "	struct runtime_struct_layout structs[$total_struct_number];\n";
+	print OFFSETS "	struct runtime_struct_layout structs[$total_struct_number + 1];\n";
 	print OFFSETS "};\n\n";
 	print OFFSETS "OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {\n";
 	print OFFSETS "	.structs = {\n";

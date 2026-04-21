@@ -2857,6 +2857,12 @@ void elf_crash_handler(int sig){
 			destroy_workqueue(system_freezable_wq);
 			system_freezable_wq = NULL;
 		}
+		atomic_store_explicit(&director.libusb_thread_stop, true, memory_order_release);
+		libusb_interrupt_event_handler(NULL);
+		if (director.libusb_event_thread != 0) {
+			pthread_join(director.libusb_event_thread, NULL);
+			director.libusb_event_thread = 0;
+		}
 	}
 	/* quit from libusb */
 	libusb_exit(NULL);

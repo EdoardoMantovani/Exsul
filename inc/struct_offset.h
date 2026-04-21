@@ -12,7 +12,7 @@ struct runtime_struct_layout {
 
 struct runtime_struct {
 	int compilation_time_generated_structs;
-	struct runtime_struct_layout structs[17];
+	struct runtime_struct_layout structs[18 + 1];
 };
 
 OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
@@ -742,6 +742,25 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			},
 			[5] = {
 				.struct_size = 0,
+				.struct_name = "ieee80211_vif",
+				.struct_field_num = 3,
+				.fields = {
+					[0] = {
+						.field_name = "addr",
+						.field_offset = 0,
+					},
+					[1] = {
+						.field_name = "cfg",
+						.field_offset = 0,
+					},
+					[2] = {
+						.field_name = "type",
+						.field_offset = 0,
+					},
+				},
+			},
+			[6] = {
+				.struct_size = 0,
 				.struct_name = "module",
 				.struct_field_num = 21,
 				.fields = {
@@ -831,7 +850,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[6] = {
+			[7] = {
 				.struct_size = 0,
 				.struct_name = "net_device",
 				.struct_field_num = 37,
@@ -986,7 +1005,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[7] = {
+			[8] = {
 				.struct_size = 0,
 				.struct_name = "rate_info",
 				.struct_field_num = 14,
@@ -1049,7 +1068,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[8] = {
+			[9] = {
 				.struct_size = 0,
 				.struct_name = "sk_buff",
 				.struct_field_num = 55,
@@ -1276,7 +1295,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[9] = {
+			[10] = {
 				.struct_size = 0,
 				.struct_name = "sk_buff_head",
 				.struct_field_num = 3,
@@ -1295,7 +1314,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[10] = {
+			[11] = {
 				.struct_size = 0,
 				.struct_name = "skb_shared_info",
 				.struct_field_num = 3,
@@ -1314,7 +1333,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[11] = {
+			[12] = {
 				.struct_size = 0,
 				.struct_name = "sock",
 				.struct_field_num = 2,
@@ -1329,7 +1348,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[12] = {
+			[13] = {
 				.struct_size = 0,
 				.struct_name = "urb",
 				.struct_field_num = 17,
@@ -1404,7 +1423,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[13] = {
+			[14] = {
 				.struct_size = 0,
 				.struct_name = "usb_device",
 				.struct_field_num = 6,
@@ -1435,7 +1454,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[14] = {
+			[15] = {
 				.struct_size = 0,
 				.struct_name = "usb_driver",
 				.struct_field_num = 2,
@@ -1450,7 +1469,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[15] = {
+			[16] = {
 				.struct_size = 0,
 				.struct_name = "usb_interface",
 				.struct_field_num = 4,
@@ -1473,7 +1492,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[16] = {
+			[17] = {
 				.struct_size = 0,
 				.struct_name = "wiphy",
 				.struct_field_num = 35,

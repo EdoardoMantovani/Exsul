@@ -549,6 +549,13 @@ struct va_format {
 };
 
 typedef struct {
+	void *cache_ptr;
+	/* padding, need to be adjusted */
+	//char  _pad[0x70 - sizeof(void *)];
+	char _pad[128];
+} _kmalloc_cache_row_t;
+
+typedef struct {
 	int counter;
 } atomic_t;
 

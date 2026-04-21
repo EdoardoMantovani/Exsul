@@ -1,1 +1,1 @@
-void *kmalloc_caches[NR_KMALLOC_TYPES];
+_kmalloc_cache_row_t kmalloc_caches[16];

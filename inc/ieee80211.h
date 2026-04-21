@@ -4861,6 +4861,7 @@ struct ieee80211_txq {
  * @offload_flags: 802.3 -> 802.11 enapsulation offload flags, see
  *	&enum ieee80211_offload_flags.
  */
+#if 0
 struct ieee80211_vif {
 	enum nl80211_iftype type;
 	struct ieee80211_vif_cfg cfg;
@@ -4889,6 +4890,7 @@ struct ieee80211_vif {
 	/* must be last */
 	u8 drv_priv[] __aligned(sizeof(void *));
 };
+#endif
 
 /**
  * struct sta_info - STA information
@@ -4927,7 +4929,7 @@ struct sta_info {
 
 	struct ieee80211_sub_if_data sdata;
 	struct ieee80211_sta *sta;
-	struct ieee80211_vif vif;
+	struct ieee80211_vif *vif;
 };
 
 struct link_sta_info {
@@ -8477,9 +8479,11 @@ static void _ieee80211_iter_keys_rcu(struct ieee80211_hw *hw,  struct ieee80211_
 				      void *data),
 			 void *iter_data){
 	struct ieee80211_key *key = NULL;
+	struct ieee80211_vif *vif = NULL;
 
+	vif = sdata->vif;
 	list_for_each_entry_rcu(key, &sdata->key_list, list){
-		ieee80211_key_iter(hw, sdata->vif, key, iter, iter_data);
+		ieee80211_key_iter(hw, vif, key, iter, iter_data);
 	}
 }
 
@@ -8803,17 +8807,19 @@ static void ieee80211_report_used_skb(struct ieee80211_local *local, struct sk_b
 
 static void __iterate_interfaces(struct ieee80211_local *local, u32 iter_flags, void (*iterator)(void *data, u8 *mac, struct ieee80211_vif *vif), void *data){
 	bool active_only = false;
+	struct ieee80211_vif *ieee80211_vif = NULL;
 	struct ieee80211_sub_if_data *sdata = NULL;
-	active_only = !!(iter_flags & IEEE80211_IFACE_ITER_ACTIVE);
 
+	active_only = !!(iter_flags & IEEE80211_IFACE_ITER_ACTIVE);
+	ieee80211_vif = sdata->vif;
 	list_for_each_entry_rcu(sdata, &local->interfaces, list) {
-		if (sdata->vif->type == NL80211_IFTYPE_AP_VLAN){
+		if (ieee80211_vif->type == NL80211_IFTYPE_AP_VLAN){
 			continue;
 		}
 		if (active_only && !ieee80211_sdata_running(sdata)){
 			continue;
 		}
-		iterator(data, sdata->vif->addr, sdata->vif);
+		iterator(data, ieee80211_vif->addr, ieee80211_vif);
 	}
 }
 
@@ -9013,11 +9019,12 @@ static inline void drv_vif_cfg_changed(struct ieee80211_local *local, struct iee
 }
 
 static void ieee80211_vif_cfg_change_notify(struct ieee80211_sub_if_data *sdata, u64 changed){
+	struct ieee80211_vif *ieee80211_vif = NULL;
 	struct ieee80211_local *local = NULL;
 
 	local = director.ieee80211_local;
-
-	if (!changed || sdata->vif->type == NL80211_IFTYPE_AP_VLAN){
+	ieee80211_vif = sdata->vif;
+	if (!changed || ieee80211_vif->type == NL80211_IFTYPE_AP_VLAN){
 		return;
 	}
 
@@ -9025,6 +9032,8 @@ static void ieee80211_vif_cfg_change_notify(struct ieee80211_sub_if_data *sdata,
 }
 
 static void ieee80211_remove_interfaces(struct ieee80211_local *local){
+	struct ieee80211_vif *ieee80211_vif = NULL;
+	struct ieee80211_vif_cfg *cfg = NULL;
 	struct ieee80211_sub_if_data *sdata = NULL;
 	struct ieee80211_sub_if_data *tmp = NULL;
 	LIST_HEAD(unreg_list);
@@ -9042,22 +9051,22 @@ static void ieee80211_remove_interfaces(struct ieee80211_local *local){
 	 */
 	//cfg80211_shutdown_all_interfaces(local->hw.wiphy);
 
-
+	ieee80211_vif = sdata->vif;
 	pthread_mutex_lock(&local->iflist_mtx);
 	list_splice_init(&local->interfaces, &unreg_list);
 	pthread_mutex_unlock(&local->iflist_mtx);
 
 	list_for_each_entry_safe(sdata, tmp, &unreg_list, list) {
 		bool netdev = sdata->dev;
-
+		cfg = &ieee80211_vif->cfg;
 		/*
 		 * Remove IP addresses explicitly, since the notifier will
 		 * skip the callbacks if wdev->registered is false, since
 		 * we can't acquire the wiphy_lock() again there if already
 		 * inside this locked section.
 		 */
-		sdata->vif->cfg.arp_addr_cnt = 0;
-		if (sdata->vif->type == NL80211_IFTYPE_STATION && sdata->u.mgd.associated){
+		cfg->arp_addr_cnt = 0;
+		if (ieee80211_vif->type == NL80211_IFTYPE_STATION && sdata->u.mgd.associated){
 			ieee80211_vif_cfg_change_notify(sdata, BSS_CHANGED_ARP_FILTER);
 		}
 		list_del(&sdata->list);
@@ -9235,6 +9244,7 @@ static struct sk_buff *ieee80211_rx_monitor(struct ieee80211_local *local, struc
 static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, struct sk_buff *skb, struct list_head *list){
 	int ret = 0;
 	__le16 fc = 0;
+	struct ieee80211_vif *ieee80211_vif = NULL;
 	struct rhlist_head *tmp = NULL;
 	struct list_head *pos = NULL;
 	struct ieee80211_hdr *hdr = NULL;
@@ -9356,9 +9366,10 @@ static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw, struct ieee802
 	/* ieee80211_sub_if_data.list is at offset 0 — direct cast is valid */
 	for (pos = local->interfaces.next; pos != &local->interfaces; pos = pos->next) {
 		sdata = (struct ieee80211_sub_if_data *)pos;
+		ieee80211_vif = sdata->vif;
 		if (!ieee80211_sdata_running(sdata))
 			continue;
-		if (sdata->vif->type == NL80211_IFTYPE_MONITOR || sdata->vif->type == NL80211_IFTYPE_AP_VLAN){
+		if (ieee80211_vif->type == NL80211_IFTYPE_MONITOR || ieee80211_vif->type == NL80211_IFTYPE_AP_VLAN){
 			continue;
 		}
 		if (!prev) {
