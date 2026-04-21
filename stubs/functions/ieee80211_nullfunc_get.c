@@ -1,12 +1,13 @@
 struct sk_buff *ieee80211_nullfunc_get(struct ieee80211_hw *hw, struct ieee80211_vif *ieee80211_vif, int link_id, bool qos_ok){
 	bool qos = false;
-	struct ieee80211_vif_cfg *cfg = NULL;
 	struct sk_buff *skb = NULL;
 	struct sta_info *sta = NULL;
-	struct ieee80211_sub_if_data *sdata = NULL;
+	struct ieee80211_vif_cfg *cfg = NULL;
 	struct ieee80211_local *local = NULL;
 	struct ieee80211_link_data *link = NULL;
+	struct ieee80211_sub_if_data *sdata = NULL;
 	struct ieee80211_hdr_3addr *nullfunc = NULL;
+	struct ieee80211_bss_conf *link_conf = NULL;
 
 	local = director.ieee80211_local;
 	sdata = local->sdata;
@@ -47,10 +48,11 @@ struct sk_buff *ieee80211_nullfunc_get(struct ieee80211_hw *hw, struct ieee80211
 		skb_put_data(skb, &qoshdr, sizeof(qoshdr));
 	}
 
+	link_conf = link->conf;
 	if (link) {
-		memcpy(nullfunc->addr1, link->conf->bssid, ETH_ALEN);
-		memcpy(nullfunc->addr2, link->conf->addr, ETH_ALEN);
-		memcpy(nullfunc->addr3, link->conf->bssid, ETH_ALEN);
+		memcpy(nullfunc->addr1, link_conf->bssid, ETH_ALEN);
+		memcpy(nullfunc->addr2, link_conf->addr, ETH_ALEN);
+		memcpy(nullfunc->addr3, link_conf->bssid, ETH_ALEN);
 	}else{
 		memcpy(nullfunc->addr1, cfg->ap_addr, ETH_ALEN);
 		memcpy(nullfunc->addr2, ieee80211_vif->addr, ETH_ALEN);

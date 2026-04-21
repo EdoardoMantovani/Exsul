@@ -2732,9 +2732,11 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
         unsigned char *ops_req = NULL;
 	struct ieee80211_ops *ops = NULL;
 	struct ieee80211_local *local = NULL;
+	struct ieee80211_vif *ieee80211_vif = NULL;
 	struct ieee80211_scan_request *scan_req = NULL;
 	int (*start)(struct ieee80211_hw *hw) = NULL;
 	void (*stop)(struct ieee80211_hw *hw, bool suspend) = NULL;
+	int (*add_interface)(struct ieee80211_hw *hw, struct ieee80211_vif *vif) = NULL;
 	void (*cancel_hw_scan)(struct ieee80211_hw *hw, struct ieee80211_vif *vif) = NULL;
 	int (*hw_scan)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_scan_request *req) = NULL;
 	int (*start_ap)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_bss_conf *link_conf) = NULL;
@@ -2774,6 +2776,23 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		stop = ops->stop;
 		if(stop != NULL){
 			stop(local->ieee80211_hw, false);
+		}
+	}
+	if(strcmp(ops_req, "add_interface") == 0){
+		add_interface = ops->add_interface;
+		if(add_interface != NULL){
+			/* verify that local->ieee80211_vif isn't allocated or initialized */
+			if(local->ieee80211_vif == NULL){
+				if(director.struct_sizes.ieee80211_vif == 0){
+					printf("[!] invalid size of ieee80211_vif!\n");
+					ret = -EINVAL;
+					return ret;
+				}
+				local->ieee80211_vif = calloc(1, director.struct_sizes.ieee80211_vif);
+				ieee80211_vif = local->ieee80211_vif;
+				ieee80211_vif->type = NL80211_IFTYPE_STATION;
+			}
+			ret = add_interface(local->ieee80211_hw, local->ieee80211_vif);
 		}
 	}
 	if(strcmp(ops_req, "scan") == 0){
