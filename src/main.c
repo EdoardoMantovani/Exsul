@@ -1,7 +1,6 @@
 /* made by Edoardo Mantovani, 2026 */
 #include <layer.h>
 #include <ieee80211.h>
-//#include <prototypes.h>
 
 struct internal_cb_table sym_table[8192];
 struct module_controller director;
@@ -37,13 +36,21 @@ int parse_module_usb_table(struct usb_device_id **id){
 	int usb_table_size = 0;
 	struct usb_device_id *p = NULL;
 
+	if(director.usb_table_size != 0 && director.usb_table_ptr != NULL){
+		p = director.usb_table_ptr;
+		goto usb_table_parse;
+	}
 	usb_table_size = fast_get_symbol(USB_TABLE_SYM_NAME, &p);
 	if(p == NULL || usb_table_size == 0){
 		printf("[!] failed to get the usb_table_size symbol!\n");
 		ret = -ENOMEM;
 		return ret;
+	}else{
+		director.usb_table_ptr  = p;
+		director.usb_table_size = usb_table_size;
 	}
 
+	usb_table_parse:
 	*id = p;
 	ret = (usb_table_size % sizeof(struct usb_device_id));
 	if(ret != 0){
@@ -52,7 +59,7 @@ int parse_module_usb_table(struct usb_device_id **id){
 		return ret;
 	}
 
-	printf("-> usb devices detected for the current kernel module:\n");
+	printf("[*] usb devices detected for the current kernel module:\n");
 	for(u8 j = 0; ; j++){
 		if(p == NULL || p->idProduct == 0x00 || p->idVendor == 0x00){
 			break;
@@ -92,15 +99,15 @@ void dump_usb_host_interface(struct usb_interface *intf){
 		return;
 	}
 
-	for(u8 z = 0; z < intf->altsetting->desc.bNumEndpoints; z++){
-		printf("[DUMP] endpoint %d length %d\n", z, intf->altsetting->endpoint[z].desc.bLength);
-		printf("[DUMP] endpoint %d desc: %d\n", z, intf->altsetting->endpoint[z].desc.bDescriptorType);
-		printf("[DUMP] endpoint %d ep_addr: %d\n", z, intf->altsetting->endpoint[z].desc.bEndpointAddress);
-		printf("[DUMP] endpoint %d attributes: %d\n", z, intf->altsetting->endpoint[z].desc.bmAttributes);
-		printf("[DUMP] endpoint %d max pkt size: %d\n", z, intf->altsetting->endpoint[z].desc.wMaxPacketSize);
-		printf("[DUMP] endpoint %d interval: %d\n", z, intf->altsetting->endpoint[z].desc.bInterval);
-		printf("[DUMP] endpoint %d refresh: %d\n", z, intf->altsetting->endpoint[z].desc.bRefresh);
-		printf("[DUMP] endpoint %d sync address: %d\n", z, intf->altsetting->endpoint[z].desc.bSynchAddress);
+	for(u8 k = 0; k < intf->altsetting->desc.bNumEndpoints; k++){
+		printf("[DUMP] endpoint %d length %d\n", k, intf->altsetting->endpoint[k].desc.bLength);
+		printf("[DUMP] endpoint %d desc: %d\n", k, intf->altsetting->endpoint[k].desc.bDescriptorType);
+		printf("[DUMP] endpoint %d ep_addr: %d\n", k, intf->altsetting->endpoint[k].desc.bEndpointAddress);
+		printf("[DUMP] endpoint %d attributes: %d\n", k, intf->altsetting->endpoint[k].desc.bmAttributes);
+		printf("[DUMP] endpoint %d max pkt size: %d\n", k, intf->altsetting->endpoint[k].desc.wMaxPacketSize);
+		printf("[DUMP] endpoint %d interval: %d\n", k, intf->altsetting->endpoint[k].desc.bInterval);
+		printf("[DUMP] endpoint %d refresh: %d\n", k, intf->altsetting->endpoint[k].desc.bRefresh);
+		printf("[DUMP] endpoint %d sync address: %d\n", k, intf->altsetting->endpoint[k].desc.bSynchAddress);
 	}
 }
 #endif
@@ -200,10 +207,10 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 
                 num_ep = alt->bNumEndpoints;
 
-#ifdef ADVANCED_USB_DEBUGGING
+		#ifdef ADVANCED_USB_DEBUGGING
                 printf("[*] altsetting %u: bInterfaceNumber=%u bNumEndpoints=%u\n",
                        k, alt->bInterfaceNumber, num_ep);
-#endif
+		#endif
                 intf_ptr->altsetting[k].desc.bLength              = alt->bLength;
                 intf_ptr->altsetting[k].desc.bDescriptorType      = alt->bDescriptorType;
                 intf_ptr->altsetting[k].desc.bInterfaceNumber     = alt->bInterfaceNumber;
@@ -277,26 +284,26 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 	}
 
 	switch (libusb_get_device_speed(libusb_dev)) {
-        case LIBUSB_SPEED_SUPER:
-        case LIBUSB_SPEED_SUPER_PLUS:
-                udev_ptr->speed = USB_SPEED_SUPER;
+		case LIBUSB_SPEED_SUPER:
+		case LIBUSB_SPEED_SUPER_PLUS:
+			udev_ptr->speed = USB_SPEED_SUPER;
 		break;
-        case LIBUSB_SPEED_HIGH:
-                udev_ptr->speed = USB_SPEED_HIGH;
+		case LIBUSB_SPEED_HIGH:
+			udev_ptr->speed = USB_SPEED_HIGH;
 		break;
-        case LIBUSB_SPEED_FULL:
-                udev_ptr->speed = USB_SPEED_FULL;
+		case LIBUSB_SPEED_FULL:
+			udev_ptr->speed = USB_SPEED_FULL;
 		break;
-        case LIBUSB_SPEED_LOW:
-                udev_ptr->speed = USB_SPEED_LOW;
+		case LIBUSB_SPEED_LOW:
+			udev_ptr->speed = USB_SPEED_LOW;
 		break;
-        default:
-                udev_ptr->speed = USB_SPEED_UNKNOWN;
+		default:
+			udev_ptr->speed = USB_SPEED_UNKNOWN;
 		break;
         }
 
-        intf_ptr->dev.parent   = &udev_ptr->dev;
-        director.usb_device_ptr = udev_ptr;
+	intf_ptr->dev.parent    = &udev_ptr->dev;
+	director.usb_device_ptr = udev_ptr;
 
 #ifdef ADVANCED_USB_DEBUGGING
         dump_usb_host_interface(intf_ptr);
@@ -2832,9 +2839,18 @@ int pe_generator_handler(void){
 }
 #endif
 
-int fake_entry(int argc, char *argv[]){
-	printf("hello world!\n");
-	return 0;
+int elf_entry_stub(int argc, char *argv[]){
+	int ret = 0;
+	/* insert here any additional code */
+
+	/* call the actual driver entry point */
+	libusb_init(NULL);
+	if(director.driver_init_function != NULL){
+		director.driver_init_function();
+	}
+
+	quit:
+	exit(ret);
 }
 
 int elf_generator_handler(void){
@@ -2846,6 +2862,7 @@ int elf_generator_handler(void){
 	int string_table_size = 1;
 	int current_symbol_name_len = 0;
 	int sym_count = 0;
+	int dynamic_pht_idx = -1;
 	u32 phdrs = 0;
 	u32 flags = 0;
 	u32 seg_prot = 0;
@@ -2855,26 +2872,34 @@ int elf_generator_handler(void){
 	u64 strtab_off = 0;
 	u64 symtab_off = 0;
 	u64 shoff = 0;
-	u64 entry_vaddr = 0;
+	u64 dyn_off = 0;
 	u64 page_off = 0;
 	u64 seg_off = 0;
 	u64 name_off = 1;
-
+	u64 dynamic_vaddr = 0;
+	u64 dynamic_foff = 0;
+	u64 dynamic_filesz = 0;
+	u64 zero_val = 0;
+	u64 null_off = 0;
+	u64 load_dynamic_foff = 0;
 	enum {
-		SEC_NULL = 0,
-		SEC_SHSTRTAB = 1,
-		SEC_STRTAB = 2,
-		SEC_SYMTAB = 3,
-		SEC_COUNT = 4
+		SEC_NULL	= 0,
+		SEC_SHSTRTAB	= 1,
+		SEC_STRTAB	= 2,
+		SEC_SYMTAB	= 3,
+		SEC_DYNAMIC	= 4,
+		SEC_COUNT	= 5
 	};
 
-	char shstrtab[] = "\0.shstrtab\0.strtab\0.symtab\0";
+	/* add also the .dynamic section to the code */
+	char shstrtab[] = "\0.shstrtab\0.strtab\0.symtab\0.dynamic\0";
 
 	Elf(Ehdr) header = {};
 	Elf(Shdr) section_header = {};
 	Elf(Sym)  symbol_table = {};
-
-	void  *entry_addr = NULL;
+	Elf(Dyn) new_null = {};
+	Elf(Dyn) flags1_entry = {};
+	Elf(Dyn) *dyn = NULL;
 	char **envp = NULL;
 	Elf(auxv_t) *auxv = NULL;
 	Elf(Phdr) *phdr_base =  NULL;
@@ -2918,7 +2943,6 @@ int elf_generator_handler(void){
 			if(phdr_base[k].p_memsz == 0 || (phdr_base[k].p_type != PT_DYNAMIC && phdr_base[k].p_type != PT_LOAD && phdr_base[k].p_type != PT_INTERP)){
 				continue;
 			}
-
 			seg_prot = 0;
 			if(phdr_base[k].p_flags & PF_R){
 				seg_prot |= PROT_READ;
@@ -2929,12 +2953,6 @@ int elf_generator_handler(void){
 			if(phdr_base[k].p_flags & PF_X){
 				seg_prot |= PROT_EXEC;
 			}
-			#ifdef ENABLE_DBG_PRINT
-			printf("[*] internal segment number %d, vaddr: 0x%llx size: %llu\n",
-				(int)k,
-				(unsigned long long)phdr_base[k].p_vaddr,
-				(unsigned long long)phdr_base[k].p_memsz);
-			#endif
 			director.module_allocation_list = new_allocation(
 				ALLOCATION_TYPE_MALLOC,
 				(void *)(uintptr_t)phdr_base[k].p_vaddr,
@@ -2945,25 +2963,14 @@ int elf_generator_handler(void){
 		}
 	}
 
+	/* save the symbol for the generated ELF */
+	fast_get_symbol("_driver_init", &director.driver_init_function);
+
 	elf_dump_fd = open("dumped_driver.elf", O_RDWR | O_CREAT | O_TRUNC, 0777);
 	if(elf_dump_fd < 0){
 		ret = -EIO;
 		return ret;
 	}
-
-	fast_get_symbol("_driver_init", &entry_addr);
-	if(entry_addr == NULL){
-		printf("[!] in the current address space an usb driver init function wasn't found!\n");
-		close(elf_dump_fd);
-		ret = -EINVAL;
-		return ret;
-	}
-
-	entry_vaddr = (u64)(uintptr_t)entry_addr;
-	#ifdef ENABLE_DBG_PRINT
-	printf("[*] entry point of the output executable file at: 0x%llx\n",
-		(unsigned long long)entry_vaddr);
-	#endif
 
 	head = director.module_allocation_list;
 	counter = 0;
@@ -2991,17 +2998,15 @@ int elf_generator_handler(void){
 	Elf(Sym)  symbol_entries[sym_count + 1];
 	char      string_table[string_table_size];
 
-	memset(program_headers, 0, sizeof(program_headers));
-	memset(section_headers, 0, sizeof(section_headers));
-	memset(symbol_entries, 0, sizeof(symbol_entries));
-	memset(string_table, 0, sizeof(string_table));
+	memset(program_headers, 0,	sizeof(program_headers));
+	memset(section_headers, 0,	sizeof(section_headers));
+	memset(symbol_entries, 0,	sizeof(symbol_entries));
+	memset(string_table, 0,		sizeof(string_table));
 
-	for(int k = 0; k < sym_count - 1; k++){
+	for(int k = 0; k < sym_count; k++){
 		current_symbol_name_len = strlen(sym_table[k].function_name) + 1;
 
-		memcpy(&string_table[name_off],
-		       sym_table[k].function_name,
-		       current_symbol_name_len);
+		memcpy(&string_table[name_off], sym_table[k].function_name, current_symbol_name_len);
 
 		symbol_entries[k + 1].st_name  = name_off;
 		symbol_entries[k + 1].st_info  = ELF64_ST_INFO(STB_GLOBAL, STT_FUNC);
@@ -3010,22 +3015,11 @@ int elf_generator_handler(void){
 		symbol_entries[k + 1].st_value = (u64)(uintptr_t)sym_table[k].function_ptr;
 		symbol_entries[k + 1].st_size  = sym_table[k].function_size;
 
-		#ifdef ENABLE_DBG_PRINT
-		printf("[*] string table added symbol: %s\n", sym_table[k].function_name);
-		#endif
-
 		name_off += current_symbol_name_len;
 	}
 
 	current_off = sizeof(Elf(Ehdr)) + ((counter + 1) * sizeof(Elf(Phdr)));
 
-	/*
-	 * The kernel computes AT_PHDR = first_PT_LOAD.p_vaddr - first_PT_LOAD.p_offset + e_phoff.
-	 * Without a PT_LOAD covering file offset 0, that address is unmapped and ld.so
-	 * faults immediately on the AT_PHDR walk.  Put a read-only PT_LOAD first that
-	 * maps the ELF header + program-header table at a safe VA (0x200000, safely below
-	 * the translator at 0x400000 and far from module segments at 0x4xxxxxxx).
-	 */
 	program_headers[0].p_type   = PT_LOAD;
 	program_headers[0].p_offset = 0;
 	program_headers[0].p_vaddr  = 0x200000ULL;
@@ -3069,22 +3063,23 @@ int elf_generator_handler(void){
 		program_headers[pht_counter].p_align  = 0x1000;
 		program_headers[pht_counter].p_flags  = flags;
 
-		#ifdef ENABLE_DBG_PRINT
-		printf("[*] program header type %d off 0x%llx vaddr 0x%llx memsz %llu flags %d\n",
-			program_headers[pht_counter].p_type,
-			(unsigned long long)program_headers[pht_counter].p_offset,
-			(unsigned long long)program_headers[pht_counter].p_vaddr,
-			(unsigned long long)program_headers[pht_counter].p_memsz,
-			program_headers[pht_counter].p_flags);
-		#endif
+		if(head->alloc_inmem_type == PT_DYNAMIC){
+			dynamic_pht_idx = pht_counter;
+		}
 
 		current_off = seg_off + head->alloc_len;
 		pht_counter++;
 		head = head->alloc_next;
 	}
 
+	if(dynamic_pht_idx >= 0){
+		dynamic_vaddr  = program_headers[dynamic_pht_idx].p_vaddr;
+		dynamic_foff   = program_headers[dynamic_pht_idx].p_offset;
+		dynamic_filesz = program_headers[dynamic_pht_idx].p_filesz;
+	}
+
 	shstrtab_off			= (((current_off) + ((8) - 1)) & ~((8) - 1));
-	strtab_off			= shstrtab_off + sizeof(shstrtab);
+	strtab_off			= shstrtab_off  + sizeof(shstrtab);
 	symtab_off			= (((strtab_off + string_table_size) + ((8) - 1)) & ~((8) - 1));
 	shoff				= (((symtab_off + sym_table_size) + ((8) - 1)) & ~((8) - 1));
 
@@ -3098,7 +3093,7 @@ int elf_generator_handler(void){
 	header.e_ident[7]		= ELFOSABI_SYSV;
 
 	header.e_machine		= EM_CURRENT_ARCH;
-	header.e_entry			= fake_entry;
+	header.e_entry			= elf_entry_stub;
 	header.e_phnum			= counter + 1;
 	header.e_shoff			= shoff;
 	header.e_phoff			= sizeof(Elf(Ehdr));
@@ -3150,6 +3145,21 @@ int elf_generator_handler(void){
 	section_header.sh_entsize	= sizeof(Elf(Sym));
 	section_headers[SEC_SYMTAB]	= section_header;
 
+	if(dynamic_pht_idx >= 0){
+		memset(&section_header, 0, sizeof(section_header));
+		section_header.sh_name		= 27;
+		section_header.sh_type		= SHT_DYNAMIC;
+		section_header.sh_flags		= SHF_WRITE | SHF_ALLOC;
+		section_header.sh_addr		= dynamic_vaddr;
+		section_header.sh_offset	= dynamic_foff;
+		section_header.sh_size		= dynamic_filesz;
+		section_header.sh_link		= 0;
+		section_header.sh_info		= 0;
+		section_header.sh_addralign	= 8;
+		section_header.sh_entsize	= sizeof(Elf(Dyn));
+		section_headers[SEC_DYNAMIC]	= section_header;
+	}
+
 	lseek(elf_dump_fd, 0, SEEK_SET);
 	if(write(elf_dump_fd, &header, sizeof(header)) != sizeof(header)){
 		close(elf_dump_fd);
@@ -3181,6 +3191,40 @@ int elf_generator_handler(void){
 
 		pht_counter++;
 		head = head->alloc_next;
+	}
+
+	if(dynamic_pht_idx >= 0){
+		dyn = (Elf(Dyn) *)(uintptr_t)dynamic_vaddr;
+		zero_val = 0;
+		load_dynamic_foff = 0;
+
+		for(int i = 0; i < (int)header.e_phnum; i++){
+			if(program_headers[i].p_type == PT_LOAD && dynamic_vaddr >= program_headers[i].p_vaddr && dynamic_vaddr < program_headers[i].p_vaddr + program_headers[i].p_filesz){
+				load_dynamic_foff = program_headers[i].p_offset + (dynamic_vaddr - program_headers[i].p_vaddr);
+				break;
+			}
+		}
+		if(load_dynamic_foff == 0){
+			load_dynamic_foff = dynamic_foff;
+		}
+
+		for(; dyn->d_tag != DT_NULL; dyn++){
+			dyn_off = (u64)(uintptr_t)dyn - dynamic_vaddr;
+			if(dyn->d_tag == DT_DEBUG || dyn->d_tag == DT_INIT_ARRAYSZ || dyn->d_tag == DT_FINI_ARRAYSZ){
+				u64 val_foff = load_dynamic_foff + dyn_off + offsetof(Elf(Dyn), d_un);
+				lseek(elf_dump_fd, (off_t)val_foff, SEEK_SET);
+				write(elf_dump_fd, &zero_val, sizeof(zero_val));
+			}
+		}
+		null_off = (u64)(uintptr_t)dyn - dynamic_vaddr;
+		memset(&flags1_entry, 0, sizeof(flags1_entry));
+		memset(&new_null,     0, sizeof(new_null));
+		flags1_entry.d_tag        = DT_FLAGS_1;
+		flags1_entry.d_un.d_val   = DF_1_NOW;
+		lseek(elf_dump_fd, (off_t)(load_dynamic_foff + null_off), SEEK_SET);
+		write(elf_dump_fd, &flags1_entry, sizeof(flags1_entry));
+		lseek(elf_dump_fd, (off_t)(load_dynamic_foff + null_off + sizeof(Elf(Dyn))), SEEK_SET);
+		write(elf_dump_fd, &new_null, sizeof(new_null));
 	}
 
 	lseek(elf_dump_fd, shstrtab_off, SEEK_SET);

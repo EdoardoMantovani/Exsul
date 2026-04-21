@@ -15,15 +15,6 @@ int usb_register_driver(struct usb_driver *new_driver, struct module *owner, con
 		return ret;
 	}
 
-	ret = fast_get_name(new_driver->probe, &probe_name);
-	if(ret == 0){
-		printf("[!] function has size 0!\n");
-		ret = -EINVAL;
-		return ret;
-	}else{
-		printf("[*] probe address: 0x%08x probe name: %s module_name: %s\n", new_driver->probe, probe_name, mod_name);
-	}
-
 	/*
 	 * Steps for running the usb driver:
 	 * 1) read the symbol '__mod_device_table__usb__' and get the usb pid/vid table

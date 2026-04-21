@@ -74,6 +74,12 @@ struct module_controller {
 	pthread_cond_t  usb_io_idle;
 	int usb_io_depth;
 
+	/* init driver function */
+	void (*driver_init_function)(void);
+	/* backup copy of the 'usb_device_id' table */
+	void *usb_table_ptr;
+	int usb_table_size;
+
 	u8 **envp;
 	/* base pointer of the region header mapped in memory, used for creating the userspace independent executable */
 	u8 segments_in_memory;
