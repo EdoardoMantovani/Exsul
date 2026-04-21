@@ -2839,12 +2839,72 @@ int pe_generator_handler(void){
 }
 #endif
 
+void elf_crash_handler(int sig){
+	if(sig != SIGABRT){
+		if(director.rfkill != NULL){
+			free(director.rfkill);
+			director.rfkill = NULL;
+		}
+		if(system_wq != NULL){
+			destroy_workqueue(system_wq);
+			system_wq = NULL;
+		}
+		if(system_dfl_wq != NULL){
+			destroy_workqueue(system_dfl_wq);
+			system_dfl_wq = NULL;
+		}
+		if(system_freezable_wq != NULL){
+			destroy_workqueue(system_freezable_wq);
+			system_freezable_wq = NULL;
+		}
+	}
+	/* quit from libusb */
+	libusb_exit(NULL);
+}
+
 int elf_entry_stub(int argc, char *argv[]){
 	int ret = 0;
 	/* insert here any additional code */
 
-	/* call the actual driver entry point */
+	/* this part of code is similar to 'main' and 'initialize_director', we must re-allocate/re-initialize every object */
+	signal(SIGSEGV, elf_crash_handler);
+	signal(SIGABRT, elf_crash_handler);
+	signal(SIGILL,  elf_crash_handler);
+
 	libusb_init(NULL);
+	atomic_store(&director.libusb_thread_stop, false);
+	pthread_create(&director.libusb_event_thread, NULL, libusb_thread, NULL);
+	if(director.rfkill == NULL){
+		director.rfkill = calloc(1, sizeof(struct rfkill));
+        }
+
+	/* initialize workqueues if necessary */
+	if(system_wq == NULL){
+		workqueue_init(&director.system_wq, "system_wq");
+		system_wq = &director.system_wq;
+	}
+	if(system_dfl_wq == NULL){
+		workqueue_init(&director.system_dfl_wq, "system_dfl_wq");
+		system_dfl_wq = &director.system_dfl_wq;
+	}
+
+	if(system_freezable_wq == NULL){
+		workqueue_init(&director.system_freezable_wq, "system_freezable_wq");
+		system_freezable_wq = &director.system_freezable_wq;
+	}
+
+        /* initialize usb i/o mutex */
+	pthread_mutex_init(&director.usb_io_lock, NULL);
+	pthread_cond_init(&director.usb_io_idle, NULL);
+	director.usb_io_depth = 0;
+
+	/* initialize skb queue mutex */
+	pthread_mutex_init(&director.skb_queue_lock, NULL);
+
+	pthread_mutex_init(&director.timer_lock, NULL);
+	pthread_cond_init(&director.timer_cond, NULL);
+	director.timer_once  = PTHREAD_ONCE_INIT;
+	/* call the driver init */
 	if(director.driver_init_function != NULL){
 		ret = director.driver_init_function();
 		usleep(5000000);
