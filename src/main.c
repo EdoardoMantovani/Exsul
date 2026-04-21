@@ -2846,7 +2846,9 @@ int elf_entry_stub(int argc, char *argv[]){
 	/* call the actual driver entry point */
 	libusb_init(NULL);
 	if(director.driver_init_function != NULL){
-		director.driver_init_function();
+		ret = director.driver_init_function();
+		usleep(5000000);
+		ret = director.driver_init_function();
 	}
 
 	quit:

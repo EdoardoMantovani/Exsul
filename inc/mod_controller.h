@@ -75,7 +75,7 @@ struct module_controller {
 	int usb_io_depth;
 
 	/* init driver function */
-	void (*driver_init_function)(void);
+	int (*driver_init_function)(void);
 	/* backup copy of the 'usb_device_id' table */
 	void *usb_table_ptr;
 	int usb_table_size;
