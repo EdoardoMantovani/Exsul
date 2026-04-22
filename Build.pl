@@ -676,6 +676,11 @@ my %inline_array_field = (
 	ieee80211_vif => {
 		"addr"				=> 1,
 		"hw_queue"			=> 1,
+		"link_conf"			=> 1,
+	},
+	ieee80211_bss_conf => {
+		"addr"				=> 1,
+		"transmitter_bssid"		=> 1,
 	},
 );
 

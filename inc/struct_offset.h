@@ -561,7 +561,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[3] = {
 				.struct_size = 0,
 				.struct_name = "ieee80211_bss_conf",
-				.struct_field_num = 3,
+				.struct_field_num = 5,
 				.fields = {
 					[0] = {
 						.field_name = "addr",
@@ -572,7 +572,15 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[2] = {
+						.field_name = "link_id",
+						.field_offset = 0,
+					},
+					[3] = {
 						.field_name = "tx_bss_conf",
+						.field_offset = 0,
+					},
+					[4] = {
+						.field_name = "vif",
 						.field_offset = 0,
 					},
 				},
@@ -766,18 +774,34 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[6] = {
 				.struct_size = 0,
 				.struct_name = "ieee80211_vif",
-				.struct_field_num = 3,
+				.struct_field_num = 7,
 				.fields = {
 					[0] = {
-						.field_name = "addr",
+						.field_name = "active_links",
 						.field_offset = 0,
 					},
 					[1] = {
-						.field_name = "cfg",
+						.field_name = "addr",
 						.field_offset = 0,
 					},
 					[2] = {
+						.field_name = "bss_conf",
+						.field_offset = 0,
+					},
+					[3] = {
+						.field_name = "cfg",
+						.field_offset = 0,
+					},
+					[4] = {
+						.field_name = "link_conf",
+						.field_offset = 0,
+					},
+					[5] = {
 						.field_name = "type",
+						.field_offset = 0,
+					},
+					[6] = {
+						.field_name = "valid_links",
 						.field_offset = 0,
 					},
 				},

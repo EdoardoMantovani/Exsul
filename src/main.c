@@ -2733,6 +2733,8 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	struct ieee80211_ops *ops = NULL;
 	struct ieee80211_local *local = NULL;
 	struct ieee80211_vif *ieee80211_vif = NULL;
+	struct ieee80211_bss_conf *bss_temp = NULL;
+	struct ieee80211_bss_conf *bss_conf = NULL;
 	struct ieee80211_scan_request *scan_req = NULL;
 	int (*start)(struct ieee80211_hw *hw) = NULL;
 	void (*stop)(struct ieee80211_hw *hw, bool suspend) = NULL;
@@ -2791,6 +2793,20 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 				local->ieee80211_vif = calloc(1, director.struct_sizes.ieee80211_vif);
 				ieee80211_vif = local->ieee80211_vif;
 				ieee80211_vif->type = NL80211_IFTYPE_STATION;
+				memset(&ieee80211_vif->bss_conf, 0, director.struct_sizes.ieee80211_bss_conf);
+				bss_conf = &ieee80211_vif->bss_conf;
+				bss_conf->vif = ieee80211_vif;
+				bss_conf->link_id = 0;
+				ether_addr_copy(bss_conf->addr, ieee80211_vif->addr);
+				bss_conf->bssid = bss_conf->addr;
+				bss_temp = calloc(1, director.struct_sizes.ieee80211_bss_conf);
+				bss_temp->vif = ieee80211_vif;
+				bss_temp->link_id = 0;
+				ether_addr_copy(bss_temp->addr, ieee80211_vif->addr);
+				bss_temp->bssid = bss_temp->addr;
+				rcu_assign_pointer(ieee80211_vif->link_conf[0], bss_temp);
+				ieee80211_vif->valid_links  |= BIT(0);
+				ieee80211_vif->active_links |= BIT(0);
 			}
 			ret = add_interface(local->ieee80211_hw, local->ieee80211_vif);
 		}

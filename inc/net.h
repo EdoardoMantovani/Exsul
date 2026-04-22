@@ -359,6 +359,11 @@ static inline void eth_zero_addr(u8 *addr){
 	memset(addr, 0x00, ETH_ALEN);
 }
 
+static inline void ether_addr_copy(u8 *dst, const u8 *src){
+	*(u32 *)dst = *(const u32 *)src;
+	*(u16 *)(dst + 4) = *(const u16 *)(src + 4);
+}
+
 static struct netdev_hw_addr *__hw_addr_create(const unsigned char *addr, int addr_len, unsigned char addr_type, bool global, bool sync){
         int alloc_size = 0;
         struct netdev_hw_addr *ha = NULL;
