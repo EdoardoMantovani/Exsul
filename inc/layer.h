@@ -1119,6 +1119,33 @@ static inline int pthread_cond_wait(pthread_cond_t  *cond, pthread_mutex_t *mute
         return ret;
 }
 
+static int pthread_cond_destroy(pthread_cond_t *cond){
+	int ret = 0;
+	return ret;
+}
+
+static int pthread_mutex_destroy(pthread_mutex_t *mutex){
+	int ret = 0;
+	return ret;
+}
+
+static int pthread_equal(pthread_t t1, pthread_t t2){
+	int ret = 0;
+	DWORD id1 = 0;
+	DWORD id2 = 0;
+
+	if (t1 == NULL || t2 == NULL){
+		return ret;
+	}
+
+	id1 = GetThreadId(t1);
+	id2 = GetThreadId(t2);
+	if (id1 == 0 || id2 == 0){
+		return ret;
+	}
+	return id1 == id2;
+}
+
 static int pthread_condattr_init(pthread_condattr_t *attr){
 	int ret = 0;
 	if (attr == NULL) {

@@ -2741,6 +2741,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	void (*stop)(struct ieee80211_hw *hw, bool suspend) = NULL;
 	int (*add_interface)(struct ieee80211_hw *hw, struct ieee80211_vif *vif) = NULL;
 	void (*cancel_hw_scan)(struct ieee80211_hw *hw, struct ieee80211_vif *vif) = NULL;
+	void (*remove_interface)(struct ieee80211_hw *hw, struct ieee80211_vif *vif) = NULL;
 	int (*hw_scan)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_scan_request *req) = NULL;
 	int (*start_ap)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_bss_conf *link_conf) = NULL;
 	void (*stop_ap)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_bss_conf *link_conf) = NULL;
@@ -2808,6 +2809,18 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			ret = add_interface(local->ieee80211_hw, local->ieee80211_vif);
 		}
 	}
+	if(strcmp(ops_req, "remove_interface") == 0){
+		remove_interface = ops->remove_interface;
+		if(remove_interface != NULL){
+			if(local->ieee80211_vif == NULL){
+				printf("[!] ieee80211_vif isn't initialized!\n");
+				ret = -EINVAL;
+				return ret;
+			}
+			remove_interface(local->ieee80211_hw, local->ieee80211_vif);
+		}
+	}
+
 	if(strcmp(ops_req, "scan") == 0){
 		hw_scan = ops->hw_scan;
 		if(hw_scan != NULL){
@@ -2819,7 +2832,12 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	if(strcmp(ops_req, "cancel_scan") == 0){
 		cancel_hw_scan = ops->cancel_hw_scan;
 		if(cancel_hw_scan != NULL){
-		//	cancel_hw_scan(local->ieee80211_hw, );
+			if(local->ieee80211_vif == NULL){
+				printf("[!] ieee80211_vif isn't initialized!\n");
+				ret = -EINVAL;
+				return ret;
+			}
+			cancel_hw_scan(local->ieee80211_hw, local->ieee80211_vif);
 		}
 	}
 	if(strcmp(ops_req, "start_ap") == 0){
