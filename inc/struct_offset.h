@@ -588,7 +588,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[4] = {
 				.struct_size = 0,
 				.struct_name = "ieee80211_hw",
-				.struct_field_num = 23,
+				.struct_field_num = 24,
 				.fields = {
 					[0] = {
 						.field_name = "conf",
@@ -675,10 +675,14 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[21] = {
-						.field_name = "weight_multiplier",
+						.field_name = "vif_data_size",
 						.field_offset = 0,
 					},
 					[22] = {
+						.field_name = "weight_multiplier",
+						.field_offset = 0,
+					},
+					[23] = {
 						.field_name = "wiphy",
 						.field_offset = 0,
 					},

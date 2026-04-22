@@ -5778,7 +5778,6 @@ struct ieee80211_emulated_hw {
 	unsigned long flags[BITS_TO_LONGS(NUM_IEEE80211_HW_FLAGS)];
 	unsigned int extra_tx_headroom;
 	unsigned int extra_beacon_tailroom;
-	int vif_data_size;
 	int sta_data_size;
 	int chanctx_data_size;
 	int txq_data_size;
@@ -8450,21 +8449,14 @@ static void ieee80211_report_used_skb(struct ieee80211_local *local, struct sk_b
 }
 
 static void __iterate_interfaces(struct ieee80211_local *local, u32 iter_flags, void (*iterator)(void *data, u8 *mac, struct ieee80211_vif *vif), void *data){
-	bool active_only = false;
-	struct ieee80211_vif *ieee80211_vif = NULL;
-	struct ieee80211_sub_if_data *sdata = NULL;
+	struct ieee80211_vif *ieee80211_vif = local->ieee80211_vif;
 
-	active_only = !!(iter_flags & IEEE80211_IFACE_ITER_ACTIVE);
-	ieee80211_vif = sdata->vif;
-	list_for_each_entry_rcu(sdata, &local->interfaces, list) {
-		if (ieee80211_vif->type == NL80211_IFTYPE_AP_VLAN){
-			continue;
-		}
-		if (active_only && !ieee80211_sdata_running(sdata)){
-			continue;
-		}
-		iterator(data, ieee80211_vif->addr, ieee80211_vif);
-	}
+	if (ieee80211_vif == NULL)
+		return;
+	if (ieee80211_vif->type == NL80211_IFTYPE_AP_VLAN)
+		return;
+
+	iterator(data, ieee80211_vif->addr, ieee80211_vif);
 }
 
 /* add/remove interface */

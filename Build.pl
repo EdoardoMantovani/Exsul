@@ -106,6 +106,7 @@ my %struct_set = ();
 my %used_fields_by_struct = ();
 
 my @gcc_params = (
+	"-g3",
 	"-DARCH_INDEPENDENT_BITOPS",
 	"-DCONFIG_PM",
 	"-DENABLE_UNWIND_DEBUGGING",
@@ -328,6 +329,10 @@ my %field_ctype = (
 		"rate_control_algorithm"		=> "const char *",
 		"priv"					=> "void *",
 		"flags"					=> "unsigned long",
+		"vif_data_size"				=> "int",
+		"sta_data_size"				=> "int",
+		"chanctx_data_size"			=> "int",
+		"txq_data_size"				=> "int",
 		"extra_tx_headroom"			=> "unsigned int",
 		"extra_beacon_tailroom" 		=> "unsigned int",
 		"queues"				=> "u16",
@@ -638,6 +643,7 @@ my %field_ctype = (
 		"type"					=> "enum nl80211_iftype",
 		"cfg"					=> "struct ieee80211_vif_cfg",
 		"bss_conf"				=> "struct ieee80211_bss_conf",
+		"link_conf"				=> "struct ieee80211_bss_conf *",
 		"reg_ttlm"				=> "struct ieee80211_neg_ttlm",
 		"addr"					=> "u8",
 		"addr_valid"				=> "bool",

@@ -324,8 +324,10 @@ container_of(callback_timer, typeof(*var), timer_fieldname)
 do {									      \
 	uintptr_t _r_a_p__v = (uintptr_t)(v);				      \
 									      \
-	if (__builtin_constant_p(v) && (_r_a_p__v) == (uintptr_t)NULL)	      \
+	if (!__builtin_constant_p(v) || (_r_a_p__v) != (uintptr_t)NULL)      \
 		WRITE_ONCE((p), (typeof(p))(_r_a_p__v));		      \
+	else								      \
+		WRITE_ONCE((p), (typeof(p))(uintptr_t)NULL);		      \
 } while (0)
 
 /**
