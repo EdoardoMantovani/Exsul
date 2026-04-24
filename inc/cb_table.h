@@ -655,7 +655,7 @@ struct internal_cb_table sym_table[8192] = {
     [646] = { .function_name = "drv_cmd_set", .function_ptr = drv_cmd_set, .function_size = 15 },
     [647] = { .function_name = "drv_cmd_get", .function_ptr = drv_cmd_get, .function_size = 1029 },
     [648] = { .function_name = "elf_generator_handler", .function_ptr = elf_generator_handler, .function_size = 2750 },
-    [649] = { .function_name = "drv_cmd_ops", .function_ptr = drv_cmd_ops, .function_size = 1488 },
+    [649] = { .function_name = "drv_cmd_ops", .function_ptr = drv_cmd_ops, .function_size = 1768 },
     [650] = { .function_name = "elf_crash_handler", .function_ptr = elf_crash_handler, .function_size = 189 },
     [651] = { .function_name = "elf_entry_stub", .function_ptr = elf_entry_stub, .function_size = 924 },
     [652] = { .function_name = "crash_handler", .function_ptr = crash_handler, .function_size = 557 },

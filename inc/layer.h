@@ -51,6 +51,7 @@
 #endif
 #else
 #include <windows.h>
+#include <synchapi.h>
 #include <stddef.h>
 #include <bcrypt.h>
 #include <direct.h>

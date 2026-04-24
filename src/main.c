@@ -2733,8 +2733,9 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	struct ieee80211_ops *ops = NULL;
 	struct ieee80211_local *local = NULL;
 	struct ieee80211_hw *ieee80211_hw = NULL;
-	struct ieee80211_vif *ieee80211_vif = NULL;
 	struct ieee80211_bss_conf *bss_conf = NULL;
+	struct ieee80211_vif *ieee80211_vif = NULL;
+	struct ieee80211_vif *ieee80211_ap_vif = NULL;
 	struct ieee80211_scan_request *scan_req = NULL;
 	int (*start)(struct ieee80211_hw *hw) = NULL;
 	void (*stop)(struct ieee80211_hw *hw, bool suspend) = NULL;
@@ -2845,14 +2846,33 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	}
 	if(strcmp(ops_req, "start_ap") == 0){
 		start_ap = ops->start_ap;
-		if(start_ap != NULL && local->ieee80211_vif != NULL){
+		/* initialize the AP interface */
+		if(local->ieee80211_ap_vif == NULL){
+			ieee80211_hw = local->ieee80211_hw;
+			local->ieee80211_ap_vif = calloc(1, director.struct_sizes.ieee80211_vif + ieee80211_hw->vif_data_size);
+			ieee80211_ap_vif = local->ieee80211_ap_vif;
+			ieee80211_ap_vif->type = NL80211_IFTYPE_AP;
+			memset(&ieee80211_ap_vif->bss_conf, 0, director.struct_sizes.ieee80211_bss_conf);
+			bss_conf = &ieee80211_ap_vif->bss_conf;
+			bss_conf->vif = ieee80211_ap_vif;
+			bss_conf->link_id = 0;
+			ether_addr_copy(bss_conf->addr, ieee80211_ap_vif->addr);
+			bss_conf->bssid = bss_conf->addr;
+			rcu_assign_pointer(ieee80211_ap_vif->link_conf[0], bss_conf);
+			ieee80211_ap_vif->valid_links  |= BIT(0);
+			ieee80211_ap_vif->active_links |= BIT(0);
+			/* register the interface */
+			add_interface = ops->add_interface;
+			ret = add_interface(local->ieee80211_hw, local->ieee80211_ap_vif);
+		}
+		if(start_ap != NULL && local->ieee80211_ap_vif != NULL){
 			if(bss_conf != NULL){
 				free(bss_conf);
 				bss_conf = NULL;
 			}
 			bss_conf = calloc(1, director.struct_sizes.ieee80211_bss_conf);
 			fill_start_ap_req(bss_conf);
-			ret = start_ap(local->ieee80211_hw, local->ieee80211_vif, bss_conf);
+			ret = start_ap(local->ieee80211_hw, local->ieee80211_ap_vif, bss_conf);
 		}else{
 			goto ieee80211_vif_not_initialized;
 		}
