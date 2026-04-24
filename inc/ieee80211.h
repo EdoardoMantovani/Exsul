@@ -301,6 +301,19 @@
 #define BW_160			3
 #define BW_320			4
 
+#define CHAN2G(_freq, _flags)  {	\
+	.band = NL80211_BAND_2GHZ,	\
+	.center_freq = (_freq),		\
+	.hw_value = (_freq),		\
+	.flags = (_flags),		\
+}
+
+#define CHAN5G(_freq) {			\
+	.band = NL80211_BAND_5GHZ,	\
+	.center_freq = (_freq),		\
+	.hw_value = (_freq),		\
+}
+
 /*
  * Define group sort order: HT40 -> SGI -> #streams
  */
@@ -5878,6 +5891,9 @@ struct ieee80211_local {
 	struct ieee80211_ops *ieee80211_ops;
 	struct sk_buff_head pending[IEEE80211_MAX_QUEUES];
 
+	struct tasklet_struct tx_pending_tasklet;
+	struct tasklet_struct wake_txqs_tasklet;
+
 	int user_power_level; /* in dBm */
 	int ap_power_level; /* in dBm */
 
@@ -5968,6 +5984,10 @@ struct ieee80211_local {
 	int scan_ies_len;
 	int hw_scan_ies_bufsize;
 	struct cfg80211_scan_info scan_info;
+
+	unsigned long queue_stop_reasons[IEEE80211_MAX_QUEUES];
+	int q_stop_reasons[IEEE80211_MAX_QUEUES][IEEE80211_QUEUE_STOP_REASONS];
+
 	/* Temporary remain-on-channel for off-channel operations */
 	struct ieee80211_channel *tmp_channel;
 
@@ -8459,6 +8479,94 @@ static void __iterate_interfaces(struct ieee80211_local *local, u32 iter_flags, 
 	iterator(data, ieee80211_vif->addr, ieee80211_vif);
 }
 
+static void _ieee80211_wake_txqs(struct ieee80211_local *local){
+	tasklet_schedule(&local->wake_txqs_tasklet);
+}
+
+static void __ieee80211_stop_queue(struct ieee80211_hw *hw, int queue, enum queue_stop_reason reason, bool refcounted){
+	struct ieee80211_local *local = director.ieee80211_local;
+
+	if (queue >= hw->queues){
+		goto end;
+	}
+
+	if (!refcounted){
+		local->q_stop_reasons[queue][reason] = 1;
+	}else{
+		local->q_stop_reasons[queue][reason]++;
+	}
+	set_bit(reason, &local->queue_stop_reasons[queue]);
+	end:
+}
+
+static void __ieee80211_wake_queue(struct ieee80211_hw *hw, int queue, enum queue_stop_reason reason, bool refcounted){
+	struct ieee80211_local *local = NULL;
+
+	local = director.ieee80211_local;
+
+	if (queue >= hw->queues){
+		goto end;
+	}
+
+	if (!test_bit(reason, &local->queue_stop_reasons[queue])){
+		goto end;
+	}
+
+	if (!refcounted) {
+		local->q_stop_reasons[queue][reason] = 0;
+	} else {
+		local->q_stop_reasons[queue][reason]--;
+		if (local->q_stop_reasons[queue][reason] < 0){
+			local->q_stop_reasons[queue][reason] = 0;
+		}
+	}
+
+	if (local->q_stop_reasons[queue][reason] == 0){
+		clear_bit(reason, &local->queue_stop_reasons[queue]);
+	}
+
+	if (local->queue_stop_reasons[queue] != 0){
+		/* someone still has this queue stopped */
+		goto end;
+	}
+
+	if (!skb_queue_empty(&local->pending[queue])){
+		tasklet_schedule(&local->tx_pending_tasklet);
+	}
+
+	/*
+	 * Calling _ieee80211_wake_txqs here can be a problem because it may
+	 * release queue_stop_reason_lock which has been taken by
+	 * __ieee80211_wake_queue's caller. It is certainly not very nice to
+	 * release someone's lock, but it is fine because all the callers of
+	 * __ieee80211_wake_queue call it right before releasing the lock.
+	 */
+	if (reason == IEEE80211_QUEUE_STOP_REASON_DRIVER){
+		tasklet_schedule(&local->wake_txqs_tasklet);
+	}else{
+		_ieee80211_wake_txqs(local);
+	}
+	end:
+}
+
+static void ieee80211_stop_queues_by_reason(struct ieee80211_hw *hw, unsigned long queues, enum queue_stop_reason reason, bool refcounted){
+	int i = 0;
+	struct ieee80211_local *local = director.ieee80211_local;
+
+	for_each_set_bit(i, &queues, hw->queues)
+		__ieee80211_stop_queue(hw, i, reason, refcounted);
+}
+
+static void ieee80211_wake_queues_by_reason(struct ieee80211_hw *hw, unsigned long queues, enum queue_stop_reason reason, bool refcounted){
+	int i = 0;
+	struct ieee80211_local *local = NULL;
+
+	local = director.ieee80211_local;
+
+	for_each_set_bit(i, &queues, hw->queues)
+		__ieee80211_wake_queue(hw, i, reason, refcounted);
+}
+
 /* add/remove interface */
 static int ieee80211_if_add(struct ieee80211_local *local, const char *name, unsigned char name_assign_type, struct wireless_dev **new_wdev, enum nl80211_iftype type, struct vif_params *params){
 	struct net_device *netdev = NULL;
@@ -9083,38 +9191,135 @@ static void nl80211_gtk_rekey_notify(struct cfg80211_registered_device *rdev, st
 
 /* functions for filling driver-based callbacks */
 
-/* fill the 'start_ap' parameters */
-static int fill_start_ap_req(struct ieee80211_bss_conf **link_conf){
+/* fill the 'start_ap'/'stop_ap' parameters */
+static int fill_start_ap_req(struct ieee80211_bss_conf *link_conf){
 	int ret = 0;
-	struct ieee80211_bss_conf *bss_conf = *link_conf;
+	struct wiphy *wiphy = NULL;
+	struct ieee80211_local *local = NULL;
+	struct ieee80211_channel *chan = NULL;
 
+	if(link_conf == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
 
+	local = director.ieee80211_local;
+
+	link_conf->link_id = 0;
+	link_conf->vif     = local->ieee80211_vif;
+
+	link_conf->beacon_int    = 100;
+	link_conf->dtim_period   = 2;
+	link_conf->enable_beacon = true;
+	link_conf->hidden_ssid   = NL80211_HIDDEN_SSID_NOT_IN_USE;
+
+	wiphy = local->wiphy;
+	for(int i = 0; i < NUM_NL80211_BANDS; i++){
+		if(wiphy->bands[i] && wiphy->bands[i]->n_channels > 0){
+			chan = &wiphy->bands[i]->channels[0];
+			break;
+		}
+	}
+
+	if(chan != NULL){
+		link_conf->chanreq.oper.chan         = chan;
+		link_conf->chanreq.oper.width        = NL80211_CHAN_WIDTH_20;
+		link_conf->chanreq.oper.center_freq1 = chan->center_freq;
+		link_conf->chanreq.oper.center_freq2 = 0;
+	}
+
+	link_conf->basic_rates      = BIT(0) | BIT(1) | BIT(2) | BIT(3);
+	link_conf->ht_operation_mode = 0;
+	link_conf->qos               = false;
+	link_conf->txpower           = 0;
+	link_conf->txpower_type      = NL80211_TX_POWER_AUTOMATIC;
+	link_conf->allow_p2p_go_ps   = false;
 	return ret;
 }
 
 /* fill the 'hw_scan' request */
-static int fill_hw_scan_req(struct ieee80211_scan_request **scan_request){
+static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 	int ret = 0;
-	struct ieee80211_scan_request *scan_req = *scan_request;
+	struct wiphy *wiphy = NULL;
+	struct wireless_dev *wdev = NULL;
+	struct ieee80211_local *local = NULL;
+	struct ieee80211_vif *ieee80211_vif = NULL;
 
-	scan_req->ies.common_ies = NULL;
+	const struct ieee80211_channel channels_2ghz[] = {
+		CHAN2G(2412, 0x801a0), /* Channel 1 */
+		CHAN2G(2417, 0x801a0), /* Channel 2 */
+		CHAN2G(2422, 0x801a0), /* Channel 3 */
+		CHAN2G(2427, 0x801a0), /* Channel 4 */
+		CHAN2G(2432, 0x80180), /* Channel 5 */
+		CHAN2G(2437, 0x80180), /* Channel 6 */
+		CHAN2G(2442, 0x80180), /* Channel 7 */
+		CHAN2G(2447, 0x80180), /* Channel 8 */
+		CHAN2G(2452, 0x80180), /* Channel 9 */
+		CHAN2G(2457, 0x80190), /* Channel 10 */
+		CHAN2G(2462, 0x80190), /* Channel 11 */
+		CHAN2G(2467, 0x80112), /* Channel 12 */
+		CHAN2G(2472, 0x80112), /* Channel 13 */
+		CHAN2G(2484, 0x801f2), /* Channel 14 */
+	};
+
+	if(scan_req == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	local = director.ieee80211_local;
+
+	scan_req->ies.common_ies    = NULL;
 	scan_req->ies.common_ie_len = 0;
+	for(int i = 0; i < NUM_NL80211_BANDS; i++){
+		scan_req->ies.ies[i]     = NULL;
+		scan_req->ies.len[i]     = 0;
+	}
 
-	scan_req->req.ssids = NULL;
-	scan_req->req.n_ssids = 0;
-	scan_req->req.n_channels = 1;
-	scan_req->req.ie = NULL;
-	scan_req->req.ie_len = 0;
-	scan_req->req.duration = 0;
-	scan_req->req.duration_mandatory = false;
-	scan_req->req.flags = 0;
-	scan_req->req.scan_start = 0;
-	scan_req->req.no_cck = false;
-	scan_req->req.scan_6ghz = false;
-	scan_req->req.first_part = false;
-	scan_req->req.n_6ghz_params = 0;
-	scan_req->req.scan_6ghz_params = NULL;
-	scan_req->req.tsf_report_link_id = -1;
+	scan_req->req.ssids		= NULL;
+	scan_req->req.n_ssids		= 0;
+
+	scan_req->req.ie		= NULL;
+	scan_req->req.ie_len		= 0;
+
+	scan_req->req.n_channels	= 0;
+
+	wiphy = local->wiphy;
+
+	/* use this code as reference 'https://elixir.bootlin.com/linux/v7.0.1/source/net/mac80211/tests/util.c#L236' */
+	scan_req->req.n_channels                		= ARRAY_SIZE(channels_2ghz);
+	for(int j = 0; j < scan_req->req.n_channels; j++){
+		scan_req->req.channels[j]			= calloc(1, sizeof(struct ieee80211_scan_request));
+		scan_req->req.channels[j]->center_freq 		= channels_2ghz[j].center_freq;
+		scan_req->req.channels[j]->band			= channels_2ghz[j].band;
+		scan_req->req.channels[j]->flags		= channels_2ghz[j].flags;
+		scan_req->req.channels[j]->hw_value		= channels_2ghz[j].hw_value;
+		scan_req->req.channels[j]->max_power		= 20;
+		scan_req->req.channels[j]->max_reg_power	= 20;
+	}
+
+	scan_req->req.duration			= 0;
+	scan_req->req.duration_mandatory	= false;
+	scan_req->req.scan_start		= 0;
+
+	scan_req->req.flags			= 0;
+	scan_req->req.no_cck			= false;
+	scan_req->req.scan_6ghz			= false;
+	scan_req->req.first_part		= false;
+	scan_req->req.n_6ghz_params		= 0;
+	scan_req->req.scan_6ghz_params		= NULL;
+	scan_req->req.tsf_report_link_id	= -1;
+
+	eth_broadcast_addr(scan_req->req.bssid);
+
+	scan_req->req.wiphy = local->wiphy;
+	if(local->ieee80211_vif != NULL){
+		ieee80211_vif = local->ieee80211_vif;
+		wdev = &ieee80211_vif->wdev;
+		scan_req->req.wdev = wdev;
+	}else{
+		scan_req->req.wdev = NULL;
+	}
 	return ret;
 }
 

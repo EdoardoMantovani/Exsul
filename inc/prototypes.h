@@ -252,6 +252,7 @@ int param_set_invbool(const char *val, const struct kernel_param *kp);
 void kvfree(const void *addr);
 int pci_write_config_word(const struct pci_dev *dev, int where, u16 val);
 int cancel_delayed_work_sync(struct delayed_work *dwork);
+void ieee80211_wake_queues(struct ieee80211_hw *hw);
 void *memset16(uint16_t *s, uint16_t v, size_t count);
 void mutex_init_generic(struct mutex *lock);
 void __tasklet_schedule(struct tasklet_struct *t);
@@ -467,6 +468,7 @@ unsigned long _copy_from_user(void *to, const void __user *from, unsigned long n
 int usb_submit_urb(struct urb *urb, int mem_flags);
 void __init_waitqueue_head(struct wait_queue_head *wq_head, const char *name, void *key);
 void __ubsan_handle_shift_out_of_bounds(void *_data, void *lhs, void *rhs);
+void kvfree_call_rcu(struct rcu_head *head, void *ptr);
 unsigned long round_jiffies_relative(unsigned long j);
 void *pci_ioremap_bar(struct pci_dev *pdev, int bar);
 void cfg80211_gtk_rekey_notify(struct net_device *dev, const u8 *bssid, const u8 *replay_ctr, int gfp);
@@ -516,6 +518,7 @@ void ieee80211_emulate_remove_chanctx(struct ieee80211_hw *hw, struct ieee80211_
 void __fortify_panic(const u8 reason, const size_t avail, const size_t size);
 int memcmp(const void *cs, const void *ct, size_t count);
 struct net_device *alloc_netdev_mqs(int sizeof_priv, char *name, unsigned char name_assign_type, void (*setup)(struct net_device *), unsigned int txqs, unsigned int rxqs);
+void ieee80211_stop_queues(struct ieee80211_hw *hw);
 void __x86_indirect_thunk_r13(void);
 int regulatory_hint(struct wiphy *wiphy, const char *alpha2);
 struct sk_buff *__build_skb(void *data, unsigned int frag_size);

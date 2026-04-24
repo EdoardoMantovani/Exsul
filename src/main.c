@@ -2734,7 +2734,6 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	struct ieee80211_local *local = NULL;
 	struct ieee80211_hw *ieee80211_hw = NULL;
 	struct ieee80211_vif *ieee80211_vif = NULL;
-	struct ieee80211_bss_conf *bss_temp = NULL;
 	struct ieee80211_bss_conf *bss_conf = NULL;
 	struct ieee80211_scan_request *scan_req = NULL;
 	int (*start)(struct ieee80211_hw *hw) = NULL;
@@ -2823,35 +2822,60 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 
 	if(strcmp(ops_req, "scan") == 0){
 		hw_scan = ops->hw_scan;
-		if(hw_scan != NULL){
-		/* generate the callback parameters */
-		ret = fill_hw_scan_req(&scan_req);
-		//	ret = hw_scan(local->ieee80211_hw, );
+		if(hw_scan != NULL && local->ieee80211_vif != NULL){
+			if(scan_req != NULL){
+				free(scan_req);
+				scan_req = NULL;
+			}
+			scan_req = calloc(1, sizeof(struct ieee80211_scan_request) + 14 * sizeof(void *));
+			/* generate the callback parameters */
+			ret = fill_hw_scan_req(scan_req);
+			ret = hw_scan(local->ieee80211_hw, local->ieee80211_vif, scan_req);
+		}else{
+			goto ieee80211_vif_not_initialized;
 		}
 	}
 	if(strcmp(ops_req, "cancel_scan") == 0){
 		cancel_hw_scan = ops->cancel_hw_scan;
-		if(cancel_hw_scan != NULL){
-			if(local->ieee80211_vif == NULL){
-				printf("[!] ieee80211_vif isn't initialized!\n");
-				ret = -EINVAL;
-				return ret;
-			}
+		if(cancel_hw_scan != NULL && local->ieee80211_vif != NULL){
 			cancel_hw_scan(local->ieee80211_hw, local->ieee80211_vif);
+		}else{
+			goto ieee80211_vif_not_initialized;
 		}
 	}
 	if(strcmp(ops_req, "start_ap") == 0){
 		start_ap = ops->start_ap;
-		if(start_ap != NULL){
-		//	ret = start_ap(local->ieee80211_hw, );
+		if(start_ap != NULL && local->ieee80211_vif != NULL){
+			if(bss_conf != NULL){
+				free(bss_conf);
+				bss_conf = NULL;
+			}
+			bss_conf = calloc(1, director.struct_sizes.ieee80211_bss_conf);
+			fill_start_ap_req(bss_conf);
+			ret = start_ap(local->ieee80211_hw, local->ieee80211_vif, bss_conf);
+		}else{
+			goto ieee80211_vif_not_initialized;
 		}
 	}
 	if(strcmp(ops_req, "stop_ap") == 0){
 		stop_ap = ops->stop_ap;
-		if(stop_ap != NULL){
-		//	stop_ap(local->ieee80211_hw, );
+		if(stop_ap != NULL && local->ieee80211_vif != NULL){
+			if(bss_conf != NULL){
+				free(bss_conf);
+				bss_conf = NULL;
+			}
+			bss_conf = calloc(1, director.struct_sizes.ieee80211_bss_conf);
+			fill_start_ap_req(bss_conf);
+			stop_ap(local->ieee80211_hw, local->ieee80211_vif, bss_conf);
+		}else{
+			goto ieee80211_vif_not_initialized;
 		}
 	}
+
+	return ret;
+	ieee80211_vif_not_initialized:
+	printf("[!] ieee80211_vif is not initialized!\n");
+	ret = -EINVAL;
 	return ret;
 }
 

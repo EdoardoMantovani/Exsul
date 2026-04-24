@@ -561,25 +561,69 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[3] = {
 				.struct_size = 0,
 				.struct_name = "ieee80211_bss_conf",
-				.struct_field_num = 5,
+				.struct_field_num = 16,
 				.fields = {
 					[0] = {
 						.field_name = "addr",
 						.field_offset = 0,
 					},
 					[1] = {
-						.field_name = "bssid",
+						.field_name = "allow_p2p_go_ps",
 						.field_offset = 0,
 					},
 					[2] = {
-						.field_name = "link_id",
+						.field_name = "basic_rates",
 						.field_offset = 0,
 					},
 					[3] = {
-						.field_name = "tx_bss_conf",
+						.field_name = "beacon_int",
 						.field_offset = 0,
 					},
 					[4] = {
+						.field_name = "bssid",
+						.field_offset = 0,
+					},
+					[5] = {
+						.field_name = "chanreq",
+						.field_offset = 0,
+					},
+					[6] = {
+						.field_name = "dtim_period",
+						.field_offset = 0,
+					},
+					[7] = {
+						.field_name = "enable_beacon",
+						.field_offset = 0,
+					},
+					[8] = {
+						.field_name = "hidden_ssid",
+						.field_offset = 0,
+					},
+					[9] = {
+						.field_name = "ht_operation_mode",
+						.field_offset = 0,
+					},
+					[10] = {
+						.field_name = "link_id",
+						.field_offset = 0,
+					},
+					[11] = {
+						.field_name = "qos",
+						.field_offset = 0,
+					},
+					[12] = {
+						.field_name = "tx_bss_conf",
+						.field_offset = 0,
+					},
+					[13] = {
+						.field_name = "txpower",
+						.field_offset = 0,
+					},
+					[14] = {
+						.field_name = "txpower_type",
+						.field_offset = 0,
+					},
+					[15] = {
 						.field_name = "vif",
 						.field_offset = 0,
 					},
@@ -782,7 +826,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[6] = {
 				.struct_size = 0,
 				.struct_name = "ieee80211_vif",
-				.struct_field_num = 7,
+				.struct_field_num = 8,
 				.fields = {
 					[0] = {
 						.field_name = "active_links",
@@ -810,6 +854,10 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 					[6] = {
 						.field_name = "valid_links",
+						.field_offset = 0,
+					},
+					[7] = {
+						.field_name = "wdev",
 						.field_offset = 0,
 					},
 				},
