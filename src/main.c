@@ -1485,6 +1485,30 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
                          * to resolve the relocations when we will have multi-modules dependencies
                          */
                         if ((ELF64_ST_TYPE(sym[i].st_info) == STT_FUNC || ELF64_ST_TYPE(sym[i].st_info) == STT_OBJECT) && strcmp(name, "cleanup_module") != 0 && strcmp(name, "init_module") != 0) {
+				/* fix: exclude junk symbols, this introduces a small overhead during the module loading but it requires way less symbols in the sym_table */
+				if(name[0] == '_' && name[1] == '_'){
+					if(name[2] == 'p' && name[3] == 'f' && name[4] == 'x'){
+						break;
+					}
+					if(name[2] == 'f' && name[3] == 'u' && name[4] == 'n' && name[5] == 'c'){
+						break;
+					}
+				}
+				if(name[0] == '_' && name[1] == 'n' && name[2] == 'o' && name[3] == 't' && name[4] == 'e'){
+					break;
+				}
+				if(name[0] == '_' && name[1] == '_' && name[2] == 'U' && name[3] == 'N' && name[4] == 'I' && name[5] == 'Q' && name[6] == 'U' && name[7] == 'E'){
+					break;
+				}
+				if(name[0] == '_' && name[1] == '_' && name[2] == '_' && name[3] == '_' && name[4] == 'v' && name[5] == 'e' && name[6] == 'r' && name[7] == 's' && name[8] == 'i'){
+					break;
+				}
+				if(name[0] == '_' && name[1] == '_' && name[2] == 'a' && name[3] == 'l' && name[4] == 'r' && name[5] == 'e' && name[6] == 'a' && name[7] == 'd' && name[8] == 'y'){
+					break;
+				}
+				if(name[0] == '_' && name[1] == '_' && name[2] == 't' && name[3] == 'h' && name[4] == 'i' && name[5] == 's' && name[6] == '_' && name[7] == 'm' && name[8] == 'o'){
+					break;
+				}
                                 for (int j = 0; sym_table[j].function_ptr != NULL; j++){
                                         if((j + 1 ) >= ARRAY_SIZE(sym_table)){
                                                 break;
@@ -2117,6 +2141,10 @@ int initialize_director(struct module_controller *director, struct load_info **i
 	pthread_cond_init(&director->timer_cond, NULL);
 	director->timer_once  = PTHREAD_ONCE_INIT;
 
+	/* if enabled, initialize also the tcc scripting layer */
+	#ifdef TCC_SCRIPTING
+	drv_integrate_scripting();
+	#endif
 	*info = director->info;
 	return ret;
 }
@@ -2853,7 +2881,22 @@ int drv_cmd_run(struct module_controller *director, char *argv[], int num_args) 
 /* set a context variable to a specific value, used for changing the runtime of the driver executor */
 int drv_cmd_set(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
+	unsigned char *set_req = NULL;
 
+	if(argv[1] == NULL){
+		printf("> set <req>\n");
+		ret = -EINVAL;
+		return ret;
+	}
+
+	set_req = argv[1];
+
+	#ifdef TCC_SCRIPTING
+	if(strstr(set_req, "tcc") != NULL || strstr(set_req, "script") != NULL){
+		/* enter in tcc scripting mode */
+		drv_scripting_loop();
+	}
+	#endif
 	return ret;
 }
 
@@ -3130,6 +3173,75 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	return ret;
 }
 
+#ifdef TCC_SCRIPTING
+/*
+ * initilize the tcc scripting engine, this feature will permit to write high level C from the TUI and apply the patch at runtime to the loaded
+ * kernel modules.
+ */
+int drv_integrate_scripting(void){
+	int ret = 0;
+	director.tcc_ctx = tcc_new();
+
+	tcc_set_output_type(director.tcc_ctx, TCC_OUTPUT_MEMORY);
+	/* use the sym_table for adding automatically the symbols to tcc */
+	for (int j = 0; sym_table[j].function_ptr != NULL && sym_table[j].function_name[0] != '\0'; j++) {
+		tcc_add_symbol(director.tcc_ctx, sym_table[j].function_name, sym_table[j].function_ptr);
+	}
+	pthread_mutex_init(&director.tcc_mutex, NULL);
+
+	return ret;
+}
+
+/* accept input code from the user and execute it */
+int drv_execute_code(unsigned char *incoming_code){
+	int ret = 0;
+	tcc_compile_string(director.tcc_ctx, incoming_code);
+	tcc_run(director.tcc_ctx, 0, NULL);
+	return ret;
+}
+
+/* open the stdin and read the code */
+int drv_scripting_loop(void) {
+	int ret = 0;
+	int current_line_len = 0;
+	char *current_line = NULL;
+
+	fflush(stdout);
+	fflush(stderr);
+
+	while(true) {
+		ret = getline(&current_line, &current_line_len, stdin);
+		if(ret < 0) {
+			free(current_line);
+			break;
+                }
+		director.tcc_memarea = realloc(director.tcc_memarea, (director.tcc_memarea ? strlen(director.tcc_memarea) : 0) + current_line_len + sizeof("\n"));
+		if (director.tcc_memarea == NULL) {
+			free(current_line);
+			return NULL;
+		}
+		strcat(director.tcc_memarea, current_line);
+		free(current_line);
+		current_line = NULL;
+	}
+	return ret;
+}
+
+/* deinitialize the scripting engine */
+int drv_shutdown_scripting(void){
+	int ret = 0;
+	if(director.tcc_ctx != NULL){
+		tcc_delete(director.tcc_ctx);
+	}
+
+	if(director.tcc_memarea != NULL){
+		munmap(director.tcc_memarea, TCC_MINIMUN_AREA_SIZE);
+	}
+	return ret;
+}
+
+#endif
+
 #ifdef _WIN64
 int pe_generator_handler(void){
 	int ret = 0;
@@ -3246,9 +3358,22 @@ int elf_entry_stub(int argc, char *argv[]){
 		fast_run_ieee80211_cb(IEEE80211_START);
 		usleep(1000);
 		fast_run_ieee80211_cb(IEEE80211_ADD_INTERFACE);
+
+		while(true){
+			/* main loop here */
+		}
 	}
 
 	quit:
+	if(director.rfkill != NULL){
+		free(director.rfkill);
+	}
+	destroy_workqueue(&director.system_wq);
+	system_wq = NULL;
+	destroy_workqueue(&director.system_dfl_wq);
+	system_dfl_wq = NULL;
+	destroy_workqueue(&director.system_freezable_wq);
+	system_freezable_wq = NULL;
 	exit(ret);
 }
 

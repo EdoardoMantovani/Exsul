@@ -206,6 +206,10 @@ typedef _Atomic(unsigned int) atomic_uint;
 #include <jhash.h>
 #include <struct_definition.h>
 
+#ifdef TCC_SCRIPTING
+#include <libtcc.h>
+#endif
+
 /* defines the maximun size of the buffer data which can be transferred from the user to the kernel stub */
 #define MAX_DEBUGFS_SIZE	128
 
@@ -232,6 +236,9 @@ typedef _Atomic(unsigned int) atomic_uint;
 
 /* maximun number of usb endpoints possible */
 #define USB_MAX_ENDPOINT_NUM    30
+
+/* minimun area size for tcc jit */
+#define TCC_MINIMUN_AREA_SIZE	512
 
 /* path for the firmware files, this will be used mainly in Linux, for Windows expect a local folder */
 #define DEFAULT_FW_PATH		"/lib/firmware/"

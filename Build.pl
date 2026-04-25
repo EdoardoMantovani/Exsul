@@ -106,8 +106,8 @@ my %struct_set = ();
 my %used_fields_by_struct = ();
 
 my @gcc_params = (
-	"-g3",
 	"-DARCH_INDEPENDENT_BITOPS",
+	"-DTCC_SCRIPTING",
 	"-DCONFIG_PM",
 	"-DENABLE_UNWIND_DEBUGGING",
 	"-O1",
@@ -138,6 +138,7 @@ my @gcc_final_linkings = (
 	"-lusb-1.0",
 	"-lpthread",
 	"-ldwarf",
+	"-ltcc",
 	"-lunwind",
 	"-lunwind-x86_64"
 );

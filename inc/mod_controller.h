@@ -85,6 +85,13 @@ struct module_controller {
 	u8 segments_in_memory;
 	void *segment_header_in_memory;
 
+	/* tcc scripting data */
+	#ifdef TCC_SCRIPTING
+	TCCState *tcc_ctx;
+	unsigned char *tcc_memarea;
+	pthread_mutex_t tcc_mutex;
+	#endif
+
 	/* special flags used for indicating that the offsets have already been given by a configuration file, this permits to skip the dwarf parsing part during the lkm loading */
 	u8 offset_init_by_conf;
         /* provide the support for loading multiple lkm, permitting thus to reuse the functions from every lkm loaded */
