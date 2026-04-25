@@ -381,9 +381,19 @@ enum {
 	DUMP_PREFIX_OFFSET
 };
 
-/*
- * ktime_t based interfaces
- */
+/* values associated with 'ieee80211_ops' callback invocations */
+enum fast_run_ops {
+	IEEE80211_START,
+	IEEE80211_STOP,
+	IEEE80211_ADD_INTERFACE,
+	IEEE80211_REMOVE_INTERFACE,
+	IEEE80211_HW_SCAN,
+	IEEE80211_CANCEL_HW_SCAN,
+	IEEE80211_START_AP,
+	IEEE80211_STOP_AP,
+};
+
+/* ktime_t based interfaces */
 enum tk_offsets {
 	TK_OFFS_REAL,
 	TK_OFFS_BOOT,
