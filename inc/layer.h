@@ -1010,7 +1010,7 @@ struct mod_kallsyms {
 };
 
 struct internal_cb_table {
-	unsigned char *function_name;
+	unsigned char function_name[42];
 	void *function_ptr;
 	/* new update: add also the size of the symbol, useful for some operations at runtime */
 	u16 function_size;

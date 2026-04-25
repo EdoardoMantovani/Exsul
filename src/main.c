@@ -2,7 +2,8 @@
 #include <layer.h>
 #include <ieee80211.h>
 
-struct internal_cb_table sym_table[8192];
+#define SYM_ENTRIES	 4096
+struct internal_cb_table sym_table[SYM_ENTRIES];
 struct module_controller director;
 
 struct cmd_table_entry {
@@ -1490,8 +1491,13 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
                                         }
                                         if(sym_table[j + 1].function_ptr == NULL){
                                                 /* insert the function and it's name */
-                                                sym_table[j + 1].function_ptr  = sym[i].st_value;
-                                                sym_table[j + 1].function_name = strdup(name);
+						sym_table[j + 1].function_ptr  = sym[i].st_value;
+						memset(sym_table[j + 1].function_name, 0, sizeof(sym_table[j].function_name));
+						if(strlen(name) < sizeof(sym_table[j].function_name)){
+							strncpy(sym_table[j + 1].function_name, name, strlen(name));
+						}else{
+							strncpy(sym_table[j + 1].function_name, name, sizeof(sym_table[j].function_name));
+						}
 						sym_table[j + 1].function_size = sym[i].st_size;
 						director.total_memory_used += strlen(name);
                                                 break;
@@ -2258,11 +2264,11 @@ int fast_get_symbol(unsigned char *sym_name, void **sym_addr){
 	int ret = 0;
 	unsigned char *current_function_name = NULL;
 
-	for (u16 i = 0; ; i++) {
-		if(sym_table[i + 1].function_name == NULL){
-			break;
+	for (u16 i = 0; i < SYM_ENTRIES; i++) {
+		if(sym_table[i].function_name[0] == '\0'){
+			continue;
 		}
-		current_function_name = sym_table[i].function_name;
+		current_function_name = &sym_table[i].function_name;
 		if(strstr(current_function_name, sym_name) != NULL){
 			if(sym_table[i].function_size != 0){
 				ret = sym_table[i].function_size;
@@ -2279,7 +2285,7 @@ int fast_get_name(void *sym_addr, unsigned char **sym_name){
 	int ret = 0;
 
 	for (u16 i = 0; ; i++) {
-		if(sym_table[i + 1].function_name == NULL){
+		if(sym_table[i + 1].function_name[0] == '\0'){
 			break;
 		}
 		if(sym_addr == sym_table[i].function_ptr){
@@ -2299,7 +2305,7 @@ int fast_get_name_in_range(void *sym_addr, unsigned char **sym_name){
 	*sym_name = NULL;
 
 	for (u16 i = 0; ; i++) {
-		if(sym_table[i + 1].function_name == NULL){
+		if(sym_table[i + 1].function_name[0] == '\0'){
 			break;
 		}
 
@@ -2460,7 +2466,7 @@ int fast_execute_function(unsigned char *function_name){
 			ret = fn();
 			printf("%s returned %d\n", function_name, ret);
 		}
-		if(sym_table[i + 1].function_name == NULL){
+		if(sym_table[i + 1].function_name[0] == '\0'){
 			break;
 		}
 	}
@@ -2639,7 +2645,7 @@ int drv_cmd_run(struct module_controller *director, char *argv[], int num_args) 
 			ret = fn();
 			printf("%s returned %d\n", module_function, ret);
 		}
-		if(sym_table[i + 1].function_name == NULL){
+		if(sym_table[i + 1].function_name[0] == '\0'){
 			break;
 		}
 	}
@@ -3144,7 +3150,7 @@ int elf_generator_handler(void){
 	}
 	head = director.module_allocation_list;
 
-	for(sym_count = 0; sym_table[sym_count].function_name != NULL; sym_count++){
+	for(sym_count = 0; sym_table[sym_count].function_name[0] != '\0'; sym_count++){
 		string_table_size += (int)strlen(sym_table[sym_count].function_name) + 1;
 	}
 	sym_table_size = (sym_count + 1) * sizeof(Elf(Sym));

@@ -106,7 +106,6 @@ my %struct_set = ();
 my %used_fields_by_struct = ();
 
 my @gcc_params = (
-	"-g3",
 	"-DARCH_INDEPENDENT_BITOPS",
 	"-DCONFIG_PM",
 	"-DENABLE_UNWIND_DEBUGGING",
@@ -1453,9 +1452,9 @@ if($enable_firmware_builtin){
 
 print("[*] creating the global callback table...\n");
 
-# set the symbols total entries to a specific value (quite high, must support at least 8192 different symbols,
+# set the symbols total entries to a specific value (quite high, must support at least 4096 different symbols,
 # 450+ from my implementation + every possible other symbol present in complex wifi drivers, at least 1k
-$sym_total_entries = 8192;
+$sym_total_entries = 4096;
 
 $cb_header = "$include/$cb_table";
 open(FH, '>', $cb_header) or die $!;
