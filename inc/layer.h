@@ -391,6 +391,7 @@ enum fast_run_ops {
 	IEEE80211_CANCEL_HW_SCAN,
 	IEEE80211_START_AP,
 	IEEE80211_STOP_AP,
+	IEEE80211_MONITOR,
 };
 
 /* ktime_t based interfaces */

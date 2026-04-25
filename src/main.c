@@ -2326,6 +2326,7 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 	struct ieee80211_bss_conf *bss_conf = NULL;
 	struct ieee80211_vif *ieee80211_vif = NULL;
 	struct ieee80211_vif *ieee80211_ap_vif = NULL;
+	struct ieee80211_vif *ieee80211_mon_vif = NULL;
 	struct ieee80211_scan_request *scan_req = NULL;
 	int (*start)(struct ieee80211_hw *hw) = NULL;
 	void (*stop)(struct ieee80211_hw *hw, bool suspend) = NULL;
@@ -2471,6 +2472,34 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 			stop_ap(local->ieee80211_hw, local->ieee80211_ap_vif, bss_conf);
 		}else{
 			goto ieee80211_vif_not_initialized;
+		}
+	}
+
+	if(current_op == IEEE80211_MONITOR){
+		add_interface = ops->add_interface;
+		if(add_interface != NULL){
+			/* verify that local->ieee80211_mon_vif isn't allocated or initialized */
+			if(local->ieee80211_mon_vif == NULL){
+				if(director.struct_sizes.ieee80211_vif == 0){
+					printf("[!] invalid size of ieee80211_vif!\n");
+					ret = -EINVAL;
+					return ret;
+				}
+				ieee80211_hw = local->ieee80211_hw;
+				local->ieee80211_mon_vif = calloc(1, director.struct_sizes.ieee80211_vif + ieee80211_hw->vif_data_size);
+				ieee80211_mon_vif = local->ieee80211_mon_vif;
+				ieee80211_mon_vif->type = NL80211_IFTYPE_MONITOR;
+				memset(&ieee80211_mon_vif->bss_conf, 0, director.struct_sizes.ieee80211_bss_conf);
+				bss_conf = &ieee80211_mon_vif->bss_conf;
+				bss_conf->vif = ieee80211_mon_vif;
+				bss_conf->link_id = 0;
+				ether_addr_copy(bss_conf->addr, ieee80211_mon_vif->addr);
+				bss_conf->bssid = bss_conf->addr;
+				rcu_assign_pointer(ieee80211_mon_vif->link_conf[0], bss_conf);
+				ieee80211_mon_vif->valid_links  |= BIT(0);
+				ieee80211_mon_vif->active_links |= BIT(0);
+			}
+			ret = add_interface(local->ieee80211_hw, local->ieee80211_mon_vif);
 		}
 	}
 
@@ -2908,6 +2937,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	struct ieee80211_bss_conf *bss_conf = NULL;
 	struct ieee80211_vif *ieee80211_vif = NULL;
 	struct ieee80211_vif *ieee80211_ap_vif = NULL;
+	struct ieee80211_vif *ieee80211_mon_vif = NULL;
 	struct ieee80211_scan_request *scan_req = NULL;
 	int (*start)(struct ieee80211_hw *hw) = NULL;
 	void (*stop)(struct ieee80211_hw *hw, bool suspend) = NULL;
@@ -3061,6 +3091,35 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			stop_ap(local->ieee80211_hw, local->ieee80211_ap_vif, bss_conf);
 		}else{
 			goto ieee80211_vif_not_initialized;
+		}
+	}
+
+	/* monitor mode is a new virtual interface with the type == NL80211_IFTYPE_MONITOR */
+	if(strcmp(ops_req, "monitor") == 0){
+		add_interface = ops->add_interface;
+		if(add_interface != NULL){
+			/* verify that local->ieee80211_mon_vif isn't allocated or initialized */
+			if(local->ieee80211_mon_vif == NULL){
+                                if(director.struct_sizes.ieee80211_vif == 0){
+                                        printf("[!] invalid size of ieee80211_vif!\n");
+                                        ret = -EINVAL;
+                                        return ret;
+                                }
+				ieee80211_hw = local->ieee80211_hw;
+				local->ieee80211_mon_vif = calloc(1, director.struct_sizes.ieee80211_vif + ieee80211_hw->vif_data_size);
+				ieee80211_mon_vif = local->ieee80211_mon_vif;
+				ieee80211_mon_vif->type = NL80211_IFTYPE_MONITOR;
+				memset(&ieee80211_mon_vif->bss_conf, 0, director.struct_sizes.ieee80211_bss_conf);
+				bss_conf = &ieee80211_mon_vif->bss_conf;
+				bss_conf->vif = ieee80211_mon_vif;
+				bss_conf->link_id = 0;
+				ether_addr_copy(bss_conf->addr, ieee80211_mon_vif->addr);
+				bss_conf->bssid = bss_conf->addr;
+				rcu_assign_pointer(ieee80211_mon_vif->link_conf[0], bss_conf);
+				ieee80211_mon_vif->valid_links  |= BIT(0);
+				ieee80211_mon_vif->active_links |= BIT(0);
+			}
+			ret = add_interface(local->ieee80211_hw, local->ieee80211_mon_vif);
 		}
 	}
 

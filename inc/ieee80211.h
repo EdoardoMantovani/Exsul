@@ -5855,16 +5855,18 @@ struct ieee80211_local {
 	struct rate_control_ref *rate_ctrl;
 	struct ieee80211_emulated_hw hw;
 	struct ieee80211_supported_band bands[NUM_NL80211_BANDS];
-	/* for now use 2 interfaces: AP and STA */
+
+	/* for now use 3 interfaces: AP, STA and MONITOR */
 	struct ieee80211_vif *ieee80211_vif;
 	struct ieee80211_vif *ieee80211_ap_vif;
+	struct ieee80211_vif *ieee80211_mon_vif;
 
 	/* hashtables for memorizing the wlan stations in the network */
 	unsigned long num_sta;
+
 	struct list_head sta_list;
 	struct rhltable sta_hash;
 	struct rhltable link_sta_hash;
-
 	struct list_head wiphy_work_list;
 	struct tasklet_struct tasklet;
 

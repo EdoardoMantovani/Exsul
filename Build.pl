@@ -106,6 +106,7 @@ my %struct_set = ();
 my %used_fields_by_struct = ();
 
 my @gcc_params = (
+	"-g3",
 	"-DARCH_INDEPENDENT_BITOPS",
 	"-DCONFIG_PM",
 	"-DENABLE_UNWIND_DEBUGGING",
