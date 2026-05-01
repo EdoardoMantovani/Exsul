@@ -22,6 +22,33 @@
 #define IEEE80211_LINK_UNSPECIFIED		0xf
 #define IEEE80211_TX_CTRL_MLO_LINK_UNSPEC	u32_encode_bits(IEEE80211_LINK_UNSPECIFIED, IEEE80211_TX_CTRL_MLO_LINK)
 
+#define WLAN_AUTH_CHALLENGE_LEN			128
+#define WLAN_CAPABILITY_ESS			(1<<0)
+#define WLAN_CAPABILITY_IBSS			(1<<1)
+
+#define WLAN_CAPABILITY_CF_POLLABLE		(1<<2)
+#define WLAN_CAPABILITY_CF_POLL_REQUEST		(1<<3)
+#define WLAN_CAPABILITY_PRIVACY			(1<<4)
+#define WLAN_CAPABILITY_SHORT_PREAMBLE		(1<<5)
+#define WLAN_CAPABILITY_PBCC			(1<<6)
+#define WLAN_CAPABILITY_CHANNEL_AGILITY		(1<<7)
+
+/* 802.11h */
+#define WLAN_CAPABILITY_SPECTRUM_MGMT		(1<<8)
+#define WLAN_CAPABILITY_QOS			(1<<9)
+#define WLAN_CAPABILITY_SHORT_SLOT_TIME		(1<<10)
+#define WLAN_CAPABILITY_APSD			(1<<11)
+#define WLAN_CAPABILITY_RADIO_MEASURE		(1<<12)
+#define WLAN_CAPABILITY_DSSS_OFDM		(1<<13)
+#define WLAN_CAPABILITY_DEL_BACK		(1<<14)
+#define WLAN_CAPABILITY_IMM_BACK		(1<<15)
+
+#define IEEE80211_HT_OP_MODE_PROTECTION			3
+#define	IEEE80211_HT_OP_MODE_PROTECTION_NONE		0
+#define	IEEE80211_HT_OP_MODE_PROTECTION_NONMEMBER	1
+#define	IEEE80211_HT_OP_MODE_PROTECTION_20MHZ		2
+#define	IEEE80211_HT_OP_MODE_PROTECTION_NONHT_MIXED	3
+
 #define AVG_PKT_SIZE				1024
 #define IEEE80211_CB_PTR			96
 #define IEEE80211_MAX_CHAINS			4
@@ -209,10 +236,10 @@
 #define SAE_PASSWORD_MAX_LEN		128
 
 /* Debugfs flags to enable/disable use of RX/TX airtime in scheduler */
-#define AIRTIME_USE_TX		BIT(0)
-#define AIRTIME_USE_RX		BIT(1)
+#define AIRTIME_USE_TX			BIT(0)
+#define AIRTIME_USE_RX			BIT(1)
 
-#define SUITE(oui, id)	(((oui) << 8) | (id))
+#define SUITE(oui, id)			(((oui) << 8) | (id))
 
 /* cipher suite selectors */
 #define WLAN_CIPHER_SUITE_USE_GROUP		SUITE(0x000FAC, 0)
@@ -3571,6 +3598,48 @@ struct ieee80211_ampdu_params {
 	u16 timeout;
 };
 
+/*
+ * struct ieee80211_he_mu_edca_param_ac_rec - MU AC Parameter Record field
+ * @aifsn: ACI/AIFSN
+ * @ecw_min_max: ECWmin/ECWmax
+ * @mu_edca_timer: MU EDCA Timer
+ *
+ * This structure represents the "MU AC Parameter Record" as described
+ * in IEEE Std 802.11ax-2021 section 9.4.2.251, Figure 9-788p.
+ */
+struct ieee80211_he_mu_edca_param_ac_rec {
+	u8 aifsn;
+	u8 ecw_min_max;
+	u8 mu_edca_timer;
+} __packed;
+
+/*
+ * struct ieee80211_tx_queue_params - transmit queue configuration
+ *
+ * The information provided in this structure is required for QoS
+ * transmit queue configuration. Cf. IEEE 802.11 7.3.2.29.
+ *
+ * @aifs: arbitration interframe space [0..255]
+ * @cw_min: minimum contention window [a value of the form
+ *	2^n-1 in the range 1..32767]
+ * @cw_max: maximum contention window [like @cw_min]
+ * @txop: maximum burst time in units of 32 usecs, 0 meaning disabled
+ * @acm: is mandatory admission control required for the access category
+ * @uapsd: is U-APSD mode enabled for the queue
+ * @mu_edca: is the MU EDCA configured
+ * @mu_edca_param_rec: MU EDCA Parameter Record for HE
+ */
+struct ieee80211_tx_queue_params {
+	u16 txop;
+	u16 cw_min;
+	u16 cw_max;
+	u8 aifs;
+	bool acm;
+	bool uapsd;
+	bool mu_edca;
+	struct ieee80211_he_mu_edca_param_ac_rec mu_edca_param_rec;
+};
+
 struct ieee80211_bss {
 	u32 device_ts_beacon;
 	u32 device_ts_presp;
@@ -3601,7 +3670,7 @@ struct ieee80211_bss {
 	u8 valid_data;
 };
 
-/**
+/*
  * struct cfg80211_bss - BSS description
  *
  * This structure describes a BSS (which may also be a mesh network)
@@ -3762,7 +3831,7 @@ struct ieee80211_pspoll {
 	u8 ta[ETH_ALEN];
 } __packed __aligned(2);
 
-/**
+/*
  * struct ieee80211_multiple_bssid_configuration - multiple BSSID configuration
  *	element structure
  *
@@ -3777,7 +3846,7 @@ struct ieee80211_multiple_bssid_configuration {
 	u8 profile_periodicity;
 };
 
-/**
+/*
  * struct ieee80211_s1g_oper_ie - S1G Operation element
  * @ch_width: S1G Operation Information Channel Width
  * @oper_class: S1G Operation Information Operating Class
@@ -3796,7 +3865,7 @@ struct ieee80211_s1g_oper_ie {
 	__le16 basic_mcs_nss;
 } __packed;
 
-/**
+/*
  * ieee80211_he_6ghz_oper - HE 6 GHz operation Information field
  * @primary: primary channel
  * @control: control flags
@@ -3819,7 +3888,7 @@ struct ieee80211_he_6ghz_oper {
 	u8 minrate;
 } __packed;
 
-/**
+/*
  * struct ieee80211_rate - bitrate definition
  *
  * This structure describes a bitrate that an 802.11 PHY can
@@ -3840,7 +3909,7 @@ struct ieee80211_rate {
 	u16 hw_value_short;
 };
 
-/**
+/*
  * struct ieee80211_tx_rate - rate selection/status
  *
  * @idx: rate index to attempt to send with
@@ -3878,7 +3947,7 @@ struct ieee80211_tx_rate {
 	    flags:11;
 } __packed;
 
-/**
+/*
  * struct cfg80211_scan_info - information about completed scan
  * @scan_start_tsf: scan start time in terms of the TSF of the BSS that the
  *	wireless device that requested the scan is connected to. If this
@@ -3893,7 +3962,7 @@ struct cfg80211_scan_info {
 	bool aborted;
 };
 
-/**
+/*
  * struct ieee80211_he_operation - HE Operation element
  * @he_oper_params: HE Operation Parameters + BSS Color Information
  * @he_mcs_nss_set: Basic HE-MCS And NSS Set
@@ -3909,7 +3978,7 @@ struct ieee80211_he_operation {
 	u8 optional[];
 } __packed;
 
-/**
+/*
  * struct ieee80211_ht_operation - HT operation IE
  *
  * This structure is the "HT operation element" as
@@ -4103,7 +4172,7 @@ struct ieee80211_link_data_managed {
 	u8 dtim_period;
 };
 
-/**
+/*
  * struct ieee80211_meshconf_ie - Mesh Configuration element
  * @meshconf_psel: Active Path Selection Protocol Identifier
  * @meshconf_pmetric: Active Path Selection Metric Identifier
@@ -4126,7 +4195,7 @@ struct ieee80211_meshconf_ie {
 	u8 meshconf_cap;
 } __packed;
 
-/**
+/*
  * struct cfg80211_rnr_elems - Reduced neighbor report (RNR) elements
  *
  * @cnt: Number of elements in array %elems.
@@ -4143,7 +4212,7 @@ struct cfg80211_rnr_elems {
 	} elem[];
 };
 
-/**
+/*
  * struct cfg80211_mbssid_elems - Multiple BSSID elements
  *
  * @cnt: Number of elements in array %elems.
@@ -4177,7 +4246,7 @@ struct ieee80211_link_data_ap {
 	struct probe_resp __rcu *probe_resp;
 };
 
-/**
+/*
  * struct ieee80211_channel - channel definition
  *
  * This structure describes a single channel for use
@@ -4222,7 +4291,7 @@ struct ieee80211_channel {
 	s8 psd;
 };
 
-/**
+/*
  * struct ieee80211_edmg - EDMG configuration
  *
  * This structure describes most essential parameters needed
@@ -4240,7 +4309,7 @@ struct ieee80211_edmg {
 	enum ieee80211_edmg_bw_config bw_config;
 };
 
-/**
+/*
  * struct cfg80211_chan_def - channel definition
  * @chan: the (control) channel
  * @width: channel width
@@ -4270,7 +4339,7 @@ struct cfg80211_chan_def {
 	bool s1g_primary_2mhz;
 };
 
-/**
+/*
  * struct ieee80211_chan_req - A channel "request"
  * @oper: channel definition to use for operation
  * @ap: the channel definition of the AP, if any
@@ -4453,7 +4522,7 @@ struct ieee80211_fast_rx {
 	struct rcu_head rcu_head;
 };
 
-/**
+/*
  * struct ieee80211_vif_cfg - interface configuration
  * @assoc: association status
  * @ibss_joined: indicates whether this station is part of an IBSS or not
@@ -4501,7 +4570,7 @@ struct ieee80211_vif_cfg {
 	u8 ap_addr[ETH_ALEN] __aligned(2);
 };
 
-/**
+/*
  * struct vif_params - describes virtual interface parameters
  * @flags: monitor interface flags, unchanged if 0, otherwise
  *	%MONITOR_FLAG_CHANGED will be set
@@ -4525,7 +4594,7 @@ struct vif_params {
 	const u8 *vht_mumimo_follow_addr;
 };
 
-/**
+/*
  * struct ieee80211_txq - Software intermediate tx queue
  *
  * @vif: &struct ieee80211_vif pointer from the add_interface callback.
@@ -4548,7 +4617,7 @@ struct ieee80211_txq {
 	u8 drv_priv[] __aligned(sizeof(void *));
 };
 
-/**
+/*
  * struct sta_info - STA information
  *
  * This structure collects information about a station that
@@ -4613,7 +4682,7 @@ struct regulatory_request {
 	struct list_head list;
 };
 
-/**
+/*
  * struct ieee80211_key_seq - key sequence counter
  *
  * @tkip: TKIP data, containing IV32 and IV16 in host byte order
@@ -4652,7 +4721,7 @@ struct ieee80211_key_seq {
 	};
 };
 
-/**
+/*
  * struct ieee80211_key_conf - key information
  *
  * This key information is given by mac80211 to the driver by
@@ -4771,7 +4840,7 @@ struct ieee80211_key {
 	struct ieee80211_key_conf conf;
 };
 
-/**
+/*
  * struct rfkill_ops - rfkill driver methods
  *
  * @poll: poll the rfkill block state(s) -- only assign this method
@@ -4820,7 +4889,7 @@ struct cfg80211_registered_device {
 	struct wiphy *wiphy;
 };
 
-/**
+/*
  * struct ieee80211_rx_status - receive status
  *
  * The low-level driver should provide this information (the subset
@@ -4906,7 +4975,7 @@ struct ieee80211_rx_status {
 	u8 link_valid:1, link_id:4;
 };
 
-/**
+/*
  * struct cfg80211_fils_resp_params - FILS connection response params
  * @kek: KEK derived from a successful FILS connection (may be %NULL)
  * @kek_len: Length of @fils_kek in octets
@@ -4930,7 +4999,7 @@ struct cfg80211_fils_resp_params {
 	const u8 *pmkid;
 };
 
-/**
+/*
  * struct cfg80211_connect_resp_params - Connection response params
  * @status: Status code, %WLAN_STATUS_SUCCESS for successful connection, use
  *	%WLAN_STATUS_UNSPECIFIED_FAILURE if your device cannot give you
@@ -4992,7 +5061,7 @@ struct cfg80211_connect_resp_params {
 	} links[IEEE80211_MLD_MAX_NUM_LINKS];
 };
 
-/**
+/*
  * struct cfg80211_roam_info - driver initiated roaming information
  *
  * @req_ie: association request IEs (maybe be %NULL)
@@ -5071,7 +5140,7 @@ struct cfg80211_cqm_config {
 	s32 rssi_thresholds[] __counted_by(n_rssi_thresholds);
 };
 
-/**
+/*
  * struct ieee80211_scan_ies - descriptors for different blocks of IEs
  *
  * This structure is used to point to different blocks of IEs in HW scan
@@ -5090,8 +5159,7 @@ struct ieee80211_scan_ies {
 	size_t common_ie_len;
 };
 
-
-/**
+/*
  * struct ieee80211_tx_info - skb transmit information
  *
  * This structure is placed in skb->cb for three uses:
@@ -5198,7 +5266,7 @@ struct ieee80211_tx_info {
 	};
 };
 
-/**
+/*
  * struct cfg80211_pmsr_capabilities - cfg80211 peer measurement capabilities
  * @max_peers: maximum number of peers in a single measurement
  * @report_ap_tsf: can report assoc AP's TSF for radio resource measurement
@@ -5239,7 +5307,7 @@ struct cfg80211_pmsr_capabilities {
 	} ftm;
 };
 
-/**
+/*
  * struct cfg80211_scan_request - scan request description
  *
  * @ssids: SSIDs to scan for (active scan only)
@@ -5304,7 +5372,7 @@ struct cfg80211_scan_request {
 	struct ieee80211_channel *channels[];
 };
 
-/**
+/*
  * struct ieee80211_scan_request - hw scan request
  *
  * @ies: pointers different parts of IEs (in req.ie)
@@ -5317,7 +5385,7 @@ struct ieee80211_scan_request {
 	struct cfg80211_scan_request req;
 };
 
-/**
+/*
  * struct ieee80211_sta_he_cap - STA's HE capabilities
  *
  * This structure describes most essential parameters needed
@@ -5340,7 +5408,7 @@ struct ieee80211_he_6ghz_capa {
 	__le16 capa;
 } __packed;
 
-/**
+/*
  * struct ieee80211_eht_mcs_nss_supp_20mhz_only - EHT 20MHz only station max
  * supported NSS for per MCS.
  *
@@ -5374,7 +5442,7 @@ struct ieee80211_eht_mcs_nss_supp_20mhz_only {
 	};
 };
 
-/**
+/*
  * struct ieee80211_eht_mcs_nss_supp_bw - EHT max supported NSS per MCS (except
  * 20MHz only stations).
  *
@@ -5404,7 +5472,7 @@ struct ieee80211_eht_mcs_nss_supp_bw {
 	};
 };
 
-/**
+/*
  * struct ieee80211_eht_mcs_nss_supp - EHT max supported NSS per MCS
  *
  * See P802.11be_D1.3 Table 9-401k - "Subfields of the Supported EHT-MCS
@@ -5427,7 +5495,7 @@ struct ieee80211_eht_mcs_nss_supp {
 	} __packed;
 } __packed;
 
-/**
+/*
  * struct ieee80211_sta_eht_cap - STA's EHT capabilities
  *
  * This structure describes most essential parameters needed
@@ -5445,7 +5513,7 @@ struct ieee80211_sta_eht_cap {
 	u8 eht_ppe_thres[IEEE80211_EHT_PPE_THRES_MAX_LEN];
 };
 
-/**
+/*
  * struct ieee80211_sband_iftype_data - sband data per interface type
  *
  * This structure encapsulates sband data that is relevant for the
@@ -5472,7 +5540,7 @@ struct ieee80211_sband_iftype_data {
 	} vendor_elems;
 };
 
-/**
+/*
  * struct ieee80211_supported_band - frequency band definition
  *
  * This structure describes a frequency band a wiphy
@@ -5511,7 +5579,7 @@ struct ieee80211_supported_band {
 	const struct ieee80211_sband_iftype_data *iftype_data;
 };
 
-/**
+/*
  * struct cfg80211_pkt_pattern - packet pattern
  * @mask: bitmask where to match pattern and where to ignore bytes,
  *	one bit per byte, in same format as nl80211
@@ -5529,7 +5597,7 @@ struct cfg80211_pkt_pattern {
 	int pkt_offset;
 };
 
-/**
+/*
  * struct cfg80211_ssid - SSID description
  * @ssid: the SSID
  * @ssid_len: length of the ssid
@@ -5539,7 +5607,7 @@ struct cfg80211_ssid {
         u8 ssid_len;
 };
 
-/**
+/*
  * struct cfg80211_wowlan_nd_match - information about the match
  *
  * @ssid: SSID of the match that triggered the wake up
@@ -5554,7 +5622,7 @@ struct cfg80211_wowlan_nd_match {
 	u32 channels[];
 };
 
-/**
+/*
  * struct cfg80211_wowlan_nd_info - net detect wake up information
  *
  * @n_matches: Number of match information instances provided in
@@ -5568,7 +5636,7 @@ struct cfg80211_wowlan_nd_info {
 	struct cfg80211_wowlan_nd_match *matches[];
 };
 
-/**
+/*
  * struct cfg80211_wowlan_wakeup - wakeup report
  * @disconnect: woke up by getting disconnected
  * @magic_pkt: woke up by receiving magic packet
@@ -5607,7 +5675,7 @@ struct cfg80211_wowlan_wakeup {
 	struct cfg80211_wowlan_nd_info *net_detect;
 };
 
-/**
+/*
  * struct cfg80211_gtk_rekey_data - rekey data
  * @kek: key encryption key (@kek_len bytes)
  * @kck: key confirmation key (@kck_len bytes)
@@ -5625,7 +5693,7 @@ struct cfg80211_gtk_rekey_data {
 	u8 kck_len;
 };
 
-/**
+/*
  * struct cfg80211_wowlan_tcp - TCP connection parameters
  *
  * @sock: (internal) socket for source port allocation
@@ -5663,7 +5731,7 @@ struct cfg80211_wowlan_tcp {
 	struct nl80211_wowlan_tcp_data_token payload_tok;
 };
 
-/**
+/*
  * struct cfg80211_wowlan - Wake on Wireless-LAN support info
  *
  * This structure defines the enabled WoWLAN triggers for the device.
@@ -5695,7 +5763,7 @@ struct cfg80211_wowlan {
 	struct cfg80211_sched_scan_request *nd_config;
 };
 
-/**
+/*
  * struct ieee80211_tx_control - TX control data
  *
  * @sta: station table entry, this sta pointer may be NULL and
@@ -5732,7 +5800,7 @@ struct ieee80211_ops {
 	void *backup_cb_ptr[IEEE80211_CB_PTR];
 };
 
-/**
+/*
  * struct ieee80211_conf - configuration of the device
  *
  * This struct indicates how the driver shall configure the hardware.
@@ -5861,6 +5929,7 @@ struct ieee80211_local {
 	struct ieee80211_vif *ieee80211_ap_vif;
 	struct ieee80211_vif *ieee80211_mon_vif;
 
+	struct ieee80211_bss_conf *bss_conf;
 	/* hashtables for memorizing the wlan stations in the network */
 	unsigned long num_sta;
 
@@ -6645,7 +6714,7 @@ static inline bool ieee80211_sdata_running(struct ieee80211_sub_if_data *sdata){
 	return test_bit(SDATA_STATE_RUNNING, &sdata->state);
 }
 
-/**
+/*
  * wiphy_name - get wiphy name
  *
  * @wiphy: The wiphy whose name to return
@@ -6665,7 +6734,7 @@ static inline const char *wiphy_name(const struct wiphy *wiphy){
 
 }
 
-/**
+/*
  * wiphy_lock - lock the wiphy
  * @wiphy: the wiphy to lock
  *
@@ -6685,7 +6754,7 @@ static inline void wiphy_lock(struct wiphy *wiphy){
 	mutex_lock(&wiphy->mtx);
 }
 
-/**
+/*
  * wiphy_unlock - unlock the wiphy again
  * @wiphy: the wiphy to unlock
  */
@@ -6693,7 +6762,7 @@ static inline void wiphy_unlock(struct wiphy *wiphy){
 	mutex_unlock(&wiphy->mtx);
 }
 
-/**
+/*
  * wiphy_ext_feature_set - set the extended feature flag
  *
  * @wiphy: the wiphy to modify.
@@ -6729,7 +6798,7 @@ static inline u8 ieee80211_rate_get_vht_nss(const struct ieee80211_tx_rate *rate
 	return (rate->idx >> 4) + 1;
 }
 
-/**
+/*
  * wiphy_ext_feature_isset - check the extended feature flag
  *
  * @wiphy: the wiphy to modify.
@@ -6747,7 +6816,7 @@ static inline bool wiphy_ext_feature_isset(struct wiphy *wiphy, enum nl80211_ext
 	return (ft_byte & BIT(ftidx % 8)) != 0;
 }
 
-/**
+/*
  * ieee80211_has_tods - check if IEEE80211_FCTL_TODS is set
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame has to-DS set
@@ -6756,7 +6825,7 @@ static inline bool ieee80211_has_tods(__le16 fc){
 	return (fc & cpu_to_le16(IEEE80211_FCTL_TODS)) != 0;
 }
 
-/**
+/*
  * ieee80211_has_fromds - check if IEEE80211_FCTL_FROMDS is set
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame has from-DS set
@@ -6765,7 +6834,7 @@ static inline bool ieee80211_has_fromds(__le16 fc){
 	return (fc & cpu_to_le16(IEEE80211_FCTL_FROMDS)) != 0;
 }
 
-/**
+/*
  * ieee80211_has_a4 - check if IEEE80211_FCTL_TODS and IEEE80211_FCTL_FROMDS are set
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not it's a 4-address frame (from-DS and to-DS set)
@@ -6776,7 +6845,7 @@ static inline bool ieee80211_has_a4(__le16 fc)
 	return (fc & tmp) == tmp;
 }
 
-/**
+/*
  * ieee80211_has_morefrags - check if IEEE80211_FCTL_MOREFRAGS is set
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame has more fragments (more frags bit set)
@@ -6786,7 +6855,7 @@ static inline bool ieee80211_has_morefrags(__le16 fc)
 	return (fc & cpu_to_le16(IEEE80211_FCTL_MOREFRAGS)) != 0;
 }
 
-/**
+/*
  * ieee80211_has_retry - check if IEEE80211_FCTL_RETRY is set
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the retry flag is set
@@ -6796,7 +6865,7 @@ static inline bool ieee80211_has_retry(__le16 fc)
 	return (fc & cpu_to_le16(IEEE80211_FCTL_RETRY)) != 0;
 }
 
-/**
+/*
  * ieee80211_has_pm - check if IEEE80211_FCTL_PM is set
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the power management flag is set
@@ -6806,7 +6875,7 @@ static inline bool ieee80211_has_pm(__le16 fc)
 	return (fc & cpu_to_le16(IEEE80211_FCTL_PM)) != 0;
 }
 
-/**
+/*
  * ieee80211_has_moredata - check if IEEE80211_FCTL_MOREDATA is set
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the more data flag is set
@@ -6815,7 +6884,7 @@ static inline bool ieee80211_has_moredata(__le16 fc){
 	return (fc & cpu_to_le16(IEEE80211_FCTL_MOREDATA)) != 0;
 }
 
-/**
+/*
  * ieee80211_has_protected - check if IEEE80211_FCTL_PROTECTED is set
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the protected flag is set
@@ -6824,7 +6893,7 @@ static inline bool ieee80211_has_protected(__le16 fc){
 	return (fc & cpu_to_le16(IEEE80211_FCTL_PROTECTED)) != 0;
 }
 
-/**
+/*
  * ieee80211_has_order - check if IEEE80211_FCTL_ORDER is set
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the order flag is set
@@ -6833,7 +6902,7 @@ static inline bool ieee80211_has_order(__le16 fc){
 	return (fc & cpu_to_le16(IEEE80211_FCTL_ORDER)) != 0;
 }
 
-/**
+/*
  * ieee80211_is_mgmt - check if type is IEEE80211_FTYPE_MGMT
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame type is management
@@ -6843,7 +6912,7 @@ static inline bool ieee80211_is_mgmt(__le16 fc){
 	       cpu_to_le16(IEEE80211_FTYPE_MGMT);
 }
 
-/**
+/*
  * ieee80211_is_ctl - check if type is IEEE80211_FTYPE_CTL
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame type is control
@@ -6853,7 +6922,7 @@ static inline bool ieee80211_is_ctl(__le16 fc){
 	       cpu_to_le16(IEEE80211_FTYPE_CTL);
 }
 
-/**
+/*
  * ieee80211_is_data - check if type is IEEE80211_FTYPE_DATA
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame is a data frame
@@ -6863,7 +6932,7 @@ static inline bool ieee80211_is_data(__le16 fc){
 	       cpu_to_le16(IEEE80211_FTYPE_DATA);
 }
 
-/**
+/*
  * ieee80211_is_ext - check if type is IEEE80211_FTYPE_EXT
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame type is extended
@@ -6874,7 +6943,7 @@ static inline bool ieee80211_is_ext(__le16 fc){
 }
 
 
-/**
+/*
  * ieee80211_is_data_qos - check if type is IEEE80211_FTYPE_DATA and IEEE80211_STYPE_QOS_DATA is set
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame is a QoS data frame
@@ -6888,7 +6957,7 @@ static inline bool ieee80211_is_data_qos(__le16 fc){
 	       cpu_to_le16(IEEE80211_FTYPE_DATA | IEEE80211_STYPE_QOS_DATA);
 }
 
-/**
+/*
  * ieee80211_is_data_present - check if type is IEEE80211_FTYPE_DATA and has data
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame is a QoS data frame that has data
@@ -6903,7 +6972,7 @@ static inline bool ieee80211_is_data_present(__le16 fc){
 	       cpu_to_le16(IEEE80211_FTYPE_DATA);
 }
 
-/**
+/*
  * ieee80211_is_assoc_req - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_ASSOC_REQ
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame is an association request
@@ -6914,7 +6983,7 @@ static inline bool ieee80211_is_assoc_req(__le16 fc)
 	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_ASSOC_REQ);
 }
 
-/**
+/*
  * ieee80211_is_assoc_resp - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_ASSOC_RESP
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame is an association response
@@ -6925,7 +6994,7 @@ static inline bool ieee80211_is_assoc_resp(__le16 fc)
 	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_ASSOC_RESP);
 }
 
-/**
+/*
  * ieee80211_is_reassoc_req - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_REASSOC_REQ
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame is a reassociation request
@@ -6936,7 +7005,7 @@ static inline bool ieee80211_is_reassoc_req(__le16 fc)
 	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_REASSOC_REQ);
 }
 
-/**
+/*
  * ieee80211_is_reassoc_resp - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_REASSOC_RESP
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame is a reassociation response
@@ -6947,7 +7016,7 @@ static inline bool ieee80211_is_reassoc_resp(__le16 fc)
 	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_REASSOC_RESP);
 }
 
-/**
+/*
  * ieee80211_is_probe_req - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_PROBE_REQ
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame is a probe request
@@ -6958,7 +7027,7 @@ static inline bool ieee80211_is_probe_req(__le16 fc)
 	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_PROBE_REQ);
 }
 
-/**
+/*
  * ieee80211_is_probe_resp - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_PROBE_RESP
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame is a probe response
@@ -6969,7 +7038,7 @@ static inline bool ieee80211_is_probe_resp(__le16 fc)
 	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_PROBE_RESP);
 }
 
-/**
+/*
  * ieee80211_is_beacon - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_BEACON
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame is a (regular, not S1G) beacon
@@ -6980,7 +7049,7 @@ static inline bool ieee80211_is_beacon(__le16 fc)
 	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_BEACON);
 }
 
-/**
+/*
  * ieee80211_is_s1g_beacon - check if IEEE80211_FTYPE_EXT &&
  * IEEE80211_STYPE_S1G_BEACON
  * @fc: frame control bytes in little-endian byteorder
@@ -6993,7 +7062,7 @@ static inline bool ieee80211_is_s1g_beacon(__le16 fc)
 	       cpu_to_le16(IEEE80211_FTYPE_EXT | IEEE80211_STYPE_S1G_BEACON);
 }
 
-/**
+/*
  * ieee80211_s1g_has_next_tbtt - check if IEEE80211_S1G_BCN_NEXT_TBTT
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame contains the variable-length
@@ -7005,7 +7074,7 @@ static inline bool ieee80211_s1g_has_next_tbtt(__le16 fc)
 		(fc & cpu_to_le16(IEEE80211_S1G_BCN_NEXT_TBTT));
 }
 
-/**
+/*
  * ieee80211_s1g_has_ano - check if IEEE80211_S1G_BCN_ANO
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame contains the variable-length
@@ -7017,7 +7086,7 @@ static inline bool ieee80211_s1g_has_ano(__le16 fc)
 		(fc & cpu_to_le16(IEEE80211_S1G_BCN_ANO));
 }
 
-/**
+/*
  * ieee80211_s1g_has_cssid - check if IEEE80211_S1G_BCN_CSSID
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame contains the variable-length
@@ -7029,7 +7098,7 @@ static inline bool ieee80211_s1g_has_cssid(__le16 fc)
 		(fc & cpu_to_le16(IEEE80211_S1G_BCN_CSSID));
 }
 
-/**
+/*
  * ieee80211_is_atim - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_ATIM
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame is an ATIM frame
@@ -7040,7 +7109,7 @@ static inline bool ieee80211_is_atim(__le16 fc)
 	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_ATIM);
 }
 
-/**
+/*
  * ieee80211_is_disassoc - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_DISASSOC
  * @fc: frame control bytes in little-endian byteorder
  * Return: whether or not the frame is a disassociation frame
@@ -9195,6 +9264,77 @@ static void nl80211_gtk_rekey_notify(struct cfg80211_registered_device *rdev, st
 
 /* functions for filling driver-based callbacks */
 
+/* fill 'struct ieee80211_bss_conf' */
+static int bss_conf_init(struct ieee80211_hw *ieee80211_hw, struct ieee80211_vif *ieee80211_vif){
+	int ret = 0;
+	struct ieee80211_local *local = NULL;
+	struct ieee80211_bss_conf *bss_conf = NULL;
+
+	local = &director.ieee80211_local;
+	bss_conf = local->bss_conf;
+	if(bss_conf != NULL){
+		/* quit, bss_conf is already allocated! */
+		ret = -EINVAL;
+		goto end;
+	}
+	bss_conf = calloc(1, director.struct_sizes.ieee80211_bss_conf);
+	bss_conf->vif      = ieee80211_vif;
+	bss_conf->link_id  = 0;
+	memcpy(bss_conf->addr, ieee80211_vif->addr, ETH_ALEN);
+
+	bss_conf->beacon_int      = 100;
+	bss_conf->dtim_period     = 1;
+	bss_conf->sync_tsf        = 0;
+	bss_conf->sync_device_ts  = 0;
+	bss_conf->sync_dtim_count = 0;
+
+	bss_conf->assoc_capability = WLAN_CAPABILITY_ESS | WLAN_CAPABILITY_SHORT_SLOT_TIME | WLAN_CAPABILITY_SHORT_PREAMBLE;
+
+	bss_conf->use_cts_prot      = false;
+	bss_conf->use_short_preamble= true;
+	bss_conf->use_short_slot    = true;
+
+	bss_conf->txpower     	= 20;
+	bss_conf->txpower_type	= NL80211_TX_POWER_LIMITED;
+
+	bss_conf->basic_rates = BIT(0) | BIT(1) | BIT(2) | BIT(3);
+	bss_conf->beacon_rate = NULL;
+	bss_conf->ht_operation_mode = IEEE80211_HT_OP_MODE_PROTECTION_NONE;
+	bss_conf->he_support  = true;
+	bss_conf->eht_support = false;
+
+	bss_conf->arp_addr_cnt     = 0;
+
+	/* disable the power saving feature */
+	bss_conf->ps = false;
+	bss_conf->idle = false;
+	bss_conf->qos = false;
+
+	bss_conf->cqm_rssi_thold = -70;
+	bss_conf->cqm_rssi_hyst  = 4;
+	bss_conf->cqm_rssi_low   = -80;
+	bss_conf->cqm_rssi_high  = -60;
+
+	bss_conf->mcast_rate[NL80211_BAND_2GHZ] = 0;
+	bss_conf->mcast_rate[NL80211_BAND_5GHZ] = 0;
+	bss_conf->mcast_rate[NL80211_BAND_6GHZ] = 0;
+
+	bss_conf->twt_requester = false;
+	bss_conf->twt_responder = false;
+	bss_conf->twt_protected = false;
+	bss_conf->twt_broadcast = false;
+
+	bss_conf->ftm_responder        = false;
+	bss_conf->ftm_responder_params = NULL;
+
+	bss_conf->frame_time_rts_th = 0;
+	bss_conf->multicast_to_unicast = false;
+	bss_conf->enable_beacon = false;
+
+	end:
+	return ret;
+}
+
 /* fill the 'start_ap'/'stop_ap' parameters */
 static int fill_start_ap_req(struct ieee80211_bss_conf *link_conf){
 	int ret = 0;
@@ -9326,5 +9466,4 @@ static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 	}
 	return ret;
 }
-
 #endif

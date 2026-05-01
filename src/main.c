@@ -3,9 +3,12 @@
 #include <ieee80211.h>
 
 #define SYM_ENTRIES	 4096
+
+/* global symbol table */
 struct internal_cb_table sym_table[SYM_ENTRIES];
 struct module_controller director;
 
+/* command entry, those are the commands the user can use from Exsul's shell */
 struct cmd_table_entry {
 	u8 cmd_name[18];
 	u8 cmd_args;
@@ -16,9 +19,7 @@ struct cmd_table_entry {
 #include <arm64/arm64.h>
 #include <x86_64/x86_64.h>
 
-/* structures and definitions used for representing the command table used by
- * the main program.
- */
+/* structures and definitions used for representing the command table used by the main program. */
 enum {
 	DRV_CMD_EXIT,
 	DRV_CMD_RESET,
@@ -1922,6 +1923,32 @@ static int call_final_function(struct module *mod, struct load_info *info,
 	return -ENOENT;
 }
 
+/* update the kernel version by converting the vermagic string, it will be useful later for setting the function arguments */
+void update_kernel_version(unsigned char *vermagic){
+	char *separate_version = NULL;
+	unsigned char kernel_version_string_part[16];
+
+	if(vermagic == NULL || strlen(vermagic) < 16){
+		goto end;
+	}
+
+	sscanf(vermagic, "%16s", kernel_version_string_part);
+
+	/* isolate the version.subversion part */
+	separate_version = strchr(kernel_version_string_part, '-');
+
+	if (separate_version != NULL) {
+		*separate_version = '\0';
+	}
+
+	/* final parsing */
+	if (sscanf(kernel_version_string_part, "%hhu.%hhu.%hhu", &director.kernel_major_version, &director.kernel_minor_version, &director.kernel_patch) != 3){
+		printf("[!] failed to parse kernel version!\n");
+		goto end;
+	}
+
+	end:
+}
 
 /* main entry point of the kernel "module_init" function, permits to load entirely a kernel module, in our case instead, it will load it only in memory and wait for the function to run */
 int module_init(unsigned char *file_name, unsigned char *function_name, struct load_info *info) {
@@ -2009,6 +2036,9 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 
 	printf("name %s\n", get_modinfo(info, "name"));
 	printf("vermagic %s\n", get_modinfo(info, "vermagic"));
+
+	/* save the kernel version values for later use */
+	update_kernel_version(get_modinfo(info, "vermagic"));
 
 	mod = layout_and_allocate(info, 0);
 
@@ -2970,6 +3000,44 @@ int drv_cmd_get(struct module_controller *director, char *argv[], int num_args) 
 	return ret;
 }
 
+int handle_ieee80211_conf_tx(struct ieee80211_hw *ieee80211_hw, struct ieee80211_vif *ieee80211_vif, struct ieee80211_ops *ops){
+	int ret = 0;
+	struct ieee80211_tx_queue_params *params = NULL;
+	/*
+	 * if the Linux kernel is > 6.0 use this prototype:
+	 * 'int (*conf_tx)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, unsigned int link_id, u16 ac, const struct ieee80211_tx_queue_params *params);
+	 * instead, if is <= 5.19 the prototype is:
+	 * int (*conf_tx)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, u16 ac, const struct ieee80211_tx_queue_params *params);
+	 */
+
+	params = calloc(1, sizeof(struct ieee80211_tx_queue_params));
+	if(director.kernel_major_version >= 6){
+		int (*conf_tx)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, unsigned int link_id, u16 ac, struct ieee80211_tx_queue_params *params) = NULL;
+		conf_tx = ops->conf_tx;
+		if(conf_tx == NULL){
+			ret = -EINVAL;
+			return ret;
+		}
+		conf_tx(ieee80211_hw, ieee80211_vif, 0, 0, params);
+	}else{
+		int (*conf_tx)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, u16 ac, const struct ieee80211_tx_queue_params *params) = NULL;
+		conf_tx = ops->conf_tx;
+		if(conf_tx == NULL){
+			ret = -EINVAL;
+			return ret;
+		}
+		conf_tx(ieee80211_hw, ieee80211_vif, 0, params);
+	}
+	free(params);
+	return ret;
+}
+
+int handle_ieee80211_config(struct ieee80211_hw *ieee80211_hw, struct ieee80211_ops *ops){
+	int ret = 0;
+
+	return ret;
+}
+
 /* permits to invoke various 'ops' struct registered by running the loaded kernel module, like 'ieee80211_ops' */
 int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args) {
         int ret = 0;
@@ -2977,16 +3045,20 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	struct ieee80211_ops *ops = NULL;
 	struct ieee80211_local *local = NULL;
 	struct ieee80211_hw *ieee80211_hw = NULL;
+	struct netdev_hw_addr_list *mc_list = NULL;
 	struct ieee80211_bss_conf *bss_conf = NULL;
 	struct ieee80211_vif *ieee80211_vif = NULL;
 	struct ieee80211_vif *ieee80211_ap_vif = NULL;
 	struct ieee80211_vif *ieee80211_mon_vif = NULL;
 	struct ieee80211_scan_request *scan_req = NULL;
+	/* callbacks prototypes */
 	int (*start)(struct ieee80211_hw *hw) = NULL;
 	void (*stop)(struct ieee80211_hw *hw, bool suspend) = NULL;
 	int (*add_interface)(struct ieee80211_hw *hw, struct ieee80211_vif *vif) = NULL;
 	void (*cancel_hw_scan)(struct ieee80211_hw *hw, struct ieee80211_vif *vif) = NULL;
 	void (*remove_interface)(struct ieee80211_hw *hw, struct ieee80211_vif *vif) = NULL;
+	u64 (*prepare_multicast)(struct ieee80211_hw *hw, struct netdev_hw_addr_list *mc_list) = NULL;
+	void (*sw_scan_start)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, const u8 *mac_addr) = NULL;
 	int (*hw_scan)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_scan_request *req) = NULL;
 	int (*start_ap)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_bss_conf *link_conf) = NULL;
 	void (*stop_ap)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_bss_conf *link_conf) = NULL;
@@ -3052,6 +3124,8 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 				ieee80211_vif->active_links |= BIT(0);
 			}
 			ret = add_interface(local->ieee80211_hw, local->ieee80211_vif);
+			/* generate the bss_config */
+			ret = bss_conf_init(local->ieee80211_hw, local->ieee80211_vif);
 		}
 	}
 	if(strcmp(ops_req, "remove_interface") == 0){
@@ -3065,7 +3139,29 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			remove_interface(local->ieee80211_hw, local->ieee80211_vif);
 		}
 	}
+	if(strcmp(ops_req, "config") == 0){
+		/* the 'config' callback changes from Linux version 6 to version 7, so handle it in a separate function */
+		ret = handle_ieee80211_config(local->ieee80211_hw, ops);
+	}
+	if(strcmp(ops_req, "conf_tx") == 0){
+		/* handle in the same way of 'config' */
+		ret = handle_ieee80211_conf_tx(local->ieee80211_hw, local->ieee80211_vif, ops);
+	}
+	if(strcmp(ops_req, "prepare_multicast") == 0){
+		prepare_multicast = ops->prepare_multicast;
+		if(prepare_multicast != NULL){
+			if(mc_list == NULL){
+				mc_list = calloc(1, sizeof(struct netdev_hw_addr_list));
+			}
+			ret = prepare_multicast(local->ieee80211_hw, mc_list);
+		}
+	}
+	if(strcmp(ops_req, "sta_add") == 0){
 
+	}
+	if(strcmp(ops_req, "sta_remove") == 0){
+
+	}
 	if(strcmp(ops_req, "scan") == 0){
 		hw_scan = ops->hw_scan;
 		if(hw_scan != NULL && local->ieee80211_vif != NULL){
@@ -3079,6 +3175,12 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			ret = hw_scan(local->ieee80211_hw, local->ieee80211_vif, scan_req);
 		}else{
 			goto ieee80211_vif_not_initialized;
+		}
+	}
+	if(strcmp(ops_req, "sw_scan") == 0){
+		sw_scan_start = ops->sw_scan_start;
+		if(sw_scan_start != NULL){
+
 		}
 	}
 	if(strcmp(ops_req, "cancel_scan") == 0){
@@ -3357,7 +3459,7 @@ int elf_entry_stub(int argc, char *argv[]){
 		/* now invoke the 'start' and 'add_interface' callbacks */
 		fast_run_ieee80211_cb(IEEE80211_START);
 		usleep(1000);
-		fast_run_ieee80211_cb(IEEE80211_ADD_INTERFACE);
+		fast_run_ieee80211_cb(IEEE80211_MONITOR);
 
 		while(true){
 			/* main loop here */

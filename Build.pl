@@ -688,6 +688,8 @@ my %inline_array_field = (
 	ieee80211_bss_conf => {
 		"addr"				=> 1,
 		"transmitter_bssid"		=> 1,
+		"mcast_rate"			=> 1,
+		
 	},
 );
 

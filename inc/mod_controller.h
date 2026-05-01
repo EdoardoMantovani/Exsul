@@ -25,6 +25,10 @@ struct fast_struct_size {
 
 struct module_controller {
         char module_name[16];
+	/* current module major, minor and patch version */
+	u8 kernel_major_version;
+	u8 kernel_minor_version;
+	u8 kernel_patch;
 	/* mantain the count of the loaded modules in the current address space */
 	int modules_loaded;
 	/* mantain a track of the current memory used for everything, in bytes */
