@@ -818,6 +818,8 @@ if($windows_support){
 	pop(@gcc_final_linkings);
 	pop(@gcc_final_linkings);
 	pop(@gcc_final_linkings);
+	pop(@gcc_final_linkings);
+	pop(@gcc_final_linkings);
 	push(@gcc_final_linkings, "-lbcrypt");
 	# now add the Windows .dlls
 	push(@gcc_final_linkings, "win/libs/libdwarf.dll.a");

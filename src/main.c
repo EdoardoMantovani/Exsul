@@ -115,14 +115,14 @@ void dump_usb_host_interface(struct usb_interface *intf){
 	}
 
 	for(u8 k = 0; k < intf->altsetting->desc.bNumEndpoints; k++){
-		printf("[DUMP] endpoint %d length %d\n", k, intf->altsetting->endpoint[k].desc.bLength);
-		printf("[DUMP] endpoint %d desc: %d\n", k, intf->altsetting->endpoint[k].desc.bDescriptorType);
-		printf("[DUMP] endpoint %d ep_addr: %d\n", k, intf->altsetting->endpoint[k].desc.bEndpointAddress);
-		printf("[DUMP] endpoint %d attributes: %d\n", k, intf->altsetting->endpoint[k].desc.bmAttributes);
-		printf("[DUMP] endpoint %d max pkt size: %d\n", k, intf->altsetting->endpoint[k].desc.wMaxPacketSize);
-		printf("[DUMP] endpoint %d interval: %d\n", k, intf->altsetting->endpoint[k].desc.bInterval);
-		printf("[DUMP] endpoint %d refresh: %d\n", k, intf->altsetting->endpoint[k].desc.bRefresh);
-		printf("[DUMP] endpoint %d sync address: %d\n", k, intf->altsetting->endpoint[k].desc.bSynchAddress);
+		printf("[*] endpoint %d length %d\n", k, intf->altsetting->endpoint[k].desc.bLength);
+		printf("[*] endpoint %d desc: %d\n", k, intf->altsetting->endpoint[k].desc.bDescriptorType);
+		printf("[*] endpoint %d ep_addr: %d\n", k, intf->altsetting->endpoint[k].desc.bEndpointAddress);
+		printf("[*] endpoint %d attributes: %d\n", k, intf->altsetting->endpoint[k].desc.bmAttributes);
+		printf("[*] endpoint %d max pkt size: %d\n", k, intf->altsetting->endpoint[k].desc.wMaxPacketSize);
+		printf("[*] endpoint %d interval: %d\n", k, intf->altsetting->endpoint[k].desc.bInterval);
+		printf("[*] endpoint %d refresh: %d\n", k, intf->altsetting->endpoint[k].desc.bRefresh);
+		printf("[*] endpoint %d sync address: %d\n", k, intf->altsetting->endpoint[k].desc.bSynchAddress);
 	}
 }
 #endif
@@ -142,7 +142,6 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 	struct usb_device                   *udev_ptr   = NULL;
 	const struct libusb_interface_descriptor *alt   = NULL;
 	const struct libusb_endpoint_descriptor  *ep    = NULL;
-
 	struct libusb_device_descriptor dev_desc	= {};
 
 	if (handler == NULL || in_intf == NULL) {
@@ -199,9 +198,9 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 	libusb_intf = &cfg->interface[0];
 	num_altsetting = (u8)libusb_intf->num_altsetting;
 
-#ifdef ADVANCED_USB_DEBUGGING
+	#ifdef ADVANCED_USB_DEBUGGING
         printf("[*] interface 0 has %d altsetting(s)\n", num_altsetting);
-#endif
+	#endif
 
         if (num_altsetting == 0) {
                 printf("[!] interface 0 has no altsettings!\n");
@@ -320,9 +319,9 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 	intf_ptr->dev.parent    = &udev_ptr->dev;
 	director.usb_device_ptr = udev_ptr;
 
-#ifdef ADVANCED_USB_DEBUGGING
+	#ifdef ADVANCED_USB_DEBUGGING
         dump_usb_host_interface(intf_ptr);
-#endif
+	#endif
 
         *in_intf = intf_ptr;
         libusb_free_config_descriptor(cfg);
@@ -832,16 +831,16 @@ static int elf_validity_cache_copy(struct load_info *info, int flags) {
 				   ".gnu.linkonce.this_module") == 0) {
 				num_mod_secs++;
 				mod_idx = i;
-#ifdef ENABLE_DBG_PRINT
+			#ifdef ENABLE_DBG_PRINT
 				printf("detected .gnu.linkonce.this_module\n");
-#endif
+				#endif
 			} else if (strcmp(info->secstrings + shdr->sh_name,
 					  ".modinfo") == 0) {
 				num_info_secs++;
 				info_idx = i;
-#ifdef ENABLE_DBG_PRINT
+				#ifdef ENABLE_DBG_PRINT
 				printf("detected .modinfo\n");
-#endif
+				#endif
 			}
 			if (shdr->sh_flags & SHF_ALLOC) {
 				if (shdr->sh_name >= strhdr->sh_size) {
@@ -1062,11 +1061,10 @@ static void __layout_sections(struct module *mod, struct load_info *info,
 				continue;
 			}
 
-			s->sh_entsize =
-			    module_get_offset_and_type(mod, type, s, i);
-#ifdef ENABLE_DBG_PRINT
+			s->sh_entsize = module_get_offset_and_type(mod, type, s, i);
+			#ifdef ENABLE_DBG_PRINT
 			printf("%s\n", sname);
-#endif
+			#endif
 		}
 
 	}
@@ -1078,14 +1076,14 @@ static void layout_sections(struct module *mod, struct load_info *info) {
 		info->sechdrs[i].sh_entsize = ~0UL;
 	}
 
-#ifdef ENABLE_DBG_PRINT
+	#ifdef ENABLE_DBG_PRINT
 	printf("Core section allocation order for %s:\n", mod->name);
-#endif
+	#endif
 	__layout_sections(mod, info, false);
 
-#ifdef ENABLE_DBG_PRINT
+	#ifdef ENABLE_DBG_PRINT
 	printf("Init section allocation order for %s:\n", mod->name);
-#endif
+	#endif
 	__layout_sections(mod, info, true);
 	return;
 }
@@ -1096,9 +1094,9 @@ static int module_memory_alloc(struct module *mod, enum mod_mem_type type) {
 	void	    *ptr;
 
 	mod->mem[type].size = size;
-#ifdef ENABLE_DBG_PRINT
+	#ifdef ENABLE_DBG_PRINT
 	printf("[*] module memory alloc %d bytes for type '%s'\n", size, mem_type_to_string(type));
-#endif
+	#endif
 	if(type == MOD_TEXT || type == MOD_INIT_TEXT){
 		mem_flags |= PROT_EXEC;
 	}
@@ -1145,9 +1143,9 @@ static int move_module(struct module *mod, struct load_info *info) {
 		}
 	}
 
-#ifdef ENABLE_DBG_PRINT
+	#ifdef ENABLE_DBG_PRINT
 	printf("Final section addresses for %s:\n", mod->name);
-#endif
+	#endif
 	for (i = 0; i < info->hdr->e_shnum; i++) {
 		dest = NULL;
 		shdr = &info->sechdrs[i];
@@ -1164,10 +1162,9 @@ static int move_module(struct module *mod, struct load_info *info) {
 			memcpy(dest, (void *)shdr->sh_addr, shdr->sh_size);
 		}
 		shdr->sh_addr = (unsigned long)dest;
-#ifdef ENABLE_DBG_PRINT
-		printf("\t0x%lx 0x%.8lx %s\n", (long)shdr->sh_addr,
-		       (long)shdr->sh_size, info->secstrings + shdr->sh_name);
-#endif
+		#ifdef ENABLE_DBG_PRINT
+		printf("\t0x%lx 0x%.8lx %s\n", (long)shdr->sh_addr, (long)shdr->sh_size, info->secstrings + shdr->sh_name);
+		#endif
 	}
 
 	return 0;
@@ -1210,8 +1207,7 @@ void layout_symtab(struct module *mod, struct load_info *info) {
 	struct module_memory *mod_mem_init_data = &mod->mem[MOD_INIT_DATA];
 
 	symsect->sh_flags |= SHF_ALLOC;
-	symsect->sh_entsize = module_get_offset_and_type(
-	    mod, MOD_INIT_DATA, symsect, info->index.sym);
+	symsect->sh_entsize = module_get_offset_and_type(mod, MOD_INIT_DATA, symsect, info->index.sym);
 	#ifdef ENABLE_DBG_PRINT
 	printf("\t%s\n", info->secstrings + symsect->sh_name);
 	#endif
@@ -2973,7 +2969,11 @@ int drv_cmd_get(struct module_controller *director, char *argv[], int num_args) 
 	}
 	/* get the ELF/PE file dump */
 	if(strstr(get_req, "exec") != NULL || strstr(get_req, "elf") != NULL || strstr(get_req, "pe") != NULL){
+		#ifdef __linux__
 		elf_generator_handler();
+		#else
+
+		#endif
 	}
 
 	/* dump the structs and offsets of the actual loaded lkm */
@@ -3420,6 +3420,17 @@ void elf_crash_handler(int sig){
 	libusb_exit(NULL);
 }
 
+/* compile and execute the passed C strings in memory */
+int invoke_tcc_scripting(unsigned char *c_string_data, int c_string_len){
+	int ret = 0;
+
+	tcc_compile_string(director.tcc_ctx, c_string_data);
+	ret = tcc_run(director.tcc_ctx, 0, NULL);
+
+	return ret;
+}
+
+#ifdef __linux__
 /* protocol handler for the standalone ELF */
 int elf_handle_driver_protocol(struct module_controller *director, char *socket_buffer_data){
 	int ret = 0;
@@ -3437,13 +3448,23 @@ int elf_handle_driver_protocol(struct module_controller *director, char *socket_
 
 	hdr = (struct exsul_protocol_hdr *)socket_buffer_data;
 	msg_len = hdr->len;
-	if(hdr->type == STANDALONE_TCC_SCRIPTING){
-		tcc_high_string = (char *)socket_buffer_data + sizeof(struct exsul_protocol_hdr);
 
+	if(hdr->type == STANDALONE_TCC_SCRIPTING){
+		#ifdef TCC_SCRIPTING
+		tcc_high_string = (char *)socket_buffer_data + sizeof(struct exsul_protocol_hdr);
+		if(msg_len > BUFF_SIZE){
+			ret = -EINVAL;
+			return ret;
+		}
+		ret = invoke_tcc_scripting(tcc_high_string, msg_len);
+		#else
+		printf("[!] tcc scripting not implemented!\n");
+		ret = -EINVAL;
+		return ret;
+		#endif
 	}
 	if(hdr->type == STANDALONE_CONSOLE_MGMT){
 		console_cmd = (char *)socket_buffer_data + sizeof(struct exsul_protocol_hdr);
-
 	}
 	return ret;
 }
@@ -4030,6 +4051,7 @@ int elf_generator_handler(void){
 	close(elf_dump_fd);
 	return ret;
 }
+#endif
 
 /*
  * add also a crash handler which returns a custom file format when it crash,
