@@ -15,6 +15,7 @@
 #include <elf.h>
 #include <link.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <execinfo.h>
 #include <libusb-1.0/libusb.h>
 #include <linux/elf-em.h>
@@ -45,6 +46,8 @@
 #include <stdatomic.h>
 #include <netinet/ether.h>
 #include <dwarf.h>
+#include <sys/un.h>
+#include <sys/socket.h>
 #include <libdwarf/libdwarf.h>
 #ifdef ENABLE_UNWIND_DEBUGGING
 #include <libunwind.h>
@@ -211,57 +214,52 @@ typedef _Atomic(unsigned int) atomic_uint;
 #endif
 
 /* defines the maximun size of the buffer data which can be transferred from the user to the kernel stub */
-#define MAX_DEBUGFS_SIZE	128
+#define MAX_DEBUGFS_SIZE		128
 
 /* defines the maximun number of usb devices which can be present in the current kernel module */
-#define MAX_USB_DEV_LIST	36
+#define MAX_USB_DEV_LIST		36
 
 /* array size of the module memory allocated by the functions 'kmem_xxx' */
-#define MAX_KMEM_ARRAY_SIZE	36
+#define MAX_KMEM_ARRAY_SIZE		36
 
 /* define the number of maximun lkm which can be loaded in memory for one istance of this application */
-#define MAX_ALLOCATED_LKM_NUMBER 12
+#define MAX_ALLOCATED_LKM_NUMBER	12
 
 /* size for the sk_buff struct, usually is around 384 bytes */
-#define SK_BUFF_STRUCT_SIZE	512
+#define SK_BUFF_STRUCT_SIZE		512
 
 /* size for the 'net_device' struct, usually around 2600 bytes */
-#define NET_DEVICE_STRUCT_SIZE	3 * 1024
+#define NET_DEVICE_STRUCT_SIZE		3 * 1024
 
 /* maximun number of files that can be opened by the kernel module */
-#define MAX_FILE_IDX		32
+#define MAX_FILE_IDX			32
 
 /* maximun size of the backtrace, called only in case of crash */
-#define BACKTRACE_MAX_DEPTH     24
+#define BACKTRACE_MAX_DEPTH     	24
 
 /* maximun number of usb endpoints possible */
-#define USB_MAX_ENDPOINT_NUM    30
+#define USB_MAX_ENDPOINT_NUM    	30
 
 /* minimun area size for tcc jit */
-#define TCC_MINIMUN_AREA_SIZE	512
+#define TCC_MINIMUN_AREA_SIZE		512
 
 /* path for the firmware files, this will be used mainly in Linux, for Windows expect a local folder */
-#define DEFAULT_FW_PATH		"/lib/firmware/"
+#define DEFAULT_FW_PATH			"/lib/firmware/"
 
 /* magic number used for identifying the header of crash dump */
-#define DUMP_MAGIC		"DCCCCB"
+#define DUMP_MAGIC			"DCCCCB"
 
 /* name of the crashdump file */
-#define DUMP_FILENAME		"crashreport-%d-%02d-%02d_%02d:%02d:%02d.bin"
+#define DUMP_FILENAME			"crashreport-%d-%02d-%02d_%02d:%02d:%02d.bin"
 
-/* workaround for having clang -fsanitize flag working */
-#ifdef __clang__
-#define clang_static		static
-#else
-#define clang_static
-#endif
+/* socket name for the ipc socket used by the standalone ELF */
+#define SOCKET_PATH			"/tmp/exsul_socket"
 
-/* workaround for stack alignment for the stubs in x86-64 */
-#ifdef __x86_64__
-#define stub			__attribute__((force_align_arg_pointer))
-#else
-#define stub
-#endif
+/* size of the socket buffer sent from a client to the ipc server initialized by the standalone ELF */
+#define BUFF_SIZE			1024
+
+/* maximun socket connections that can be accepted by the standalone ELF */
+#define MAXIMUN_SOCKET_CONNECTIONS	2
 
 /* include here the errno.h header data */
 #define ERESTARTSYS             512

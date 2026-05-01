@@ -15,6 +15,19 @@ struct cmd_table_entry {
 	int (*cmd_ptr)(struct module_controller *, char **, int);
 };
 
+/* protocol format for the standalone ELF ipc */
+struct exsul_protocol_hdr {
+	u8 type;
+	u8 unused;
+	u16 len;
+};
+
+/* protocol types FOR 'exsul_protocol_hdr' */
+enum {
+	STANDALONE_TCC_SCRIPTING = 1,
+	STANDALONE_CONSOLE_MGMT  = 2,
+};
+
 /* include here the headers for the various supported architectures */
 #include <arm64/arm64.h>
 #include <x86_64/x86_64.h>
@@ -3407,6 +3420,139 @@ void elf_crash_handler(int sig){
 	libusb_exit(NULL);
 }
 
+/* protocol handler for the standalone ELF */
+int elf_handle_driver_protocol(struct module_controller *director, char *socket_buffer_data){
+	int ret = 0;
+	int msg_len = 0;
+	unsigned char *console_cmd = NULL;
+	unsigned char *tcc_high_string = NULL;
+	struct exsul_protocol_hdr *hdr = NULL;
+
+	/*
+	 * protocol description:
+	 * two different handlers:
+	 * 1) TCC scripting: transfer high level C strings which get compiled and injected in the process memory.
+	 * 2) console management: transfer command strings which gets executed as command, for example "ops start" invoke the ieee80211_ops start callback.
+	 */
+
+	hdr = (struct exsul_protocol_hdr *)socket_buffer_data;
+	msg_len = hdr->len;
+	if(hdr->type == STANDALONE_TCC_SCRIPTING){
+		tcc_high_string = (char *)socket_buffer_data + sizeof(struct exsul_protocol_hdr);
+
+	}
+	if(hdr->type == STANDALONE_CONSOLE_MGMT){
+		console_cmd = (char *)socket_buffer_data + sizeof(struct exsul_protocol_hdr);
+
+	}
+	return ret;
+}
+
+/* generate the socket interface for ipc communication, heavily inspired by 'https://github.com/nguyenchiemminhvu/LinuxIPC/blob/main/Socket/unix_server.c' */
+int elf_entry_socket(struct module_controller *director){
+	int ret = 0;
+	int number_fds = 0;
+	int sock_client = 0;
+	char sock_buffer[BUFF_SIZE] = {};
+	struct sockaddr_un addr_server = {};
+	struct pollfd poll_fds[MAXIMUN_SOCKET_CONNECTIONS] = {};
+
+	director->socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if(director->socket_fd < 0){
+		printf("[!] failed to initialize socket!\n");
+		ret = -EINVAL;
+		return ret;
+	}
+
+	director->socket_flags = fcntl(director->socket_fd, F_GETFL);
+	if(director->socket_flags < 0){
+		printf("[!] failed to get socket flags!\n");
+		ret = -EINVAL;
+		return ret;
+	}
+
+	ret = fcntl(director->socket_fd, F_SETFL, director->socket_flags | O_NONBLOCK);
+	if(ret < 0){
+		printf("[!] failed to set socket flags!\n");
+		ret = -EINVAL;
+		goto socket_close;
+	}
+
+	memset(&addr_server, 0, sizeof(struct sockaddr_un));
+	addr_server.sun_family = AF_UNIX;
+	strncpy(addr_server.sun_path, SOCKET_PATH, sizeof(addr_server.sun_path) - 1);
+	unlink(SOCKET_PATH);
+
+	ret = bind(director->socket_fd, (struct sockaddr *)&addr_server, sizeof(addr_server));
+	if(ret < 0){
+		printf("[!] error binding the server!\n");
+		ret = -EINVAL;
+		goto socket_close;
+	}
+
+	ret = listen(director->socket_fd, MAXIMUN_SOCKET_CONNECTIONS);
+	if(ret < 0){
+		printf("[!] failed to listed on the socket!\n");
+		ret = -EINVAL;
+		goto socket_close;
+	}
+
+	/* now if everything is okay, the server will be start polling for new connections */
+
+	memset(poll_fds, 0, sizeof(struct pollfd) * MAXIMUN_SOCKET_CONNECTIONS);
+	poll_fds[0].fd = director->socket_fd;
+	poll_fds[0].events = POLLIN;
+
+	number_fds = 1;
+
+	while (true){
+		ret = poll(poll_fds, number_fds, -1);
+
+		if (ret < 0){
+			printf("[!] error while polling!\n");
+			ret = -EIO;
+			goto socket_close;
+		}
+		for (int i = 0; i < number_fds; i++){
+			if (poll_fds[i].revents & POLLIN){
+				if (poll_fds[i].fd == director->socket_fd){
+					sock_client = accept(director->socket_fd, NULL, NULL);
+					if (sock_client > 0){
+						director->client_flags = fcntl(sock_client, F_GETFL);
+						fcntl(sock_client, F_SETFL, director->client_flags | O_NONBLOCK);
+						if (number_fds < MAXIMUN_SOCKET_CONNECTIONS){
+							poll_fds[number_fds].fd = sock_client;
+							poll_fds[number_fds].events = POLLIN;
+							number_fds++;
+						}else{
+							close(sock_client);
+						}
+					}
+				}else{
+					ret = recv(poll_fds[i].fd, sock_buffer, BUFF_SIZE, 0);
+					if (ret > 0){
+						ret = elf_handle_driver_protocol(director, sock_buffer);
+					}else if (ret == 0 || (ret == -1 && errno != EAGAIN && errno != EWOULDBLOCK)){
+						printf("[!] fd %d disconnected!\n", poll_fds[i].fd);
+						close(poll_fds[i].fd);
+						poll_fds[i] = poll_fds[number_fds - 1];
+						number_fds--;
+						i--;
+					}
+				}
+			}
+		}
+	}
+	close(director->socket_fd);
+	unlink(SOCKET_PATH);
+	return ret;
+
+	socket_close:
+	close(director->socket_fd);
+	return ret;
+}
+
+/* main entry point of the standalone ELF */
 int elf_entry_stub(int argc, char *argv[]){
 	int ret = 0;
 

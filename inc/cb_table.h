@@ -665,10 +665,12 @@ struct internal_cb_table sym_table[4096] = {
     [656] = { .function_name = "drv_execute_code", .function_ptr = drv_execute_code, .function_size = 46 },
     [657] = { .function_name = "drv_shutdown_scripting", .function_ptr = drv_shutdown_scripting, .function_size = 54 },
     [658] = { .function_name = "elf_crash_handler", .function_ptr = elf_crash_handler, .function_size = 189 },
-    [659] = { .function_name = "elf_entry_stub", .function_ptr = elf_entry_stub, .function_size = 1175 },
-    [660] = { .function_name = "crash_handler", .function_ptr = crash_handler, .function_size = 534 },
-    [661] = { .function_name = "handle_offset_config", .function_ptr = handle_offset_config, .function_size = 1376 },
-    [662] = { .function_name = "main", .function_ptr = main, .function_size = 1226 },
-    [663] = { .function_name = NULL, .function_ptr = NULL },
+    [659] = { .function_name = "elf_handle_driver_protocol", .function_ptr = elf_handle_driver_protocol, .function_size = 15 },
+    [660] = { .function_name = "elf_entry_socket", .function_ptr = elf_entry_socket, .function_size = 796 },
+    [661] = { .function_name = "elf_entry_stub", .function_ptr = elf_entry_stub, .function_size = 1175 },
+    [662] = { .function_name = "crash_handler", .function_ptr = crash_handler, .function_size = 534 },
+    [663] = { .function_name = "handle_offset_config", .function_ptr = handle_offset_config, .function_size = 1376 },
+    [664] = { .function_name = "main", .function_ptr = main, .function_size = 1226 },
+    [665] = { .function_name = NULL, .function_ptr = NULL },
 };
 

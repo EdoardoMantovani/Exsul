@@ -36,9 +36,21 @@ struct module_controller {
 	int fd;
 	u8 *trampoline_area;
         int trampoline_used;
+
 	/* emulates jiffies */
 	u64 jiffies;
+
         int libusb_ret;
+
+	/* socket file handler used for the standalone ELF ipc */
+	int socket_fd;
+
+	/* socket flags */
+	int socket_flags;
+
+	/* ipc client */
+	int client_flags;
+
 	/* global configuration struct, the field can be set at runtime via the 'set' command */
 	struct global_conf global_conf;
         struct module *mod;
