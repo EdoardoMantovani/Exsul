@@ -1404,6 +1404,7 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 	unsigned int	      i		 = 0;
 	int		      ret	 = 0;
 	struct kernel_symbol *ksym	 = NULL;
+	void		     *target     = NULL;
 	void		     *dlopen_ctx = NULL;
 	void                 *trampoline = NULL;
 	unsigned char	     *name	 = NULL;
@@ -1428,7 +1429,7 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 #endif
 			break;
 		case SHN_UNDEF:
-			void *target = NULL;
+			target = NULL;
 			for (int j = 0; sym_table[j].function_ptr != NULL;
 			     j++) {
 				if (strcmp(
@@ -3310,8 +3311,10 @@ int drv_integrate_scripting(void){
 /* accept input code from the user and execute it */
 int drv_execute_code(unsigned char *incoming_code){
 	int ret = 0;
+
 	tcc_compile_string(director.tcc_ctx, incoming_code);
 	tcc_run(director.tcc_ctx, 0, NULL);
+
 	return ret;
 }
 
@@ -3424,6 +3427,7 @@ void elf_crash_handler(int sig){
 int invoke_tcc_scripting(unsigned char *c_string_data, int c_string_len){
 	int ret = 0;
 
+	printf("%s\n", c_string_data);
 	tcc_compile_string(director.tcc_ctx, c_string_data);
 	ret = tcc_run(director.tcc_ctx, 0, NULL);
 
@@ -3456,6 +3460,7 @@ int elf_handle_driver_protocol(struct module_controller *director, char *socket_
 			ret = -EINVAL;
 			return ret;
 		}
+
 		ret = invoke_tcc_scripting(tcc_high_string, msg_len);
 		#else
 		printf("[!] tcc scripting not implemented!\n");
@@ -3612,6 +3617,11 @@ int elf_entry_stub(int argc, char *argv[]){
 	pthread_cond_init(&director.timer_cond, NULL);
 	director.timer_once  = PTHREAD_ONCE_INIT;
 
+	/* if enabled, initialize also the tcc scripting layer */
+	#ifdef TCC_SCRIPTING
+	drv_integrate_scripting();
+	#endif
+
 	/* call the driver init */
 	if(director.driver_init_function != NULL){
 		fast_get_symbol("_driver_init", &director.driver_init_function);
@@ -3623,14 +3633,8 @@ int elf_entry_stub(int argc, char *argv[]){
 		/* sleep for 5 seconds, this is the average waiting time for the rtw89 dongle usb (second) detection */
 		usleep(5000000);
 		ret = director.driver_init_function();
-		/* now invoke the 'start' and 'add_interface' callbacks */
-		fast_run_ieee80211_cb(IEEE80211_START);
-		usleep(1000);
-		fast_run_ieee80211_cb(IEEE80211_MONITOR);
-
-		while(true){
-			/* main loop here */
-		}
+		/* jump to the ipc server creation and poll */
+		elf_entry_socket(&director);
 	}
 
 	quit:
@@ -4142,7 +4146,11 @@ void crash_handler(int sig){
 	if(sig != SIGABRT){
 		finalize_director();
 	}
+	#ifdef __linux__
 	elf_generator_handler();
+	#else
+
+	#endif
 	exit(0);
 }
 

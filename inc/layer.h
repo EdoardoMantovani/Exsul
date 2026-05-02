@@ -1069,6 +1069,74 @@ extern struct module_controller director;
 #define __ALIGN_KERNEL(x, a)		__ALIGN_KERNEL_MASK(x, (__typeof__(x))(a) - 1)
 #define __ALIGN_KERNEL_MASK(x, mask)	(((x) + (mask)) & ~(mask))
 
+#ifdef __USE_FILE_OFFSET64
+#define DWORD_HI(x) (x >> 32)
+#define DWORD_LO(x) ((x) & 0xffffffff)
+#else
+#define DWORD_HI(x) (0)
+#define DWORD_LO(x) (x)
+#endif
+
+/* taken from 'https://github.com/m-labs/uclibc-lm32/blob/master/utils/mmap-windows.c' */
+static void *mmap(void *start, size_t length, int prot, int flags, int fd, off_t offset){
+	if (prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC)){
+		return MAP_FAILED;
+	}
+	if (fd == -1) {
+		if (!(flags & MAP_ANON) || offset){
+			return MAP_FAILED;
+		}
+	} else if (flags & MAP_ANON){
+		return MAP_FAILED;
+	}
+	DWORD flProtect;
+	if (prot & PROT_WRITE) {
+		if (prot & PROT_EXEC){
+			flProtect = PAGE_EXECUTE_READWRITE;
+		}else{
+			flProtect = PAGE_READWRITE;
+		}
+	}else if (prot & PROT_EXEC) {
+		if (prot & PROT_READ){
+			flProtect = PAGE_EXECUTE_READ;
+		}else if (prot & PROT_EXEC){
+			flProtect = PAGE_EXECUTE;
+		}
+	}else{
+		flProtect = PAGE_READONLY;
+	}
+
+	off_t end = length + offset;
+	HANDLE mmap_fd, h;
+	if (fd == -1){
+		mmap_fd = INVALID_HANDLE_VALUE;
+	}else{
+		mmap_fd = (HANDLE)_get_osfhandle(fd);
+	}
+	h = CreateFileMapping(mmap_fd, NULL, flProtect, DWORD_HI(end), DWORD_LO(end), NULL);
+	if (h == NULL){
+		return MAP_FAILED;
+	}
+	DWORD dwDesiredAccess;
+	if (prot & PROT_WRITE){
+		dwDesiredAccess = FILE_MAP_WRITE;
+	}else{
+		dwDesiredAccess = FILE_MAP_READ;
+	}
+	if (prot & PROT_EXEC){
+		dwDesiredAccess |= FILE_MAP_EXECUTE;
+	}
+	if (flags & MAP_PRIVATE){
+		dwDesiredAccess |= FILE_MAP_COPY;
+	}
+	void *ret = MapViewOfFile(h, dwDesiredAccess, DWORD_HI(offset), DWORD_LO(offset), length);
+	if (ret == NULL) {
+		CloseHandle(h);
+		ret = MAP_FAILED;
+	}
+	return ret;
+}
+
 static int munmap(void *addr, size_t length){
 	int ret = 0;
 	if (addr == NULL || addr == MAP_FAILED) {
@@ -1322,6 +1390,7 @@ static inline int pthread_cancel(pthread_t th){
 }
 
 static int clock_gettime_realtime(struct timespec *ts) {
+	int ret = 0;
 	FILETIME ft;
 	ULARGE_INTEGER ui;
 	GetSystemTimePreciseAsFileTime(&ft);
@@ -1332,12 +1401,13 @@ static int clock_gettime_realtime(struct timespec *ts) {
 	uint64_t t = ui.QuadPart - 116444736000000000ULL;
 	ts->tv_sec  = (time_t)(t / 10000000ULL);
 	ts->tv_nsec = (long)((t % 10000000ULL) * 100);
-	return 0;
+	return ret;
 }
 
 static int clock_gettime_monotonic(struct timespec *ts) {
-	static LARGE_INTEGER freq;
-	static int init = 0;
+	int ret = 0;
+	LARGE_INTEGER freq;
+	int init = 0;
 	LARGE_INTEGER now;
 
 	if (!init) {
@@ -1349,8 +1419,52 @@ static int clock_gettime_monotonic(struct timespec *ts) {
 
 	ts->tv_sec  = (time_t)(now.QuadPart / freq.QuadPart);
 	ts->tv_nsec = (long)(((now.QuadPart % freq.QuadPart) * 1000000000LL) / freq.QuadPart);
-	return 0;
+	return ret;
 }
+
+static int win_clock_gettime(int clock_id, struct timespec *ts){
+	int ret = 0;
+	if (ts == NULL) {
+		errno = EINVAL;
+		ret = -EINVAL;;
+		return ret;
+	}
+
+	if (clock_id == CLOCK_MONOTONIC) {
+		LARGE_INTEGER counter;
+		LARGE_INTEGER freq;
+
+		if (!QueryPerformanceFrequency(&freq) || !QueryPerformanceCounter(&counter)) {
+			errno = EINVAL;
+			ret = -EINVAL;
+			return ret;
+		}
+
+		ts->tv_sec  = (time_t)(counter.QuadPart / freq.QuadPart);
+		ts->tv_nsec = (long)(((counter.QuadPart % freq.QuadPart) * 1000000000LL) / freq.QuadPart);
+		return ret;
+	}
+
+	if (clock_id == CLOCK_REALTIME) {
+		FILETIME ft;
+		ULARGE_INTEGER ui;
+		uint64_t t_100ns;
+		const uint64_t EPOCH_DIFF_100NS = 116444736000000000ULL;
+
+		ui.LowPart  = ft.dwLowDateTime;
+		ui.HighPart = ft.dwHighDateTime;
+
+		t_100ns = ui.QuadPart - EPOCH_DIFF_100NS;
+		ts->tv_sec  = (time_t)(t_100ns / 10000000ULL);
+		ts->tv_nsec = (long)((t_100ns % 10000000ULL) * 100ULL);
+		return ret;
+	}
+
+	errno = EINVAL;
+	ret = -EINVAL;
+	return ret;
+}
+
 #endif
 
 /**

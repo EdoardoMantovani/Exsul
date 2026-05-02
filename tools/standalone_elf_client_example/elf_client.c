@@ -25,6 +25,10 @@
 #define u16		uint16_t
 #define u32		uint32_t
 
+#define s8		int8_t
+#define s16		int16_t
+#define s32		int32_t
+
 /* protocol format for the standalone ELF ipc */
 struct exsul_protocol_hdr {
 	u8 type;
@@ -58,7 +62,7 @@ int enable_raw_mode(void) {
 	atexit(disable_raw_mode);
 	raw = orig_termios;
 	raw.c_lflag &= ~(ICANON | ECHO);
-	raw.c_cc[VMIN] = 1;
+	raw.c_cc[VMIN]  = 1;
 	raw.c_cc[VTIME] = 0;
 
 	ret = tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
@@ -67,16 +71,19 @@ int enable_raw_mode(void) {
 
 int main(int argc, char *argv[]){
 	int ret = 0;
+	int total_len = 0;
 	int sock_server = 0;
 	int current_line_len = 0;
+	unsigned char  current_c = 0;
 	unsigned char *memarea = NULL;
+	unsigned char *tmp_buffer = NULL;
 	unsigned char *current_line = NULL;
 	unsigned char *command_mode = NULL;
 	struct sockaddr_un addr_server = {};
 	struct exsul_protocol_hdr protocol_pkt = {};
 
 	command_mode = argv[1];
-	if(command_mode == NULL || strstr(command_mode, "tcc") == NULL || strstr(command_mode, "console") == NULL){
+	if(command_mode == NULL){
 		printf("[!] usage ./%s <tcc|console>\n", argv[0]);
 		ret = -EINVAL;
 		goto end;
@@ -107,26 +114,55 @@ int main(int argc, char *argv[]){
 		protocol_pkt.type = STANDALONE_CONSOLE_MGMT;
 	}
 
-	printf("[*] starting the interactive shell, press ctrl + D for sending the message to the standalone ELF!\n");
+	/* enable raw terminal mode for reading the CTRL + E sequence */
+	ret = enable_raw_mode();
+	if(ret < 0){
+		printf("[!] failed to init raw mode!\n");
+		ret = -EIO;
+		goto end;
+	}
+
+	printf("[*] starting the interactive shell, press ctrl + E for sending the message to the standalone ELF!\n");
 	memset(protocol_pkt.data, 0, BUFFER_SIZE);
 
 	fflush(stdout);
 	fflush(stderr);
 
 	while(true){
-		ret = getline(&current_line, &current_line_len, stdin);
-		if(ret < 0) {
-			free(current_line);
-			break;
+		current_c = 0;
+		ret = read(STDIN_FILENO, &current_c, 1);
+		if (ret <= 0){
+			continue;
 		}
-		memarea = realloc(memarea, (memarea ? strlen(memarea) : 0) + current_line_len + sizeof("\n"));
-		if (memarea == NULL) {
-			free(current_line);
-			goto end;
+		/* Ctrl + E is '0x05', send the buffer to the userspace driver through IPC */
+		if (current_c == 0x05) {
+			if (total_len > BUFFER_SIZE){
+				total_len = BUFFER_SIZE;
+			}
+			memcpy(protocol_pkt.data, memarea, total_len);
+			protocol_pkt.len = (u16)total_len;
+			send(sock_server, &protocol_pkt, sizeof(struct exsul_protocol_hdr), 0);
 		}
-		strcat(memarea, current_line);
-		free(current_line);
-		current_line = NULL;
+
+		/* handle cancellation of a character */
+		if (current_c == 0x7f || current_c == 0x08) {
+			if (total_len > 0) {
+				total_len--;
+				memarea[total_len] = '\0';
+				write(STDOUT_FILENO, "\b \b", 3);
+			}
+			continue;
+		}
+
+		tmp_buffer = realloc(memarea, total_len + 1);
+		if (tmp_buffer == NULL) {
+			free(memarea);
+			ret = -ENOMEM;
+			return ret;
+		}
+		memarea = tmp_buffer;
+		memarea[total_len++] = current_c;
+		write(STDOUT_FILENO, &current_c, 1);
 	}
 
 	end:
@@ -135,3 +171,4 @@ int main(int argc, char *argv[]){
 	}
 	return ret;
 }
+
