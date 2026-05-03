@@ -12,6 +12,10 @@
  */
 #define IEEE80211_BSS_ARP_ADDR_LIST_LEN		4
 
+#define WLAN_SA_QUERY_TR_ID_LEN			2
+#define WLAN_MEMBERSHIP_LEN			8
+#define WLAN_USER_POSITION_LEN			16
+
 #define NUM_DEFAULT_KEYS			4
 #define NUM_DEFAULT_MGMT_KEYS			2
 #define NUM_DEFAULT_BEACON_KEYS			2
@@ -1045,6 +1049,21 @@ enum mac80211_rx_flags {
 	RX_FLAG_NO_PSDU			= BIT(29),
 	RX_FLAG_8023			= BIT(30),
 	RX_FLAG_RADIOTAP_VHT		= BIT(31),
+};
+
+/**
+ * enum ieee80211_packet_rx_flags - packet RX flags
+ * @IEEE80211_RX_AMSDU: a-MSDU packet
+ * @IEEE80211_RX_MALFORMED_ACTION_FRM: action frame is malformed
+ * @IEEE80211_RX_DEFERRED_RELEASE: frame was subjected to receive reordering
+ *
+ * These are per-frame flags that are attached to a frame in the
+ * @rx_flags field of &struct ieee80211_rx_status.
+ */
+enum ieee80211_packet_rx_flags {
+	IEEE80211_RX_AMSDU			= BIT(3),
+	IEEE80211_RX_MALFORMED_ACTION_FRM	= BIT(4),
+	IEEE80211_RX_DEFERRED_RELEASE		= BIT(5),
 };
 
 enum ieee80211_radiotap_zero_len_psdu_type {
@@ -3343,6 +3362,369 @@ struct ieee80211_vendor_ie {
 	u8 oui[3];
 	u8 oui_type;
 } __packed;
+
+
+struct ieee80211_addba_ext_ie {
+	u8 data;
+} __packed;
+
+struct ieee80211_ext {
+	__le16 frame_control;
+	__le16 duration;
+	union {
+		struct {
+			u8 sa[ETH_ALEN];
+			__le32 timestamp;
+			u8 change_seq;
+			u8 variable[];
+		} __packed s1g_beacon;
+	} u;
+} __packed __aligned(2);
+
+/**
+ * struct ieee80211_bss_load_elem - BSS Load elemen
+ *
+ * Defined in section 9.4.2.26 in IEEE 802.11-REVme D4.1
+ *
+ * @sta_count: total number of STAs currently associated with the AP.
+ * @channel_util: Percentage of time that the access point sensed the channel
+ *	was busy. This value is in range [0, 255], the highest value means
+ *	100% busy.
+ * @avail_admission_capa: remaining amount of medium time used for admission
+ *	control.
+ */
+struct ieee80211_bss_load_elem {
+	__le16 sta_count;
+	u8 channel_util;
+	__le16 avail_admission_capa;
+} __packed;
+
+/**
+ * struct ieee80211_tpc_report_ie - TPC Report element
+ * @tx_power: Transmit Power
+ * @link_margin: Link Margin
+ *
+ * This structure represents the payload of the "TPC Report element" as
+ * described in IEEE Std 802.11-2020 section 9.4.2.16.
+ */
+struct ieee80211_tpc_report_ie {
+	u8 tx_power;
+	u8 link_margin;
+} __packed;
+
+/**
+ * struct ieee80211_quiet_ie - Quiet element
+ * @count: Quiet Count
+ * @period: Quiet Period
+ * @duration: Quiet Duration
+ * @offset: Quiet Offset
+ *
+ * This structure represents the payload of the "Quiet element" as
+ * described in IEEE Std 802.11-2020 section 9.4.2.22.
+ */
+struct ieee80211_quiet_ie {
+	u8 count;
+	u8 period;
+	__le16 duration;
+	__le16 offset;
+} __packed;
+
+/**
+ * struct ieee80211_msrment_ie - Measurement element
+ * @token: Measurement Token
+ * @mode: Measurement Report Mode
+ * @type: Measurement Type
+ * @request: Measurement Request or Measurement Report
+ *
+ * This structure represents the payload of both the "Measurement
+ * Request element" and the "Measurement Report element" as described
+ * in IEEE Std 802.11-2020 sections 9.4.2.20 and 9.4.2.21.
+ */
+struct ieee80211_msrment_ie {
+	u8 token;
+	u8 mode;
+	u8 type;
+	u8 request[];
+} __packed;
+
+/**
+ * struct ieee80211_channel_sw_ie - Channel Switch Announcement element
+ * @mode: Channel Switch Mode
+ * @new_ch_num: New Channel Number
+ * @count: Channel Switch Count
+ *
+ * This structure represents the payload of the "Channel Switch
+ * Announcement element" as described in IEEE Std 802.11-2020 section
+ * 9.4.2.18.
+ */
+struct ieee80211_channel_sw_ie {
+	u8 mode;
+	u8 new_ch_num;
+	u8 count;
+} __packed;
+
+/**
+ * struct ieee80211_ext_chansw_ie - Extended Channel Switch Announcement element
+ * @mode: Channel Switch Mode
+ * @new_operating_class: New Operating Class
+ * @new_ch_num: New Channel Number
+ * @count: Channel Switch Count
+ *
+ * This structure represents the "Extended Channel Switch Announcement
+ * element" as described in IEEE Std 802.11-2020 section 9.4.2.52.
+ */
+struct ieee80211_ext_chansw_ie {
+	u8 mode;
+	u8 new_operating_class;
+	u8 new_ch_num;
+	u8 count;
+} __packed;
+
+/**
+ * struct ieee80211_sec_chan_offs_ie - secondary channel offset IE
+ * @sec_chan_offs: secondary channel offset, uses IEEE80211_HT_PARAM_CHA_SEC_*
+ *	values here
+ * This structure represents the "Secondary Channel Offset element"
+ */
+struct ieee80211_sec_chan_offs_ie {
+	u8 sec_chan_offs;
+} __packed;
+
+/**
+ * struct ieee80211_wide_bw_chansw_ie - wide bandwidth channel switch IE
+ * @new_channel_width: New Channel Width
+ * @new_center_freq_seg0: New Channel Center Frequency Segment 0
+ * @new_center_freq_seg1: New Channel Center Frequency Segment 1
+ *
+ * This structure represents the payload of the "Wide Bandwidth
+ * Channel Switch element" as described in IEEE Std 802.11-2020
+ * section 9.4.2.160.
+ */
+struct ieee80211_wide_bw_chansw_ie {
+	u8 new_channel_width;
+	u8 new_center_freq_seg0, new_center_freq_seg1;
+} __packed;
+
+/* represent an ieee80211 management frame */
+struct ieee80211_mgmt {
+	__le16 frame_control;
+	__le16 duration;
+	u8 da[ETH_ALEN];
+	u8 sa[ETH_ALEN];
+	u8 bssid[ETH_ALEN];
+	__le16 seq_ctrl;
+	union {
+		struct {
+			__le16 auth_alg;
+			__le16 auth_transaction;
+			__le16 status_code;
+			/* possibly followed by Challenge text */
+			u8 variable[];
+		} __packed auth;
+		struct {
+			__le16 reason_code;
+		} __packed deauth;
+		struct {
+			__le16 capab_info;
+			__le16 listen_interval;
+			/* followed by SSID and Supported rates */
+			u8 variable[];
+		} __packed assoc_req;
+		struct {
+			__le16 capab_info;
+			__le16 status_code;
+			__le16 aid;
+			/* followed by Supported rates */
+			u8 variable[];
+		} __packed assoc_resp, reassoc_resp;
+		struct {
+			__le16 capab_info;
+			__le16 status_code;
+			u8 variable[];
+		} __packed s1g_assoc_resp, s1g_reassoc_resp;
+		struct {
+			__le16 capab_info;
+			__le16 listen_interval;
+			u8 current_ap[ETH_ALEN];
+			/* followed by SSID and Supported rates */
+			u8 variable[];
+		} __packed reassoc_req;
+		struct {
+			__le16 reason_code;
+		} __packed disassoc;
+		struct {
+			__le64 timestamp;
+			__le16 beacon_int;
+			__le16 capab_info;
+			/* followed by some of SSID, Supported rates,
+			 * FH Params, DS Params, CF Params, IBSS Params, TIM */
+			u8 variable[];
+		} __packed beacon;
+		struct {
+			/* only variable items: SSID, Supported rates */
+			DECLARE_FLEX_ARRAY(u8, variable);
+		} __packed probe_req;
+		struct {
+			__le64 timestamp;
+			__le16 beacon_int;
+			__le16 capab_info;
+			/* followed by some of SSID, Supported rates,
+			 * FH Params, DS Params, CF Params, IBSS Params */
+			u8 variable[];
+		} __packed probe_resp;
+		struct {
+			u8 category;
+			union {
+				struct {
+					u8 action_code;
+					u8 dialog_token;
+					u8 status_code;
+					u8 variable[];
+				} __packed wme_action;
+				struct{
+					u8 action_code;
+					u8 variable[];
+				} __packed chan_switch;
+				struct{
+					u8 action_code;
+					struct ieee80211_ext_chansw_ie data;
+					u8 variable[];
+				} __packed ext_chan_switch;
+				struct{
+					u8 action_code;
+					u8 dialog_token;
+					u8 element_id;
+					u8 length;
+					struct ieee80211_msrment_ie msr_elem;
+				} __packed measurement;
+				struct{
+					u8 action_code;
+					u8 dialog_token;
+					__le16 capab;
+					__le16 timeout;
+					__le16 start_seq_num;
+					/* followed by BA Extension */
+					u8 variable[];
+				} __packed addba_req;
+				struct{
+					u8 action_code;
+					u8 dialog_token;
+					__le16 status;
+					__le16 capab;
+					__le16 timeout;
+					/* followed by BA Extension */
+					u8 variable[];
+				} __packed addba_resp;
+				struct{
+					u8 action_code;
+					__le16 params;
+					__le16 reason_code;
+				} __packed delba;
+				struct {
+					u8 action_code;
+					u8 variable[];
+				} __packed self_prot;
+				struct{
+					u8 action_code;
+					u8 variable[];
+				} __packed mesh_action;
+				struct {
+					u8 action;
+					u8 trans_id[WLAN_SA_QUERY_TR_ID_LEN];
+				} __packed sa_query;
+				struct {
+					u8 action;
+					u8 smps_control;
+				} __packed ht_smps;
+				struct {
+					u8 action_code;
+					u8 chanwidth;
+				} __packed ht_notify_cw;
+				struct {
+					u8 action_code;
+					u8 dialog_token;
+					__le16 capability;
+					u8 variable[];
+				} __packed tdls_discover_resp;
+				struct {
+					u8 action_code;
+					u8 operating_mode;
+				} __packed vht_opmode_notif;
+				struct {
+					u8 action_code;
+					u8 membership[WLAN_MEMBERSHIP_LEN];
+					u8 position[WLAN_USER_POSITION_LEN];
+				} __packed vht_group_notif;
+				struct {
+					u8 action_code;
+					u8 dialog_token;
+					u8 tpc_elem_id;
+					u8 tpc_elem_length;
+					struct ieee80211_tpc_report_ie tpc;
+				} __packed tpc_report;
+				struct {
+					u8 action_code;
+					u8 dialog_token;
+					u8 follow_up;
+					u8 tod[6];
+					u8 toa[6];
+					__le16 tod_error;
+					__le16 toa_error;
+					u8 variable[];
+				} __packed ftm;
+				struct {
+					u8 action_code;
+					u8 variable[];
+				} __packed s1g;
+				struct {
+					u8 action_code;
+					u8 dialog_token;
+					u8 follow_up;
+					u32 tod;
+					u32 toa;
+					u8 max_tod_error;
+					u8 max_toa_error;
+				} __packed wnm_timing_msr;
+				struct {
+					u8 action_code;
+					u8 dialog_token;
+					u8 variable[];
+				} __packed ttlm_req;
+				struct {
+					u8 action_code;
+					u8 dialog_token;
+					__le16 status_code;
+					u8 variable[];
+				} __packed ttlm_res;
+				struct {
+					u8 action_code;
+				} __packed ttlm_tear_down;
+				struct {
+					u8 action_code;
+					u8 dialog_token;
+					u8 variable[];
+				} __packed ml_reconf_req;
+				struct {
+					u8 action_code;
+					u8 dialog_token;
+					u8 count;
+					u8 variable[];
+				} __packed ml_reconf_resp;
+				struct {
+					u8 action_code;
+					u8 variable[];
+				} __packed epcs;
+				struct {
+					u8 action_code;
+					u8 dialog_token;
+					u8 control;
+					u8 variable[];
+				} __packed eml_omn;
+			} u;
+		} __packed action;
+		DECLARE_FLEX_ARRAY(u8, body); /* Generic frame body */
+	} u;
+} __packed __aligned(2);
 
 /**
  * struct ieee80211_mcs_info - Supported MCS Set field
@@ -6641,6 +7023,19 @@ static inline struct ieee80211_rx_status *IEEE80211_SKB_RXCB(struct sk_buff *skb
 	return (struct ieee80211_rx_status *)skb->cb;
 }
 
+static inline u32 ieee80211_rx_status_to_khz(struct ieee80211_rx_status *rx_status){
+	return MHZ_TO_KHZ(rx_status->freq) + (rx_status->freq_offset ? 500 : 0);
+}
+
+/**
+ * ieee80211_channel_to_khz - convert ieee80211_channel to frequency in KHz
+ * @chan: struct ieee80211_channel to convert
+ * Return: The corresponding frequency (in KHz)
+ */
+static inline u32 ieee80211_channel_to_khz(const struct ieee80211_channel *chan){
+	return MHZ_TO_KHZ(chan->center_freq) + chan->freq_offset;
+}
+
 /* avoid any debugfs function */
 static inline void rate_control_add_debugfs(struct ieee80211_local *local){
 	/* do nothing */
@@ -7306,6 +7701,34 @@ static inline bool ieee80211_is_frag(struct ieee80211_hdr *hdr)
 	       hdr->seq_ctrl & cpu_to_le16(IEEE80211_SCTL_FRAG);
 }
 
+/**
+ * ieee80211_s1g_optional_len - determine length of optional S1G beacon fields
+ * @fc: frame control bytes in little-endian byteorder
+ * Return: total length in bytes of the optional fixed-length fields
+ *
+ * S1G beacons may contain up to three optional fixed-length fields that
+ * precede the variable-length elements. Whether these fields are present
+ * is indicated by flags in the frame control field.
+ *
+ * From IEEE 802.11-2024 section 9.3.4.3:
+ *  - Next TBTT field may be 0 or 3 bytes
+ *  - Short SSID field may be 0 or 4 bytes
+ *  - Access Network Options (ANO) field may be 0 or 1 byte
+ */
+static inline int ieee80211_s1g_optional_len(__le16 fc){
+	int len = 0;
+
+	if (ieee80211_s1g_has_next_tbtt(fc)){
+		len += 3;
+	}
+	if (ieee80211_s1g_has_cssid(fc)){
+		len += 4;
+	}
+	if (ieee80211_s1g_has_ano(fc)){
+		len += 1;
+	}
+	return len;
+}
 
 /**
  * ieee80211_get_qos_ctl - get pointer to qos control bytes
@@ -9054,6 +9477,101 @@ static struct sk_buff *ieee80211_rx_monitor(struct ieee80211_local *local, struc
 	return ieee80211_clean_skb(origskb, present_fcs_len, rtap_space);
 }
 
+static void ieee80211_parse_qos(struct ieee80211_rx_data *rx){
+	int tid = 0;
+	int seqno_idx = 0;
+	int security_idx = 0;
+	struct sk_buff *skb = NULL;
+	struct ieee80211_hdr *hdr = NULL;
+	struct ieee80211_rx_status *status = NULL;
+
+	skb = rx->skb;
+	hdr = skb->data;
+	status = (struct ieee80211_rx_status *)skb->cb;
+
+	/* does the frame have a qos control field? */
+	if (ieee80211_is_data_qos(hdr->frame_control)) {
+		u8 *qc = ieee80211_get_qos_ctl(hdr);
+		/* frame has qos control */
+		tid = *qc & IEEE80211_QOS_CTL_TID_MASK;
+		if (*qc & IEEE80211_QOS_CTL_A_MSDU_PRESENT){
+			status->rx_flags |= IEEE80211_RX_AMSDU;
+		}
+		seqno_idx = tid;
+		security_idx = tid;
+	} else {
+		/*
+		 * IEEE 802.11-2007, 7.1.3.4.1 ("Sequence Number field"):
+		 *
+		 *	Sequence numbers for management frames, QoS data
+		 *	frames with a broadcast/multicast address in the
+		 *	Address 1 field, and all non-QoS data frames sent
+		 *	by QoS STAs are assigned using an additional single
+		 *	modulo-4096 counter, [...]
+		 *
+		 * We also use that counter for non-QoS STAs.
+		 */
+		seqno_idx = IEEE80211_NUM_TIDS;
+		security_idx = 0;
+		if (ieee80211_is_mgmt(hdr->frame_control)){
+			security_idx = IEEE80211_NUM_TIDS;
+		}
+		tid = 0;
+	}
+
+	rx->seqno_idx = seqno_idx;
+	rx->security_idx = security_idx;
+	/* Set skb->priority to 1d tag if highest order bit of TID is not set.
+	 * For now, set skb->priority to 0 for other cases. */
+	skb->priority = (tid > 7) ? 0 : tid;
+}
+
+static void ieee80211_scan_rx(struct ieee80211_local *local, struct sk_buff *skb){
+	int min_hdr_len = 0;
+	struct wiphy *wiphy = NULL;
+	struct ieee80211_bss *bss = NULL;
+	struct ieee80211_ext *ext = NULL;
+	struct ieee80211_mgmt *mgmt = NULL;
+	struct ieee80211_channel *channel = NULL;
+	struct ieee80211_rx_status *rx_status = NULL;
+
+	wiphy = local->wiphy;
+	mgmt = (void *)skb->data;
+	rx_status = (struct ieee80211_rx_status *)skb->cb;
+	min_hdr_len = offsetof(struct ieee80211_mgmt, u.probe_resp.variable);
+
+	if (!ieee80211_is_probe_resp(mgmt->frame_control) && !ieee80211_is_beacon(mgmt->frame_control) && !ieee80211_is_s1g_beacon(mgmt->frame_control)){
+		goto end;
+	}
+
+	if (ieee80211_is_s1g_beacon(mgmt->frame_control)) {
+		ext = (struct ieee80211_ext *)mgmt;
+		min_hdr_len = offsetof(struct ieee80211_ext, u.s1g_beacon.variable) + ieee80211_s1g_optional_len(ext->frame_control);
+	}
+
+	if (skb->len < min_hdr_len){
+		goto end;
+	}
+
+	if (test_and_clear_bit(SCAN_BEACON_WAIT, &local->scanning)) {
+		/*
+		 * we were passive scanning because of radar/no-IR, but
+		 * the beacon/proberesp rx gives us an opportunity to upgrade
+		 * to active scan
+		 */
+		set_bit(SCAN_BEACON_DONE, &local->scanning);
+		//wiphy_delayed_work_queue(wiphy, &local->scan_work, 0);
+	}
+
+	channel = ieee80211_get_channel_khz(local->hw.wiphy, ieee80211_rx_status_to_khz(rx_status));
+
+	if (!channel || channel->flags & IEEE80211_CHAN_DISABLED){
+		goto end;
+	}
+
+	end:
+}
+
 /*
  * This is the actual Rx frames handler. as it belongs to Rx path it must
  * be called with rcu_read_lock protection.
@@ -9096,7 +9614,6 @@ static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw, struct ieee802
 
 	hdr = (struct ieee80211_hdr *)skb->data;
 	ieee80211_parse_qos(&rx);
-	ieee80211_verify_alignment(&rx);
 
 	if (unlikely(ieee80211_is_probe_resp(hdr->frame_control) || ieee80211_is_beacon(hdr->frame_control) || ieee80211_is_s1g_beacon(hdr->frame_control))){
 		ieee80211_scan_rx(local, skb);

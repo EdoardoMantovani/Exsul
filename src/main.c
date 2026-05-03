@@ -3049,6 +3049,19 @@ int handle_ieee80211_conf_tx(struct ieee80211_hw *ieee80211_hw, struct ieee80211
 int handle_ieee80211_config(struct ieee80211_hw *ieee80211_hw, struct ieee80211_ops *ops){
 	int ret = 0;
 
+	if(director.kernel_major_version >= 6 && director.kernel_minor_version > 17){
+		int (*config)(struct ieee80211_hw *hw, int radio_idx, u32 changed) = NULL;
+		config = ops->config;
+		if(config != NULL){
+			ret = config(ieee80211_hw, -1, 16);
+		}
+	}else{
+		int (*config)(struct ieee80211_hw *hw, u32 changed) = NULL;
+		config = ops->config;
+		if(config != NULL){
+			ret = config(ieee80211_hw, 16);
+		}
+	}
 	return ret;
 }
 
@@ -3059,6 +3072,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	struct ieee80211_ops *ops = NULL;
 	struct ieee80211_local *local = NULL;
 	struct ieee80211_hw *ieee80211_hw = NULL;
+	struct ieee80211_vif_cfg *vif_cfg = NULL;
 	struct netdev_hw_addr_list *mc_list = NULL;
 	struct ieee80211_bss_conf *bss_conf = NULL;
 	struct ieee80211_vif *ieee80211_vif = NULL;
@@ -3131,6 +3145,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 				bss_conf = &ieee80211_vif->bss_conf;
 				bss_conf->vif = ieee80211_vif;
 				bss_conf->link_id = 0;
+				memcpy(ieee80211_vif->addr, (u8[]){0x72, 0x88, 0xcb, 0xbc, 0x05, 0x4c}, ETH_ALEN);
 				ether_addr_copy(bss_conf->addr, ieee80211_vif->addr);
 				bss_conf->bssid = bss_conf->addr;
 				rcu_assign_pointer(ieee80211_vif->link_conf[0], bss_conf);
@@ -3217,23 +3232,24 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			bss_conf = &ieee80211_ap_vif->bss_conf;
 			bss_conf->vif = ieee80211_ap_vif;
 			bss_conf->link_id = 0;
+			memcpy(ieee80211_ap_vif->addr, (u8[]){0x72, 0x88, 0xcb, 0xbc, 0x05, 0x4c}, ETH_ALEN);
 			ether_addr_copy(bss_conf->addr, ieee80211_ap_vif->addr);
 			bss_conf->bssid = bss_conf->addr;
 			rcu_assign_pointer(ieee80211_ap_vif->link_conf[0], bss_conf);
 			ieee80211_ap_vif->valid_links  |= BIT(0);
 			ieee80211_ap_vif->active_links |= BIT(0);
+			vif_cfg = &ieee80211_ap_vif->cfg;
+			vif_cfg->assoc = true;
+			vif_cfg->idle = false;
+			strncpy(vif_cfg->ssid, "test_network", sizeof("test_network"));
+			vif_cfg->ssid_len = sizeof("test_network");
+			ether_addr_copy(vif_cfg->ap_addr, ieee80211_ap_vif->addr);
 			/* register the interface */
 			add_interface = ops->add_interface;
-			ret = add_interface(local->ieee80211_hw, local->ieee80211_ap_vif);
+			ret = add_interface(local->ieee80211_hw, ieee80211_ap_vif);
 		}
 		if(start_ap != NULL && local->ieee80211_ap_vif != NULL){
-			if(bss_conf != NULL){
-				free(bss_conf);
-				bss_conf = NULL;
-			}
-			bss_conf = calloc(1, director.struct_sizes.ieee80211_bss_conf);
-			fill_start_ap_req(bss_conf);
-			ret = start_ap(local->ieee80211_hw, local->ieee80211_ap_vif, bss_conf);
+			ret = start_ap(local->ieee80211_hw, ieee80211_ap_vif, bss_conf);
 		}else{
 			goto ieee80211_vif_not_initialized;
 		}

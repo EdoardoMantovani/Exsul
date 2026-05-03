@@ -144,27 +144,28 @@ my @gcc_final_linkings = (
 );
 
 my %struct_whitelist = (
-	"skb"		=> "sk_buff",
-	"skb_info"	=> "skb_shared_info",
-	"mod"		=> "module",
-	"wiphy"		=> "wiphy",
-	"sock"		=> "sock",
-	"dev"		=> "device",
-	"udev"		=> "usb_device",
-        "rate_info"     => "rate_info",
-	"hw"		=> "ieee80211_hw",
-	"urb"		=> "urb",
-	"fops"		=> "file_operations",
-	"netdev"	=> "net_device",
-	"intf"		=> "usb_interface",
-	"ieee80211_ops" => "ieee80211_ops",
-	"driver"	=> "device_driver",
-	"usb_driver"	=> "usb_driver",
-	"hdev"		=> "hci_dev",
-	"hci_conn"	=> "hci_conn",
-	"settings"	=> "cfg80211_ap_settings",
-	"link_conf"	=> "ieee80211_bss_conf",
-	"ieee80211_vif" => "ieee80211_vif",
+	"skb"			=> "sk_buff",
+	"skb_info"		=> "skb_shared_info",
+	"mod"			=> "module",
+	"wiphy"			=> "wiphy",
+	"sock"			=> "sock",
+	"dev"			=> "device",
+	"udev"			=> "usb_device",
+        "rate_info"     	=> "rate_info",
+	"hw"			=> "ieee80211_hw",
+	"urb"			=> "urb",
+	"fops"			=> "file_operations",
+	"netdev"		=> "net_device",
+	"intf"			=> "usb_interface",
+	"ieee80211_ops" 	=> "ieee80211_ops",
+	"driver"		=> "device_driver",
+	"usb_driver"		=> "usb_driver",
+	"hdev"			=> "hci_dev",
+	"hci_conn"		=> "hci_conn",
+	"settings"		=> "cfg80211_ap_settings",
+	"link_conf"		=> "ieee80211_bss_conf",
+	"ieee80211_vif" 	=> "ieee80211_vif",
+	"ieee80211_vif_cfg"	=> "ieee80211_vif_cfg",
 );
 
 my %field_ctype = (
@@ -660,6 +661,15 @@ my %field_ctype = (
 		"probe_req_reg"				=> "bool",
 		"rx_mcast_action_reg"			=> "bool",
 	},
+	ieee80211_vif_cfg => {
+		"assoc"					=> "bool",
+		"ibss_joined"				=> "bool",
+		"ibss_creator"				=> "bool",
+		"ssid"					=> "u8",
+		"ssid_len"				=> "int",
+		"idle"					=> "bool",
+		"ap_addr"				=> "u8",
+	},
 );
 
 my %inline_array_field = (
@@ -690,6 +700,10 @@ my %inline_array_field = (
 		"transmitter_bssid"		=> 1,
 		"mcast_rate"			=> 1,
 		
+	},
+	ieee80211_vif_cfg => {
+		"ssid"				=> 1,
+		"ap_addr"			=> 1,
 	},
 );
 

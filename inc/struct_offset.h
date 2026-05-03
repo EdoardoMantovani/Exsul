@@ -12,7 +12,7 @@ struct runtime_struct_layout {
 
 struct runtime_struct {
 	int compilation_time_generated_structs;
-	struct runtime_struct_layout structs[19 + 1];
+	struct runtime_struct_layout structs[20 + 1];
 };
 
 OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
@@ -839,7 +839,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[5] = {
 				.struct_size = 0,
 				.struct_name = "ieee80211_ops",
-				.struct_field_num = 24,
+				.struct_field_num = 25,
 				.fields = {
 					[0] = {
 						.field_name = "add_interface",
@@ -862,78 +862,82 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[5] = {
-						.field_name = "del_nan_func",
+						.field_name = "config",
 						.field_offset = 0,
 					},
 					[6] = {
-						.field_name = "hw_scan",
+						.field_name = "del_nan_func",
 						.field_offset = 0,
 					},
 					[7] = {
-						.field_name = "prepare_multicast",
+						.field_name = "hw_scan",
 						.field_offset = 0,
 					},
 					[8] = {
-						.field_name = "remain_on_channel",
+						.field_name = "prepare_multicast",
 						.field_offset = 0,
 					},
 					[9] = {
-						.field_name = "remove_interface",
+						.field_name = "remain_on_channel",
 						.field_offset = 0,
 					},
 					[10] = {
-						.field_name = "set_key",
+						.field_name = "remove_interface",
 						.field_offset = 0,
 					},
 					[11] = {
-						.field_name = "set_mac_acl",
+						.field_name = "set_key",
 						.field_offset = 0,
 					},
 					[12] = {
-						.field_name = "set_rts_threshold",
+						.field_name = "set_mac_acl",
 						.field_offset = 0,
 					},
 					[13] = {
-						.field_name = "start",
+						.field_name = "set_rts_threshold",
 						.field_offset = 0,
 					},
 					[14] = {
-						.field_name = "start_ap",
+						.field_name = "start",
 						.field_offset = 0,
 					},
 					[15] = {
-						.field_name = "start_nan",
+						.field_name = "start_ap",
 						.field_offset = 0,
 					},
 					[16] = {
-						.field_name = "stop",
+						.field_name = "start_nan",
 						.field_offset = 0,
 					},
 					[17] = {
-						.field_name = "stop_ap",
+						.field_name = "stop",
 						.field_offset = 0,
 					},
 					[18] = {
-						.field_name = "stop_nan",
+						.field_name = "stop_ap",
 						.field_offset = 0,
 					},
 					[19] = {
-						.field_name = "sw_scan_start",
+						.field_name = "stop_nan",
 						.field_offset = 0,
 					},
 					[20] = {
-						.field_name = "tdls_cancel_channel_switch",
+						.field_name = "sw_scan_start",
 						.field_offset = 0,
 					},
 					[21] = {
-						.field_name = "tdls_channel_switch",
+						.field_name = "tdls_cancel_channel_switch",
 						.field_offset = 0,
 					},
 					[22] = {
-						.field_name = "tdls_recv_channel_switch",
+						.field_name = "tdls_channel_switch",
 						.field_offset = 0,
 					},
 					[23] = {
+						.field_name = "tdls_recv_channel_switch",
+						.field_offset = 0,
+					},
+					[24] = {
 						.field_name = "vif_cfg_changed",
 						.field_offset = 0,
 					},
@@ -979,6 +983,41 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 				},
 			},
 			[7] = {
+				.struct_size = 0,
+				.struct_name = "ieee80211_vif_cfg",
+				.struct_field_num = 7,
+				.fields = {
+					[0] = {
+						.field_name = "aid",
+						.field_offset = 0,
+					},
+					[1] = {
+						.field_name = "ap_addr",
+						.field_offset = 0,
+					},
+					[2] = {
+						.field_name = "arp_addr_cnt",
+						.field_offset = 0,
+					},
+					[3] = {
+						.field_name = "assoc",
+						.field_offset = 0,
+					},
+					[4] = {
+						.field_name = "idle",
+						.field_offset = 0,
+					},
+					[5] = {
+						.field_name = "ssid",
+						.field_offset = 0,
+					},
+					[6] = {
+						.field_name = "ssid_len",
+						.field_offset = 0,
+					},
+				},
+			},
+			[8] = {
 				.struct_size = 0,
 				.struct_name = "module",
 				.struct_field_num = 21,
@@ -1069,7 +1108,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[8] = {
+			[9] = {
 				.struct_size = 0,
 				.struct_name = "net_device",
 				.struct_field_num = 37,
@@ -1224,7 +1263,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[9] = {
+			[10] = {
 				.struct_size = 0,
 				.struct_name = "rate_info",
 				.struct_field_num = 14,
@@ -1287,7 +1326,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[10] = {
+			[11] = {
 				.struct_size = 0,
 				.struct_name = "sk_buff",
 				.struct_field_num = 55,
@@ -1514,7 +1553,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[11] = {
+			[12] = {
 				.struct_size = 0,
 				.struct_name = "sk_buff_head",
 				.struct_field_num = 3,
@@ -1533,7 +1572,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[12] = {
+			[13] = {
 				.struct_size = 0,
 				.struct_name = "skb_shared_info",
 				.struct_field_num = 3,
@@ -1552,7 +1591,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[13] = {
+			[14] = {
 				.struct_size = 0,
 				.struct_name = "sock",
 				.struct_field_num = 2,
@@ -1567,7 +1606,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[14] = {
+			[15] = {
 				.struct_size = 0,
 				.struct_name = "urb",
 				.struct_field_num = 17,
@@ -1642,7 +1681,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[15] = {
+			[16] = {
 				.struct_size = 0,
 				.struct_name = "usb_device",
 				.struct_field_num = 6,
@@ -1673,7 +1712,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[16] = {
+			[17] = {
 				.struct_size = 0,
 				.struct_name = "usb_driver",
 				.struct_field_num = 2,
@@ -1688,7 +1727,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[17] = {
+			[18] = {
 				.struct_size = 0,
 				.struct_name = "usb_interface",
 				.struct_field_num = 4,
@@ -1711,7 +1750,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[18] = {
+			[19] = {
 				.struct_size = 0,
 				.struct_name = "wiphy",
 				.struct_field_num = 35,

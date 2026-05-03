@@ -16,6 +16,18 @@
 #define MMAP(alloc_ptr, alloc_size, alloc_flags)	alloc_ptr = mmap(NULL, alloc_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);		\
 							new_allocation(ALLOCATION_TYPE_MMAP, alloc_ptr, alloc_size, alloc_flags, director.allocation_list);
 
+/**
+ * DECLARE_FLEX_ARRAY() - Declare a flexible array usable in a union
+ *
+ * @TYPE: The type of each flexible array element
+ * @NAME: The name of the flexible array member
+ *
+ * In order to have a flexible array member in a union or alone in a
+ * struct, it needs to be wrapped in an anonymous struct with at least 1
+ * named member, but that member can be empty.
+ */
+#define DECLARE_FLEX_ARRAY(TYPE, NAME)			__DECLARE_FLEX_ARRAY(TYPE, NAME)
+
 #ifndef SPEED_1600000
 #define SPEED_1600000		1600000
 #endif
@@ -1262,10 +1274,39 @@ static inline void clear_bit(int nr, volatile unsigned long addr) {
 	addr &= ~(1 << nr);
 }
 
+/**
+ * change_bit - Toggle a bit in memory
+ */
+static inline void change_bit(int nr, unsigned long *addr){
+	*addr ^= BIT_MASK(nr);
+}
+
 static inline int test_and_set_bit(int nr, volatile unsigned long addr) {
 	int rc = test_bit(nr, addr);
 	set_bit(nr,addr);
 	return rc;
+}
+
+/**
+ * test_and_clear_bit - Clear a bit and return its old value
+ */
+static inline int test_and_clear_bit(int nr, unsigned long *addr){
+	unsigned long mask = BIT_MASK(nr);
+	unsigned long old = *addr;
+
+	*addr = old & ~mask;
+	return (old & mask) != 0;
+}
+
+/**
+ * test_and_change_bit - Toggle a bit and return its old value
+ */
+static inline int test_and_change_bit(int nr, unsigned long *addr){
+	unsigned long mask = BIT_MASK(nr);
+	unsigned long old = *addr;
+
+	*addr = old ^ mask;
+	return (old & mask) != 0;
 }
 #endif
 
