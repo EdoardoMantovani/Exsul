@@ -4052,6 +4052,13 @@ struct ieee80211_bss {
 	u8 valid_data;
 };
 
+struct chan_def {
+	int freq;
+	int hw_value;
+	enum nl80211_band band;
+	u32 flags;
+};
+
 /*
  * struct cfg80211_bss - BSS description
  *
@@ -9901,86 +9908,161 @@ static int fill_start_ap_req(struct ieee80211_bss_conf *link_conf){
 /* fill the 'hw_scan' request */
 static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 	int ret = 0;
-	struct wiphy *wiphy = NULL;
+	struct ieee80211_local *local;
+	struct ieee80211_vif *ieee80211_vif;
 	struct wireless_dev *wdev = NULL;
-	struct ieee80211_local *local = NULL;
-	struct ieee80211_vif *ieee80211_vif = NULL;
 
-	const struct ieee80211_channel channels_2ghz[] = {
-		CHAN2G(2412, 0x801a0), /* Channel 1 */
-		CHAN2G(2417, 0x801a0), /* Channel 2 */
-		CHAN2G(2422, 0x801a0), /* Channel 3 */
-		CHAN2G(2427, 0x801a0), /* Channel 4 */
-		CHAN2G(2432, 0x80180), /* Channel 5 */
-		CHAN2G(2437, 0x80180), /* Channel 6 */
-		CHAN2G(2442, 0x80180), /* Channel 7 */
-		CHAN2G(2447, 0x80180), /* Channel 8 */
-		CHAN2G(2452, 0x80180), /* Channel 9 */
-		CHAN2G(2457, 0x80190), /* Channel 10 */
-		CHAN2G(2462, 0x80190), /* Channel 11 */
-		CHAN2G(2467, 0x80112), /* Channel 12 */
-		CHAN2G(2472, 0x80112), /* Channel 13 */
-		CHAN2G(2484, 0x801f2), /* Channel 14 */
+	struct cfg80211_ssid wildcard_ssid = {
+		.ssid_len = 0,
 	};
 
-	if(scan_req == NULL){
+	/* I just dumped the content of the ies from my kernel drivers, not sure if it is correct */
+	const u8 scan_ies_2ghz[] = {
+		0x01, 0x08, 0x02, 0x04, 0x0b, 0x16, 0x0c, 0x12,
+		0x18, 0x24, 0x32, 0x04, 0x30, 0x48, 0x60, 0x6c,
+		0x2d, 0x1a, 0xef, 0x19, 0x03, 0xff, 0xff, 0x00,
+		0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2c,
+		0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0xff, 0x16, 0x23, 0x01,
+		0x08, 0x0a, 0x10, 0x60, 0x80, 0x02, 0x70, 0x1e,
+		0x1f, 0x6d, 0xc0, 0x27, 0x0e, 0x9d, 0xbd, 0x00,
+		0xfa, 0xff, 0xfa, 0xff, 0xff, 0x0f, 0x6c, 0x40,
+		0x00, 0xc8, 0x1f, 0x00, 0x78, 0x14, 0x30, 0x00,
+		0x00, 0x00, 0x22, 0x22, 0x22
+	};
+
+	const u8 scan_ies_5ghz[] = {
+		0x01, 0x08, 0x0c, 0x12, 0x18, 0x24, 0x30, 0x48,
+		0x60, 0x6c, 0x2d, 0x1a, 0xef, 0x19, 0x03, 0xff,
+		0xff, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x2c, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xbf, 0x0c,
+		0xf6, 0x71, 0xd0, 0x03, 0xfa, 0xff, 0xc5, 0x06,
+		0xfa, 0xff, 0xc5, 0x26, 0xff, 0x1a, 0x23, 0x01,
+		0x08, 0x0a, 0x10, 0x60, 0x80, 0x0c, 0x70, 0x1e,
+		0x1f, 0x6d, 0xc0, 0x27, 0x0e, 0x9d, 0xbd, 0x00,
+		0xfa, 0xff, 0xfa, 0xff, 0xfa, 0xff, 0xfa, 0xff,
+		0xff, 0x12, 0x6c, 0x40, 0x00, 0xc8, 0x1f, 0x00,
+		0x78, 0x14, 0x30, 0x00, 0x00, 0x00, 0x22, 0x22,
+		0x22, 0x22, 0x22, 0x22
+	};
+	u8 scan_ies_combined[sizeof(scan_ies_2ghz) + sizeof(scan_ies_5ghz)];
+
+	const struct chan_def chans[] = {
+		/* 2.4 Ghz band */
+		{2412, 1,   NL80211_BAND_2GHZ, 0x801a0},
+		{2417, 2,   NL80211_BAND_2GHZ, 0x801a0},
+		{2422, 3,   NL80211_BAND_2GHZ, 0x801a0},
+		{2427, 4,   NL80211_BAND_2GHZ, 0x801a0},
+		{2432, 5,   NL80211_BAND_2GHZ, 0x80180},
+		{2437, 6,   NL80211_BAND_2GHZ, 0x80180},
+		{2442, 7,   NL80211_BAND_2GHZ, 0x80180},
+		{2447, 8,   NL80211_BAND_2GHZ, 0x80180},
+		{2452, 9,   NL80211_BAND_2GHZ, 0x80180},
+		{2457, 10,  NL80211_BAND_2GHZ, 0x80190},
+		{2462, 11,  NL80211_BAND_2GHZ, 0x80190},
+		{2467, 12,  NL80211_BAND_2GHZ, 0x80112},
+		{2472, 13,  NL80211_BAND_2GHZ, 0x80112},
+		{2484, 14,  NL80211_BAND_2GHZ, 0x801f2},
+		/* 5 Ghz band */
+		{5180, 36,  NL80211_BAND_5GHZ, 0x80022},
+		{5200, 40,  NL80211_BAND_5GHZ, 0x80000},
+		{5220, 44,  NL80211_BAND_5GHZ, 0x80002},
+		{5240, 48,  NL80211_BAND_5GHZ, 0x80002},
+		{5260, 52,  NL80211_BAND_5GHZ, 0x8000a},
+		{5280, 56,  NL80211_BAND_5GHZ, 0x8000a},
+		{5300, 60,  NL80211_BAND_5GHZ, 0x8000a},
+		{5320, 64,  NL80211_BAND_5GHZ, 0x8001a},
+		{5500, 100, NL80211_BAND_5GHZ, 0x8002a},
+		{5520, 104, NL80211_BAND_5GHZ, 0x8000a},
+		{5540, 108, NL80211_BAND_5GHZ, 0x8000a},
+		{5560, 112, NL80211_BAND_5GHZ, 0x8000a},
+		{5580, 116, NL80211_BAND_5GHZ, 0x8000a},
+		{5600, 120, NL80211_BAND_5GHZ, 0x8000a},
+		{5620, 124, NL80211_BAND_5GHZ, 0x8000a},
+		{5640, 128, NL80211_BAND_5GHZ, 0x8000a},
+		{5660, 132, NL80211_BAND_5GHZ, 0x8000a},
+		{5680, 136, NL80211_BAND_5GHZ, 0x8000a},
+		{5700, 140, NL80211_BAND_5GHZ, 0x8000a},
+		{5720, 144, NL80211_BAND_5GHZ, 0x8001a},
+		{5745, 149, NL80211_BAND_5GHZ, 0x80122},
+		{5765, 153, NL80211_BAND_5GHZ, 0x80102},
+		{5785, 157, NL80211_BAND_5GHZ, 0x80102},
+		{5805, 161, NL80211_BAND_5GHZ, 0x80102},
+		{5825, 165, NL80211_BAND_5GHZ, 0x80112},
+		/* for now do not include the 6 Ghz band */
+	};
+	struct ieee80211_channel scan_channels[ARRAY_SIZE(chans)];
+
+	if (scan_req == NULL){
 		ret = -EINVAL;
 		return ret;
 	}
-
 	local = director.ieee80211_local;
+	if (local == NULL || local->wiphy == NULL){
+		ret =-EINVAL;
+		return ret;
+	}
 
-	scan_req->ies.common_ies    = NULL;
+	memset(scan_req, 0, sizeof(*scan_req));
+	memcpy(scan_ies_combined, scan_ies_2ghz, sizeof(scan_ies_2ghz));
+	memcpy(scan_ies_combined + sizeof(scan_ies_2ghz), scan_ies_5ghz, sizeof(scan_ies_5ghz));
+
+	scan_req->ies.ies[NL80211_BAND_2GHZ] = scan_ies_combined;
+	scan_req->ies.len[NL80211_BAND_2GHZ] = sizeof(scan_ies_2ghz);
+
+	scan_req->ies.ies[NL80211_BAND_5GHZ] = scan_ies_combined + sizeof(scan_ies_2ghz);
+	scan_req->ies.len[NL80211_BAND_5GHZ] = sizeof(scan_ies_5ghz);
+
+	scan_req->ies.common_ies = NULL;
 	scan_req->ies.common_ie_len = 0;
-	for(int i = 0; i < NUM_NL80211_BANDS; i++){
-		scan_req->ies.ies[i]     = NULL;
-		scan_req->ies.len[i]     = 0;
+
+	scan_req->req.ie = scan_ies_combined;
+	scan_req->req.ie_len = sizeof(scan_ies_combined);
+
+	scan_req->req.ssids = &wildcard_ssid;
+	scan_req->req.n_ssids = 1;
+
+	scan_req->req.n_channels = ARRAY_SIZE(chans);
+
+	for (int i = 0; i < ARRAY_SIZE(chans); i++) {
+		scan_channels[i].center_freq = chans[i].freq;
+		scan_channels[i].hw_value = chans[i].hw_value;
+		scan_channels[i].band = chans[i].band;
+		scan_channels[i].flags = chans[i].flags;
+		scan_channels[i].max_power = 20;
+		scan_channels[i].max_reg_power = 20;
+
+		scan_req->req.channels[i] = &scan_channels[i];
 	}
 
-	scan_req->req.ssids		= NULL;
-	scan_req->req.n_ssids		= 0;
+	scan_req->req.duration = 0;
+	scan_req->req.duration_mandatory = false;
+	scan_req->req.scan_start = 0;
+	scan_req->req.flags = 0;
 
-	scan_req->req.ie		= NULL;
-	scan_req->req.ie_len		= 0;
+	memset(scan_req->req.rates, 0, sizeof(scan_req->req.rates));
 
-	scan_req->req.n_channels	= 0;
-
-	wiphy = local->wiphy;
-
-	/* use this code as reference 'https://elixir.bootlin.com/linux/v7.0.1/source/net/mac80211/tests/util.c#L236' */
-	scan_req->req.n_channels                		= ARRAY_SIZE(channels_2ghz);
-	for(int j = 0; j < scan_req->req.n_channels; j++){
-		scan_req->req.channels[j]			= calloc(1, sizeof(struct ieee80211_scan_request));
-		scan_req->req.channels[j]->center_freq 		= channels_2ghz[j].center_freq;
-		scan_req->req.channels[j]->band			= channels_2ghz[j].band;
-		scan_req->req.channels[j]->flags		= channels_2ghz[j].flags;
-		scan_req->req.channels[j]->hw_value		= channels_2ghz[j].hw_value;
-		scan_req->req.channels[j]->max_power		= 20;
-		scan_req->req.channels[j]->max_reg_power	= 20;
-	}
-
-	scan_req->req.duration			= 0;
-	scan_req->req.duration_mandatory	= false;
-	scan_req->req.scan_start		= 0;
-
-	scan_req->req.flags			= 0;
-	scan_req->req.no_cck			= false;
-	scan_req->req.scan_6ghz			= false;
-	scan_req->req.first_part		= false;
-	scan_req->req.n_6ghz_params		= 0;
-	scan_req->req.scan_6ghz_params		= NULL;
-	scan_req->req.tsf_report_link_id	= -1;
-
+	memset(scan_req->req.mac_addr, 0, ETH_ALEN);
+	memset(scan_req->req.mac_addr_mask, 0, ETH_ALEN);
 	eth_broadcast_addr(scan_req->req.bssid);
 
+	scan_req->req.no_cck = false;
+	scan_req->req.scan_6ghz = false;
+	scan_req->req.first_part = true;
+	scan_req->req.n_6ghz_params = 0;
+	scan_req->req.scan_6ghz_params = NULL;
+	scan_req->req.tsf_report_link_id = -1;
+
 	scan_req->req.wiphy = local->wiphy;
-	if(local->ieee80211_vif != NULL){
+
+	if (local->ieee80211_vif) {
 		ieee80211_vif = local->ieee80211_vif;
 		wdev = &ieee80211_vif->wdev;
-		scan_req->req.wdev = wdev;
-	}else{
-		scan_req->req.wdev = NULL;
 	}
+
+	scan_req->req.wdev = wdev;
+
 	return ret;
 }
 #endif

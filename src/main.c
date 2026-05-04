@@ -2479,7 +2479,7 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 				free(scan_req);
 				scan_req = NULL;
 			}
-			scan_req = calloc(1, sizeof(struct ieee80211_scan_request) + 14 * sizeof(void *));
+			scan_req = calloc(1, sizeof(struct ieee80211_scan_request) + 39 * sizeof(void *));
 			/* generate the callback parameters */
 			ret = fill_hw_scan_req(scan_req);
 			ret = hw_scan(local->ieee80211_hw, local->ieee80211_vif, scan_req);
@@ -3091,6 +3091,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	int (*start_ap)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_bss_conf *link_conf) = NULL;
 	void (*stop_ap)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_bss_conf *link_conf) = NULL;
 	int (*ampdu_action)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_ampdu_params *params) = NULL;
+	void (*configure_filter)(struct ieee80211_hw *hw, unsigned int changed_flags, unsigned int *new_flags, u64 multicast) = NULL;
 
 	if(argv[1] == NULL){
 		printf("[!] ops <callback name>\n");
@@ -3145,7 +3146,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 				bss_conf = &ieee80211_vif->bss_conf;
 				bss_conf->vif = ieee80211_vif;
 				bss_conf->link_id = 0;
-				memcpy(ieee80211_vif->addr, (u8[]){0x72, 0x88, 0xcb, 0xbc, 0x05, 0x4c}, ETH_ALEN);
+				memcpy(ieee80211_vif->addr, (u8[]){0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, ETH_ALEN);
 				ether_addr_copy(bss_conf->addr, ieee80211_vif->addr);
 				bss_conf->bssid = bss_conf->addr;
 				rcu_assign_pointer(ieee80211_vif->link_conf[0], bss_conf);
@@ -3172,6 +3173,13 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		/* the 'config' callback changes from Linux version 6 to version 7, so handle it in a separate function */
 		ret = handle_ieee80211_config(local->ieee80211_hw, ops);
 	}
+	if(strcmp(ops_req, "configure_filter") == 0){
+		configure_filter = ops->configure_filter;
+		if(configure_filter != NULL){
+			configure_filter(local->ieee80211_hw, 0, &ret, 0);
+		}
+	}
+
 	if(strcmp(ops_req, "conf_tx") == 0){
 		/* handle in the same way of 'config' */
 		ret = handle_ieee80211_conf_tx(local->ieee80211_hw, local->ieee80211_vif, ops);
@@ -3198,7 +3206,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 				free(scan_req);
 				scan_req = NULL;
 			}
-			scan_req = calloc(1, sizeof(struct ieee80211_scan_request) + 14 * sizeof(void *));
+			scan_req = calloc(1, sizeof(struct ieee80211_scan_request) + 39 * sizeof(void *));
 			/* generate the callback parameters */
 			ret = fill_hw_scan_req(scan_req);
 			ret = hw_scan(local->ieee80211_hw, local->ieee80211_vif, scan_req);
