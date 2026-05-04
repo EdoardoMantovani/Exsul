@@ -466,7 +466,7 @@ static int dwarf_search_field_recursive(unsigned char *field_input_name, Dwarf_D
 					Dwarf_Off type_off = 0;
 					if (dwarf_global_formref(type_attr, &type_off, &err) == DW_DLV_OK) {
 						Dwarf_Die type_die = 0;
-						if (dwarf_offdie(dbg, type_off, &type_die, &err) == DW_DLV_OK) {
+						if (dwarf_offdie_b(dbg, type_off, true, &type_die, &err) == DW_DLV_OK) {
 							Dwarf_Half type_tag = 0;
 							if (dwarf_tag(type_die, &type_tag, &err) == DW_DLV_OK &&
 							    (type_tag == DW_TAG_structure_type || type_tag == DW_TAG_union_type)) {
@@ -485,7 +485,7 @@ static int dwarf_search_field_recursive(unsigned char *field_input_name, Dwarf_D
 				}
 			}
 		}
-		sibling = dwarf_siblingof(dbg, cur, &sib, &err);
+		sibling = dwarf_siblingof_b(dbg, cur, true, &sib, &err);
 		dwarf_dealloc(dbg, cur, DW_DLA_DIE);
 		if (sibling != DW_DLV_OK){
 			break;
@@ -566,7 +566,7 @@ int dwarf_detect_struct(Dwarf_Debug dbg, Dwarf_Die die, unsigned char *struct_to
 			return ret;
 		}
 
-		ret = dwarf_siblingof(dbg, cur, &sib, &err);
+		ret = dwarf_siblingof_b(dbg, cur, true, &sib, &err);
 		dwarf_dealloc(dbg, cur, DW_DLA_DIE);
 		if (ret != DW_DLV_OK){
 			break;
@@ -584,10 +584,15 @@ int dwarf_loader_parser(unsigned char *struct_to_search, unsigned char *field_to
 	Dwarf_Error err = 0;
 
 	Dwarf_Unsigned cu_header_len = 0;
-	Dwarf_Unsigned abbrev_off = 0;
+	Dwarf_Off abbrev_off = 0;
 	Dwarf_Unsigned next_cu = 0;
 	Dwarf_Half version = 0;
 	Dwarf_Half addr_size = 0;
+	Dwarf_Half offset_size = 0;
+	Dwarf_Half extension_size = 0;
+	Dwarf_Sig8 type_signature = {0};
+	Dwarf_Unsigned type_offset = 0;
+	Dwarf_Bool is_info = true;
 
 	Dwarf_Die found = 0;
 	Dwarf_Die cu_die = 0;
@@ -602,16 +607,27 @@ int dwarf_loader_parser(unsigned char *struct_to_search, unsigned char *field_to
 		return ret;
 	}
 
-	ret = dwarf_init(fd, DW_DLC_READ, NULL, NULL, &dbg, &err);
+	ret = dwarf_init_b(fd, DW_DLC_READ, DW_GROUPNUMBER_ANY, NULL, NULL, &dbg, &err);
 	if (ret != DW_DLV_OK) {
 		close(fd);
 		ret = -EINVAL;
 		return ret;
 	}
 
-	while (dwarf_next_cu_header(dbg, &cu_header_len, &version, &abbrev_off, &addr_size, &next_cu, &err) == DW_DLV_OK) {
+	while (dwarf_next_cu_header_c(dbg,
+				is_info,
+				&cu_header_len,
+				&version,
+				&abbrev_off,
+				&addr_size,
+				&offset_size,
+				&extension_size,
+				&type_signature,
+				&type_offset,
+				&next_cu,
+				&err) == DW_DLV_OK) {
 		cu_die = 0;
-		ret = dwarf_siblingof(dbg, NULL, &cu_die, &err);
+		ret = dwarf_siblingof_b(dbg, NULL, is_info, &cu_die, &err);
 		if (ret != DW_DLV_OK){
 			continue;
 		}
@@ -2022,7 +2038,7 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
         if(director.offset_init_by_conf == true){
 		goto skip_dwarf;
 	}else{
-		err = dwarf_init(director.fd, DW_DLC_READ, NULL, NULL, &director.dbg, &director.err);
+		err = dwarf_init_b(director.fd, DW_DLC_READ, DW_GROUPNUMBER_ANY, NULL, NULL, &director.dbg, &director.err);
 		if(err != DW_DLV_OK){
 			printf("[!] failed to initialize libdwarf!\n");
 			/*
