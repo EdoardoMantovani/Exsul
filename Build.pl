@@ -794,7 +794,7 @@ if(!($windows_support) && $compiler && !($compiler =~ "ming")){
 # "--clean" code
 if($clean){
 	`$rm $build/*.o 2>/dev/null`;
-	`$rm $bin/$final_program 2>/dev/null`;
+	`$rm $bin/$final_program* 2>/dev/null`;
 	`$rm -rf out_* 2>/dev/null`;
 	# update: remove also crashdump files
 	`$rm -f crashreport*`;
@@ -835,11 +835,16 @@ if($windows_support){
 	pop(@gcc_final_linkings);
 	pop(@gcc_final_linkings);
 	push(@gcc_final_linkings, "-lbcrypt");
+	push(@gcc_final_linkings, "-lwinpthread");
+	push(@gcc_final_linkings, "-lsynchronization");
+	push(@gcc_final_linkings, "-static -static-libgcc -static-libstdc++");
 	# now add the Windows .dlls
 	push(@gcc_final_linkings, "win/libs/libdwarf.dll.a");
 	push(@gcc_final_linkings, "win/libs/libdwarfp.dll.a");
 	push(@gcc_final_linkings, "win/libs/libusb-1.0.a");
 	push(@gcc_final_linkings, "win/libs/libusb-1.0.dll.a");
+	push(@gcc_final_linkings, "win/libs/libtcc.dll");
+	push(@gcc_final_linkings, "win/libs/libzstd.a");
 }
 
 # default compiler: gcc

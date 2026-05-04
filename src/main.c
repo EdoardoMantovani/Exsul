@@ -590,9 +590,10 @@ int dwarf_loader_parser(unsigned char *struct_to_search, unsigned char *field_to
 	Dwarf_Half addr_size = 0;
 	Dwarf_Half offset_size = 0;
 	Dwarf_Half extension_size = 0;
-	Dwarf_Sig8 type_signature = {0};
 	Dwarf_Unsigned type_offset = 0;
 	Dwarf_Bool is_info = true;
+	Dwarf_Sig8 type_signature = {0};
+	Dwarf_Half header_cu_type = 0;
 
 	Dwarf_Die found = 0;
 	Dwarf_Die cu_die = 0;
@@ -614,18 +615,19 @@ int dwarf_loader_parser(unsigned char *struct_to_search, unsigned char *field_to
 		return ret;
 	}
 
-	while (dwarf_next_cu_header_c(dbg,
-				is_info,
-				&cu_header_len,
-				&version,
-				&abbrev_off,
-				&addr_size,
-				&offset_size,
-				&extension_size,
-				&type_signature,
-				&type_offset,
-				&next_cu,
-				&err) == DW_DLV_OK) {
+	while (dwarf_next_cu_header_d(dbg,
+			is_info,
+			&cu_header_len,
+			&version,
+			&abbrev_off,
+			&addr_size,
+			&offset_size,
+			&extension_size,
+			&type_signature,
+			&type_offset,
+			&next_cu,
+			&header_cu_type,
+			&err) == DW_DLV_OK) {
 		cu_die = 0;
 		ret = dwarf_siblingof_b(dbg, NULL, is_info, &cu_die, &err);
 		if (ret != DW_DLV_OK){
@@ -4097,6 +4099,7 @@ int elf_generator_handler(void){
 }
 #endif
 
+#ifdef __linux__
 /*
  * add also a crash handler which returns a custom file format when it crash,
  * output file format is still wip, it should contains both the callback table and the offset table.
@@ -4114,8 +4117,8 @@ void crash_handler(int sig){
 	char **backtrace_strings = NULL;
 	void *buffer[BACKTRACE_MAX_DEPTH];
 
-        #ifdef ENABLE_UNWIND_DEBUGGING && defined(__linux__)
-        unwind_backtrace();
+        #ifdef ENABLE_UNWIND_DEBUGGING
+	unwind_backtrace();
         #else
 	if(sig != SIGABRT){
 		/* if we can use the memory allocation primitives, display the current stacktrace. */
@@ -4186,13 +4189,17 @@ void crash_handler(int sig){
 	if(sig != SIGABRT){
 		finalize_director();
 	}
-	#ifdef __linux__
-	elf_generator_handler();
-	#else
 
-	#endif
+	elf_generator_handler();
 	exit(0);
 }
+#else
+/* windows version */
+void crash_handler(int sig){
+
+
+}
+#endif
 
 static void trim_inplace(unsigned char *line){
 	unsigned char *start = NULL;

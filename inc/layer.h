@@ -119,6 +119,8 @@ typedef int		   pthread_condattr_t;
 typedef volatile LONG	   pthread_once_t;
 #define PTHREAD_ONCE_INIT  0
 
+typedef void (*pthread_once_fn)(void);
+
 /* for windows also '_UL' and '_ULL' needs to be defined... */
 #ifdef __ASSEMBLY__
 #define _AC(X,Y)        X
@@ -1086,7 +1088,7 @@ static void *mmap(void *start, size_t length, int prot, int flags, int fd, off_t
 		if (!(flags & MAP_ANON) || offset){
 			return MAP_FAILED;
 		}
-	} else if (flags & MAP_ANON){
+	}else if (flags & MAP_ANON){
 		return MAP_FAILED;
 	}
 	DWORD flProtect;
@@ -1154,16 +1156,80 @@ static int munmap(void *addr, size_t length){
 
 static inline int getrandom(void *buf, int len, int unused) {
 	int ret = 0;
-        if (BCryptGenRandom(NULL, (PUCHAR)buf, (ULONG)len, BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0) {
-                ret = -EINVAL;
-        }
-        return (int)len;
+	if (BCryptGenRandom(NULL, (PUCHAR)buf, (ULONG)len, BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0) {
+		ret = -EINVAL;
+		return ret;
+	}
+	return (int)len;
 }
 
 static inline void usleep(unsigned long usec) {
-        DWORD ms = 0;
-        ms       = (DWORD)((usec + 999) / 1000);
-        Sleep(ms);
+	DWORD ms = 0;
+	ms       = (DWORD)((usec + 999) / 1000);
+	Sleep(ms);
+}
+
+/* taken from 'https://github.com/digilus/getline/blob/master/getline.c' */
+static int getline(char **lineptr, size_t *n, FILE *fp) {
+	int ret = 0;
+	int ch = 0;
+	int i = 0;
+	char free_on_err = 0;
+	char *p = NULL;
+
+	errno = 0;
+	if (lineptr == NULL || n == NULL || fp == NULL) {
+		errno = EINVAL;
+		ret = -EINVAL;
+		return ret;
+	}
+
+	if (*lineptr == NULL) {
+		*n = 16; /* 'GETLINE_MINSIZE = 16 */
+		*lineptr = (char *)malloc(sizeof(char) * (*n));
+		if (*lineptr == NULL) {
+			errno = ENOMEM;
+			ret = -ENOMEM;
+			return ret;
+		}
+		free_on_err = 1;
+	}
+
+	for (i = 0; ; i++) {
+		ch = fgetc(fp);
+		while (i >= (*n) - 2) {
+			*n *= 2;
+			p = realloc(*lineptr, sizeof(char) * (*n));
+			if (p == NULL) {
+				if (free_on_err){
+					free(*lineptr);
+				}
+				errno = ENOMEM;
+				ret = -ENOMEM;
+				return ret;
+			}
+			*lineptr = p;
+		}
+		if (ch == EOF) {
+			if (i == 0) {
+				if (free_on_err){
+					free(*lineptr);
+				}
+				return -1;
+			}
+			(*lineptr)[i] = '\0';
+			*n = i;
+			return i;
+		}
+
+		if (ch == '\n') {
+			(*lineptr)[i] = '\n';
+			(*lineptr)[i+1] = '\0';
+			*n = i+1;
+			return i + 1;
+		}
+		(*lineptr)[i] = (char)ch;
+	}
 }
 
 /* rewrite also the 'pthread_xxx' functions but adapted for the Windows style */
@@ -1202,6 +1268,17 @@ static inline int pthread_cond_wait(pthread_cond_t  *cond, pthread_mutex_t *mute
                 ret = -1;
         }
         return ret;
+}
+
+static inline int pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex, DWORD timeout_ms){
+	int ret = 0;
+	BOOL ok = false;
+
+	ok = SleepConditionVariableSRW(cond, mutex, timeout_ms, 0);
+	if (ok){
+		return ret;
+	}
+	return (GetLastError() == ERROR_TIMEOUT) ? 1 : -1;
 }
 
 static int pthread_cond_destroy(pthread_cond_t *cond){
@@ -1311,6 +1388,12 @@ static unsigned int pthread_trampoline(void *p) {
         return ret;
 }
 
+static BOOL CALLBACK pthread_once_trampoline(PINIT_ONCE once, PVOID param, PVOID *ctx){
+	pthread_once_fn fn = (pthread_once_fn)param;
+	fn();
+	return TRUE;
+}
+
 static inline int pthread_create(pthread_t *out, void *attr, void *(*start_routine)(void *), void *arg) {
         int                   ret = 0;
         unsigned int          tid = 0;
@@ -1334,6 +1417,11 @@ static inline int pthread_create(pthread_t *out, void *attr, void *(*start_routi
 
         *out = h;
         return ret;
+}
+
+static inline int pthread_once(pthread_once_t *once_control, pthread_once_fn init_routine){
+	BOOL ok = InitOnceExecuteOnce(once_control, pthread_once_trampoline, (PVOID)init_routine, NULL);
+	return ok ? 0 : -1;
 }
 
 static inline int pthread_join(HANDLE th, DWORD *exit_code_out) {
@@ -1422,49 +1510,9 @@ static int clock_gettime_monotonic(struct timespec *ts) {
 	return ret;
 }
 
-static int win_clock_gettime(int clock_id, struct timespec *ts){
-	int ret = 0;
-	if (ts == NULL) {
-		errno = EINVAL;
-		ret = -EINVAL;;
-		return ret;
-	}
+static int timer_delete (void *__timerid){
 
-	if (clock_id == CLOCK_MONOTONIC) {
-		LARGE_INTEGER counter;
-		LARGE_INTEGER freq;
-
-		if (!QueryPerformanceFrequency(&freq) || !QueryPerformanceCounter(&counter)) {
-			errno = EINVAL;
-			ret = -EINVAL;
-			return ret;
-		}
-
-		ts->tv_sec  = (time_t)(counter.QuadPart / freq.QuadPart);
-		ts->tv_nsec = (long)(((counter.QuadPart % freq.QuadPart) * 1000000000LL) / freq.QuadPart);
-		return ret;
-	}
-
-	if (clock_id == CLOCK_REALTIME) {
-		FILETIME ft;
-		ULARGE_INTEGER ui;
-		uint64_t t_100ns;
-		const uint64_t EPOCH_DIFF_100NS = 116444736000000000ULL;
-
-		ui.LowPart  = ft.dwLowDateTime;
-		ui.HighPart = ft.dwHighDateTime;
-
-		t_100ns = ui.QuadPart - EPOCH_DIFF_100NS;
-		ts->tv_sec  = (time_t)(t_100ns / 10000000ULL);
-		ts->tv_nsec = (long)((t_100ns % 10000000ULL) * 100ULL);
-		return ret;
-	}
-
-	errno = EINVAL;
-	ret = -EINVAL;
-	return ret;
 }
-
 #endif
 
 /**
