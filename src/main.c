@@ -395,7 +395,7 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 
 int invoke_usb_probe(struct usb_driver *new_driver, struct usb_device_id *id, struct usb_interface *intf){
 	int ret = 0;
-	int (*probe) (struct usb_interface *intf, const struct usb_device_id *id) = NULL;
+	int (*probe)(struct usb_interface *intf, const struct usb_device_id *id) = NULL;
 	probe = new_driver->probe;
 
 	/* in normal conditions here a mutex would have been implemented, but in this case there is no necessity */

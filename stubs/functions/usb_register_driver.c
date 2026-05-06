@@ -40,6 +40,7 @@ int usb_register_driver(struct usb_driver *new_driver, struct module *owner, con
 	}else{
 		director.usb_interface = intf;
 	}
+
 	end:
 	/* finally, invoke the probe callback */
 	ret = invoke_usb_probe(new_driver, matched_id, intf);

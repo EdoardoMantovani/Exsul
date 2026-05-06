@@ -9912,7 +9912,7 @@ static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 	struct ieee80211_vif *ieee80211_vif;
 	struct wireless_dev *wdev = NULL;
 
-	struct cfg80211_ssid wildcard_ssid = {
+	static struct cfg80211_ssid wildcard_ssid = {
 		.ssid_len = 0,
 	};
 
@@ -9946,7 +9946,7 @@ static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 		0x78, 0x14, 0x30, 0x00, 0x00, 0x00, 0x22, 0x22,
 		0x22, 0x22, 0x22, 0x22
 	};
-	u8 scan_ies_combined[sizeof(scan_ies_2ghz) + sizeof(scan_ies_5ghz)];
+	static u8 scan_ies_combined[sizeof(scan_ies_2ghz) + sizeof(scan_ies_5ghz)];
 
 	const struct chan_def chans[] = {
 		/* 2.4 Ghz band */
@@ -9992,7 +9992,7 @@ static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 		{5825, 165, NL80211_BAND_5GHZ, 0x80112},
 		/* for now do not include the 6 Ghz band */
 	};
-	struct ieee80211_channel scan_channels[ARRAY_SIZE(chans)];
+	static struct ieee80211_channel scan_channels[ARRAY_SIZE(chans)];
 
 	if (scan_req == NULL){
 		ret = -EINVAL;
@@ -10005,6 +10005,7 @@ static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 	}
 
 	memset(scan_req, 0, sizeof(*scan_req));
+	memset(scan_channels, 0, sizeof(scan_channels));
 	memcpy(scan_ies_combined, scan_ies_2ghz, sizeof(scan_ies_2ghz));
 	memcpy(scan_ies_combined + sizeof(scan_ies_2ghz), scan_ies_5ghz, sizeof(scan_ies_5ghz));
 
@@ -10026,12 +10027,15 @@ static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 	scan_req->req.n_channels = ARRAY_SIZE(chans);
 
 	for (int i = 0; i < ARRAY_SIZE(chans); i++) {
-		scan_channels[i].center_freq = chans[i].freq;
-		scan_channels[i].hw_value = chans[i].hw_value;
-		scan_channels[i].band = chans[i].band;
-		scan_channels[i].flags = chans[i].flags;
-		scan_channels[i].max_power = 20;
-		scan_channels[i].max_reg_power = 20;
+		scan_channels[i].center_freq	= chans[i].freq;
+		scan_channels[i].hw_value	= chans[i].hw_value;
+		scan_channels[i].band		= chans[i].band;
+		scan_channels[i].flags		= chans[i].flags;
+		scan_channels[i].max_power	= 20;
+		scan_channels[i].max_reg_power	= 20;
+		scan_channels[i].orig_flags	= chans[i].flags;
+		scan_channels[i].orig_mag	= INT_MAX;
+		scan_channels[i].orig_mpwr	= 20;
 
 		scan_req->req.channels[i] = &scan_channels[i];
 	}
