@@ -7811,6 +7811,105 @@ static inline u8 *ieee80211_get_DA(struct ieee80211_hdr *hdr){
 	}
 }
 
+static bool is_multicast_ether_addr(const u8 *addr){
+	return addr && (addr[0] & 0x01);
+}
+
+static bool is_broadcast_ether_addr(const u8 *addr){
+	int i = 0;
+
+	if (addr == NULL){
+		return false;
+	}
+	for (i = 0; i < ETH_ALEN; i++) {
+		if (addr[i] != 0xff){
+			return false;
+		}
+	}
+	return true;
+}
+
+static bool is_zero_ether_addr(const u8 *addr){
+	int i = 0;
+
+	if (addr == NULL){
+		return true;
+	}
+	for (i = 0; i < ETH_ALEN; i++) {
+		if (addr[i] != 0){
+			return false;
+		}
+	}
+	return true;
+}
+
+static bool ether_addr_equal(const u8 *addr1, const u8 *addr2){
+	if (addr1 == NULL || addr2 == NULL){
+		return false;
+	}
+	return memcmp(addr1, addr2, ETH_ALEN) == 0;
+}
+
+static bool ieee80211_accept_frame(struct ieee80211_rx_data *rx){
+	bool multicast = false;
+	const u8 *da = NULL;
+	const u8 *sa = NULL;
+	struct sk_buff *skb = NULL;
+	struct ieee80211_vif *vif = NULL;
+	struct ieee80211_hdr *hdr = NULL;
+
+	if (rx == NULL || rx->skb == NULL || rx->sdata == NULL || rx->sdata->vif == NULL){
+		return false;
+	}
+
+	skb = rx->skb;
+	hdr = (struct ieee80211_hdr *)skb->data;
+	vif = rx->sdata->vif;
+
+	if (skb->len < 10){ /* minimun length for the ieee80211 header */
+		return false;
+	}
+
+	/*
+	 * The userspace environment does not always know the final interface
+	 * address while replaying a driver.  If the virtual interface address
+	 * is still zero, keep the frame instead of applying a kernel-style
+	 * address filter that would drop all unicast traffic.
+	 */
+	if (is_zero_ether_addr(vif->addr)){
+		return true;
+	}
+
+	da = ieee80211_get_DA(hdr);
+	sa = ieee80211_get_SA(hdr);
+	multicast = is_multicast_ether_addr(hdr->addr1) || is_broadcast_ether_addr(hdr->addr1) || ieee80211_is_s1g_beacon(hdr->frame_control);
+
+	switch (vif->type) {
+	case NL80211_IFTYPE_MONITOR:
+	case NL80211_IFTYPE_AP_VLAN:
+		return false;
+	case NL80211_IFTYPE_STATION:
+		if (multicast){
+			return true;
+		}
+		return ether_addr_equal(hdr->addr1, vif->addr) || ether_addr_equal(da, vif->addr);
+	case NL80211_IFTYPE_AP:
+	case NL80211_IFTYPE_P2P_GO:
+		if (ether_addr_equal(sa, vif->addr)){
+			return false;
+		}
+		if (multicast){
+			return true;
+		}
+		return ether_addr_equal(hdr->addr1, vif->addr) || ieee80211_has_tods(hdr->frame_control);
+	default:
+		if (multicast){
+			return true;
+		}
+		return ether_addr_equal(hdr->addr1, vif->addr) || ether_addr_equal(da, vif->addr);
+	}
+}
+
 static struct rate_control_ref *rate_control_alloc(const char *name, struct ieee80211_local *local){
 	struct rate_control_ref *ref = NULL;
 
@@ -9074,8 +9173,85 @@ static void ieee80211_wake_queues_by_reason(struct ieee80211_hw *hw, unsigned lo
 static int ieee80211_if_add(struct ieee80211_local *local, const char *name, unsigned char name_assign_type, struct wireless_dev **new_wdev, enum nl80211_iftype type, struct vif_params *params){
 	struct net_device *netdev = NULL;
 	struct ieee80211_sub_if_data *sdata = NULL;
+	struct ieee80211_vif **vif_slot = NULL;
+	struct ieee80211_vif *vif = NULL;
+	struct ieee80211_bss_conf *bss_conf = NULL;
+	struct ieee80211_hw *ieee80211_hw = NULL;
 	struct txq_info *txqi;
 	int ret, i;
+
+	if (local == NULL){
+		return -EINVAL;
+	}
+
+	switch (type) {
+	case NL80211_IFTYPE_AP:
+	case NL80211_IFTYPE_P2P_GO:
+		vif_slot = &local->ieee80211_ap_vif;
+		break;
+	case NL80211_IFTYPE_MONITOR:
+		vif_slot = &local->ieee80211_mon_vif;
+		break;
+	default:
+		vif_slot = &local->ieee80211_vif;
+		break;
+	}
+	ieee80211_hw = local->ieee80211_hw;
+
+	if (*vif_slot == NULL) {
+		if (director.struct_sizes.ieee80211_vif == 0){
+			return -EINVAL;
+		}
+		*vif_slot = calloc(1, director.struct_sizes.ieee80211_vif + ieee80211_hw->vif_data_size);
+		if (*vif_slot == NULL){
+			return -ENOMEM;
+		}
+	}
+
+	sdata = calloc(1, sizeof(*sdata));
+	if (sdata == NULL){
+		return -ENOMEM;
+	}
+
+	vif = *vif_slot;
+	vif->type = type;
+	if (params != NULL && !is_zero_ether_addr(params->macaddr)){
+		memcpy(vif->addr, params->macaddr, ETH_ALEN);
+	}
+
+	memset(&vif->bss_conf, 0, director.struct_sizes.ieee80211_bss_conf);
+	bss_conf = &vif->bss_conf;
+	bss_conf->vif = vif;
+	bss_conf->link_id = 0;
+	ether_addr_copy(bss_conf->addr, vif->addr);
+	rcu_assign_pointer(vif->link_conf[0], bss_conf);
+	vif->valid_links |= BIT(0);
+	vif->active_links |= BIT(0);
+
+	INIT_LIST_HEAD(&sdata->list);
+	INIT_LIST_HEAD(&sdata->key_list);
+	skb_queue_head_init(&sdata->skb_queue);
+	skb_queue_head_init(&sdata->status_queue);
+	sdata->local = local;
+	sdata->vif = vif;
+	snprintf(sdata->name, sizeof(sdata->name), "%s", name ? name : "wlan0");
+	set_bit(SDATA_STATE_RUNNING, &sdata->state);
+
+	sdata->deflink.sdata = sdata;
+	sdata->deflink.link_id = 0;
+	sdata->deflink.conf = bss_conf;
+	rcu_assign_pointer(sdata->link[0], &sdata->deflink);
+
+	pthread_mutex_lock(&local->iflist_mtx);
+	list_add_tail_rcu(&sdata->list, &local->interfaces);
+	pthread_mutex_unlock(&local->iflist_mtx);
+
+	if (new_wdev != NULL){
+		*new_wdev = &vif->wdev;
+	}
+
+	return 0;
+
 	#if 0
 	if (type == NL80211_IFTYPE_P2P_DEVICE || type == NL80211_IFTYPE_NAN) {
 		struct wireless_dev *wdev;
@@ -9603,7 +9779,6 @@ static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw, struct ieee802
 	rx.local = local;
 	rx.list = list;
 	rx.link_id = -1;
-
 	if (ieee80211_is_mgmt(fc)) {
 		if (skb->len < ieee80211_hdrlen(fc)){
 			ret = -ENOBUFS;
@@ -9615,28 +9790,27 @@ static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw, struct ieee802
 	}
 
 	if (ret) {
-		dev_kfree_skb(skb);
-		return;
-	}
+			dev_kfree_skb(skb);
+			return;
+		}
+		hdr = (struct ieee80211_hdr *)skb->data;
+		ieee80211_parse_qos(&rx);
 
-	hdr = (struct ieee80211_hdr *)skb->data;
-	ieee80211_parse_qos(&rx);
-
-	if (unlikely(ieee80211_is_probe_resp(hdr->frame_control) || ieee80211_is_beacon(hdr->frame_control) || ieee80211_is_s1g_beacon(hdr->frame_control))){
-		ieee80211_scan_rx(local, skb);
-	}
-	if (ieee80211_is_data(fc)) {
-		struct sta_info *sta = NULL;
-		struct sta_info *prev_sta = NULL;
+		if (unlikely(ieee80211_is_probe_resp(hdr->frame_control) || ieee80211_is_beacon(hdr->frame_control) || ieee80211_is_s1g_beacon(hdr->frame_control))){
+			ieee80211_scan_rx(local, skb);
+		}
+		if (ieee80211_is_data(fc)) {
+			struct sta_info *sta = NULL;
+			struct sta_info *prev_sta = NULL;
 		int link_id = -1;
 
 		if (status->link_valid){
-			link_id = status->link_id;
-		}
-		if (pubsta) {
-			/* sta_info.sta is a pointer in this emulator — recover
-			 * sta_info via hash lookup on the sender address.      */
-			for (tmp = sta_info_hash_lookup(local, hdr->addr2); tmp; tmp = tmp->next) {
+				link_id = status->link_id;
+			}
+			if (pubsta) {
+				/* sta_info.sta is a pointer in this emulator — recover
+				 * sta_info via hash lookup on the sender address.      */
+				for (tmp = sta_info_hash_lookup(local, hdr->addr2); tmp; tmp = tmp->next) {
 				sta = (struct sta_info *)((char *)tmp - offsetof(struct sta_info, hash_node));
 				if (sta->sta == pubsta)
 					break;
@@ -9645,88 +9819,84 @@ static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw, struct ieee802
 			if (!sta || !ieee80211_rx_data_set_sta(&rx, sta, link_id))
 				goto out;
 
-			if (!status->link_valid && sta->sta) {
-				struct link_sta_info *link_sta = link_sta_info_get_bss(rx.sdata, hdr->addr2);
-				if (!link_sta)
-					goto out;
-				ieee80211_rx_data_set_link(&rx, link_sta->link_id);
-			}
+				if (!status->link_valid && sta->sta) {
+					struct link_sta_info *link_sta = link_sta_info_get_bss(rx.sdata, hdr->addr2);
+					if (link_sta)
+						ieee80211_rx_data_set_link(&rx, link_sta->link_id);
+				}
 
-			if (ieee80211_prepare_and_rx_handle(&rx, skb, true))
+				if (ieee80211_prepare_and_rx_handle(&rx, skb, true))
 				return;
-			goto out;
-		}
-
-		prev_sta = NULL;
-
-		for (tmp = sta_info_hash_lookup(local, hdr->addr2);
-		     tmp && (sta = (struct sta_info *)((char *)tmp - offsetof(struct sta_info, hash_node)), 1);
-		     tmp = tmp->next) {
-			if (!prev_sta) {
-				prev_sta = sta;
-				continue;
+				goto out;
 			}
+			prev_sta = NULL;
 
-			rx.sdata = &prev_sta->sdata;
-			if (!status->link_valid && prev_sta->sta) {
-				struct link_sta_info *link_sta = link_sta_info_get_bss(rx.sdata, hdr->addr2);
-				if (!link_sta) {
+			for (tmp = sta_info_hash_lookup(local, hdr->addr2);
+			     tmp && (sta = (struct sta_info *)((char *)tmp - offsetof(struct sta_info, hash_node)), 1);
+			     tmp = tmp->next) {
+				int sta_link_id = status->link_valid ? status->link_id : -1;
+
+				if (!prev_sta) {
 					prev_sta = sta;
 					continue;
 				}
-				link_id = link_sta->link_id;
-			}
-
-			if (!ieee80211_rx_data_set_sta(&rx, prev_sta, link_id))
-				goto out;
-
-			ieee80211_prepare_and_rx_handle(&rx, skb, false);
-			prev_sta = sta;
-		}
-
-		if (prev_sta) {
-			rx.sdata = &prev_sta->sdata;
-			if (!status->link_valid && prev_sta->sta) {
-				struct link_sta_info *link_sta = link_sta_info_get_bss(rx.sdata, hdr->addr2);
-				if (!link_sta)
+				rx.sdata = &prev_sta->sdata;
+				if (!status->link_valid && prev_sta->sta) {
+					struct link_sta_info *link_sta = link_sta_info_get_bss(rx.sdata, hdr->addr2);
+					if (link_sta)
+						sta_link_id = link_sta->link_id;
+				}
+				if (!ieee80211_rx_data_set_sta(&rx, prev_sta, sta_link_id))
 					goto out;
-				link_id = link_sta->link_id;
+
+				ieee80211_prepare_and_rx_handle(&rx, skb, false);
+				prev_sta = sta;
 			}
+			if (prev_sta) {
+				int sta_link_id = status->link_valid ? status->link_id : -1;
 
-			if (!ieee80211_rx_data_set_sta(&rx, prev_sta, link_id))
-				goto out;
+				rx.sdata = &prev_sta->sdata;
+				if (!status->link_valid && prev_sta->sta) {
+					struct link_sta_info *link_sta = link_sta_info_get_bss(rx.sdata, hdr->addr2);
+					if (link_sta)
+						sta_link_id = link_sta->link_id;
+				}
 
-			if (ieee80211_prepare_and_rx_handle(&rx, skb, true))
+				if (!ieee80211_rx_data_set_sta(&rx, prev_sta, sta_link_id))
+					goto out;
+
+				if (ieee80211_prepare_and_rx_handle(&rx, skb, true))
 				return;
-			goto out;
+				goto out;
+			}
 		}
-	}
+		prev = NULL;
 
-	prev = NULL;
-
-	/* ieee80211_sub_if_data.list is at offset 0 — direct cast is valid */
-	for (pos = local->interfaces.next; pos != &local->interfaces; pos = pos->next) {
-		sdata = (struct ieee80211_sub_if_data *)pos;
-		ieee80211_vif = sdata->vif;
-		if (!ieee80211_sdata_running(sdata))
-			continue;
+		/* ieee80211_sub_if_data.list is at offset 0 — direct cast is valid */
+		for (pos = local->interfaces.next; pos != &local->interfaces; pos = pos->next) {
+			sdata = (struct ieee80211_sub_if_data *)pos;
+			ieee80211_vif = sdata->vif;
+			if (!ieee80211_sdata_running(sdata)){
+				continue;
+			}
 		if (ieee80211_vif->type == NL80211_IFTYPE_MONITOR || ieee80211_vif->type == NL80211_IFTYPE_AP_VLAN){
-			continue;
-		}
-		if (!prev) {
+				continue;
+			}
+			if (!prev) {
+				prev = sdata;
+				continue;
+			}
+			rx.sdata = prev;
+			ieee80211_rx_for_interface(&rx, skb, false);
 			prev = sdata;
-			continue;
-		}
-		rx.sdata = prev;
-		ieee80211_rx_for_interface(&rx, skb, false);
-		prev = sdata;
 	}
 
-	if (prev) {
-		rx.sdata = prev;
-		if (ieee80211_rx_for_interface(&rx, skb, true))
-			return;
-	}
+		if (prev) {
+			rx.sdata = prev;
+			if (ieee80211_rx_for_interface(&rx, skb, true)){
+				return;
+			}
+		}
 
 out:
 	dev_kfree_skb(skb);

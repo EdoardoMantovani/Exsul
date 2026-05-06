@@ -42,10 +42,6 @@ void ieee80211_rx_list(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, st
 		goto drop;
 	}
 
-	if (!local->started){
-		goto drop;
-	}
-
 	if (likely(!(status->flag & RX_FLAG_FAILED_PLCP_CRC) && !(status->flag & RX_FLAG_NO_PSDU && status->zero_length_psdu_type == IEEE80211_RADIOTAP_ZERO_LEN_PSDU_NOT_CAPTURED))) {
 		/*
 		 * Validate the rate, unless there was a PLCP error which may
