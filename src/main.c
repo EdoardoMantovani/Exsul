@@ -46,6 +46,32 @@ enum {
 	DRV_CMD_OPS,
 };
 
+/* get the main context, trick for helping during the script mode of the standalone ELF */
+void *get_director(void){
+	return &director;
+}
+
+void *get_ieee80211_local(void){
+	return director.ieee80211_local;
+}
+
+void *get_ieee80211_hw(void){
+	if(director.ieee80211_local == NULL){
+		return NULL;
+	}
+	return director.ieee80211_local->ieee80211_hw;
+}
+
+void *get_ieee80211_priv_data(void){
+	void *hw = NULL;
+
+	hw = get_ieee80211_hw();
+	if(hw == NULL){
+		return NULL;
+	}
+	return ieee80211_priv(hw);
+}
+
 int parse_module_usb_table(struct usb_device_id **id){
 	int ret = 0;
 	int usb_table_size = 0;
@@ -2423,6 +2449,7 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 	int (*start_ap)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_bss_conf *link_conf) = NULL;
 	void (*stop_ap)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_bss_conf *link_conf) = NULL;
 	int (*ampdu_action)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_ampdu_params *params) = NULL;
+	void (*configure_filter)(struct ieee80211_hw *hw, unsigned int changed_flags, unsigned int *new_flags, u64 multicast) = NULL;
 
 	/* for now use only 'ieee80211_ops' as reference */
 	ops = director.ieee80211_ops;
@@ -2489,7 +2516,15 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 			remove_interface(local->ieee80211_hw, local->ieee80211_vif);
 		}
 	}
-
+	if(current_op == IEEE80211_CONFIG){
+		ret = ret = handle_ieee80211_config(local->ieee80211_hw, ops);
+	}
+	if(current_op == IEEE80211_CONFIGURE_FILTER){
+		configure_filter = ops->configure_filter;
+		if(configure_filter != NULL){
+			configure_filter(local->ieee80211_hw, 0, &ret, 0);
+		}
+	}
 	if(current_op == IEEE80211_HW_SCAN){
 		hw_scan = ops->hw_scan;
 		if(hw_scan != NULL && local->ieee80211_vif != NULL){
@@ -2597,6 +2632,19 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 	return ret;
 }
 
+/* used inside the tcc scripts for the standalone.elf for initializing the driver, calls start, add_interface and so on.. */
+void elf_initialize_driver(void){
+	/* invoke the 'start' callback */
+	fast_run_ieee80211_cb(IEEE80211_START);
+	/* invoke the 'add_interface' callback */
+	fast_run_ieee80211_cb(IEEE80211_ADD_INTERFACE);
+	/* invoke the 'config' callback */
+	fast_run_ieee80211_cb(IEEE80211_CONFIG);
+	/* invoke the 'configure_filter' callback */
+	fast_run_ieee80211_cb(IEEE80211_CONFIGURE_FILTER);
+	/* invoke a preliminary 'hw_scan' */
+	fast_run_ieee80211_cb(IEEE80211_HW_SCAN);
+}
 
 #ifdef __linux__
 struct so_context {
@@ -3339,10 +3387,16 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 int drv_integrate_scripting(void){
 	int ret = 0;
 	director.tcc_ctx = tcc_new();
+	if(director.tcc_ctx == NULL){
+		return -ENOMEM;
+	}
 
 	tcc_set_output_type(director.tcc_ctx, TCC_OUTPUT_MEMORY);
 	/* use the sym_table for adding automatically the symbols to tcc */
 	for (int j = 0; sym_table[j].function_ptr != NULL && sym_table[j].function_name[0] != '\0'; j++) {
+		if(strcmp(sym_table[j].function_name, "main") == 0){
+			continue;
+		}
 		tcc_add_symbol(director.tcc_ctx, sym_table[j].function_name, sym_table[j].function_ptr);
 	}
 	pthread_mutex_init(&director.tcc_mutex, NULL);
@@ -3354,8 +3408,15 @@ int drv_integrate_scripting(void){
 int drv_execute_code(unsigned char *incoming_code){
 	int ret = 0;
 
-	tcc_compile_string(director.tcc_ctx, incoming_code);
-	tcc_run(director.tcc_ctx, 0, NULL);
+	if(director.tcc_ctx == NULL || incoming_code == NULL){
+		return -EINVAL;
+	}
+
+	ret = tcc_compile_string(director.tcc_ctx, incoming_code);
+	if(ret < 0){
+		return ret;
+	}
+	ret = tcc_run(director.tcc_ctx, 0, NULL);
 
 	return ret;
 }
@@ -3392,10 +3453,12 @@ int drv_shutdown_scripting(void){
 	int ret = 0;
 	if(director.tcc_ctx != NULL){
 		tcc_delete(director.tcc_ctx);
+		director.tcc_ctx = NULL;
 	}
 
 	if(director.tcc_memarea != NULL){
-		munmap(director.tcc_memarea, TCC_MINIMUN_AREA_SIZE);
+		free(director.tcc_memarea);
+		director.tcc_memarea = NULL;
 	}
 	return ret;
 }
@@ -3465,20 +3528,100 @@ void elf_crash_handler(int sig){
 	libusb_exit(NULL);
 }
 
+#ifdef TCC_SCRIPTING
 /* compile and execute the passed C strings in memory */
 int invoke_tcc_scripting(unsigned char *c_string_data, int c_string_len){
 	int ret = 0;
+	char *source = NULL;
+	TCCState *tcc_ctx = NULL;
 
-	printf("%s\n", c_string_data);
-	tcc_compile_string(director.tcc_ctx, c_string_data);
-	ret = tcc_run(director.tcc_ctx, 0, NULL);
+	if(c_string_data == NULL || c_string_len <= 0 || c_string_len > BUFF_SIZE){
+		return -EINVAL;
+	}
+
+	source = calloc((size_t)c_string_len + 1, sizeof(char));
+	if(source == NULL){
+		return -ENOMEM;
+	}
+	memcpy(source, c_string_data, (size_t)c_string_len);
+
+	tcc_ctx = tcc_new();
+	if(tcc_ctx == NULL){
+		free(source);
+		return -ENOMEM;
+	}
+
+	tcc_set_output_type(tcc_ctx, TCC_OUTPUT_MEMORY);
+	for(int j = 0; sym_table[j].function_ptr != NULL && sym_table[j].function_name[0] != '\0'; j++){
+		if(strcmp(sym_table[j].function_name, "main") == 0){
+			continue;
+		}
+		tcc_add_symbol(tcc_ctx, sym_table[j].function_name, sym_table[j].function_ptr);
+	}
+
+	pthread_mutex_lock(&director.tcc_mutex);
+	ret = tcc_compile_string(tcc_ctx, source);
+	if(ret < 0){
+		goto out_unlock;
+	}
+	ret = tcc_run(tcc_ctx, 0, NULL);
+
+	out_unlock:
+	pthread_mutex_unlock(&director.tcc_mutex);
+	tcc_delete(tcc_ctx);
+	free(source);
 
 	return ret;
 }
+#else
+int invoke_tcc_scripting(unsigned char *c_string_data, int c_string_len){
+	int ret = 0;
+	ret = -EINVAL;
+	return ret;
+}
+#endif
 
 #ifdef __linux__
+static int elf_socket_recv_full(int fd, char *buffer, size_t length){
+	int ret = 0;
+	int received = 0;
+	struct pollfd pfd = {};
+
+	while(received < length){
+		ret = recv(fd, buffer + received, length - received, 0);
+		if(ret > 0){
+			received += ret;
+			continue;
+		}
+		if(ret == 0){
+			if(received == 0){
+				return ret;
+			}
+			ret = -ECONNRESET;
+			return ret;
+		}
+		if(errno == EINTR){
+			continue;
+		}
+		if(errno == EAGAIN || errno == EWOULDBLOCK){
+			pfd.fd = fd;
+			pfd.events = POLLIN;
+			ret = poll(&pfd, 1, -1);
+			if(ret < 0 && errno != EINTR){
+				ret = -EIO;
+				return ret;
+			}
+			continue;
+		}
+		ret =-EIO;
+		return ret;
+	}
+
+	return received;
+}
+
 /* protocol handler for the standalone ELF */
-int elf_handle_driver_protocol(struct module_controller *director, char *socket_buffer_data){
+int elf_handle_driver_protocol(struct module_controller *director, char *socket_buffer_data, int socket_buffer_len){
 	int ret = 0;
 	int msg_len = 0;
 	unsigned char *console_cmd = NULL;
@@ -3492,17 +3635,19 @@ int elf_handle_driver_protocol(struct module_controller *director, char *socket_
 	 * 2) console management: transfer command strings which gets executed as command, for example "ops start" invoke the ieee80211_ops start callback.
 	 */
 
+	if(socket_buffer_data == NULL || socket_buffer_len < sizeof(struct exsul_protocol_hdr)){
+		return -EINVAL;
+	}
+
 	hdr = (struct exsul_protocol_hdr *)socket_buffer_data;
 	msg_len = hdr->len;
+	if(msg_len > BUFF_SIZE || socket_buffer_len < sizeof(struct exsul_protocol_hdr) + msg_len){
+		return -EINVAL;
+	}
 
 	if(hdr->type == STANDALONE_TCC_SCRIPTING){
 		#ifdef TCC_SCRIPTING
 		tcc_high_string = (char *)socket_buffer_data + sizeof(struct exsul_protocol_hdr);
-		if(msg_len > BUFF_SIZE){
-			ret = -EINVAL;
-			return ret;
-		}
-
 		ret = invoke_tcc_scripting(tcc_high_string, msg_len);
 		#else
 		printf("[!] tcc scripting not implemented!\n");
@@ -3521,7 +3666,9 @@ int elf_entry_socket(struct module_controller *director){
 	int ret = 0;
 	int number_fds = 0;
 	int sock_client = 0;
-	char sock_buffer[BUFF_SIZE] = {};
+	int packet_len = 0;
+	struct exsul_protocol_hdr hdr = {};
+	char sock_buffer[sizeof(struct exsul_protocol_hdr) + BUFF_SIZE] = {};
 	struct sockaddr_un addr_server = {};
 	struct pollfd poll_fds[MAXIMUN_SOCKET_CONNECTIONS] = {};
 
@@ -3586,8 +3733,6 @@ int elf_entry_socket(struct module_controller *director){
 				if (poll_fds[i].fd == director->socket_fd){
 					sock_client = accept(director->socket_fd, NULL, NULL);
 					if (sock_client > 0){
-						director->client_flags = fcntl(sock_client, F_GETFL);
-						fcntl(sock_client, F_SETFL, director->client_flags | O_NONBLOCK);
 						if (number_fds < MAXIMUN_SOCKET_CONNECTIONS){
 							poll_fds[number_fds].fd = sock_client;
 							poll_fds[number_fds].events = POLLIN;
@@ -3597,11 +3742,26 @@ int elf_entry_socket(struct module_controller *director){
 						}
 					}
 				}else{
-					ret = recv(poll_fds[i].fd, sock_buffer, BUFF_SIZE, 0);
+					memset(&hdr, 0, sizeof(hdr));
+					memset(sock_buffer, 0, sizeof(sock_buffer));
+					ret = elf_socket_recv_full(poll_fds[i].fd, (char *)&hdr, sizeof(hdr));
 					if (ret > 0){
-						ret = elf_handle_driver_protocol(director, sock_buffer);
-					}else if (ret == 0 || (ret == -1 && errno != EAGAIN && errno != EWOULDBLOCK)){
-						printf("[!] fd %d disconnected!\n", poll_fds[i].fd);
+						if(hdr.len > BUFF_SIZE){
+							ret = -EINVAL;
+						}else{
+							memcpy(sock_buffer, &hdr, sizeof(hdr));
+							if(hdr.len > 0){
+								ret = elf_socket_recv_full(poll_fds[i].fd,
+											   sock_buffer + sizeof(hdr),
+											   hdr.len);
+							}
+							if(ret > 0 || hdr.len == 0){
+								packet_len = sizeof(hdr) + hdr.len;
+								ret = elf_handle_driver_protocol(director, sock_buffer, packet_len);
+							}
+						}
+					}else if (ret <= 0){
+						printf("[!] client %d disconnected!\n", poll_fds[i].fd);
 						close(poll_fds[i].fd);
 						poll_fds[i] = poll_fds[number_fds - 1];
 						number_fds--;

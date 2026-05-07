@@ -16,6 +16,9 @@
 #define MMAP(alloc_ptr, alloc_size, alloc_flags)	alloc_ptr = mmap(NULL, alloc_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);		\
 							new_allocation(ALLOCATION_TYPE_MMAP, alloc_ptr, alloc_size, alloc_flags, director.allocation_list);
 
+/* empty macro used for indicating to Build.pl to add a specific symbol to the cb_table */
+#define SYMBOL_EXPORT(sym)
+
 /**
  * DECLARE_FLEX_ARRAY() - Declare a flexible array usable in a union
  *

@@ -258,7 +258,7 @@ typedef _Atomic(unsigned int) atomic_uint;
 #define SOCKET_PATH			"/tmp/exsul_socket"
 
 /* size of the socket buffer sent from a client to the ipc server initialized by the standalone ELF */
-#define BUFF_SIZE			1024
+#define BUFF_SIZE			1024 * 32
 
 /* maximun socket connections that can be accepted by the standalone ELF */
 #define MAXIMUN_SOCKET_CONNECTIONS	2
@@ -394,6 +394,8 @@ enum fast_run_ops {
 	IEEE80211_STOP,
 	IEEE80211_ADD_INTERFACE,
 	IEEE80211_REMOVE_INTERFACE,
+	IEEE80211_CONFIG,
+	IEEE80211_CONFIGURE_FILTER,
 	IEEE80211_HW_SCAN,
 	IEEE80211_CANCEL_HW_SCAN,
 	IEEE80211_START_AP,

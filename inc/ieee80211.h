@@ -9169,6 +9169,11 @@ static void ieee80211_wake_queues_by_reason(struct ieee80211_hw *hw, unsigned lo
 		__ieee80211_wake_queue(hw, i, reason, refcounted);
 }
 
+static void *ieee80211_priv(struct ieee80211_hw *hw){
+	return hw->priv;
+}
+SYMBOL_EXPORT(ieee80211_priv);
+
 /* add/remove interface */
 static int ieee80211_if_add(struct ieee80211_local *local, const char *name, unsigned char name_assign_type, struct wireless_dev **new_wdev, enum nl80211_iftype type, struct vif_params *params){
 	struct net_device *netdev = NULL;
@@ -9405,6 +9410,7 @@ static int ieee80211_if_add(struct ieee80211_local *local, const char *name, uns
 	#endif
 	return 0;
 }
+SYMBOL_EXPORT(ieee80211_if_add);
 
 static void ieee80211_if_remove(struct ieee80211_sub_if_data *sdata){
 	struct ieee80211_local *local = NULL;
@@ -9424,6 +9430,7 @@ static void ieee80211_if_remove(struct ieee80211_sub_if_data *sdata){
 		kfree(sdata);
 	}
 }
+SYMBOL_EXPORT(ieee80211_if_remove);
 
 static inline void drv_vif_cfg_changed(struct ieee80211_local *local, struct ieee80211_sub_if_data *sdata, u64 changed){
 	struct ieee80211_ops *ieee80211_ops = NULL;
@@ -9761,24 +9768,36 @@ static void ieee80211_scan_rx(struct ieee80211_local *local, struct sk_buff *skb
  */
 static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, struct sk_buff *skb, struct list_head *list){
 	int ret = 0;
+	int link_id = -1;
 	__le16 fc = 0;
-	struct ieee80211_vif *ieee80211_vif = NULL;
 	struct rhlist_head *tmp = NULL;
 	struct list_head *pos = NULL;
 	struct ieee80211_hdr *hdr = NULL;
 	struct ieee80211_local *local = NULL;
 	struct ieee80211_sub_if_data *prev = NULL;
 	struct ieee80211_sub_if_data *sdata = NULL;
-	struct ieee80211_rx_status *status = IEEE80211_SKB_RXCB(skb);
+	struct ieee80211_rx_status *status = NULL;
+	struct ieee80211_vif *ieee80211_vif = NULL;
 	struct ieee80211_rx_data rx = {};
 
+	if (skb == NULL){
+		return;
+	}
+
 	local = director.ieee80211_local;
+	if (local == NULL){
+		dev_kfree_skb(skb);
+		return;
+	}
+
+	status = IEEE80211_SKB_RXCB(skb);
 	fc = ((struct ieee80211_hdr *)skb->data)->frame_control;
 	memset(&rx, 0, sizeof(rx));
 	rx.skb = skb;
 	rx.local = local;
 	rx.list = list;
 	rx.link_id = -1;
+
 	if (ieee80211_is_mgmt(fc)) {
 		if (skb->len < ieee80211_hdrlen(fc)){
 			ret = -ENOBUFS;
@@ -9790,113 +9809,129 @@ static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw, struct ieee802
 	}
 
 	if (ret) {
-			dev_kfree_skb(skb);
-			return;
-		}
-		hdr = (struct ieee80211_hdr *)skb->data;
-		ieee80211_parse_qos(&rx);
-
-		if (unlikely(ieee80211_is_probe_resp(hdr->frame_control) || ieee80211_is_beacon(hdr->frame_control) || ieee80211_is_s1g_beacon(hdr->frame_control))){
-			ieee80211_scan_rx(local, skb);
-		}
-		if (ieee80211_is_data(fc)) {
-			struct sta_info *sta = NULL;
-			struct sta_info *prev_sta = NULL;
-		int link_id = -1;
-
-		if (status->link_valid){
-				link_id = status->link_id;
-			}
-			if (pubsta) {
-				/* sta_info.sta is a pointer in this emulator — recover
-				 * sta_info via hash lookup on the sender address.      */
-				for (tmp = sta_info_hash_lookup(local, hdr->addr2); tmp; tmp = tmp->next) {
-				sta = (struct sta_info *)((char *)tmp - offsetof(struct sta_info, hash_node));
-				if (sta->sta == pubsta)
-					break;
-				sta = NULL;
-			}
-			if (!sta || !ieee80211_rx_data_set_sta(&rx, sta, link_id))
-				goto out;
-
-				if (!status->link_valid && sta->sta) {
-					struct link_sta_info *link_sta = link_sta_info_get_bss(rx.sdata, hdr->addr2);
-					if (link_sta)
-						ieee80211_rx_data_set_link(&rx, link_sta->link_id);
-				}
-
-				if (ieee80211_prepare_and_rx_handle(&rx, skb, true))
-				return;
-				goto out;
-			}
-			prev_sta = NULL;
-
-			for (tmp = sta_info_hash_lookup(local, hdr->addr2);
-			     tmp && (sta = (struct sta_info *)((char *)tmp - offsetof(struct sta_info, hash_node)), 1);
-			     tmp = tmp->next) {
-				int sta_link_id = status->link_valid ? status->link_id : -1;
-
-				if (!prev_sta) {
-					prev_sta = sta;
-					continue;
-				}
-				rx.sdata = &prev_sta->sdata;
-				if (!status->link_valid && prev_sta->sta) {
-					struct link_sta_info *link_sta = link_sta_info_get_bss(rx.sdata, hdr->addr2);
-					if (link_sta)
-						sta_link_id = link_sta->link_id;
-				}
-				if (!ieee80211_rx_data_set_sta(&rx, prev_sta, sta_link_id))
-					goto out;
-
-				ieee80211_prepare_and_rx_handle(&rx, skb, false);
-				prev_sta = sta;
-			}
-			if (prev_sta) {
-				int sta_link_id = status->link_valid ? status->link_id : -1;
-
-				rx.sdata = &prev_sta->sdata;
-				if (!status->link_valid && prev_sta->sta) {
-					struct link_sta_info *link_sta = link_sta_info_get_bss(rx.sdata, hdr->addr2);
-					if (link_sta)
-						sta_link_id = link_sta->link_id;
-				}
-
-				if (!ieee80211_rx_data_set_sta(&rx, prev_sta, sta_link_id))
-					goto out;
-
-				if (ieee80211_prepare_and_rx_handle(&rx, skb, true))
-				return;
-				goto out;
-			}
-		}
-		prev = NULL;
-
-		/* ieee80211_sub_if_data.list is at offset 0 — direct cast is valid */
-		for (pos = local->interfaces.next; pos != &local->interfaces; pos = pos->next) {
-			sdata = (struct ieee80211_sub_if_data *)pos;
-			ieee80211_vif = sdata->vif;
-			if (!ieee80211_sdata_running(sdata)){
-				continue;
-			}
-		if (ieee80211_vif->type == NL80211_IFTYPE_MONITOR || ieee80211_vif->type == NL80211_IFTYPE_AP_VLAN){
-				continue;
-			}
-			if (!prev) {
-				prev = sdata;
-				continue;
-			}
-			rx.sdata = prev;
-			ieee80211_rx_for_interface(&rx, skb, false);
-			prev = sdata;
+		dev_kfree_skb(skb);
+		return;
 	}
 
-		if (prev) {
-			rx.sdata = prev;
-			if (ieee80211_rx_for_interface(&rx, skb, true)){
-				return;
+	hdr = (struct ieee80211_hdr *)skb->data;
+	ieee80211_parse_qos(&rx);
+
+	if (unlikely(ieee80211_is_probe_resp(hdr->frame_control) ||
+		     ieee80211_is_beacon(hdr->frame_control) ||
+		     ieee80211_is_s1g_beacon(hdr->frame_control))){
+		ieee80211_scan_rx(local, skb);
+	}
+
+	if (status != NULL && status->link_valid){
+		link_id = status->link_id;
+	}
+
+	if (ieee80211_is_data(fc)) {
+		struct sta_info *sta = NULL;
+		struct sta_info *prev_sta = NULL;
+
+		if (pubsta != NULL) {
+			for (tmp = sta_info_hash_lookup(local, hdr->addr2); tmp != NULL; tmp = tmp->next) {
+				sta = (struct sta_info *)((char *)tmp - offsetof(struct sta_info, hash_node));
+				if (sta->sta == pubsta){
+					break;
+				}
+				sta = NULL;
+			}
+
+			if (sta != NULL) {
+				if (!ieee80211_rx_data_set_sta(&rx, sta, link_id)){
+					goto out;
+				}
+				if (status != NULL && !status->link_valid && sta->sta != NULL) {
+					struct link_sta_info *link_sta = link_sta_info_get_bss(rx.sdata, hdr->addr2);
+					if (link_sta != NULL){
+						ieee80211_rx_data_set_link(&rx, link_sta->link_id);
+					}
+				}
+				if (ieee80211_prepare_and_rx_handle(&rx, skb, true)){
+					return;
+				}
+				goto out;
 			}
 		}
+
+		for (tmp = sta_info_hash_lookup(local, hdr->addr2);
+		     tmp != NULL && (sta = (struct sta_info *)((char *)tmp - offsetof(struct sta_info, hash_node)), 1);
+		     tmp = tmp->next) {
+			int sta_link_id = link_id;
+
+			if (prev_sta == NULL) {
+				prev_sta = sta;
+				continue;
+			}
+
+			rx.sdata = &prev_sta->sdata;
+			if (status != NULL && !status->link_valid && prev_sta->sta != NULL) {
+				struct link_sta_info *link_sta = link_sta_info_get_bss(rx.sdata, hdr->addr2);
+				if (link_sta != NULL){
+					sta_link_id = link_sta->link_id;
+				}
+			}
+			if (!ieee80211_rx_data_set_sta(&rx, prev_sta, sta_link_id)){
+				goto out;
+			}
+
+			ieee80211_prepare_and_rx_handle(&rx, skb, false);
+			prev_sta = sta;
+		}
+
+		if (prev_sta != NULL) {
+			int sta_link_id = link_id;
+
+			rx.sdata = &prev_sta->sdata;
+			if (status != NULL && !status->link_valid && prev_sta->sta != NULL) {
+				struct link_sta_info *link_sta = link_sta_info_get_bss(rx.sdata, hdr->addr2);
+				if (link_sta != NULL){
+					sta_link_id = link_sta->link_id;
+				}
+			}
+			if (!ieee80211_rx_data_set_sta(&rx, prev_sta, sta_link_id)){
+				goto out;
+			}
+
+			if (ieee80211_prepare_and_rx_handle(&rx, skb, true)){
+				return;
+			}
+			goto out;
+		}
+	}
+
+	prev = NULL;
+	ieee80211_vif = sdata->vif;
+	for (pos = local->interfaces.next; pos != &local->interfaces; pos = pos->next) {
+		sdata = (struct ieee80211_sub_if_data *)pos;
+		if (sdata == NULL || sdata->vif == NULL){
+			continue;
+		}
+		if (!ieee80211_sdata_running(sdata)){
+			continue;
+		}
+		if (ieee80211_vif->type == NL80211_IFTYPE_MONITOR || ieee80211_vif->type == NL80211_IFTYPE_AP_VLAN){
+			continue;
+		}
+
+		if (prev == NULL) {
+			prev = sdata;
+			continue;
+		}
+
+		rx.sdata = prev;
+		ieee80211_rx_for_interface(&rx, skb, false);
+		prev = sdata;
+	}
+
+	if (prev != NULL) {
+		rx.sdata = prev;
+		if (ieee80211_rx_for_interface(&rx, skb, true)){
+			return;
+		}
+	}
 
 out:
 	dev_kfree_skb(skb);
