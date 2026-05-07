@@ -3400,6 +3400,8 @@ int drv_integrate_scripting(void){
 		tcc_add_symbol(director.tcc_ctx, sym_table[j].function_name, sym_table[j].function_ptr);
 	}
 	pthread_mutex_init(&director.tcc_mutex, NULL);
+	memset(director.runtime_tcc_ctx, 0, sizeof(director.runtime_tcc_ctx));
+	director.runtime_tcc_ctx_count = 0;
 
 	return ret;
 }
@@ -3455,6 +3457,14 @@ int drv_shutdown_scripting(void){
 		tcc_delete(director.tcc_ctx);
 		director.tcc_ctx = NULL;
 	}
+
+	for(u8 i = 0; i < director.runtime_tcc_ctx_count; i++){
+		if(director.runtime_tcc_ctx[i] != NULL){
+			tcc_delete(director.runtime_tcc_ctx[i]);
+			director.runtime_tcc_ctx[i] = NULL;
+		}
+	}
+	director.runtime_tcc_ctx_count = 0;
 
 	if(director.tcc_memarea != NULL){
 		free(director.tcc_memarea);
@@ -3560,15 +3570,28 @@ int invoke_tcc_scripting(unsigned char *c_string_data, int c_string_len){
 	}
 
 	pthread_mutex_lock(&director.tcc_mutex);
+	if(director.runtime_tcc_ctx_count >= MAX_TCC_RUNTIME_CONTEXTS){
+		printf("[!] maximum runtime TCC contexts reached!\n");
+		ret = -ENOMEM;
+		goto out_unlock;
+	}
 	ret = tcc_compile_string(tcc_ctx, source);
 	if(ret < 0){
 		goto out_unlock;
 	}
 	ret = tcc_run(tcc_ctx, 0, NULL);
+	if(ret < 0){
+		goto out_unlock;
+	}
+	director.runtime_tcc_ctx[director.runtime_tcc_ctx_count] = tcc_ctx;
+	director.runtime_tcc_ctx_count++;
+	tcc_ctx = NULL;
 
 	out_unlock:
 	pthread_mutex_unlock(&director.tcc_mutex);
-	tcc_delete(tcc_ctx);
+	if(tcc_ctx != NULL){
+		tcc_delete(tcc_ctx);
+	}
 	free(source);
 
 	return ret;

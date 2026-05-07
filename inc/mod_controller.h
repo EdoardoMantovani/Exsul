@@ -23,6 +23,8 @@ struct fast_struct_size {
         u16 hci_dev;
 };
 
+#define MAX_TCC_RUNTIME_CONTEXTS 4
+
 struct module_controller {
         char module_name[16];
 	/* current module major, minor and patch version */
@@ -106,6 +108,8 @@ struct module_controller {
 	TCCState *tcc_ctx;
 	unsigned char *tcc_memarea;
 	pthread_mutex_t tcc_mutex;
+	TCCState *runtime_tcc_ctx[MAX_TCC_RUNTIME_CONTEXTS];
+	u8 runtime_tcc_ctx_count;
 	#endif
 
 	/* special flags used for indicating that the offsets have already been given by a configuration file, this permits to skip the dwarf parsing part during the lkm loading */
