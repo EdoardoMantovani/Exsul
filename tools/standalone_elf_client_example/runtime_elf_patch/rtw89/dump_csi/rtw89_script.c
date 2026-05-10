@@ -1,3 +1,4 @@
+/* Made by Edoardo Mantovani, 2026 */
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -19,12 +20,12 @@
 #define s32 int32_t
 #define s64 int64_t
 
-#define __u8 u8
+#define __u8  u8
 #define __u16 u16
 #define __u32 u32
 #define __u64 u64
 
-#define __s8 s8
+#define __s8  s8
 #define __s16 s16
 #define __s32 s32
 #define __s64 s64
@@ -34,30 +35,30 @@
 #define be32 __be32
 #define be64 __be64
 
-#define IEEE80211_NUM_ACS    4
-#define IEEE80211_MAX_QUEUES 16
-#define MAX_FILE_IDX         32
-#define IEEE80211_MAX_SSID_LEN 32
-#define USB_MAX_ENDPOINT_NUM 30
-#define MAX_KMEM_ARRAY_SIZE  36
-#define MAX_USB_DEV_LIST     36
-#define MAX_DEBUGFS_SIZE     128
+#define IEEE80211_NUM_ACS    		4
+#define IEEE80211_MAX_QUEUES 		16
+#define MAX_FILE_IDX         		32
+#define IEEE80211_MAX_SSID_LEN 		32
+#define USB_MAX_ENDPOINT_NUM 		30
+#define MAX_KMEM_ARRAY_SIZE  		36
+#define MAX_USB_DEV_LIST     		36
+#define MAX_DEBUGFS_SIZE     		128
 #define MAX_USERSPACE_TO_DRIVER_IO_SIZE	256
 #define MAX_DRIVER_TO_USERSPACE_IO_SIZE 256
 #define IEEE80211_HT_MCS_MASK_LEN       10
 
-#define atomic_bool bool
+#define atomic_bool			bool
 
-#define BITS_PER_BYTE           8
-#define BITS_PER_TYPE(type)     (sizeof(type) * BITS_PER_BYTE)
+#define BITS_PER_BYTE			8
+#define BITS_PER_TYPE(type)     	(sizeof(type) * BITS_PER_BYTE)
 
-#define DIV_ROUND_UP(n,d)       (((n) + (d) - 1) / (d))
-#define BITS_TO_LONGS(nr)       __KERNEL_DIV_ROUND_UP(nr, BITS_PER_TYPE(long))
+#define DIV_ROUND_UP(n,d)      	 	(((n) + (d) - 1) / (d))
+#define BITS_TO_LONGS(nr)       	__KERNEL_DIV_ROUND_UP(nr, BITS_PER_TYPE(long))
 
-#define rcu_head		callback_head
+#define rcu_head			callback_head
 #define __rcu
-#define __packed		__attribute__((packed))
-#define __aligned(x)		__attribute__((aligned(x)))
+#define __packed			__attribute__((packed))
+#define __aligned(x)			__attribute__((aligned(x)))
 
 #define struct_group_tagged(TAG, NAME, MEMBERS...)                             \
         __struct_group(TAG, NAME, /* no attrs */, MEMBERS)
@@ -74,6 +75,15 @@
                 struct __struct_group_tag(TAG){MEMBERS} ATTRS NAME;            \
         } ATTRS
 #endif
+
+#define container_of(ptr, type, member)                                        \
+        ({                                                                     \
+                const typeof(((type *)0)->member) *__mptr = ((void *)(ptr));   \
+                (type *)((char *)__mptr - offsetof(type, member));             \
+        })
+
+#define timer_container_of(var, callback_timer, timer_fieldname)		\
+container_of(callback_timer, typeof(*var), timer_fieldname)
 
 enum queue_stop_reason {
         IEEE80211_QUEUE_STOP_REASON_DRIVER,
@@ -833,7 +843,16 @@ struct ieee80211_local {
 	struct wiphy_work csa_connection_drop_work;
 };
 
+struct timer_list {
+	struct hlist_node       entry;
+	unsigned long           expires;
+	void                    (*function)(struct timer_list *);
+	u32                     flags;
+};
+
+#define CSI_POLL_TIME			30 /* msec */
 #define RTW89_CORE_RX_TYPE_CSI		11
+#define CSI_MSG_LEN			1000
 #define RTW89_USB_RX_SCAN_LEN		0x400
 #define RTW89_CSI_RELAY_LEN		13
 #define RTW89_CSI_RELAY_PAD		16
@@ -853,7 +872,80 @@ struct ieee80211_local {
 
 void elf_initialize_driver(void);
 void *get_ieee80211_priv_data(void);
+void timer_init_key(struct timer_list *timer, void *func, unsigned int flags, const char *, struct lock_class_key *);
 
+/* rtw8852cu enum declaration */
+enum rtw_phl_status {
+        RTW_PHL_STATUS_SUCCESS,  /* 0 */
+        RTW_PHL_STATUS_FAILURE,  /* 1 */
+        RTW_PHL_STATUS_RESOURCE, /* 2 */
+        RTW_PHL_STATUS_HAL_INIT_FAILURE, /* 3 */
+        RTW_PHL_STATUS_PENDING,  /* 4 */
+        RTW_PHL_STATUS_FRAME_DROP,    /* 5 */
+        RTW_PHL_STATUS_INVALID_PARAM, /* 6 */
+        RTW_PHL_STATUS_CMD_TIMEOUT,   /* 7 */
+        RTW_PHL_STATUS_CMD_ERROR,     /* 8 */
+        RTW_PHL_STATUS_CMD_DROP,      /* 9 */
+        RTW_PHL_STATUS_CMD_CANNOT_IO, /* 10 */
+        RTW_PHL_STATUS_CMD_SUCCESS,   /* 11 */
+        RTW_PHL_STATUS_UNEXPECTED_ERROR, /* 12 */
+        RTW_PHL_STATUS_CANNOT_IO, /* 13 */
+        RTW_PHL_STATUS_SH_TASK,   /* 14 */
+};
+
+/*
+ * PHL CMD support direct execution, no-wait: synchronization, wait:asynchronization
+ * PHL_CMD_CMD_DIRECTLY: call PHL API including I/O operation directly
+ * PHL_CMD_NO_WARIT: send phl cmd msg to cmd dispatcher and do not wait for completion
+ * PHL_CMD_WAIT: send phl cmd msg to cmd dispatcher and wait for completion
+ */
+enum phl_cmd_type {
+	PHL_CMD_DIRECTLY,
+	PHL_CMD_NO_WAIT,
+	PHL_CMD_WAIT,
+	PHL_CMD_MAX,
+};
+
+enum phl_chinfo_action {
+	CHINFO_ACT_EN,
+	CHINFO_ACT_CFG,
+	CHINFO_ACT_MAX
+};
+
+enum phl_chinfo_group_num {
+	CHINFO_GROUP_NUM_1,
+	CHINFO_GROUP_NUM_2,
+	CHINFO_GROUP_NUM_4,
+	CHINFO_GROUP_NUM_16,
+	CHINFO_GROUP_NUM_MAX
+};
+
+enum phl_chinfo_mode {
+	CHINFO_MODE_ACK,
+	CHINFO_MODE_MACID,
+	CHINFO_MODE_NDP,
+	CHINFO_MODE_MAX,
+};
+
+/*
+ * Compression (I/Q bits)
+ * CHINFO_ACCU_1BYTE: S(8,4),
+ * CHINFO_ACCU_2BYTES: S(16,12)
+ */
+enum phl_chinfo_accuracy {
+	CHINFO_ACCU_1BYTE,
+	CHINFO_ACCU_2BYTES,
+	CHINFO_ACCU_MAX,
+};
+
+enum phl_chinfo_enable_mode {
+	CHINFO_EN_LIGHT_MODE,
+	CHINFO_EN_RICH_MODE,
+	CHINFO_EN_AUTO_MODE,
+	CHINFO_EN_RICH_MAX,
+};
+
+/* rtw8852cu struct declaration */
 struct csi_header {
         u8 mac_addr[6];                 /* mdata: u8 ta[6]? */
         u32 hw_assigned_timestamp;      /* mdata: u32 freerun_cnt */
@@ -873,17 +965,45 @@ struct csi_header {
         u8 csi_valid;                   /* ch_rpt_hdr_info */
 };
 
-void rtw_csi_poll_timeout_handler(void *ctx){
+struct chan_info {
+	struct list_head list;
+	u8 *chan_info_buffer;
+	u32 length;
+	struct csi_header csi_header;
+};
+
+struct rtw_chinfo_action_parm {
+	enum phl_chinfo_group_num group_num;
+	enum phl_chinfo_mode mode;
+	enum phl_chinfo_enable_mode enable_mode;
+	enum phl_chinfo_action act;
+	enum phl_chinfo_accuracy accuracy;
+	u32 ele_bitmap;
+	u8 enable;
+	u16 trig_period;
+	u8 tx_nss;
+	u8 rx_nss;
+};
+
+struct rtw_timer_list {
+	struct timer_list timer;
+	void (*function)(void *);
+	void *arg;
+};
+
+struct rtw_timer_list csi_global_timer;
+
+void rtw_csi_poll_timeout_handler(void *rtw89_dev){
 	int ret = 0;
 	u32 buf_len = 0;
-	void *buf = NULL;
+	void *buff = NULL;
 	struct csi_header csi_header = {};
 
 	rtw_csi_poll_timer_set(CSI_POLL_TIME);
 
 	memset(&csi_header, 0, sizeof(csi_header));
-	status = rtw_phl_query_chan_info(phl, CSI_MSG_LEN, buff, &buf_len, &csi_header);
-        if (status == RTW_PHL_STATUS_SUCCESS) {
+	ret = rtw_phl_query_chan_info(rtw89_dev, CSI_MSG_LEN, buff, &buf_len, &csi_header);
+        if (ret == RTW_PHL_STATUS_SUCCESS) {
 		printf("[*] csi_valid=%d\n", csi_header.csi_valid);
 		printf("[*] csi_data_length=%d\n", csi_header.csi_data_length);
 		printf("[*] rxsc=%d\n", csi_header.rxsc);
@@ -900,8 +1020,8 @@ void rtw_csi_poll_timeout_handler(void *ctx){
 		printf("[*] bandwidth=%d\n", csi_header.bandwidth);
 		printf("[*] num_sub_carrier=%d\n", csi_header.num_sub_carrier);
 		printf("[*] num_bit_per_tone=%d\n", csi_header.num_bit_per_tone);
-		printf("[*] srcmac= ");
-                for (int i = 0; i < ETH_ALEN; i++)
+		printf("[*] srcmac = ");
+		for (int i = 0; i < ETH_ALEN; i++){
 			printf("%x ", csi_header.mac_addr[i]);
 		}
 		printf("\n");
@@ -916,17 +1036,30 @@ void rtw_csi_poll_timeout_handler(void *ctx){
 	}
 }
 
-void rtw_csi_poll_init(void){
-	_timer *timer = &dvobj->csi_poll_timer;
+void timer_hdl(struct timer_list *in_timer){
+	struct rtw_timer_list *ptimer = timer_container_of(ptimer, in_timer, timer);
+	ptimer->function(ptimer->arg);
+}
 
-        if (timer->function != NULL) {
-                RTW_INFO("CSI polling timer has been init.\n");
-                return;
-        }
-        printk("init csi poll timer!");
-        rtw_init_timer(timer, rtw_csi_poll_timeout_handler, dvobj);
-        rtw_csi_poll_timer_set(dvobj, CSI_POLL_TIME);
-        RTW_INFO("CSI polling timer init!\n");
+void rtw_init_timer(struct rtw_timer_list *ptimer, void *pfunc, void *cntx){
+	ptimer->function = pfunc;
+	ptimer->arg = cntx;
+
+	timer_init_key(&ptimer->timer, timer_hdl, 0, NULL, NULL);
+}
+
+void rtw_csi_poll_init(void *rtw89_dev){
+	struct timer_list *timer = &csi_global_timer.timer;
+
+	if (timer->function != NULL) {
+		printf("[*] CSI polling timer has been init.\n");
+		goto end;
+	}
+	printf("[*] init csi poll timer!");
+	rtw_init_timer(&csi_global_timer, rtw_csi_poll_timeout_handler, rtw89_dev);
+	rtw_csi_poll_timer_set(timer, CSI_POLL_TIME);
+	printf("[*] CSI polling timer init!\n");
+	end:
 }
 
 int main(void){
@@ -938,6 +1071,7 @@ int main(void){
 	u8 accuracy = 0;
 	u8 group_num = 0;
 	void *rtwdev = NULL;
+	struct rtw_chinfo_action_parm act_parm = {};
 
 	elf_initialize_driver();
 	rtwdev = get_ieee80211_priv_data();
@@ -949,19 +1083,19 @@ int main(void){
 	en_mode = 1; /* rich mode: dump more CSI frames */
 	period = 30;
 
+	memset(&act_parm, 0, sizeof(struct rtw_chinfo_action_parm));
 	/* configure the channel rx mode */
-	act_parm.act = CHINFO_ACT_CFG;
-	act_parm.group_num = CHINFO_GROUP_NUM_16;
-	act_parm.accuracy  = CHINFO_ACCU_1BYTE;
-	act_parm.mode = CHINFO_MODE_ACK;
+	act_parm.act         = CHINFO_ACT_CFG;
+	act_parm.group_num   = CHINFO_GROUP_NUM_16;
+	act_parm.accuracy    = CHINFO_ACCU_1BYTE;
+	act_parm.mode        = CHINFO_MODE_ACK;
 	act_parm.enable_mode = CHINFO_EN_RICH_MODE; /* if set cause 100ms CSI */
-	act_parm.sta = peer_sta;
-	act_parm.enable = en;
+	act_parm.enable      = en;
 	act_parm.trig_period = 30;
-	act_parm.tx_nss = 2;
-	act_parm.rx_nss = 2;
-	rtw_phl_cmd_cfg_chinfo(phl, &act_parm, PHL_CMD_WAIT, 500);
-	act_parm.act = CHINFO_ACT_EN;
-	rtw_phl_cmd_cfg_chinfo(phl, &act_parm, PHL_CMD_WAIT, 500);
+	act_parm.tx_nss      = 2;
+	act_parm.rx_nss      = 2;
+	rtw_phl_cmd_cfg_chinfo(rtwdev, &act_parm, PHL_CMD_WAIT, 500);
+	act_parm.act         = CHINFO_ACT_EN;
+	rtw_phl_cmd_cfg_chinfo(rtwdev, &act_parm, PHL_CMD_WAIT, 500);
 	return ret;
 }
