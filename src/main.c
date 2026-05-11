@@ -18,7 +18,7 @@ struct cmd_table_entry {
 /* protocol format for the standalone ELF ipc */
 struct exsul_protocol_hdr {
 	u8 type;
-	u8 unused;
+	u8 len_hi;
 	u16 len;
 };
 
@@ -3646,7 +3646,7 @@ static int elf_socket_recv_full(int fd, char *buffer, size_t length){
 /* protocol handler for the standalone ELF */
 int elf_handle_driver_protocol(struct module_controller *director, char *socket_buffer_data, int socket_buffer_len){
 	int ret = 0;
-	int msg_len = 0;
+	u32 msg_len = 0;
 	unsigned char *console_cmd = NULL;
 	unsigned char *tcc_high_string = NULL;
 	struct exsul_protocol_hdr *hdr = NULL;
@@ -3659,19 +3659,21 @@ int elf_handle_driver_protocol(struct module_controller *director, char *socket_
 	 */
 
 	if(socket_buffer_data == NULL || socket_buffer_len < sizeof(struct exsul_protocol_hdr)){
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 
 	hdr = (struct exsul_protocol_hdr *)socket_buffer_data;
-	msg_len = hdr->len;
+	msg_len = ((u32)hdr->len_hi << 16) | hdr->len;
 	if(msg_len > BUFF_SIZE || socket_buffer_len < sizeof(struct exsul_protocol_hdr) + msg_len){
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 
 	if(hdr->type == STANDALONE_TCC_SCRIPTING){
 		#ifdef TCC_SCRIPTING
 		tcc_high_string = (char *)socket_buffer_data + sizeof(struct exsul_protocol_hdr);
-		ret = invoke_tcc_scripting(tcc_high_string, msg_len);
+		ret = invoke_tcc_scripting(tcc_high_string, (int)msg_len);
 		#else
 		printf("[!] tcc scripting not implemented!\n");
 		ret = -EINVAL;
@@ -3690,6 +3692,7 @@ int elf_entry_socket(struct module_controller *director){
 	int number_fds = 0;
 	int sock_client = 0;
 	int packet_len = 0;
+	u32 msg_len = 0;
 	struct exsul_protocol_hdr hdr = {};
 	char sock_buffer[sizeof(struct exsul_protocol_hdr) + BUFF_SIZE] = {};
 	struct sockaddr_un addr_server = {};
@@ -3769,17 +3772,18 @@ int elf_entry_socket(struct module_controller *director){
 					memset(sock_buffer, 0, sizeof(sock_buffer));
 					ret = elf_socket_recv_full(poll_fds[i].fd, (char *)&hdr, sizeof(hdr));
 					if (ret > 0){
-						if(hdr.len > BUFF_SIZE){
+						msg_len = ((u32)hdr.len_hi << 16) | hdr.len;
+						if(msg_len > BUFF_SIZE){
 							ret = -EINVAL;
 						}else{
 							memcpy(sock_buffer, &hdr, sizeof(hdr));
-							if(hdr.len > 0){
+							if(msg_len > 0){
 								ret = elf_socket_recv_full(poll_fds[i].fd,
 											   sock_buffer + sizeof(hdr),
-											   hdr.len);
+											   msg_len);
 							}
-							if(ret > 0 || hdr.len == 0){
-								packet_len = sizeof(hdr) + hdr.len;
+							if(ret > 0 || msg_len == 0){
+								packet_len = sizeof(hdr) + msg_len;
 								ret = elf_handle_driver_protocol(director, sock_buffer, packet_len);
 							}
 						}

@@ -32,9 +32,16 @@
 /* protocol format for the standalone ELF ipc */
 struct exsul_protocol_hdr {
 	u8 type;
-	u8 unused;
+	u8 len_hi;
 	u16 len;
 };
+
+static inline void exsul_protocol_set_len(struct exsul_protocol_hdr *hdr,
+					  u32 len)
+{
+	hdr->len_hi = (u8)((len >> 16) & 0xff);
+	hdr->len = (u16)(len & 0xffff);
+}
 
 /* protocol types FOR 'exsul_protocol_hdr' */
 enum {
@@ -169,7 +176,7 @@ int main(int argc, char *argv[]){
 			if(total_len > 0){
 				memcpy(payload, memarea, total_len);
 			}
-			protocol_pkt->len = (u16)total_len;
+			exsul_protocol_set_len(protocol_pkt, (u32)total_len);
 			send_all(sock_server, packet, sizeof(struct exsul_protocol_hdr) + (size_t)total_len);
 		}
 

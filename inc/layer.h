@@ -258,7 +258,7 @@ typedef _Atomic(unsigned int) atomic_uint;
 #define SOCKET_PATH			"/tmp/exsul_socket"
 
 /* size of the socket buffer sent from a client to the ipc server initialized by the standalone ELF */
-#define BUFF_SIZE			1024 * 32
+#define BUFF_SIZE			1024 * 32 * 4
 
 /* maximun socket connections that can be accepted by the standalone ELF */
 #define MAXIMUN_SOCKET_CONNECTIONS	2
