@@ -639,7 +639,7 @@ struct internal_cb_table sym_table[4096] = {
     [630] = { .function_name = "module_enable_text_rox", .function_ptr = module_enable_text_rox, .function_size = 136 },
     [631] = { .function_name = "trim_init_extable", .function_ptr = trim_init_extable, .function_size = 390 },
     [632] = { .function_name = "update_kernel_version", .function_ptr = update_kernel_version, .function_size = 146 },
-    [633] = { .function_name = "module_init", .function_ptr = module_init, .function_size = 6038 },
+    [633] = { .function_name = "module_init", .function_ptr = module_init, .function_size = 6093 },
     [634] = { .function_name = "workqueue_init", .function_ptr = workqueue_init, .function_size = 189 },
     [635] = { .function_name = "initialize_director", .function_ptr = initialize_director, .function_size = 903 },
     [636] = { .function_name = "drv_integrate_scripting", .function_ptr = drv_integrate_scripting, .function_size = 192 },

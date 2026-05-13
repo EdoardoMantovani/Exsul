@@ -1555,6 +1555,9 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 				if(name[0] == '_' && name[1] == '_' && name[2] == 'U' && name[3] == 'N' && name[4] == 'I' && name[5] == 'Q' && name[6] == 'U' && name[7] == 'E'){
 					break;
 				}
+				if(name[0] == '_' && name[1] == '_' && name[2] == 'F' && name[3] == 'U' && name[4] == 'N' && name[5] == 'C' && name[6] == 'T' && name[7] == 'I'){
+					break;
+				}
 				if(name[0] == '_' && name[1] == '_' && name[2] == '_' && name[3] == '_' && name[4] == 'v' && name[5] == 'e' && name[6] == 'r' && name[7] == 's' && name[8] == 'i'){
 					break;
 				}

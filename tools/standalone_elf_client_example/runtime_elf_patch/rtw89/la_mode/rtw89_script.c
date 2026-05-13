@@ -322,12 +322,11 @@ struct optimistic_spin_queue {
 };
 
 struct mutex {
-        long             owner;
-        /* always consider a spinlock_t as an unsigned integer of 32 bits */
-        u32                     wait_lock;
-        struct optimistic_spin_queue osq; /* Spinner MCS lock */
-        struct list_head        wait_list;
-
+	long             		owner;
+	/* always consider a spinlock_t as an unsigned integer of 32 bits */
+	u32                     	wait_lock;
+	struct optimistic_spin_queue 	osq; /* Spinner MCS lock */
+	struct list_head        	wait_list;
 };
 
 struct rhashtable_params {

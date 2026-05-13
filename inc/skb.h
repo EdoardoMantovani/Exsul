@@ -1339,6 +1339,11 @@ static inline void skb_mark_not_on_list(struct sk_buff *skb){
 	((struct sk_buff_list *)skb)->next = NULL;
 }
 
+/* function written for the standalone ELF */
+static void *skb_get_data(struct sk_buff *skb){
+	return skb->data;
+}
+
 static inline bool skb_is_nonlinear(const struct sk_buff *skb){
         return skb->data_len;
 }
