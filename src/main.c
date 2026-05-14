@@ -993,13 +993,13 @@ static int early_mod_check(struct load_info *info, int flags) {
 	return err;
 }
 
-static inline bool within_module_mem_type(unsigned long	       addr,
+static inline bool within_module_mem_type(uintptr_t	       addr,
 					  const struct module *mod,
 					  enum mod_mem_type    type) {
-	unsigned long base = 0;
-	unsigned long size;
+	uintptr_t base = 0;
+	uintptr_t size = 0;
 
-	base = (unsigned long)mod->mem[type].base;
+	base = (uintptr_t)mod->mem[type].base;
 	size = mod->mem[type].size;
 	return addr - base < size;
 }
@@ -1042,12 +1042,12 @@ bool module_init_layout_section(const char *sname) {
 	return module_init_section(sname);
 }
 
-long module_get_offset_and_type(struct module *mod, enum mod_mem_type type,
+Elf(Xword) module_get_offset_and_type(struct module *mod, enum mod_mem_type type,
 				Elf(Shdr) * sechdr, unsigned int      section) {
-	long offset = 0;
-	long mask   = 0;
+	Elf(Xword) offset = 0;
+	Elf(Xword) mask   = 0;
 
-	mask = ((unsigned long)(type)&SH_ENTSIZE_TYPE_MASK)
+	mask = ((Elf(Xword))(type)&SH_ENTSIZE_TYPE_MASK)
 	       << SH_ENTSIZE_TYPE_SHIFT;
 
 	mod->mem[type].size += 0;
@@ -1055,7 +1055,11 @@ long module_get_offset_and_type(struct module *mod, enum mod_mem_type type,
 	mod->mem[type].size = offset + sechdr->sh_size;
 
 	#ifdef ENABLE_DBG_PRINT
-	printf("[*] %s: offset: %d section size: %d final size: %d\n", __FUNCTION__, offset, sechdr->sh_size, mod->mem[type].size);
+	printf("[*] %s: offset: %llu section size: %llu final size: %u\n",
+	       __FUNCTION__,
+	       (unsigned long long)offset,
+	       (unsigned long long)sechdr->sh_size,
+	       mod->mem[type].size);
 	#endif
 	return offset | mask;
 }
@@ -1193,13 +1197,13 @@ static int move_module(struct module *mod, struct load_info *info) {
 	for (i = 0; i < info->hdr->e_shnum; i++) {
 		dest = NULL;
 		shdr = &info->sechdrs[i];
-		type = shdr->sh_entsize >> SH_ENTSIZE_TYPE_SHIFT;
+		type = (enum mod_mem_type)(shdr->sh_entsize >> SH_ENTSIZE_TYPE_SHIFT);
 
 		if (!(shdr->sh_flags & SHF_ALLOC)) {
 			continue;
 		}
 
-		dest = mod->mem[type].base +
+		dest = (char *)mod->mem[type].base +
 		       (shdr->sh_entsize & SH_ENTSIZE_OFFSET_MASK);
 
 		if (shdr->sh_type != SHT_NOBITS) {
@@ -1230,7 +1234,7 @@ static bool is_core_symbol(const Elf(Sym) * src, const Elf(Shdr) * sechdrs,
 	}
 
 	sec  = sechdrs + src->st_shndx;
-	type = sec->sh_entsize >> SH_ENTSIZE_TYPE_SHIFT;
+	type = (enum mod_mem_type)(sec->sh_entsize >> SH_ENTSIZE_TYPE_SHIFT);
 	if (!(sec->sh_flags & SHF_ALLOC) || mod_mem_type_is_init(type)) {
 		return false;
 	}
@@ -1377,13 +1381,13 @@ void *find_runtime_section(struct module *mod, struct load_info *info,
 	for (i = 0; i < info->hdr->e_shnum; i++) {
 		dest = NULL;
 		shdr = &info->sechdrs[i];
-		type = shdr->sh_entsize >> SH_ENTSIZE_TYPE_SHIFT;
+		type = (enum mod_mem_type)(shdr->sh_entsize >> SH_ENTSIZE_TYPE_SHIFT);
 
 		if (!(shdr->sh_flags & SHF_ALLOC)) {
 			continue;
 		}
 
-		dest = mod->mem[type].base +
+		dest = (char *)mod->mem[type].base +
 		       (shdr->sh_entsize & SH_ENTSIZE_OFFSET_MASK);
 
 		if (strcmp((unsigned char *)(info->secstrings + shdr->sh_name),

@@ -173,11 +173,11 @@ typedef _Atomic(unsigned int) atomic_uint;
 #if UINTPTR_MAX == 0xffffffff
         #define Elf(field)      Elf32_##field
         #define BITS_PER_LONG   32
-        #define RAND_BASE_ADDR  unsigned int
+        #define RAND_BASE_ADDR  uintptr_t
 #elif UINTPTR_MAX == 0xffffffffffffffff
         #define Elf(field)      Elf64_##field
         #define BITS_PER_LONG   64
-        #define RAND_BASE_ADDR  unsigned long
+        #define RAND_BASE_ADDR  uintptr_t
 #else
         #error NO UINTPTR???
 #endif

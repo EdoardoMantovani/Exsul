@@ -36,7 +36,6 @@ my $include = "inc";
 my $stubs   = "stubs";
 my $build   = "build";
 my $bin     = "./bin";
-my $example = "./example";
 
 my $final_program = "translator";
 
@@ -80,11 +79,12 @@ my $enable_debugging = undef;
 my $generate_offset_file = undef;
 my $pahole_kernel = undef;
 my $windows_support = undef;
-my $make_examples = undef;
+my $windows_static = undef;
 my $verbose = undef;
 my $enable_exported_symbols_tracing = undef;
 my $clean = undef;
 my $help = undef;
+my @windows_runtime_dlls = ();
 
 my $modified = 0;
 my $process_step = 0;
@@ -730,8 +730,7 @@ GetOptions(
 	"debug"		  => \$enable_debugging,
 	"generate_offset" => \$generate_offset_file,
 	"pahole_kernel=s" => \$pahole_kernel,
-	"windows"         => \$windows_support,
-	"examples"        => \$make_examples,
+	"windows"         => \$windows_static,
 	"verbose"	  => \$verbose,
 	"trace"		  => \$enable_exported_symbols_tracing,
 	"clean"           => \$clean,
@@ -746,13 +745,16 @@ if($help){
 	print("--compiler=[gcc|clang|tcc] (only working for now: gcc)\n");
 	print("--enable-fw: enable static firmware embedding in the main application, this permits to not use the Linux standard path for loading a firmware\n");
 	print("--generate_offset -> generate a special json file which can be used for creating the offset backup plan\n");
-	print("--windows -> enable windows compilation\n");
-	print("--examples -> compile every kernel object example under the ./example folder\n");
+	print("--windows -> enable windows compilation and require static Windows libraries for a single executable\n");
 	print("--verbose -> show compilation command line\n");
 	print("--trace -> trace every exported function, used mainly for debugging!\n");
 	print("clean -> clear every compilation file\n");
 	print("help -> display this help text\n");
 	exit(0);
+}
+
+if($windows_static){
+	$windows_support = 1;
 }
 
 # used only if you want to generate the fallback offset solution.
@@ -807,44 +809,53 @@ if($clean){
 	}else{
 		`$rm required_offsets.json 2>/dev/null`;
 	}
-	chdir($example);
-	`for d in */; do (cd "\$d" && make clean); done`;
-	exit(0);
-}
-
-# compile every example, used just for test
-if($make_examples){
-	chdir($example);
-	`for d in */; do (cd "\$d" && make); done`;
 	exit(0);
 }
 
 # same as using --compiler=mingw
 if($windows_support){
 	$compiler = "x86_64-w64-mingw32-gcc";
+	$final_program = "translator.exe";
 	push(@gcc_params, "-I./win/include/ ");
 	# set also a variant of readelf
 	$readelf = "x86_64-w64-mingw32-nm";
 	$readelf_table_parse = q{'{print $2}'};
-	# remove the -lunwind flags
-	pop(@gcc_final_linkings);
-	pop(@gcc_final_linkings);
-	pop(@gcc_final_linkings);
-	pop(@gcc_final_linkings);
-	pop(@gcc_final_linkings);
-	pop(@gcc_final_linkings);
-	pop(@gcc_final_linkings);
-	push(@gcc_final_linkings, "-lbcrypt");
-	push(@gcc_final_linkings, "-lwinpthread");
-	push(@gcc_final_linkings, "-lsynchronization");
-	push(@gcc_final_linkings, "-static -static-libgcc -static-libstdc++");
-	# now add the Windows .dlls
-	push(@gcc_final_linkings, "win/libs/libdwarf.dll.a");
-	push(@gcc_final_linkings, "win/libs/libdwarfp.dll.a");
-	push(@gcc_final_linkings, "win/libs/libusb-1.0.a");
-	push(@gcc_final_linkings, "win/libs/libusb-1.0.dll.a");
-	push(@gcc_final_linkings, "win/libs/libtcc.dll");
-	push(@gcc_final_linkings, "win/libs/libzstd.a");
+	@gcc_final_linkings = ();
+	push(@gcc_final_linkings, "-static");
+	push(@gcc_final_linkings, "-static-libgcc");
+	push(@gcc_final_linkings, "-static-libstdc++");
+
+	if($windows_static){
+		my @required_static_libs = (
+			"win/libs/libdwarf.a",
+			"win/libs/libusb-1.0.a",
+			"win/libs/libtcc.a",
+			"win/libs/libzstd.a",
+		);
+		my @missing_static_libs = grep { ! -e $_ } @required_static_libs;
+		push(@gcc_final_linkings, @required_static_libs);
+		push(@gcc_final_linkings, "-lbcrypt");
+		push(@gcc_final_linkings, "-lwinpthread");
+		push(@gcc_final_linkings, "-lsynchronization");
+		push(@gcc_final_linkings, "-lsetupapi");
+		push(@gcc_final_linkings, "-lole32");
+		push(@gcc_final_linkings, "-luuid");
+		push(@gcc_final_linkings, "-ladvapi32");
+		push(@gcc_final_linkings, "-lws2_32");
+	}else{
+		push(@gcc_final_linkings, "-lbcrypt");
+		push(@gcc_final_linkings, "-lwinpthread");
+		push(@gcc_final_linkings, "-lsynchronization");
+		# now add the Windows import/static libraries used by the DLL-backed build
+		push(@gcc_final_linkings, "win/libs/libdwarf.dll.a");
+		push(@gcc_final_linkings, "win/libs/libdwarfp.dll.a");
+		push(@gcc_final_linkings, "win/libs/libusb-1.0.a");
+		push(@gcc_final_linkings, "win/libs/libusb-1.0.dll.a");
+		push(@gcc_final_linkings, "win/libs/libtcc.dll");
+		push(@gcc_final_linkings, "win/libs/libzstd.a");
+		push(@windows_runtime_dlls, "win/libs/libdwarf-2.dll");
+		push(@windows_runtime_dlls, "win/libs/libtcc.dll");
+	}
 }
 
 # default compiler: gcc
@@ -1620,6 +1631,13 @@ print("[*] global callback table generated...\n");
 `$cp $include/$cb_table $virtual_compilation_folder/$include/$cb_table`;
 # now run the real compilation command
 system("$compiler @gcc_params @gcc_final_params -I./$virtual_compilation_folder/$arch -I./$virtual_compilation_folder/$include $virtual_compilation_folder/$source/$main -o $bin/$final_program $final_obj_line @gcc_final_linkings");
+if($windows_support){
+	foreach my $dll (@windows_runtime_dlls){
+		if(-e $dll){
+			`$cp $dll $bin/`;
+		}
+	}
+}
 print("[*] compilation finished, output build available under ./bin!\n");
 undef(@struct_fields);
 undef(@gcc_params);
