@@ -2186,47 +2186,38 @@ int module_finalize(const Elf(Ehdr) *hdr, const Elf(Shdr) *sechdrs, struct modul
 
         for (s = sechdrs; s < sechdrs + hdr->e_shnum; s++) {
                 if (!strcmp(".altinstructions", secstrings + s->sh_name)){
-                        printf("%s\n", ".altinstructions");
-                        alt = s;
+			alt = s;
                 }
 
                 if (!strcmp(".smp_locks", secstrings + s->sh_name)){
-                        printf("%s\n", ".smp_locks");
-                        locks = s;
+			locks = s;
                 }
 
                 if (!strcmp(".orc_unwind", secstrings + s->sh_name)){
-                        printf("%s\n", ".orc_unwind");
-                        orc = s;
+			orc = s;
                 }
 
                 if (!strcmp(".orc_unwind_ip", secstrings + s->sh_name)){
-                        printf("%s\n", ".orc_unwind_ip");
-                        orc_ip = s;
+			orc_ip = s;
                 }
 
                 if (!strcmp(".retpoline_sites", secstrings + s->sh_name)){
-                        printf("%s\n", ".retpoline_sites");
-                        retpolines = s;
+			retpolines = s;
                 }
 
                 if (!strcmp(".return_sites", secstrings + s->sh_name)){
-                        printf("%s\n", ".return_sites");
-                        returns = s;
+			returns = s;
                 }
 
                 if (!strcmp(".call_sites", secstrings + s->sh_name)){
-                        printf("%s\n", ".call_sites");
-                        calls = s;
+			calls = s;
                 }
 		if (!strcmp(".cfi_sites", secstrings + s->sh_name)){
-                        printf("%s\n", ".cfi_sites");
-                        cfi = s;
+			cfi = s;
                 }
 
                 if (!strcmp(".ibt_endbr_seal", secstrings + s->sh_name)){
-                        printf("%s\n", ".ibt_endbr_seal");
-                        ibt_endbr = s;
+			ibt_endbr = s;
                 }
         }
 

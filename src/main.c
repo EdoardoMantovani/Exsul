@@ -836,16 +836,13 @@ static int elf_validity_cache_copy(struct load_info *info, int flags) {
 		goto no_exec;
 	}
 	if (info->secstrings[strhdr->sh_size - 1] != '\0') {
-		printf("ELF Spec violation: section name table isn't null "
-		       "terminated\n");
+		printf("ELF Spec violation: section name table isn't null terminated\n");
 		goto no_exec;
 	}
 
 	if (info->sechdrs[0].sh_type != SHT_NULL ||
 	    info->sechdrs[0].sh_size != 0 || info->sechdrs[0].sh_addr != 0) {
-		printf("ELF Spec violation: section 0 type(%d)!=SH_NULL or "
-		       "non-zero len or addr\n",
-		       info->sechdrs[0].sh_type);
+		printf("ELF Spec violation: section 0 type(%d)!=SH_NULL or non-zero len or addr\n", info->sechdrs[0].sh_type);
 		goto no_exec;
 	}
 
@@ -860,8 +857,7 @@ static int elf_validity_cache_copy(struct load_info *info, int flags) {
 
 			if (shdr->sh_link == SHN_UNDEF ||
 			    shdr->sh_link >= info->hdr->e_shnum) {
-				printf("Invalid ELF sh_link!=SHN_UNDEF(%d) or "
-				       "(sh_link(%d) >= hdr->e_shnum(%d)\n",
+				printf("Invalid ELF sh_link!=SHN_UNDEF(%d) or (sh_link(%d) >= hdr->e_shnum(%d)\n",
 				       shdr->sh_link, shdr->sh_link,
 				       info->hdr->e_shnum);
 				goto no_exec;
@@ -871,15 +867,13 @@ static int elf_validity_cache_copy(struct load_info *info, int flags) {
 			sym_idx = i;
 			fallthrough;
 		default:
-			if (strcmp(info->secstrings + shdr->sh_name,
-				   ".gnu.linkonce.this_module") == 0) {
+			if (strcmp(info->secstrings + shdr->sh_name, ".gnu.linkonce.this_module") == 0) {
 				num_mod_secs++;
 				mod_idx = i;
 			#ifdef ENABLE_DBG_PRINT
 				printf("detected .gnu.linkonce.this_module\n");
 				#endif
-			} else if (strcmp(info->secstrings + shdr->sh_name,
-					  ".modinfo") == 0) {
+			} else if (strcmp(info->secstrings + shdr->sh_name, ".modinfo") == 0) {
 				num_info_secs++;
 				info_idx = i;
 				#ifdef ENABLE_DBG_PRINT
@@ -888,8 +882,7 @@ static int elf_validity_cache_copy(struct load_info *info, int flags) {
 			}
 			if (shdr->sh_flags & SHF_ALLOC) {
 				if (shdr->sh_name >= strhdr->sh_size) {
-					printf("Invalid ELF section name in "
-					       "module (section %u type %u)\n",
+					printf("Invalid ELF section name in module (section %u type %u)\n",
 					       i, shdr->sh_type);
 					return -ENOEXEC;
 				}
@@ -1274,21 +1267,18 @@ void layout_symtab(struct module *mod, struct load_info *info) {
 	}
 
 	info->symoffs = ALIGN(mod_mem_data->size, symsect->sh_addralign ?: 1);
-	info->stroffs = mod_mem_data->size =
-	    info->symoffs + ndst * sizeof(Elf(Sym));
+	info->stroffs = mod_mem_data->size = info->symoffs + ndst * sizeof(Elf(Sym));
 	mod_mem_data->size += strtab_size;
 	info->core_typeoffs = mod_mem_data->size;
 	mod_mem_data->size += ndst * sizeof(char);
 
 	strsect->sh_flags |= SHF_ALLOC;
-	strsect->sh_entsize = module_get_offset_and_type(
-	    mod, MOD_INIT_DATA, strsect, info->index.str);
+	strsect->sh_entsize = module_get_offset_and_type(mod, MOD_INIT_DATA, strsect, info->index.str);
 	#ifdef ENABLE_DBG_PRINT
 	printf("\t%s\n", info->secstrings + strsect->sh_name);
 	#endif
 
-	mod_mem_init_data->size =
-	    ALIGN(mod_mem_init_data->size, __alignof__(struct mod_kallsyms));
+	mod_mem_init_data->size = ALIGN(mod_mem_init_data->size, __alignof__(struct mod_kallsyms));
 	info->mod_kallsyms_init_off = mod_mem_init_data->size;
 
 	mod_mem_init_data->size += sizeof(struct mod_kallsyms);
@@ -1341,7 +1331,7 @@ static struct module *layout_and_allocate(struct load_info *info, int flags) {
 
 	err = move_module(info->mod, info);
 	if (err) {
-		printf("failed to move module!\n");
+		printf("[!] failed to move module!\n");
 		return NULL;
 	}
 
@@ -2096,7 +2086,9 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	early_mod_check(info, 0);
 
 	printf("name %s\n", get_modinfo(info, "name"));
+	#ifdef ENABLE_DBG_PRINT
 	printf("vermagic %s\n", get_modinfo(info, "vermagic"));
+	#endif
 
 	/* save the kernel version values for later use */
 	update_kernel_version(get_modinfo(info, "vermagic"));
