@@ -72,6 +72,14 @@ void *get_ieee80211_priv_data(void){
 	return ieee80211_priv(hw);
 }
 
+/* not really on topic with this file, but for now mantain it here */
+void *skb_get_data(struct sk_buff *skb){
+	if(skb == NULL){
+		return NULL;
+	}
+	return skb->data;
+}
+
 int parse_module_usb_table(struct usb_device_id **id){
 	int ret = 0;
 	int usb_table_size = 0;
@@ -2534,6 +2542,7 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 			scan_req = calloc(1, sizeof(struct ieee80211_scan_request) + 39 * sizeof(void *));
 			/* generate the callback parameters */
 			ret = fill_hw_scan_req(scan_req);
+			scan_cache_reset();
 			ret = hw_scan(local->ieee80211_hw, local->ieee80211_vif, scan_req);
 		}else{
 			goto ieee80211_vif_not_initialized;
@@ -3274,6 +3283,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			scan_req = calloc(1, sizeof(struct ieee80211_scan_request) + 39 * sizeof(void *));
 			/* generate the callback parameters */
 			ret = fill_hw_scan_req(scan_req);
+			scan_cache_reset();
 			ret = hw_scan(local->ieee80211_hw, local->ieee80211_vif, scan_req);
 		}else{
 			goto ieee80211_vif_not_initialized;
@@ -3809,7 +3819,6 @@ int elf_entry_socket(struct module_controller *director){
 /* main entry point of the standalone ELF */
 int elf_entry_stub(int argc, char *argv[]){
 	int ret = 0;
-
 	/* insert here any additional code */
 
 	/* this part of code is similar to 'main' and 'initialize_director', we must re-allocate/re-initialize every object */

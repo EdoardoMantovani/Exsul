@@ -1,0 +1,3644 @@
+{
+   "errors" : [],
+   "input_sha256" : "d63eaa8c92ec15a451b8f529b575625a80dee1b9201f7ca1baad1f6ec633f101",
+   "records" : [
+      {
+         "layouts" : [
+            {
+               "fields" : [
+                  {
+                     "name" : "init_name",
+                     "offset" : "80"
+                  },
+                  {
+                     "name" : "kobj",
+                     "offset" : "0"
+                  }
+               ],
+               "struct_name" : "device",
+               "struct_size" : "728"
+            },
+            {
+               "fields" : [],
+               "struct_name" : "hci_conn",
+               "struct_size" : 0
+            },
+            {
+               "fields" : [],
+               "struct_name" : "hci_dev",
+               "struct_size" : 0
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "allow_p2p_go_ps",
+                     "offset" : "242"
+                  },
+                  {
+                     "name" : "assoc_capability",
+                     "offset" : "36"
+                  },
+                  {
+                     "name" : "basic_rates",
+                     "offset" : "56"
+                  },
+                  {
+                     "name" : "beacon_int",
+                     "offset" : "34"
+                  },
+                  {
+                     "name" : "beacon_rate",
+                     "offset" : "64"
+                  },
+                  {
+                     "name" : "bssid",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "cqm_rssi_high",
+                     "offset" : "112"
+                  },
+                  {
+                     "name" : "cqm_rssi_hyst",
+                     "offset" : "104"
+                  },
+                  {
+                     "name" : "cqm_rssi_low",
+                     "offset" : "108"
+                  },
+                  {
+                     "name" : "cqm_rssi_thold",
+                     "offset" : "100"
+                  },
+                  {
+                     "name" : "dtim_period",
+                     "offset" : "33"
+                  },
+                  {
+                     "name" : "eht_support",
+                     "offset" : "750"
+                  },
+                  {
+                     "name" : "enable_beacon",
+                     "offset" : "32"
+                  },
+                  {
+                     "name" : "frame_time_rts_th",
+                     "offset" : "22"
+                  },
+                  {
+                     "name" : "ftm_responder",
+                     "offset" : "247"
+                  },
+                  {
+                     "name" : "he_support",
+                     "offset" : "24"
+                  },
+                  {
+                     "name" : "hidden_ssid",
+                     "offset" : "177"
+                  },
+                  {
+                     "name" : "ht_operation_mode",
+                     "offset" : "96"
+                  },
+                  {
+                     "name" : "link_id",
+                     "offset" : "8"
+                  },
+                  {
+                     "name" : "mcast_rate",
+                     "offset" : "72"
+                  },
+                  {
+                     "name" : "qos",
+                     "offset" : "176"
+                  },
+                  {
+                     "name" : "sync_device_ts",
+                     "offset" : "48"
+                  },
+                  {
+                     "name" : "sync_dtim_count",
+                     "offset" : "52"
+                  },
+                  {
+                     "name" : "sync_tsf",
+                     "offset" : "40"
+                  },
+                  {
+                     "name" : "twt_broadcast",
+                     "offset" : "28"
+                  },
+                  {
+                     "name" : "twt_protected",
+                     "offset" : "27"
+                  },
+                  {
+                     "name" : "twt_requester",
+                     "offset" : "25"
+                  },
+                  {
+                     "name" : "twt_responder",
+                     "offset" : "26"
+                  },
+                  {
+                     "name" : "txpower",
+                     "offset" : "180"
+                  },
+                  {
+                     "name" : "txpower_type",
+                     "offset" : "184"
+                  },
+                  {
+                     "name" : "use_cts_prot",
+                     "offset" : "29"
+                  },
+                  {
+                     "name" : "use_short_preamble",
+                     "offset" : "30"
+                  },
+                  {
+                     "name" : "use_short_slot",
+                     "offset" : "31"
+                  }
+               ],
+               "struct_name" : "ieee80211_bss_conf",
+               "struct_size" : "776"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "conf",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "flags",
+                     "offset" : "88"
+                  },
+                  {
+                     "name" : "max_listen_interval",
+                     "offset" : "122"
+                  },
+                  {
+                     "name" : "max_mtu",
+                     "offset" : "168"
+                  },
+                  {
+                     "name" : "max_nan_de_entries",
+                     "offset" : "162"
+                  },
+                  {
+                     "name" : "max_rates",
+                     "offset" : "125"
+                  },
+                  {
+                     "name" : "max_report_rates",
+                     "offset" : "126"
+                  },
+                  {
+                     "name" : "max_rx_aggregation_subframes",
+                     "offset" : "128"
+                  },
+                  {
+                     "name" : "max_signal",
+                     "offset" : "124"
+                  },
+                  {
+                     "name" : "max_tx_aggregation_subframes",
+                     "offset" : "130"
+                  },
+                  {
+                     "name" : "netdev_features",
+                     "offset" : "152"
+                  },
+                  {
+                     "name" : "offchannel_tx_hw_queue",
+                     "offset" : "133"
+                  },
+                  {
+                     "name" : "priv",
+                     "offset" : "80"
+                  },
+                  {
+                     "name" : "queues",
+                     "offset" : "120"
+                  },
+                  {
+                     "name" : "radiotap_mcs_details",
+                     "offset" : "134"
+                  },
+                  {
+                     "name" : "radiotap_vht_details",
+                     "offset" : "136"
+                  },
+                  {
+                     "name" : "rate_control_algorithm",
+                     "offset" : "72"
+                  },
+                  {
+                     "name" : "tx_sk_pacing_shift",
+                     "offset" : "163"
+                  },
+                  {
+                     "name" : "txq_data_size",
+                     "offset" : "116"
+                  },
+                  {
+                     "name" : "uapsd_max_sp_len",
+                     "offset" : "161"
+                  },
+                  {
+                     "name" : "uapsd_queues",
+                     "offset" : "160"
+                  },
+                  {
+                     "name" : "vif_data_size",
+                     "offset" : "104"
+                  },
+                  {
+                     "name" : "weight_multiplier",
+                     "offset" : "164"
+                  },
+                  {
+                     "name" : "wiphy",
+                     "offset" : "64"
+                  }
+               ],
+               "struct_name" : "ieee80211_hw",
+               "struct_size" : "192"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "add_interface",
+                     "offset" : "48"
+                  },
+                  {
+                     "name" : "add_nan_func",
+                     "offset" : "768"
+                  },
+                  {
+                     "name" : "bss_info_changed",
+                     "offset" : "80"
+                  },
+                  {
+                     "name" : "cancel_hw_scan",
+                     "offset" : "192"
+                  },
+                  {
+                     "name" : "conf_tx",
+                     "offset" : "336"
+                  },
+                  {
+                     "name" : "config",
+                     "offset" : "72"
+                  },
+                  {
+                     "name" : "configure_filter",
+                     "offset" : "128"
+                  },
+                  {
+                     "name" : "del_nan_func",
+                     "offset" : "776"
+                  },
+                  {
+                     "name" : "hw_scan",
+                     "offset" : "184"
+                  },
+                  {
+                     "name" : "prepare_multicast",
+                     "offset" : "120"
+                  },
+                  {
+                     "name" : "remain_on_channel",
+                     "offset" : "448"
+                  },
+                  {
+                     "name" : "remove_interface",
+                     "offset" : "64"
+                  },
+                  {
+                     "name" : "set_key",
+                     "offset" : "152"
+                  },
+                  {
+                     "name" : "set_rts_threshold",
+                     "offset" : "256"
+                  },
+                  {
+                     "name" : "start",
+                     "offset" : "8"
+                  },
+                  {
+                     "name" : "start_ap",
+                     "offset" : "104"
+                  },
+                  {
+                     "name" : "start_nan",
+                     "offset" : "744"
+                  },
+                  {
+                     "name" : "stop",
+                     "offset" : "16"
+                  },
+                  {
+                     "name" : "stop_ap",
+                     "offset" : "112"
+                  },
+                  {
+                     "name" : "stop_nan",
+                     "offset" : "752"
+                  },
+                  {
+                     "name" : "sw_scan_start",
+                     "offset" : "216"
+                  },
+                  {
+                     "name" : "tdls_cancel_channel_switch",
+                     "offset" : "712"
+                  },
+                  {
+                     "name" : "tdls_channel_switch",
+                     "offset" : "704"
+                  },
+                  {
+                     "name" : "tdls_recv_channel_switch",
+                     "offset" : "720"
+                  },
+                  {
+                     "name" : "vif_cfg_changed",
+                     "offset" : "88"
+                  }
+               ],
+               "struct_name" : "ieee80211_ops",
+               "struct_size" : "912"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "link_conf",
+                     "offset" : "864"
+                  },
+                  {
+                     "name" : "type",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "valid_links",
+                     "offset" : "984"
+                  }
+               ],
+               "struct_name" : "ieee80211_vif",
+               "struct_size" : "1032"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "aid",
+                     "offset" : "4"
+                  },
+                  {
+                     "name" : "arp_addr_cnt",
+                     "offset" : "24"
+                  },
+                  {
+                     "name" : "assoc",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "idle",
+                     "offset" : "73"
+                  },
+                  {
+                     "name" : "ssid",
+                     "offset" : "28"
+                  },
+                  {
+                     "name" : "ssid_len",
+                     "offset" : "64"
+                  }
+               ],
+               "struct_name" : "ieee80211_vif_cfg",
+               "struct_size" : "80"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "core_kallsyms",
+                     "offset" : "552"
+                  },
+                  {
+                     "name" : "crcs",
+                     "offset" : "216"
+                  },
+                  {
+                     "name" : "extable",
+                     "offset" : "304"
+                  },
+                  {
+                     "name" : "gpl_crcs",
+                     "offset" : "288"
+                  },
+                  {
+                     "name" : "gpl_syms",
+                     "offset" : "280"
+                  },
+                  {
+                     "name" : "kallsyms",
+                     "offset" : "544"
+                  },
+                  {
+                     "name" : "kp",
+                     "offset" : "264"
+                  },
+                  {
+                     "name" : "name",
+                     "offset" : "24"
+                  },
+                  {
+                     "name" : "noinstr_text_size",
+                     "offset" : "632"
+                  },
+                  {
+                     "name" : "noinstr_text_start",
+                     "offset" : "624"
+                  },
+                  {
+                     "name" : "num_exentries",
+                     "offset" : "300"
+                  },
+                  {
+                     "name" : "num_gpl_syms",
+                     "offset" : "276"
+                  },
+                  {
+                     "name" : "num_kp",
+                     "offset" : "272"
+                  },
+                  {
+                     "name" : "num_syms",
+                     "offset" : "224"
+                  },
+                  {
+                     "name" : "percpu",
+                     "offset" : "608"
+                  },
+                  {
+                     "name" : "state",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "syms",
+                     "offset" : "208"
+                  }
+               ],
+               "struct_name" : "module",
+               "struct_size" : "832"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "close_list",
+                     "offset" : "112"
+                  },
+                  {
+                     "name" : "dev_addr",
+                     "offset" : "728"
+                  },
+                  {
+                     "name" : "dev_addrs",
+                     "offset" : "648"
+                  },
+                  {
+                     "name" : "features",
+                     "offset" : "232"
+                  },
+                  {
+                     "name" : "group",
+                     "offset" : "300"
+                  },
+                  {
+                     "name" : "gso_max_segs",
+                     "offset" : "2024"
+                  },
+                  {
+                     "name" : "gso_max_size",
+                     "offset" : "2016"
+                  },
+                  {
+                     "name" : "hw_features",
+                     "offset" : "240"
+                  },
+                  {
+                     "name" : "ieee80211_ptr",
+                     "offset" : "720"
+                  },
+                  {
+                     "name" : "max_mtu",
+                     "offset" : "292"
+                  },
+                  {
+                     "name" : "mc",
+                     "offset" : "616"
+                  },
+                  {
+                     "name" : "min_mtu",
+                     "offset" : "288"
+                  },
+                  {
+                     "name" : "name",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "name_assign_type",
+                     "offset" : "299"
+                  },
+                  {
+                     "name" : "needed_headroom",
+                     "offset" : "228"
+                  },
+                  {
+                     "name" : "needed_tailroom",
+                     "offset" : "230"
+                  },
+                  {
+                     "name" : "net_notifier_list",
+                     "offset" : "2152"
+                  },
+                  {
+                     "name" : "num_rx_queues",
+                     "offset" : "744"
+                  },
+                  {
+                     "name" : "num_tx_queues",
+                     "offset" : "904"
+                  },
+                  {
+                     "name" : "perm_addr",
+                     "offset" : "532"
+                  },
+                  {
+                     "name" : "priv_flags",
+                     "offset" : "200"
+                  },
+                  {
+                     "name" : "ptype_all",
+                     "offset" : "128"
+                  },
+                  {
+                     "name" : "ptype_specific",
+                     "offset" : "144"
+                  },
+                  {
+                     "name" : "real_num_rx_queues",
+                     "offset" : "748"
+                  },
+                  {
+                     "name" : "real_num_tx_queues",
+                     "offset" : "908"
+                  },
+                  {
+                     "name" : "reg_state",
+                     "offset" : "1184"
+                  },
+                  {
+                     "name" : "state",
+                     "offset" : "56"
+                  },
+                  {
+                     "name" : "tx_queue_len",
+                     "offset" : "920"
+                  },
+                  {
+                     "name" : "uc",
+                     "offset" : "584"
+                  },
+                  {
+                     "name" : "unreg_list",
+                     "offset" : "96"
+                  }
+               ],
+               "struct_name" : "net_device",
+               "struct_size" : "2304"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "bw",
+                     "offset" : "5"
+                  },
+                  {
+                     "name" : "eht_gi",
+                     "offset" : "10"
+                  },
+                  {
+                     "name" : "eht_ru_alloc",
+                     "offset" : "11"
+                  },
+                  {
+                     "name" : "flags",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "he_dcm",
+                     "offset" : "7"
+                  },
+                  {
+                     "name" : "he_gi",
+                     "offset" : "6"
+                  },
+                  {
+                     "name" : "he_ru_alloc",
+                     "offset" : "8"
+                  },
+                  {
+                     "name" : "legacy",
+                     "offset" : "2"
+                  },
+                  {
+                     "name" : "mcs",
+                     "offset" : "1"
+                  },
+                  {
+                     "name" : "n_bonded_ch",
+                     "offset" : "9"
+                  },
+                  {
+                     "name" : "nss",
+                     "offset" : "4"
+                  }
+               ],
+               "struct_name" : "rate_info",
+               "struct_size" : "12"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "_skb_refdst",
+                     "offset" : "88"
+                  },
+                  {
+                     "name" : "active_extensions",
+                     "offset" : "127"
+                  },
+                  {
+                     "name" : "alloc_cpu",
+                     "offset" : "160"
+                  },
+                  {
+                     "name" : "cloned",
+                     "offset" : "126"
+                  },
+                  {
+                     "name" : "csum",
+                     "offset" : "136"
+                  },
+                  {
+                     "name" : "csum_offset",
+                     "offset" : "138"
+                  },
+                  {
+                     "name" : "csum_start",
+                     "offset" : "136"
+                  },
+                  {
+                     "name" : "data",
+                     "offset" : "208"
+                  },
+                  {
+                     "name" : "data_len",
+                     "offset" : "116"
+                  },
+                  {
+                     "name" : "destructor",
+                     "offset" : "96"
+                  },
+                  {
+                     "name" : "dev",
+                     "offset" : "16"
+                  },
+                  {
+                     "name" : "dst_pending_confirm",
+                     "offset" : "130"
+                  },
+                  {
+                     "name" : "end",
+                     "offset" : "192"
+                  },
+                  {
+                     "name" : "extensions",
+                     "offset" : "224"
+                  },
+                  {
+                     "name" : "fclone",
+                     "offset" : "126"
+                  },
+                  {
+                     "name" : "hash",
+                     "offset" : "148"
+                  },
+                  {
+                     "name" : "hdr_len",
+                     "offset" : "122"
+                  },
+                  {
+                     "name" : "head",
+                     "offset" : "200"
+                  },
+                  {
+                     "name" : "head_frag",
+                     "offset" : "126"
+                  },
+                  {
+                     "name" : "inner_ipproto",
+                     "offset" : "172"
+                  },
+                  {
+                     "name" : "inner_mac_header",
+                     "offset" : "178"
+                  },
+                  {
+                     "name" : "inner_network_header",
+                     "offset" : "176"
+                  },
+                  {
+                     "name" : "inner_protocol",
+                     "offset" : "172"
+                  },
+                  {
+                     "name" : "inner_protocol_type",
+                     "offset" : "131"
+                  },
+                  {
+                     "name" : "inner_transport_header",
+                     "offset" : "174"
+                  },
+                  {
+                     "name" : "ip_summed",
+                     "offset" : "128"
+                  },
+                  {
+                     "name" : "len",
+                     "offset" : "112"
+                  },
+                  {
+                     "name" : "list",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "mac_header",
+                     "offset" : "186"
+                  },
+                  {
+                     "name" : "mac_len",
+                     "offset" : "120"
+                  },
+                  {
+                     "name" : "network_header",
+                     "offset" : "184"
+                  },
+                  {
+                     "name" : "next",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "nohdr",
+                     "offset" : "126"
+                  },
+                  {
+                     "name" : "peeked",
+                     "offset" : "126"
+                  },
+                  {
+                     "name" : "pfmemalloc",
+                     "offset" : "126"
+                  },
+                  {
+                     "name" : "pkt_type",
+                     "offset" : "128"
+                  },
+                  {
+                     "name" : "prev",
+                     "offset" : "8"
+                  },
+                  {
+                     "name" : "priority",
+                     "offset" : "140"
+                  },
+                  {
+                     "name" : "protocol",
+                     "offset" : "180"
+                  },
+                  {
+                     "name" : "queue_mapping",
+                     "offset" : "124"
+                  },
+                  {
+                     "name" : "reserved_tailroom",
+                     "offset" : "168"
+                  },
+                  {
+                     "name" : "sk",
+                     "offset" : "24"
+                  },
+                  {
+                     "name" : "slow_gro",
+                     "offset" : "131"
+                  },
+                  {
+                     "name" : "tail",
+                     "offset" : "188"
+                  },
+                  {
+                     "name" : "transport_header",
+                     "offset" : "182"
+                  },
+                  {
+                     "name" : "truesize",
+                     "offset" : "216"
+                  },
+                  {
+                     "name" : "tstamp",
+                     "offset" : "32"
+                  },
+                  {
+                     "name" : "users",
+                     "offset" : "220"
+                  },
+                  {
+                     "name" : "wifi_acked",
+                     "offset" : "129"
+                  },
+                  {
+                     "name" : "wifi_acked_valid",
+                     "offset" : "129"
+                  }
+               ],
+               "struct_name" : "sk_buff",
+               "struct_size" : "232"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "next",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "prev",
+                     "offset" : "8"
+                  },
+                  {
+                     "name" : "qlen",
+                     "offset" : "16"
+                  }
+               ],
+               "struct_name" : "sk_buff_head",
+               "struct_size" : "24"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "dataref",
+                     "offset" : "32"
+                  },
+                  {
+                     "name" : "frags",
+                     "offset" : "48"
+                  },
+                  {
+                     "name" : "nr_frags",
+                     "offset" : "2"
+                  }
+               ],
+               "struct_name" : "skb_shared_info",
+               "struct_size" : "320"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "sk_wmem_alloc",
+                     "offset" : "340"
+                  }
+               ],
+               "struct_name" : "sock",
+               "struct_size" : "744"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "actual_length",
+                     "offset" : "132"
+                  },
+                  {
+                     "name" : "anchor",
+                     "offset" : "56"
+                  },
+                  {
+                     "name" : "anchor_list",
+                     "offset" : "40"
+                  },
+                  {
+                     "name" : "complete",
+                     "offset" : "176"
+                  },
+                  {
+                     "name" : "dev",
+                     "offset" : "64"
+                  },
+                  {
+                     "name" : "ep",
+                     "offset" : "72"
+                  },
+                  {
+                     "name" : "hcpriv",
+                     "offset" : "8"
+                  },
+                  {
+                     "name" : "kref",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "pipe",
+                     "offset" : "80"
+                  },
+                  {
+                     "name" : "reject",
+                     "offset" : "20"
+                  },
+                  {
+                     "name" : "status",
+                     "offset" : "88"
+                  },
+                  {
+                     "name" : "transfer_buffer",
+                     "offset" : "96"
+                  },
+                  {
+                     "name" : "transfer_buffer_length",
+                     "offset" : "128"
+                  },
+                  {
+                     "name" : "transfer_dma",
+                     "offset" : "104"
+                  },
+                  {
+                     "name" : "transfer_flags",
+                     "offset" : "92"
+                  },
+                  {
+                     "name" : "urb_list",
+                     "offset" : "24"
+                  },
+                  {
+                     "name" : "use_count",
+                     "offset" : "16"
+                  }
+               ],
+               "struct_name" : "urb",
+               "struct_size" : "184"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "actconfig",
+                     "offset" : "936"
+                  },
+                  {
+                     "name" : "descriptor",
+                     "offset" : "896"
+                  },
+                  {
+                     "name" : "ep_in",
+                     "offset" : "944"
+                  },
+                  {
+                     "name" : "ep_out",
+                     "offset" : "1072"
+                  },
+                  {
+                     "name" : "speed",
+                     "offset" : "28"
+                  }
+               ],
+               "struct_name" : "usb_device",
+               "struct_size" : "1368"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "name",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "probe",
+                     "offset" : "8"
+                  }
+               ],
+               "struct_name" : "usb_driver",
+               "struct_size" : "272"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "altsetting",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "cur_altsetting",
+                     "offset" : "8"
+                  },
+                  {
+                     "name" : "num_altsetting",
+                     "offset" : "16"
+                  }
+               ],
+               "struct_name" : "usb_interface",
+               "struct_size" : "816"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "addresses",
+                     "offset" : "48"
+                  },
+                  {
+                     "name" : "ap_sme_capa",
+                     "offset" : "104"
+                  },
+                  {
+                     "name" : "bands",
+                     "offset" : "312"
+                  },
+                  {
+                     "name" : "bss_priv_size",
+                     "offset" : "112"
+                  },
+                  {
+                     "name" : "cipher_suites",
+                     "offset" : "144"
+                  },
+                  {
+                     "name" : "coverage_class",
+                     "offset" : "192"
+                  },
+                  {
+                     "name" : "ext_features",
+                     "offset" : "96"
+                  },
+                  {
+                     "name" : "features",
+                     "offset" : "92"
+                  },
+                  {
+                     "name" : "flags",
+                     "offset" : "84"
+                  },
+                  {
+                     "name" : "frag_threshold",
+                     "offset" : "184"
+                  },
+                  {
+                     "name" : "interface_modes",
+                     "offset" : "80"
+                  },
+                  {
+                     "name" : "max_acl_mac_addrs",
+                     "offset" : "82"
+                  },
+                  {
+                     "name" : "max_num_csa_counters",
+                     "offset" : "1194"
+                  },
+                  {
+                     "name" : "max_remain_on_channel_duration",
+                     "offset" : "248"
+                  },
+                  {
+                     "name" : "max_scan_ie_len",
+                     "offset" : "120"
+                  },
+                  {
+                     "name" : "max_scan_ssids",
+                     "offset" : "116"
+                  },
+                  {
+                     "name" : "max_sched_scan_plan_interval",
+                     "offset" : "128"
+                  },
+                  {
+                     "name" : "max_sched_scan_plans",
+                     "offset" : "124"
+                  },
+                  {
+                     "name" : "mtx",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "n_addresses",
+                     "offset" : "78"
+                  },
+                  {
+                     "name" : "n_cipher_suites",
+                     "offset" : "136"
+                  },
+                  {
+                     "name" : "nan_supported_bands",
+                     "offset" : "1200"
+                  },
+                  {
+                     "name" : "pmsr_capa",
+                     "offset" : "1232"
+                  },
+                  {
+                     "name" : "reg_notifier",
+                     "offset" : "360"
+                  },
+                  {
+                     "name" : "regd",
+                     "offset" : "368"
+                  },
+                  {
+                     "name" : "regulatory_flags",
+                     "offset" : "88"
+                  },
+                  {
+                     "name" : "retry_long",
+                     "offset" : "181"
+                  },
+                  {
+                     "name" : "retry_short",
+                     "offset" : "180"
+                  },
+                  {
+                     "name" : "rts_threshold",
+                     "offset" : "188"
+                  },
+                  {
+                     "name" : "signal_type",
+                     "offset" : "108"
+                  },
+                  {
+                     "name" : "software_iftypes",
+                     "offset" : "76"
+                  }
+               ],
+               "struct_name" : "wiphy",
+               "struct_size" : "1312"
+            }
+         ],
+         "tag" : "v6.0",
+         "version" : {
+            "extra" : "0",
+            "extraversion" : "",
+            "major" : "6",
+            "patchlevel" : "0",
+            "sublevel" : "0"
+         },
+         "warnings" : [
+            "struct hci_conn: 2 missing field(s): handle, type",
+            "struct hci_dev: 126 missing field(s): accept_list, adv_instance_cnt, adv_instance_expire, adv_instance_timeout, adv_instances, adv_tx_power, advmon_allowlist_duration, advmon_no_filter_duration, auth_payload_timeout, blocked_keys, classify_pkt_type, close, cmd_q, cmd_sync_cancel_work, cmd_sync_work, cmd_sync_work_list, cmd_sync_work_lock, cmd_timer, cmd_work, conn_flags, conn_hash, conn_info_max_age, conn_info_min_age, cur_adv_instance, def_le_autoconnect_timeout, def_multi_adv_rotation_duration, def_page_scan_int, def_page_scan_type, def_page_scan_window, dev, dev_flags, discov_interleaved_timeout, discovery, dump, enable_advmon_interleave_scan, error_reset, esco_type, flags, fw_info, hci_drv, hw_info, identity_resolving_keys, inq_tx_power, interleave_scan, io_capability, le_accept_list, le_adv_channel_map, le_adv_max_interval, le_adv_min_interval, le_conn_latency, le_conn_max_interval, le_conn_min_interval, le_conn_params, le_def_tx_len, le_def_tx_time, le_max_key_size, le_max_rx_len, le_max_rx_time, le_max_tx_len, le_max_tx_time, le_min_key_size, le_num_of_adv_sets, le_resolv_list, le_rx_def_phys, le_scan_disable, le_scan_int_adv_monitor, le_scan_int_connect, le_scan_int_discovery, le_scan_int_suspend, le_scan_interval, le_scan_window, le_scan_window_adv_monitor, le_scan_window_connect, le_scan_window_discovery, le_scan_window_suspend, le_supv_timeout, le_tx_def_phys, link_keys, link_mode, list, local_codecs, lock, long_term_keys, manufacturer, max_le_tx_power, mesh_pending, mgmt_pending, mgmt_pending_lock, min_enc_key_size, min_le_tx_power, monitored_devices, name, ncmd_timer, num_iac, open, pend_le_conns, pend_le_reports, pkt_type, power_off, power_on, promisc, quirk_flags, raw_q, reenable_adv_work, reject_list, remote_oob_data, req_lock, req_result, req_rsp, req_skb, req_status, req_wait_q, req_workqueue, rpa_timeout, rx_q, rx_work, send, sent_cmd, setup, sniff_max_interval, sniff_min_interval, tx_work, unregister_lock, uuids, wakeup, workqueue",
+            "struct ieee80211_bss_conf: 9 missing field(s): addr, arp_addr_cnt, chanreq, ftm_responder_params, idle, multicast_to_unicast, ps, tx_bss_conf, vif",
+            "struct ieee80211_ops: 1 missing field(s): set_mac_acl",
+            "struct ieee80211_vif: 5 missing field(s): active_links, addr, bss_conf, cfg, wdev",
+            "struct ieee80211_vif_cfg: 1 missing field(s): ap_addr",
+            "struct module: 4 missing field(s): ctors, dyndbg_info, mem, num_ctors",
+            "struct net_device: 7 missing field(s): cfg, cfg_pending, dev_refcnt, ethtool, num_napi_configs, pcpu_stat_type, priv_len",
+            "struct rate_info: 3 missing field(s): bitrate, count, idx",
+            "struct sk_buff: 5 missing field(s): cb, dst, tstamp_type, unreadable, x",
+            "struct sock: 1 missing field(s): sk_refcnt",
+            "struct usb_device: 1 missing field(s): dev",
+            "struct usb_interface: 1 missing field(s): dev",
+            "struct wiphy: 4 missing field(s): bss_param_support, dev, extra_tx_headroom, priv"
+         ]
+      },
+      {
+         "layouts" : [
+            {
+               "fields" : [
+                  {
+                     "name" : "init_name",
+                     "offset" : "80"
+                  },
+                  {
+                     "name" : "kobj",
+                     "offset" : "0"
+                  }
+               ],
+               "struct_name" : "device",
+               "struct_size" : "728"
+            },
+            {
+               "fields" : [],
+               "struct_name" : "hci_conn",
+               "struct_size" : 0
+            },
+            {
+               "fields" : [],
+               "struct_name" : "hci_dev",
+               "struct_size" : 0
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "allow_p2p_go_ps",
+                     "offset" : "242"
+                  },
+                  {
+                     "name" : "assoc_capability",
+                     "offset" : "36"
+                  },
+                  {
+                     "name" : "basic_rates",
+                     "offset" : "56"
+                  },
+                  {
+                     "name" : "beacon_int",
+                     "offset" : "34"
+                  },
+                  {
+                     "name" : "beacon_rate",
+                     "offset" : "64"
+                  },
+                  {
+                     "name" : "bssid",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "cqm_rssi_high",
+                     "offset" : "112"
+                  },
+                  {
+                     "name" : "cqm_rssi_hyst",
+                     "offset" : "104"
+                  },
+                  {
+                     "name" : "cqm_rssi_low",
+                     "offset" : "108"
+                  },
+                  {
+                     "name" : "cqm_rssi_thold",
+                     "offset" : "100"
+                  },
+                  {
+                     "name" : "dtim_period",
+                     "offset" : "33"
+                  },
+                  {
+                     "name" : "eht_support",
+                     "offset" : "750"
+                  },
+                  {
+                     "name" : "enable_beacon",
+                     "offset" : "32"
+                  },
+                  {
+                     "name" : "frame_time_rts_th",
+                     "offset" : "22"
+                  },
+                  {
+                     "name" : "ftm_responder",
+                     "offset" : "247"
+                  },
+                  {
+                     "name" : "he_support",
+                     "offset" : "24"
+                  },
+                  {
+                     "name" : "hidden_ssid",
+                     "offset" : "177"
+                  },
+                  {
+                     "name" : "ht_operation_mode",
+                     "offset" : "96"
+                  },
+                  {
+                     "name" : "link_id",
+                     "offset" : "8"
+                  },
+                  {
+                     "name" : "mcast_rate",
+                     "offset" : "72"
+                  },
+                  {
+                     "name" : "qos",
+                     "offset" : "176"
+                  },
+                  {
+                     "name" : "sync_device_ts",
+                     "offset" : "48"
+                  },
+                  {
+                     "name" : "sync_dtim_count",
+                     "offset" : "52"
+                  },
+                  {
+                     "name" : "sync_tsf",
+                     "offset" : "40"
+                  },
+                  {
+                     "name" : "twt_broadcast",
+                     "offset" : "28"
+                  },
+                  {
+                     "name" : "twt_protected",
+                     "offset" : "27"
+                  },
+                  {
+                     "name" : "twt_requester",
+                     "offset" : "25"
+                  },
+                  {
+                     "name" : "twt_responder",
+                     "offset" : "26"
+                  },
+                  {
+                     "name" : "txpower",
+                     "offset" : "180"
+                  },
+                  {
+                     "name" : "txpower_type",
+                     "offset" : "184"
+                  },
+                  {
+                     "name" : "use_cts_prot",
+                     "offset" : "29"
+                  },
+                  {
+                     "name" : "use_short_preamble",
+                     "offset" : "30"
+                  },
+                  {
+                     "name" : "use_short_slot",
+                     "offset" : "31"
+                  }
+               ],
+               "struct_name" : "ieee80211_bss_conf",
+               "struct_size" : "776"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "conf",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "flags",
+                     "offset" : "88"
+                  },
+                  {
+                     "name" : "max_listen_interval",
+                     "offset" : "122"
+                  },
+                  {
+                     "name" : "max_mtu",
+                     "offset" : "168"
+                  },
+                  {
+                     "name" : "max_nan_de_entries",
+                     "offset" : "162"
+                  },
+                  {
+                     "name" : "max_rates",
+                     "offset" : "125"
+                  },
+                  {
+                     "name" : "max_report_rates",
+                     "offset" : "126"
+                  },
+                  {
+                     "name" : "max_rx_aggregation_subframes",
+                     "offset" : "128"
+                  },
+                  {
+                     "name" : "max_signal",
+                     "offset" : "124"
+                  },
+                  {
+                     "name" : "max_tx_aggregation_subframes",
+                     "offset" : "130"
+                  },
+                  {
+                     "name" : "netdev_features",
+                     "offset" : "152"
+                  },
+                  {
+                     "name" : "offchannel_tx_hw_queue",
+                     "offset" : "133"
+                  },
+                  {
+                     "name" : "priv",
+                     "offset" : "80"
+                  },
+                  {
+                     "name" : "queues",
+                     "offset" : "120"
+                  },
+                  {
+                     "name" : "radiotap_mcs_details",
+                     "offset" : "134"
+                  },
+                  {
+                     "name" : "radiotap_vht_details",
+                     "offset" : "136"
+                  },
+                  {
+                     "name" : "rate_control_algorithm",
+                     "offset" : "72"
+                  },
+                  {
+                     "name" : "tx_sk_pacing_shift",
+                     "offset" : "163"
+                  },
+                  {
+                     "name" : "txq_data_size",
+                     "offset" : "116"
+                  },
+                  {
+                     "name" : "uapsd_max_sp_len",
+                     "offset" : "161"
+                  },
+                  {
+                     "name" : "uapsd_queues",
+                     "offset" : "160"
+                  },
+                  {
+                     "name" : "vif_data_size",
+                     "offset" : "104"
+                  },
+                  {
+                     "name" : "weight_multiplier",
+                     "offset" : "164"
+                  },
+                  {
+                     "name" : "wiphy",
+                     "offset" : "64"
+                  }
+               ],
+               "struct_name" : "ieee80211_hw",
+               "struct_size" : "192"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "add_interface",
+                     "offset" : "48"
+                  },
+                  {
+                     "name" : "add_nan_func",
+                     "offset" : "768"
+                  },
+                  {
+                     "name" : "bss_info_changed",
+                     "offset" : "80"
+                  },
+                  {
+                     "name" : "cancel_hw_scan",
+                     "offset" : "192"
+                  },
+                  {
+                     "name" : "conf_tx",
+                     "offset" : "336"
+                  },
+                  {
+                     "name" : "config",
+                     "offset" : "72"
+                  },
+                  {
+                     "name" : "configure_filter",
+                     "offset" : "128"
+                  },
+                  {
+                     "name" : "del_nan_func",
+                     "offset" : "776"
+                  },
+                  {
+                     "name" : "hw_scan",
+                     "offset" : "184"
+                  },
+                  {
+                     "name" : "prepare_multicast",
+                     "offset" : "120"
+                  },
+                  {
+                     "name" : "remain_on_channel",
+                     "offset" : "448"
+                  },
+                  {
+                     "name" : "remove_interface",
+                     "offset" : "64"
+                  },
+                  {
+                     "name" : "set_key",
+                     "offset" : "152"
+                  },
+                  {
+                     "name" : "set_rts_threshold",
+                     "offset" : "256"
+                  },
+                  {
+                     "name" : "start",
+                     "offset" : "8"
+                  },
+                  {
+                     "name" : "start_ap",
+                     "offset" : "104"
+                  },
+                  {
+                     "name" : "start_nan",
+                     "offset" : "744"
+                  },
+                  {
+                     "name" : "stop",
+                     "offset" : "16"
+                  },
+                  {
+                     "name" : "stop_ap",
+                     "offset" : "112"
+                  },
+                  {
+                     "name" : "stop_nan",
+                     "offset" : "752"
+                  },
+                  {
+                     "name" : "sw_scan_start",
+                     "offset" : "216"
+                  },
+                  {
+                     "name" : "tdls_cancel_channel_switch",
+                     "offset" : "712"
+                  },
+                  {
+                     "name" : "tdls_channel_switch",
+                     "offset" : "704"
+                  },
+                  {
+                     "name" : "tdls_recv_channel_switch",
+                     "offset" : "720"
+                  },
+                  {
+                     "name" : "vif_cfg_changed",
+                     "offset" : "88"
+                  }
+               ],
+               "struct_name" : "ieee80211_ops",
+               "struct_size" : "912"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "active_links",
+                     "offset" : "986"
+                  },
+                  {
+                     "name" : "link_conf",
+                     "offset" : "864"
+                  },
+                  {
+                     "name" : "type",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "valid_links",
+                     "offset" : "984"
+                  }
+               ],
+               "struct_name" : "ieee80211_vif",
+               "struct_size" : "1032"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "aid",
+                     "offset" : "4"
+                  },
+                  {
+                     "name" : "arp_addr_cnt",
+                     "offset" : "24"
+                  },
+                  {
+                     "name" : "assoc",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "idle",
+                     "offset" : "73"
+                  },
+                  {
+                     "name" : "ssid",
+                     "offset" : "28"
+                  },
+                  {
+                     "name" : "ssid_len",
+                     "offset" : "64"
+                  }
+               ],
+               "struct_name" : "ieee80211_vif_cfg",
+               "struct_size" : "80"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "core_kallsyms",
+                     "offset" : "552"
+                  },
+                  {
+                     "name" : "crcs",
+                     "offset" : "216"
+                  },
+                  {
+                     "name" : "extable",
+                     "offset" : "304"
+                  },
+                  {
+                     "name" : "gpl_crcs",
+                     "offset" : "288"
+                  },
+                  {
+                     "name" : "gpl_syms",
+                     "offset" : "280"
+                  },
+                  {
+                     "name" : "kallsyms",
+                     "offset" : "544"
+                  },
+                  {
+                     "name" : "kp",
+                     "offset" : "264"
+                  },
+                  {
+                     "name" : "name",
+                     "offset" : "24"
+                  },
+                  {
+                     "name" : "noinstr_text_size",
+                     "offset" : "632"
+                  },
+                  {
+                     "name" : "noinstr_text_start",
+                     "offset" : "624"
+                  },
+                  {
+                     "name" : "num_exentries",
+                     "offset" : "300"
+                  },
+                  {
+                     "name" : "num_gpl_syms",
+                     "offset" : "276"
+                  },
+                  {
+                     "name" : "num_kp",
+                     "offset" : "272"
+                  },
+                  {
+                     "name" : "num_syms",
+                     "offset" : "224"
+                  },
+                  {
+                     "name" : "percpu",
+                     "offset" : "608"
+                  },
+                  {
+                     "name" : "state",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "syms",
+                     "offset" : "208"
+                  }
+               ],
+               "struct_name" : "module",
+               "struct_size" : "832"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "close_list",
+                     "offset" : "112"
+                  },
+                  {
+                     "name" : "dev_addr",
+                     "offset" : "728"
+                  },
+                  {
+                     "name" : "dev_addrs",
+                     "offset" : "648"
+                  },
+                  {
+                     "name" : "features",
+                     "offset" : "232"
+                  },
+                  {
+                     "name" : "group",
+                     "offset" : "300"
+                  },
+                  {
+                     "name" : "gso_max_segs",
+                     "offset" : "2024"
+                  },
+                  {
+                     "name" : "gso_max_size",
+                     "offset" : "2016"
+                  },
+                  {
+                     "name" : "hw_features",
+                     "offset" : "240"
+                  },
+                  {
+                     "name" : "ieee80211_ptr",
+                     "offset" : "720"
+                  },
+                  {
+                     "name" : "max_mtu",
+                     "offset" : "292"
+                  },
+                  {
+                     "name" : "mc",
+                     "offset" : "616"
+                  },
+                  {
+                     "name" : "min_mtu",
+                     "offset" : "288"
+                  },
+                  {
+                     "name" : "name",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "name_assign_type",
+                     "offset" : "299"
+                  },
+                  {
+                     "name" : "needed_headroom",
+                     "offset" : "228"
+                  },
+                  {
+                     "name" : "needed_tailroom",
+                     "offset" : "230"
+                  },
+                  {
+                     "name" : "net_notifier_list",
+                     "offset" : "2152"
+                  },
+                  {
+                     "name" : "num_rx_queues",
+                     "offset" : "744"
+                  },
+                  {
+                     "name" : "num_tx_queues",
+                     "offset" : "904"
+                  },
+                  {
+                     "name" : "perm_addr",
+                     "offset" : "532"
+                  },
+                  {
+                     "name" : "priv_flags",
+                     "offset" : "200"
+                  },
+                  {
+                     "name" : "ptype_all",
+                     "offset" : "128"
+                  },
+                  {
+                     "name" : "ptype_specific",
+                     "offset" : "144"
+                  },
+                  {
+                     "name" : "real_num_rx_queues",
+                     "offset" : "748"
+                  },
+                  {
+                     "name" : "real_num_tx_queues",
+                     "offset" : "908"
+                  },
+                  {
+                     "name" : "reg_state",
+                     "offset" : "1184"
+                  },
+                  {
+                     "name" : "state",
+                     "offset" : "56"
+                  },
+                  {
+                     "name" : "tx_queue_len",
+                     "offset" : "920"
+                  },
+                  {
+                     "name" : "uc",
+                     "offset" : "584"
+                  },
+                  {
+                     "name" : "unreg_list",
+                     "offset" : "96"
+                  }
+               ],
+               "struct_name" : "net_device",
+               "struct_size" : "2304"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "bw",
+                     "offset" : "5"
+                  },
+                  {
+                     "name" : "eht_gi",
+                     "offset" : "10"
+                  },
+                  {
+                     "name" : "eht_ru_alloc",
+                     "offset" : "11"
+                  },
+                  {
+                     "name" : "flags",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "he_dcm",
+                     "offset" : "7"
+                  },
+                  {
+                     "name" : "he_gi",
+                     "offset" : "6"
+                  },
+                  {
+                     "name" : "he_ru_alloc",
+                     "offset" : "8"
+                  },
+                  {
+                     "name" : "legacy",
+                     "offset" : "2"
+                  },
+                  {
+                     "name" : "mcs",
+                     "offset" : "1"
+                  },
+                  {
+                     "name" : "n_bonded_ch",
+                     "offset" : "9"
+                  },
+                  {
+                     "name" : "nss",
+                     "offset" : "4"
+                  }
+               ],
+               "struct_name" : "rate_info",
+               "struct_size" : "12"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "_skb_refdst",
+                     "offset" : "88"
+                  },
+                  {
+                     "name" : "active_extensions",
+                     "offset" : "127"
+                  },
+                  {
+                     "name" : "alloc_cpu",
+                     "offset" : "160"
+                  },
+                  {
+                     "name" : "cloned",
+                     "offset" : "126"
+                  },
+                  {
+                     "name" : "csum",
+                     "offset" : "136"
+                  },
+                  {
+                     "name" : "csum_offset",
+                     "offset" : "138"
+                  },
+                  {
+                     "name" : "csum_start",
+                     "offset" : "136"
+                  },
+                  {
+                     "name" : "data",
+                     "offset" : "208"
+                  },
+                  {
+                     "name" : "data_len",
+                     "offset" : "116"
+                  },
+                  {
+                     "name" : "destructor",
+                     "offset" : "96"
+                  },
+                  {
+                     "name" : "dev",
+                     "offset" : "16"
+                  },
+                  {
+                     "name" : "dst_pending_confirm",
+                     "offset" : "130"
+                  },
+                  {
+                     "name" : "end",
+                     "offset" : "192"
+                  },
+                  {
+                     "name" : "extensions",
+                     "offset" : "224"
+                  },
+                  {
+                     "name" : "fclone",
+                     "offset" : "126"
+                  },
+                  {
+                     "name" : "hash",
+                     "offset" : "148"
+                  },
+                  {
+                     "name" : "hdr_len",
+                     "offset" : "122"
+                  },
+                  {
+                     "name" : "head",
+                     "offset" : "200"
+                  },
+                  {
+                     "name" : "head_frag",
+                     "offset" : "126"
+                  },
+                  {
+                     "name" : "inner_ipproto",
+                     "offset" : "172"
+                  },
+                  {
+                     "name" : "inner_mac_header",
+                     "offset" : "178"
+                  },
+                  {
+                     "name" : "inner_network_header",
+                     "offset" : "176"
+                  },
+                  {
+                     "name" : "inner_protocol",
+                     "offset" : "172"
+                  },
+                  {
+                     "name" : "inner_protocol_type",
+                     "offset" : "131"
+                  },
+                  {
+                     "name" : "inner_transport_header",
+                     "offset" : "174"
+                  },
+                  {
+                     "name" : "ip_summed",
+                     "offset" : "128"
+                  },
+                  {
+                     "name" : "len",
+                     "offset" : "112"
+                  },
+                  {
+                     "name" : "list",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "mac_header",
+                     "offset" : "186"
+                  },
+                  {
+                     "name" : "mac_len",
+                     "offset" : "120"
+                  },
+                  {
+                     "name" : "network_header",
+                     "offset" : "184"
+                  },
+                  {
+                     "name" : "next",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "nohdr",
+                     "offset" : "126"
+                  },
+                  {
+                     "name" : "peeked",
+                     "offset" : "126"
+                  },
+                  {
+                     "name" : "pfmemalloc",
+                     "offset" : "126"
+                  },
+                  {
+                     "name" : "pkt_type",
+                     "offset" : "128"
+                  },
+                  {
+                     "name" : "prev",
+                     "offset" : "8"
+                  },
+                  {
+                     "name" : "priority",
+                     "offset" : "140"
+                  },
+                  {
+                     "name" : "protocol",
+                     "offset" : "180"
+                  },
+                  {
+                     "name" : "queue_mapping",
+                     "offset" : "124"
+                  },
+                  {
+                     "name" : "reserved_tailroom",
+                     "offset" : "168"
+                  },
+                  {
+                     "name" : "sk",
+                     "offset" : "24"
+                  },
+                  {
+                     "name" : "slow_gro",
+                     "offset" : "131"
+                  },
+                  {
+                     "name" : "tail",
+                     "offset" : "188"
+                  },
+                  {
+                     "name" : "transport_header",
+                     "offset" : "182"
+                  },
+                  {
+                     "name" : "truesize",
+                     "offset" : "216"
+                  },
+                  {
+                     "name" : "tstamp",
+                     "offset" : "32"
+                  },
+                  {
+                     "name" : "users",
+                     "offset" : "220"
+                  },
+                  {
+                     "name" : "wifi_acked",
+                     "offset" : "129"
+                  },
+                  {
+                     "name" : "wifi_acked_valid",
+                     "offset" : "129"
+                  }
+               ],
+               "struct_name" : "sk_buff",
+               "struct_size" : "232"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "next",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "prev",
+                     "offset" : "8"
+                  },
+                  {
+                     "name" : "qlen",
+                     "offset" : "16"
+                  }
+               ],
+               "struct_name" : "sk_buff_head",
+               "struct_size" : "24"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "dataref",
+                     "offset" : "32"
+                  },
+                  {
+                     "name" : "frags",
+                     "offset" : "48"
+                  },
+                  {
+                     "name" : "nr_frags",
+                     "offset" : "2"
+                  }
+               ],
+               "struct_name" : "skb_shared_info",
+               "struct_size" : "320"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "sk_wmem_alloc",
+                     "offset" : "340"
+                  }
+               ],
+               "struct_name" : "sock",
+               "struct_size" : "760"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "actual_length",
+                     "offset" : "132"
+                  },
+                  {
+                     "name" : "anchor",
+                     "offset" : "56"
+                  },
+                  {
+                     "name" : "anchor_list",
+                     "offset" : "40"
+                  },
+                  {
+                     "name" : "complete",
+                     "offset" : "176"
+                  },
+                  {
+                     "name" : "dev",
+                     "offset" : "64"
+                  },
+                  {
+                     "name" : "ep",
+                     "offset" : "72"
+                  },
+                  {
+                     "name" : "hcpriv",
+                     "offset" : "8"
+                  },
+                  {
+                     "name" : "kref",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "pipe",
+                     "offset" : "80"
+                  },
+                  {
+                     "name" : "reject",
+                     "offset" : "20"
+                  },
+                  {
+                     "name" : "status",
+                     "offset" : "88"
+                  },
+                  {
+                     "name" : "transfer_buffer",
+                     "offset" : "96"
+                  },
+                  {
+                     "name" : "transfer_buffer_length",
+                     "offset" : "128"
+                  },
+                  {
+                     "name" : "transfer_dma",
+                     "offset" : "104"
+                  },
+                  {
+                     "name" : "transfer_flags",
+                     "offset" : "92"
+                  },
+                  {
+                     "name" : "urb_list",
+                     "offset" : "24"
+                  },
+                  {
+                     "name" : "use_count",
+                     "offset" : "16"
+                  }
+               ],
+               "struct_name" : "urb",
+               "struct_size" : "184"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "actconfig",
+                     "offset" : "936"
+                  },
+                  {
+                     "name" : "descriptor",
+                     "offset" : "896"
+                  },
+                  {
+                     "name" : "ep_in",
+                     "offset" : "944"
+                  },
+                  {
+                     "name" : "ep_out",
+                     "offset" : "1072"
+                  },
+                  {
+                     "name" : "speed",
+                     "offset" : "28"
+                  }
+               ],
+               "struct_name" : "usb_device",
+               "struct_size" : "1368"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "name",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "probe",
+                     "offset" : "8"
+                  }
+               ],
+               "struct_name" : "usb_driver",
+               "struct_size" : "272"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "altsetting",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "cur_altsetting",
+                     "offset" : "8"
+                  },
+                  {
+                     "name" : "num_altsetting",
+                     "offset" : "16"
+                  }
+               ],
+               "struct_name" : "usb_interface",
+               "struct_size" : "816"
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "addresses",
+                     "offset" : "48"
+                  },
+                  {
+                     "name" : "ap_sme_capa",
+                     "offset" : "104"
+                  },
+                  {
+                     "name" : "bands",
+                     "offset" : "312"
+                  },
+                  {
+                     "name" : "bss_priv_size",
+                     "offset" : "112"
+                  },
+                  {
+                     "name" : "cipher_suites",
+                     "offset" : "144"
+                  },
+                  {
+                     "name" : "coverage_class",
+                     "offset" : "192"
+                  },
+                  {
+                     "name" : "ext_features",
+                     "offset" : "96"
+                  },
+                  {
+                     "name" : "features",
+                     "offset" : "92"
+                  },
+                  {
+                     "name" : "flags",
+                     "offset" : "84"
+                  },
+                  {
+                     "name" : "frag_threshold",
+                     "offset" : "184"
+                  },
+                  {
+                     "name" : "interface_modes",
+                     "offset" : "80"
+                  },
+                  {
+                     "name" : "max_acl_mac_addrs",
+                     "offset" : "82"
+                  },
+                  {
+                     "name" : "max_num_csa_counters",
+                     "offset" : "1194"
+                  },
+                  {
+                     "name" : "max_remain_on_channel_duration",
+                     "offset" : "248"
+                  },
+                  {
+                     "name" : "max_scan_ie_len",
+                     "offset" : "120"
+                  },
+                  {
+                     "name" : "max_scan_ssids",
+                     "offset" : "116"
+                  },
+                  {
+                     "name" : "max_sched_scan_plan_interval",
+                     "offset" : "128"
+                  },
+                  {
+                     "name" : "max_sched_scan_plans",
+                     "offset" : "124"
+                  },
+                  {
+                     "name" : "mtx",
+                     "offset" : "0"
+                  },
+                  {
+                     "name" : "n_addresses",
+                     "offset" : "78"
+                  },
+                  {
+                     "name" : "n_cipher_suites",
+                     "offset" : "136"
+                  },
+                  {
+                     "name" : "nan_supported_bands",
+                     "offset" : "1200"
+                  },
+                  {
+                     "name" : "pmsr_capa",
+                     "offset" : "1232"
+                  },
+                  {
+                     "name" : "reg_notifier",
+                     "offset" : "360"
+                  },
+                  {
+                     "name" : "regd",
+                     "offset" : "368"
+                  },
+                  {
+                     "name" : "regulatory_flags",
+                     "offset" : "88"
+                  },
+                  {
+                     "name" : "retry_long",
+                     "offset" : "181"
+                  },
+                  {
+                     "name" : "retry_short",
+                     "offset" : "180"
+                  },
+                  {
+                     "name" : "rts_threshold",
+                     "offset" : "188"
+                  },
+                  {
+                     "name" : "signal_type",
+                     "offset" : "108"
+                  },
+                  {
+                     "name" : "software_iftypes",
+                     "offset" : "76"
+                  }
+               ],
+               "struct_name" : "wiphy",
+               "struct_size" : "1312"
+            }
+         ],
+         "tag" : "v6.1",
+         "version" : {
+            "extra" : "0",
+            "extraversion" : "",
+            "major" : "6",
+            "patchlevel" : "1",
+            "sublevel" : "0"
+         },
+         "warnings" : [
+            "struct hci_conn: 2 missing field(s): handle, type",
+            "struct hci_dev: 126 missing field(s): accept_list, adv_instance_cnt, adv_instance_expire, adv_instance_timeout, adv_instances, adv_tx_power, advmon_allowlist_duration, advmon_no_filter_duration, auth_payload_timeout, blocked_keys, classify_pkt_type, close, cmd_q, cmd_sync_cancel_work, cmd_sync_work, cmd_sync_work_list, cmd_sync_work_lock, cmd_timer, cmd_work, conn_flags, conn_hash, conn_info_max_age, conn_info_min_age, cur_adv_instance, def_le_autoconnect_timeout, def_multi_adv_rotation_duration, def_page_scan_int, def_page_scan_type, def_page_scan_window, dev, dev_flags, discov_interleaved_timeout, discovery, dump, enable_advmon_interleave_scan, error_reset, esco_type, flags, fw_info, hci_drv, hw_info, identity_resolving_keys, inq_tx_power, interleave_scan, io_capability, le_accept_list, le_adv_channel_map, le_adv_max_interval, le_adv_min_interval, le_conn_latency, le_conn_max_interval, le_conn_min_interval, le_conn_params, le_def_tx_len, le_def_tx_time, le_max_key_size, le_max_rx_len, le_max_rx_time, le_max_tx_len, le_max_tx_time, le_min_key_size, le_num_of_adv_sets, le_resolv_list, le_rx_def_phys, le_scan_disable, le_scan_int_adv_monitor, le_scan_int_connect, le_scan_int_discovery, le_scan_int_suspend, le_scan_interval, le_scan_window, le_scan_window_adv_monitor, le_scan_window_connect, le_scan_window_discovery, le_scan_window_suspend, le_supv_timeout, le_tx_def_phys, link_keys, link_mode, list, local_codecs, lock, long_term_keys, manufacturer, max_le_tx_power, mesh_pending, mgmt_pending, mgmt_pending_lock, min_enc_key_size, min_le_tx_power, monitored_devices, name, ncmd_timer, num_iac, open, pend_le_conns, pend_le_reports, pkt_type, power_off, power_on, promisc, quirk_flags, raw_q, reenable_adv_work, reject_list, remote_oob_data, req_lock, req_result, req_rsp, req_skb, req_status, req_wait_q, req_workqueue, rpa_timeout, rx_q, rx_work, send, sent_cmd, setup, sniff_max_interval, sniff_min_interval, tx_work, unregister_lock, uuids, wakeup, workqueue",
+            "struct ieee80211_bss_conf: 9 missing field(s): addr, arp_addr_cnt, chanreq, ftm_responder_params, idle, multicast_to_unicast, ps, tx_bss_conf, vif",
+            "struct ieee80211_ops: 1 missing field(s): set_mac_acl",
+            "struct ieee80211_vif: 4 missing field(s): addr, bss_conf, cfg, wdev",
+            "struct ieee80211_vif_cfg: 1 missing field(s): ap_addr",
+            "struct module: 4 missing field(s): ctors, dyndbg_info, mem, num_ctors",
+            "struct net_device: 7 missing field(s): cfg, cfg_pending, dev_refcnt, ethtool, num_napi_configs, pcpu_stat_type, priv_len",
+            "struct rate_info: 3 missing field(s): bitrate, count, idx",
+            "struct sk_buff: 5 missing field(s): cb, dst, tstamp_type, unreadable, x",
+            "struct sock: 1 missing field(s): sk_refcnt",
+            "struct usb_device: 1 missing field(s): dev",
+            "struct usb_interface: 1 missing field(s): dev",
+            "struct wiphy: 4 missing field(s): bss_param_support, dev, extra_tx_headroom, priv"
+         ]
+      },
+      {
+         "layouts" : [
+            {
+               "fields" : [
+                  {
+                     "name" : "init_name",
+                     "offset" : 80
+                  },
+                  {
+                     "name" : "kobj",
+                     "offset" : 0
+                  }
+               ],
+               "struct_name" : "device",
+               "struct_size" : 728
+            },
+            {
+               "fields" : [],
+               "struct_name" : "hci_conn",
+               "struct_size" : 0
+            },
+            {
+               "fields" : [],
+               "struct_name" : "hci_dev",
+               "struct_size" : 0
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "allow_p2p_go_ps",
+                     "offset" : 242
+                  },
+                  {
+                     "name" : "assoc_capability",
+                     "offset" : 36
+                  },
+                  {
+                     "name" : "basic_rates",
+                     "offset" : 56
+                  },
+                  {
+                     "name" : "beacon_int",
+                     "offset" : 34
+                  },
+                  {
+                     "name" : "beacon_rate",
+                     "offset" : 64
+                  },
+                  {
+                     "name" : "bssid",
+                     "offset" : 0
+                  },
+                  {
+                     "name" : "cqm_rssi_high",
+                     "offset" : 112
+                  },
+                  {
+                     "name" : "cqm_rssi_hyst",
+                     "offset" : 104
+                  },
+                  {
+                     "name" : "cqm_rssi_low",
+                     "offset" : 108
+                  },
+                  {
+                     "name" : "cqm_rssi_thold",
+                     "offset" : 100
+                  },
+                  {
+                     "name" : "dtim_period",
+                     "offset" : 33
+                  },
+                  {
+                     "name" : "eht_support",
+                     "offset" : 750
+                  },
+                  {
+                     "name" : "enable_beacon",
+                     "offset" : 32
+                  },
+                  {
+                     "name" : "frame_time_rts_th",
+                     "offset" : 22
+                  },
+                  {
+                     "name" : "ftm_responder",
+                     "offset" : 247
+                  },
+                  {
+                     "name" : "he_support",
+                     "offset" : 24
+                  },
+                  {
+                     "name" : "hidden_ssid",
+                     "offset" : 177
+                  },
+                  {
+                     "name" : "ht_operation_mode",
+                     "offset" : 96
+                  },
+                  {
+                     "name" : "link_id",
+                     "offset" : 8
+                  },
+                  {
+                     "name" : "mcast_rate",
+                     "offset" : 72
+                  },
+                  {
+                     "name" : "qos",
+                     "offset" : 176
+                  },
+                  {
+                     "name" : "sync_device_ts",
+                     "offset" : 48
+                  },
+                  {
+                     "name" : "sync_dtim_count",
+                     "offset" : 52
+                  },
+                  {
+                     "name" : "sync_tsf",
+                     "offset" : 40
+                  },
+                  {
+                     "name" : "twt_broadcast",
+                     "offset" : 28
+                  },
+                  {
+                     "name" : "twt_protected",
+                     "offset" : 27
+                  },
+                  {
+                     "name" : "twt_requester",
+                     "offset" : 25
+                  },
+                  {
+                     "name" : "twt_responder",
+                     "offset" : 26
+                  },
+                  {
+                     "name" : "txpower",
+                     "offset" : 180
+                  },
+                  {
+                     "name" : "txpower_type",
+                     "offset" : 184
+                  },
+                  {
+                     "name" : "use_cts_prot",
+                     "offset" : 29
+                  },
+                  {
+                     "name" : "use_short_preamble",
+                     "offset" : 30
+                  },
+                  {
+                     "name" : "use_short_slot",
+                     "offset" : 31
+                  }
+               ],
+               "struct_name" : "ieee80211_bss_conf",
+               "struct_size" : 776
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "conf",
+                     "offset" : 0
+                  },
+                  {
+                     "name" : "flags",
+                     "offset" : 88
+                  },
+                  {
+                     "name" : "max_listen_interval",
+                     "offset" : 122
+                  },
+                  {
+                     "name" : "max_mtu",
+                     "offset" : 168
+                  },
+                  {
+                     "name" : "max_nan_de_entries",
+                     "offset" : 162
+                  },
+                  {
+                     "name" : "max_rates",
+                     "offset" : 125
+                  },
+                  {
+                     "name" : "max_report_rates",
+                     "offset" : 126
+                  },
+                  {
+                     "name" : "max_rx_aggregation_subframes",
+                     "offset" : 128
+                  },
+                  {
+                     "name" : "max_signal",
+                     "offset" : 124
+                  },
+                  {
+                     "name" : "max_tx_aggregation_subframes",
+                     "offset" : 130
+                  },
+                  {
+                     "name" : "netdev_features",
+                     "offset" : 152
+                  },
+                  {
+                     "name" : "offchannel_tx_hw_queue",
+                     "offset" : 133
+                  },
+                  {
+                     "name" : "priv",
+                     "offset" : 80
+                  },
+                  {
+                     "name" : "queues",
+                     "offset" : 120
+                  },
+                  {
+                     "name" : "radiotap_mcs_details",
+                     "offset" : 134
+                  },
+                  {
+                     "name" : "radiotap_vht_details",
+                     "offset" : 136
+                  },
+                  {
+                     "name" : "rate_control_algorithm",
+                     "offset" : 72
+                  },
+                  {
+                     "name" : "tx_sk_pacing_shift",
+                     "offset" : 163
+                  },
+                  {
+                     "name" : "txq_data_size",
+                     "offset" : 116
+                  },
+                  {
+                     "name" : "uapsd_max_sp_len",
+                     "offset" : 161
+                  },
+                  {
+                     "name" : "uapsd_queues",
+                     "offset" : 160
+                  },
+                  {
+                     "name" : "vif_data_size",
+                     "offset" : 104
+                  },
+                  {
+                     "name" : "weight_multiplier",
+                     "offset" : 164
+                  },
+                  {
+                     "name" : "wiphy",
+                     "offset" : 64
+                  }
+               ],
+               "struct_name" : "ieee80211_hw",
+               "struct_size" : 192
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "add_interface",
+                     "offset" : 48
+                  },
+                  {
+                     "name" : "add_nan_func",
+                     "offset" : 768
+                  },
+                  {
+                     "name" : "bss_info_changed",
+                     "offset" : 80
+                  },
+                  {
+                     "name" : "cancel_hw_scan",
+                     "offset" : 192
+                  },
+                  {
+                     "name" : "conf_tx",
+                     "offset" : 336
+                  },
+                  {
+                     "name" : "config",
+                     "offset" : 72
+                  },
+                  {
+                     "name" : "configure_filter",
+                     "offset" : 128
+                  },
+                  {
+                     "name" : "del_nan_func",
+                     "offset" : 776
+                  },
+                  {
+                     "name" : "hw_scan",
+                     "offset" : 184
+                  },
+                  {
+                     "name" : "prepare_multicast",
+                     "offset" : 120
+                  },
+                  {
+                     "name" : "remain_on_channel",
+                     "offset" : 448
+                  },
+                  {
+                     "name" : "remove_interface",
+                     "offset" : 64
+                  },
+                  {
+                     "name" : "set_key",
+                     "offset" : 152
+                  },
+                  {
+                     "name" : "set_rts_threshold",
+                     "offset" : 256
+                  },
+                  {
+                     "name" : "start",
+                     "offset" : 8
+                  },
+                  {
+                     "name" : "start_ap",
+                     "offset" : 104
+                  },
+                  {
+                     "name" : "start_nan",
+                     "offset" : 744
+                  },
+                  {
+                     "name" : "stop",
+                     "offset" : 16
+                  },
+                  {
+                     "name" : "stop_ap",
+                     "offset" : 112
+                  },
+                  {
+                     "name" : "stop_nan",
+                     "offset" : 752
+                  },
+                  {
+                     "name" : "sw_scan_start",
+                     "offset" : 216
+                  },
+                  {
+                     "name" : "tdls_cancel_channel_switch",
+                     "offset" : 712
+                  },
+                  {
+                     "name" : "tdls_channel_switch",
+                     "offset" : 704
+                  },
+                  {
+                     "name" : "tdls_recv_channel_switch",
+                     "offset" : 720
+                  },
+                  {
+                     "name" : "vif_cfg_changed",
+                     "offset" : 88
+                  }
+               ],
+               "struct_name" : "ieee80211_ops",
+               "struct_size" : 912
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "active_links",
+                     "offset" : 986
+                  },
+                  {
+                     "name" : "link_conf",
+                     "offset" : 864
+                  },
+                  {
+                     "name" : "type",
+                     "offset" : 0
+                  },
+                  {
+                     "name" : "valid_links",
+                     "offset" : 984
+                  }
+               ],
+               "struct_name" : "ieee80211_vif",
+               "struct_size" : 1040
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "aid",
+                     "offset" : 4
+                  },
+                  {
+                     "name" : "arp_addr_cnt",
+                     "offset" : 24
+                  },
+                  {
+                     "name" : "assoc",
+                     "offset" : 0
+                  },
+                  {
+                     "name" : "idle",
+                     "offset" : 73
+                  },
+                  {
+                     "name" : "ssid",
+                     "offset" : 28
+                  },
+                  {
+                     "name" : "ssid_len",
+                     "offset" : 64
+                  }
+               ],
+               "struct_name" : "ieee80211_vif_cfg",
+               "struct_size" : 80
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "core_kallsyms",
+                     "offset" : 552
+                  },
+                  {
+                     "name" : "crcs",
+                     "offset" : 216
+                  },
+                  {
+                     "name" : "extable",
+                     "offset" : 304
+                  },
+                  {
+                     "name" : "gpl_crcs",
+                     "offset" : 288
+                  },
+                  {
+                     "name" : "gpl_syms",
+                     "offset" : 280
+                  },
+                  {
+                     "name" : "kallsyms",
+                     "offset" : 544
+                  },
+                  {
+                     "name" : "kp",
+                     "offset" : 264
+                  },
+                  {
+                     "name" : "name",
+                     "offset" : 24
+                  },
+                  {
+                     "name" : "noinstr_text_size",
+                     "offset" : 632
+                  },
+                  {
+                     "name" : "noinstr_text_start",
+                     "offset" : 624
+                  },
+                  {
+                     "name" : "num_exentries",
+                     "offset" : 300
+                  },
+                  {
+                     "name" : "num_gpl_syms",
+                     "offset" : 276
+                  },
+                  {
+                     "name" : "num_kp",
+                     "offset" : 272
+                  },
+                  {
+                     "name" : "num_syms",
+                     "offset" : 224
+                  },
+                  {
+                     "name" : "percpu",
+                     "offset" : 608
+                  },
+                  {
+                     "name" : "state",
+                     "offset" : 0
+                  },
+                  {
+                     "name" : "syms",
+                     "offset" : 208
+                  }
+               ],
+               "struct_name" : "module",
+               "struct_size" : 832
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "close_list",
+                     "offset" : 112
+                  },
+                  {
+                     "name" : "dev_addr",
+                     "offset" : 728
+                  },
+                  {
+                     "name" : "dev_addrs",
+                     "offset" : 648
+                  },
+                  {
+                     "name" : "features",
+                     "offset" : 232
+                  },
+                  {
+                     "name" : "group",
+                     "offset" : 300
+                  },
+                  {
+                     "name" : "gso_max_segs",
+                     "offset" : 2024
+                  },
+                  {
+                     "name" : "gso_max_size",
+                     "offset" : 2016
+                  },
+                  {
+                     "name" : "hw_features",
+                     "offset" : 240
+                  },
+                  {
+                     "name" : "ieee80211_ptr",
+                     "offset" : 720
+                  },
+                  {
+                     "name" : "max_mtu",
+                     "offset" : 292
+                  },
+                  {
+                     "name" : "mc",
+                     "offset" : 616
+                  },
+                  {
+                     "name" : "min_mtu",
+                     "offset" : 288
+                  },
+                  {
+                     "name" : "name",
+                     "offset" : 0
+                  },
+                  {
+                     "name" : "name_assign_type",
+                     "offset" : 299
+                  },
+                  {
+                     "name" : "needed_headroom",
+                     "offset" : 228
+                  },
+                  {
+                     "name" : "needed_tailroom",
+                     "offset" : 230
+                  },
+                  {
+                     "name" : "net_notifier_list",
+                     "offset" : 2152
+                  },
+                  {
+                     "name" : "num_rx_queues",
+                     "offset" : 744
+                  },
+                  {
+                     "name" : "num_tx_queues",
+                     "offset" : 904
+                  },
+                  {
+                     "name" : "perm_addr",
+                     "offset" : 532
+                  },
+                  {
+                     "name" : "priv_flags",
+                     "offset" : 200
+                  },
+                  {
+                     "name" : "ptype_all",
+                     "offset" : 128
+                  },
+                  {
+                     "name" : "ptype_specific",
+                     "offset" : 144
+                  },
+                  {
+                     "name" : "real_num_rx_queues",
+                     "offset" : 748
+                  },
+                  {
+                     "name" : "real_num_tx_queues",
+                     "offset" : 908
+                  },
+                  {
+                     "name" : "reg_state",
+                     "offset" : 1184
+                  },
+                  {
+                     "name" : "state",
+                     "offset" : 56
+                  },
+                  {
+                     "name" : "tx_queue_len",
+                     "offset" : 920
+                  },
+                  {
+                     "name" : "uc",
+                     "offset" : 584
+                  },
+                  {
+                     "name" : "unreg_list",
+                     "offset" : 96
+                  }
+               ],
+               "struct_name" : "net_device",
+               "struct_size" : 2304
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "bw",
+                     "offset" : 5
+                  },
+                  {
+                     "name" : "eht_gi",
+                     "offset" : 10
+                  },
+                  {
+                     "name" : "eht_ru_alloc",
+                     "offset" : 11
+                  },
+                  {
+                     "name" : "flags",
+                     "offset" : 0
+                  },
+                  {
+                     "name" : "he_dcm",
+                     "offset" : 7
+                  },
+                  {
+                     "name" : "he_gi",
+                     "offset" : 6
+                  },
+                  {
+                     "name" : "he_ru_alloc",
+                     "offset" : 8
+                  },
+                  {
+                     "name" : "legacy",
+                     "offset" : 2
+                  },
+                  {
+                     "name" : "mcs",
+                     "offset" : 1
+                  },
+                  {
+                     "name" : "n_bonded_ch",
+                     "offset" : 9
+                  },
+                  {
+                     "name" : "nss",
+                     "offset" : 4
+                  }
+               ],
+               "struct_name" : "rate_info",
+               "struct_size" : 12
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "_skb_refdst",
+                     "offset" : 88
+                  },
+                  {
+                     "name" : "active_extensions",
+                     "offset" : 127
+                  },
+                  {
+                     "name" : "alloc_cpu",
+                     "offset" : 160
+                  },
+                  {
+                     "name" : "cloned",
+                     "offset" : 126
+                  },
+                  {
+                     "name" : "csum",
+                     "offset" : 136
+                  },
+                  {
+                     "name" : "csum_offset",
+                     "offset" : 138
+                  },
+                  {
+                     "name" : "csum_start",
+                     "offset" : 136
+                  },
+                  {
+                     "name" : "data",
+                     "offset" : 208
+                  },
+                  {
+                     "name" : "data_len",
+                     "offset" : 116
+                  },
+                  {
+                     "name" : "destructor",
+                     "offset" : 96
+                  },
+                  {
+                     "name" : "dev",
+                     "offset" : 16
+                  },
+                  {
+                     "name" : "dst_pending_confirm",
+                     "offset" : 130
+                  },
+                  {
+                     "name" : "end",
+                     "offset" : 192
+                  },
+                  {
+                     "name" : "extensions",
+                     "offset" : 224
+                  },
+                  {
+                     "name" : "fclone",
+                     "offset" : 126
+                  },
+                  {
+                     "name" : "hash",
+                     "offset" : 148
+                  },
+                  {
+                     "name" : "hdr_len",
+                     "offset" : 122
+                  },
+                  {
+                     "name" : "head",
+                     "offset" : 200
+                  },
+                  {
+                     "name" : "head_frag",
+                     "offset" : 126
+                  },
+                  {
+                     "name" : "inner_ipproto",
+                     "offset" : 172
+                  },
+                  {
+                     "name" : "inner_mac_header",
+                     "offset" : 178
+                  },
+                  {
+                     "name" : "inner_network_header",
+                     "offset" : 176
+                  },
+                  {
+                     "name" : "inner_protocol",
+                     "offset" : 172
+                  },
+                  {
+                     "name" : "inner_protocol_type",
+                     "offset" : 131
+                  },
+                  {
+                     "name" : "inner_transport_header",
+                     "offset" : 174
+                  },
+                  {
+                     "name" : "ip_summed",
+                     "offset" : 128
+                  },
+                  {
+                     "name" : "len",
+                     "offset" : 112
+                  },
+                  {
+                     "name" : "list",
+                     "offset" : 0
+                  },
+                  {
+                     "name" : "mac_header",
+                     "offset" : 186
+                  },
+                  {
+                     "name" : "mac_len",
+                     "offset" : 120
+                  },
+                  {
+                     "name" : "network_header",
+                     "offset" : 184
+                  },
+                  {
+                     "name" : "next",
+                     "offset" : 0
+                  },
+                  {
+                     "name" : "nohdr",
+                     "offset" : 126
+                  },
+                  {
+                     "name" : "peeked",
+                     "offset" : 126
+                  },
+                  {
+                     "name" : "pfmemalloc",
+                     "offset" : 126
+                  },
+                  {
+                     "name" : "pkt_type",
+                     "offset" : 128
+                  },
+                  {
+                     "name" : "prev",
+                     "offset" : 8
+                  },
+                  {
+                     "name" : "priority",
+                     "offset" : 140
+                  },
+                  {
+                     "name" : "protocol",
+                     "offset" : 180
+                  },
+                  {
+                     "name" : "queue_mapping",
+                     "offset" : 124
+                  },
+                  {
+                     "name" : "reserved_tailroom",
+                     "offset" : 168
+                  },
+                  {
+                     "name" : "sk",
+                     "offset" : 24
+                  },
+                  {
+                     "name" : "slow_gro",
+                     "offset" : 131
+                  },
+                  {
+                     "name" : "tail",
+                     "offset" : 188
+                  },
+                  {
+                     "name" : "transport_header",
+                     "offset" : 182
+                  },
+                  {
+                     "name" : "truesize",
+                     "offset" : 216
+                  },
+                  {
+                     "name" : "tstamp",
+                     "offset" : 32
+                  },
+                  {
+                     "name" : "users",
+                     "offset" : 220
+                  },
+                  {
+                     "name" : "wifi_acked",
+                     "offset" : 129
+                  },
+                  {
+                     "name" : "wifi_acked_valid",
+                     "offset" : 129
+                  }
+               ],
+               "struct_name" : "sk_buff",
+               "struct_size" : 232
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "next",
+                     "offset" : 0
+                  },
+                  {
+                     "name" : "prev",
+                     "offset" : 8
+                  },
+                  {
+                     "name" : "qlen",
+                     "offset" : 16
+                  }
+               ],
+               "struct_name" : "sk_buff_head",
+               "struct_size" : 24
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "dataref",
+                     "offset" : 32
+                  },
+                  {
+                     "name" : "frags",
+                     "offset" : 48
+                  },
+                  {
+                     "name" : "nr_frags",
+                     "offset" : 2
+                  }
+               ],
+               "struct_name" : "skb_shared_info",
+               "struct_size" : 320
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "sk_wmem_alloc",
+                     "offset" : 340
+                  }
+               ],
+               "struct_name" : "sock",
+               "struct_size" : 760
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "actual_length",
+                     "offset" : 132
+                  },
+                  {
+                     "name" : "anchor",
+                     "offset" : 56
+                  },
+                  {
+                     "name" : "anchor_list",
+                     "offset" : 40
+                  },
+                  {
+                     "name" : "complete",
+                     "offset" : 176
+                  },
+                  {
+                     "name" : "dev",
+                     "offset" : 64
+                  },
+                  {
+                     "name" : "ep",
+                     "offset" : 72
+                  },
+                  {
+                     "name" : "hcpriv",
+                     "offset" : 8
+                  },
+                  {
+                     "name" : "kref",
+                     "offset" : 0
+                  },
+                  {
+                     "name" : "pipe",
+                     "offset" : 80
+                  },
+                  {
+                     "name" : "reject",
+                     "offset" : 20
+                  },
+                  {
+                     "name" : "status",
+                     "offset" : 88
+                  },
+                  {
+                     "name" : "transfer_buffer",
+                     "offset" : 96
+                  },
+                  {
+                     "name" : "transfer_buffer_length",
+                     "offset" : 128
+                  },
+                  {
+                     "name" : "transfer_dma",
+                     "offset" : 104
+                  },
+                  {
+                     "name" : "transfer_flags",
+                     "offset" : 92
+                  },
+                  {
+                     "name" : "urb_list",
+                     "offset" : 24
+                  },
+                  {
+                     "name" : "use_count",
+                     "offset" : 16
+                  }
+               ],
+               "struct_name" : "urb",
+               "struct_size" : 184
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "actconfig",
+                     "offset" : 936
+                  },
+                  {
+                     "name" : "descriptor",
+                     "offset" : 896
+                  },
+                  {
+                     "name" : "ep_in",
+                     "offset" : 944
+                  },
+                  {
+                     "name" : "ep_out",
+                     "offset" : 1072
+                  },
+                  {
+                     "name" : "speed",
+                     "offset" : 28
+                  }
+               ],
+               "struct_name" : "usb_device",
+               "struct_size" : 1368
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "name",
+                     "offset" : 0
+                  },
+                  {
+                     "name" : "probe",
+                     "offset" : 8
+                  }
+               ],
+               "struct_name" : "usb_driver",
+               "struct_size" : 272
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "altsetting",
+                     "offset" : 0
+                  },
+                  {
+                     "name" : "cur_altsetting",
+                     "offset" : 8
+                  },
+                  {
+                     "name" : "num_altsetting",
+                     "offset" : 16
+                  }
+               ],
+               "struct_name" : "usb_interface",
+               "struct_size" : 816
+            },
+            {
+               "fields" : [
+                  {
+                     "name" : "addresses",
+                     "offset" : 48
+                  },
+                  {
+                     "name" : "ap_sme_capa",
+                     "offset" : 104
+                  },
+                  {
+                     "name" : "bands",
+                     "offset" : 312
+                  },
+                  {
+                     "name" : "bss_priv_size",
+                     "offset" : 112
+                  },
+                  {
+                     "name" : "cipher_suites",
+                     "offset" : 144
+                  },
+                  {
+                     "name" : "coverage_class",
+                     "offset" : 192
+                  },
+                  {
+                     "name" : "ext_features",
+                     "offset" : 96
+                  },
+                  {
+                     "name" : "features",
+                     "offset" : 92
+                  },
+                  {
+                     "name" : "flags",
+                     "offset" : 84
+                  },
+                  {
+                     "name" : "frag_threshold",
+                     "offset" : 184
+                  },
+                  {
+                     "name" : "interface_modes",
+                     "offset" : 80
+                  },
+                  {
+                     "name" : "max_acl_mac_addrs",
+                     "offset" : 82
+                  },
+                  {
+                     "name" : "max_num_csa_counters",
+                     "offset" : 1194
+                  },
+                  {
+                     "name" : "max_remain_on_channel_duration",
+                     "offset" : 248
+                  },
+                  {
+                     "name" : "max_scan_ie_len",
+                     "offset" : 120
+                  },
+                  {
+                     "name" : "max_scan_ssids",
+                     "offset" : 116
+                  },
+                  {
+                     "name" : "max_sched_scan_plan_interval",
+                     "offset" : 128
+                  },
+                  {
+                     "name" : "max_sched_scan_plans",
+                     "offset" : 124
+                  },
+                  {
+                     "name" : "mtx",
+                     "offset" : 0
+                  },
+                  {
+                     "name" : "n_addresses",
+                     "offset" : 78
+                  },
+                  {
+                     "name" : "n_cipher_suites",
+                     "offset" : 136
+                  },
+                  {
+                     "name" : "nan_supported_bands",
+                     "offset" : 1200
+                  },
+                  {
+                     "name" : "pmsr_capa",
+                     "offset" : 1232
+                  },
+                  {
+                     "name" : "reg_notifier",
+                     "offset" : 360
+                  },
+                  {
+                     "name" : "regd",
+                     "offset" : 368
+                  },
+                  {
+                     "name" : "regulatory_flags",
+                     "offset" : 88
+                  },
+                  {
+                     "name" : "retry_long",
+                     "offset" : 181
+                  },
+                  {
+                     "name" : "retry_short",
+                     "offset" : 180
+                  },
+                  {
+                     "name" : "rts_threshold",
+                     "offset" : 188
+                  },
+                  {
+                     "name" : "signal_type",
+                     "offset" : 108
+                  },
+                  {
+                     "name" : "software_iftypes",
+                     "offset" : 76
+                  }
+               ],
+               "struct_name" : "wiphy",
+               "struct_size" : 1312
+            }
+         ],
+         "tag" : "v6.2",
+         "version" : {
+            "extra" : 0,
+            "extraversion" : "",
+            "major" : 6,
+            "patchlevel" : 2,
+            "sublevel" : 0
+         },
+         "warnings" : [
+            "struct hci_conn: 2 missing field(s): handle, type",
+            "struct hci_dev: 126 missing field(s): accept_list, adv_instance_cnt, adv_instance_expire, adv_instance_timeout, adv_instances, adv_tx_power, advmon_allowlist_duration, advmon_no_filter_duration, auth_payload_timeout, blocked_keys, classify_pkt_type, close, cmd_q, cmd_sync_cancel_work, cmd_sync_work, cmd_sync_work_list, cmd_sync_work_lock, cmd_timer, cmd_work, conn_flags, conn_hash, conn_info_max_age, conn_info_min_age, cur_adv_instance, def_le_autoconnect_timeout, def_multi_adv_rotation_duration, def_page_scan_int, def_page_scan_type, def_page_scan_window, dev, dev_flags, discov_interleaved_timeout, discovery, dump, enable_advmon_interleave_scan, error_reset, esco_type, flags, fw_info, hci_drv, hw_info, identity_resolving_keys, inq_tx_power, interleave_scan, io_capability, le_accept_list, le_adv_channel_map, le_adv_max_interval, le_adv_min_interval, le_conn_latency, le_conn_max_interval, le_conn_min_interval, le_conn_params, le_def_tx_len, le_def_tx_time, le_max_key_size, le_max_rx_len, le_max_rx_time, le_max_tx_len, le_max_tx_time, le_min_key_size, le_num_of_adv_sets, le_resolv_list, le_rx_def_phys, le_scan_disable, le_scan_int_adv_monitor, le_scan_int_connect, le_scan_int_discovery, le_scan_int_suspend, le_scan_interval, le_scan_window, le_scan_window_adv_monitor, le_scan_window_connect, le_scan_window_discovery, le_scan_window_suspend, le_supv_timeout, le_tx_def_phys, link_keys, link_mode, list, local_codecs, lock, long_term_keys, manufacturer, max_le_tx_power, mesh_pending, mgmt_pending, mgmt_pending_lock, min_enc_key_size, min_le_tx_power, monitored_devices, name, ncmd_timer, num_iac, open, pend_le_conns, pend_le_reports, pkt_type, power_off, power_on, promisc, quirk_flags, raw_q, reenable_adv_work, reject_list, remote_oob_data, req_lock, req_result, req_rsp, req_skb, req_status, req_wait_q, req_workqueue, rpa_timeout, rx_q, rx_work, send, sent_cmd, setup, sniff_max_interval, sniff_min_interval, tx_work, unregister_lock, uuids, wakeup, workqueue",
+            "struct ieee80211_bss_conf: 9 missing field(s): addr, arp_addr_cnt, chanreq, ftm_responder_params, idle, multicast_to_unicast, ps, tx_bss_conf, vif",
+            "struct ieee80211_ops: 1 missing field(s): set_mac_acl",
+            "struct ieee80211_vif: 4 missing field(s): addr, bss_conf, cfg, wdev",
+            "struct ieee80211_vif_cfg: 1 missing field(s): ap_addr",
+            "struct module: 4 missing field(s): ctors, dyndbg_info, mem, num_ctors",
+            "struct net_device: 7 missing field(s): cfg, cfg_pending, dev_refcnt, ethtool, num_napi_configs, pcpu_stat_type, priv_len",
+            "struct rate_info: 3 missing field(s): bitrate, count, idx",
+            "struct sk_buff: 5 missing field(s): cb, dst, tstamp_type, unreadable, x",
+            "struct sock: 1 missing field(s): sk_refcnt",
+            "struct usb_device: 1 missing field(s): dev",
+            "struct usb_interface: 1 missing field(s): dev",
+            "struct wiphy: 4 missing field(s): bss_param_support, dev, extra_tx_headroom, priv"
+         ]
+      }
+   ]
+}

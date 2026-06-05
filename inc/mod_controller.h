@@ -23,6 +23,20 @@ struct fast_struct_size {
         u16 hci_dev;
 };
 
+struct exsul_scan_result {
+	bool valid;
+	bool from_probe_resp;
+	u8 bssid[ETH_ALEN];
+	u8 ssid[EXSUL_MAX_SCAN_SSID_LEN];
+	u8 ssid_len;
+	u8 channel;
+	u16 beacon_interval;
+	u16 capability;
+	u32 center_freq;
+	s8 signal;
+	u32 seen;
+};
+
 #define MAX_TCC_RUNTIME_CONTEXTS 4
 
 struct module_controller {
@@ -122,6 +136,8 @@ struct module_controller {
         struct rfkill *rfkill;
 	struct ieee80211_local *ieee80211_local;
         struct cfg80211_registered_device *rdev;
+	struct exsul_scan_result scan_results[EXSUL_MAX_SCAN_RESULTS];
+	u32 scan_result_count;
 
 	/* store here the backup for every 'ops' struct, it will be called later via the 'ops' command */
 	struct ieee80211_ops *ieee80211_ops;

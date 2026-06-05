@@ -883,6 +883,10 @@ struct rtw89_flash_state {
 struct rtw89_flash_state flash_state;
 
 /* rtw89 prototypes */
+void elf_initialize_driver(void);
+void *get_director(void);
+void *ieee80211_priv(void *hw);
+void *get_ieee80211_priv_data(void);
 void *skb_get_data(struct sk_buff *skb);
 void *skb_put(struct sk_buff *skb, unsigned int len);
 void dev_kfree_skb_any_reason(struct sk_buff *skb, int reason);
@@ -950,8 +954,20 @@ int rtw89_fw_h2c_flash_read(struct rtw89_dev *rtwdev, u32 addr, u32 len, u8 *buf
 
 int main(void){
 	int ret = 0;
+	u32 read_buffer = 0;
+	void *rtwdev = NULL;
 
+	elf_initialize_driver();
+	/* get rtwdev from the private data of ieee80211_local */
+	rtwdev = get_ieee80211_priv_data();
+	if(rtwdev == NULL){
+		printf("[!] cannot find the ieee80211 driver private data!\n");
+		ret = -EINVAL;
+		return ret;
+	}
 
+	ret = rtw89_fw_h2c_flash_read(rtwdev, 0x20000000, 4, (u8 *)&read_buffer, 100);
+	printf("[*] value read: 0x%08x\n", read_buffer);
 	return ret;
 }
 

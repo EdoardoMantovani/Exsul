@@ -9,6 +9,9 @@ void ieee80211_rx_list(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, st
 	if (skb == NULL || IS_ERR(skb)){
 		goto end;
 	}
+	if (skb->data == NULL || skb->len < IEEE80211_MIN_HDR_LEN){
+		goto drop;
+	}
 	status = IEEE80211_SKB_RXCB(skb);
 	if (!status || IS_ERR(status)){
 		goto drop;
@@ -16,6 +19,10 @@ void ieee80211_rx_list(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, st
 	hdr = (struct ieee80211_hdr *)skb->data;
 
 	local = director.ieee80211_local;
+	if (local == NULL || local->wiphy == NULL){
+		goto drop;
+	}
+	scan_cache_observe_rx_status(local, skb);
 	if (status->band >= NUM_NL80211_BANDS){
 		goto drop;
 	}

@@ -213,6 +213,10 @@
 #define WLAN_HT_SMPS_CONTROL_STATIC	1
 #define WLAN_HT_SMPS_CONTROL_DYNAMIC	3
 
+#ifndef IEEE80211_MIN_HDR_LEN
+#define IEEE80211_MIN_HDR_LEN		10
+#endif
+
 #define IEEE80211_WEP_IV_LEN		4
 #define IEEE80211_WEP_ICV_LEN		4
 #define IEEE80211_CCMP_HDR_LEN		8
@@ -6470,6 +6474,166 @@ struct ieee80211_local {
 
 const struct element * cfg80211_find_elem_match(u8 eid, const u8 *ies, unsigned int len,  const u8 *match, unsigned int match_len, unsigned int match_offset);
 
+/*
+ * ieee80211_is_mgmt - check if type is IEEE80211_FTYPE_MGMT
+ * @fc: frame control bytes in little-endian byteorder
+ * Return: whether or not the frame type is management
+ */
+static inline bool ieee80211_is_mgmt(__le16 fc){
+	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE)) ==
+	       cpu_to_le16(IEEE80211_FTYPE_MGMT);
+}
+
+/*
+ * ieee80211_is_ctl - check if type is IEEE80211_FTYPE_CTL
+ * @fc: frame control bytes in little-endian byteorder
+ * Return: whether or not the frame type is control
+ */
+static inline bool ieee80211_is_ctl(__le16 fc){
+	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE)) ==
+	       cpu_to_le16(IEEE80211_FTYPE_CTL);
+}
+
+/*
+ * ieee80211_is_data - check if type is IEEE80211_FTYPE_DATA
+ * @fc: frame control bytes in little-endian byteorder
+ * Return: whether or not the frame is a data frame
+ */
+static inline bool ieee80211_is_data(__le16 fc){
+	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE)) ==
+	       cpu_to_le16(IEEE80211_FTYPE_DATA);
+}
+
+/*
+ * ieee80211_is_ext - check if type is IEEE80211_FTYPE_EXT
+ * @fc: frame control bytes in little-endian byteorder
+ * Return: whether or not the frame type is extended
+ */
+static inline bool ieee80211_is_ext(__le16 fc){
+	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE)) ==
+	       cpu_to_le16(IEEE80211_FTYPE_EXT);
+}
+
+
+/*
+ * ieee80211_is_data_qos - check if type is IEEE80211_FTYPE_DATA and IEEE80211_STYPE_QOS_DATA is set
+ * @fc: frame control bytes in little-endian byteorder
+ * Return: whether or not the frame is a QoS data frame
+ */
+static inline bool ieee80211_is_data_qos(__le16 fc){
+	/*
+	 * mask with QOS_DATA rather than IEEE80211_FCTL_STYPE as we just need
+	 * to check the one bit
+	 */
+	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE | IEEE80211_STYPE_QOS_DATA)) ==
+	       cpu_to_le16(IEEE80211_FTYPE_DATA | IEEE80211_STYPE_QOS_DATA);
+}
+
+/*
+ * ieee80211_is_data_present - check if type is IEEE80211_FTYPE_DATA and has data
+ * @fc: frame control bytes in little-endian byteorder
+ * Return: whether or not the frame is a QoS data frame that has data
+ *	(i.e. is not null data)
+ */
+static inline bool ieee80211_is_data_present(__le16 fc){
+	/*
+	 * mask with 0x40 and test that that bit is clear to only return true
+	 * for the data-containing substypes.
+	 */
+	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE | 0x40)) ==
+	       cpu_to_le16(IEEE80211_FTYPE_DATA);
+}
+
+/*
+ * ieee80211_is_assoc_req - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_ASSOC_REQ
+ * @fc: frame control bytes in little-endian byteorder
+ * Return: whether or not the frame is an association request
+ */
+static inline bool ieee80211_is_assoc_req(__le16 fc)
+{
+	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE | IEEE80211_FCTL_STYPE)) ==
+	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_ASSOC_REQ);
+}
+
+/*
+ * ieee80211_is_assoc_resp - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_ASSOC_RESP
+ * @fc: frame control bytes in little-endian byteorder
+ * Return: whether or not the frame is an association response
+ */
+static inline bool ieee80211_is_assoc_resp(__le16 fc)
+{
+	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE | IEEE80211_FCTL_STYPE)) ==
+	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_ASSOC_RESP);
+}
+
+/*
+ * ieee80211_is_reassoc_req - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_REASSOC_REQ
+ * @fc: frame control bytes in little-endian byteorder
+ * Return: whether or not the frame is a reassociation request
+ */
+static inline bool ieee80211_is_reassoc_req(__le16 fc)
+{
+	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE | IEEE80211_FCTL_STYPE)) ==
+	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_REASSOC_REQ);
+}
+
+/*
+ * ieee80211_is_reassoc_resp - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_REASSOC_RESP
+ * @fc: frame control bytes in little-endian byteorder
+ * Return: whether or not the frame is a reassociation response
+ */
+static inline bool ieee80211_is_reassoc_resp(__le16 fc)
+{
+	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE | IEEE80211_FCTL_STYPE)) ==
+	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_REASSOC_RESP);
+}
+
+/*
+ * ieee80211_is_probe_req - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_PROBE_REQ
+ * @fc: frame control bytes in little-endian byteorder
+ * Return: whether or not the frame is a probe request
+ */
+static inline bool ieee80211_is_probe_req(__le16 fc)
+{
+	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE | IEEE80211_FCTL_STYPE)) ==
+	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_PROBE_REQ);
+}
+
+/*
+ * ieee80211_is_probe_resp - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_PROBE_RESP
+ * @fc: frame control bytes in little-endian byteorder
+ * Return: whether or not the frame is a probe response
+ */
+static inline bool ieee80211_is_probe_resp(__le16 fc)
+{
+	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE | IEEE80211_FCTL_STYPE)) ==
+	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_PROBE_RESP);
+}
+
+/*
+ * ieee80211_is_beacon - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_BEACON
+ * @fc: frame control bytes in little-endian byteorder
+ * Return: whether or not the frame is a (regular, not S1G) beacon
+ */
+static inline bool ieee80211_is_beacon(__le16 fc)
+{
+	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE | IEEE80211_FCTL_STYPE)) ==
+	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_BEACON);
+}
+
+/*
+ * ieee80211_is_s1g_beacon - check if IEEE80211_FTYPE_EXT &&
+ * IEEE80211_STYPE_S1G_BEACON
+ * @fc: frame control bytes in little-endian byteorder
+ * Return: whether or not the frame is an S1G beacon
+ */
+static inline bool ieee80211_is_s1g_beacon(__le16 fc)
+{
+	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE |
+				 IEEE80211_FCTL_STYPE)) ==
+	       cpu_to_le16(IEEE80211_FTYPE_EXT | IEEE80211_STYPE_S1G_BEACON);
+}
+
 static u32 cfg80211_calculate_bitrate_ht(struct rate_info *rate){
 	int modulation = 0;
 	int streams = 0;
@@ -7034,6 +7198,197 @@ static inline u32 ieee80211_rx_status_to_khz(struct ieee80211_rx_status *rx_stat
 	return MHZ_TO_KHZ(rx_status->freq) + (rx_status->freq_offset ? 500 : 0);
 }
 
+/* exsul function used for resetting the scan cache, otherwise a lot of junk data will be present after every 'scan' command  */
+static inline void scan_cache_reset(void){
+	memset(director.scan_results, 0, sizeof(director.scan_results));
+	director.scan_result_count = 0;
+}
+
+static inline const u8 *exsul_find_ie(u8 eid, const u8 *ies, size_t ielen, u8 *elen){
+	const u8 *pos = ies;
+
+	if (elen != NULL){
+		*elen = 0;
+	}
+	while (ielen >= 2) {
+		u8 id = pos[0];
+		u8 len = pos[1];
+
+		pos += 2;
+		ielen -= 2;
+		if (len > ielen){
+			break;
+		}
+		if (id == eid) {
+			if (elen != NULL){
+				*elen = len;
+			}
+			return pos;
+		}
+		pos += len;
+		ielen -= len;
+	}
+	return NULL;
+}
+
+static inline void scan_cache_observe(struct ieee80211_local *local,
+				      struct sk_buff *skb,
+				      struct ieee80211_channel *channel,
+				      int fixed_hdr_len){
+	u8 ds_len = 0;
+	u8 ssid_len = 0;
+	const u8 *ies = NULL;
+	const u8 *ds = NULL;
+	const u8 *ssid = NULL;
+	struct ieee80211_mgmt *mgmt = NULL;
+	struct exsul_scan_result *entry = NULL;
+	struct ieee80211_rx_status *rx_status = NULL;
+
+	if (local == NULL || skb == NULL || skb->data == NULL || channel == NULL || fixed_hdr_len < 0){
+		goto end;
+	}
+	if (skb->len < fixed_hdr_len || skb->len > 4096){
+		goto end;
+	}
+
+	mgmt = (struct ieee80211_mgmt *)skb->data;
+	if (!ieee80211_is_probe_resp(mgmt->frame_control) && !ieee80211_is_beacon(mgmt->frame_control)){
+		goto end;
+	}
+
+	rx_status = IEEE80211_SKB_RXCB(skb);
+	ies = skb->data + fixed_hdr_len;
+
+	ssid = exsul_find_ie(WLAN_EID_SSID, ies, skb->len - fixed_hdr_len, &ssid_len);
+	ds = exsul_find_ie(WLAN_EID_DS_PARAMS, ies, skb->len - fixed_hdr_len, &ds_len);
+
+	for (u32 i = 0; i < EXSUL_MAX_SCAN_RESULTS; i++) {
+		if (director.scan_results[i].valid &&
+		    memcmp(director.scan_results[i].bssid, mgmt->bssid, ETH_ALEN) == 0) {
+			entry = &director.scan_results[i];
+			break;
+		}
+	}
+
+	if (entry == NULL) {
+		for (u32 i = 0; i < EXSUL_MAX_SCAN_RESULTS; i++) {
+			if (!director.scan_results[i].valid) {
+				entry = &director.scan_results[i];
+				entry->valid = true;
+				memcpy(entry->bssid, mgmt->bssid, ETH_ALEN);
+				director.scan_result_count++;
+				break;
+			}
+		}
+	}
+	if (entry == NULL){
+		goto end;
+	}
+
+	if (ssid != NULL && ssid_len <= EXSUL_MAX_SCAN_SSID_LEN) {
+		memcpy(entry->ssid, ssid, ssid_len);
+		entry->ssid_len = ssid_len;
+	}
+
+	if (ieee80211_is_probe_resp(mgmt->frame_control)){
+		entry->from_probe_resp = true;
+	}
+
+	entry->beacon_interval = le16_to_cpu(mgmt->u.beacon.beacon_int);
+	entry->capability = le16_to_cpu(mgmt->u.beacon.capab_info);
+	entry->center_freq = channel->center_freq;
+	if (ds != NULL && ds_len >= 1){
+		entry->channel = ds[0];
+	}
+
+	if (rx_status != NULL && !(rx_status->flag & RX_FLAG_NO_SIGNAL_VAL)){
+		entry->signal = rx_status->signal;
+	}
+	entry->seen++;
+	end:
+}
+
+static inline void scan_cache_observe_rx_status(struct ieee80211_local *local, struct sk_buff *skb){
+	int fixed_hdr_len = 0;
+	struct wiphy *wiphy = NULL;
+	struct ieee80211_mgmt *mgmt = NULL;
+	struct ieee80211_channel *channel = NULL;
+	struct ieee80211_rx_status *rx_status = NULL;
+
+	fixed_hdr_len = offsetof(struct ieee80211_mgmt, u.probe_resp.variable);
+
+	if (local == NULL || skb == NULL || skb->data == NULL || skb->len < IEEE80211_MIN_HDR_LEN){
+		goto end;
+	}
+	if (skb->len < fixed_hdr_len || skb->len > 4096){
+		goto end;
+	}
+
+	mgmt = (struct ieee80211_mgmt *)skb->data;
+	if (!ieee80211_is_probe_resp(mgmt->frame_control) && !ieee80211_is_beacon(mgmt->frame_control)){
+		goto end;
+	}
+
+	rx_status = IEEE80211_SKB_RXCB(skb);
+	if (rx_status == NULL || rx_status->freq == 0){
+		goto end;
+	}
+
+	wiphy = local->hw.wiphy != NULL ? local->hw.wiphy : local->wiphy;
+	if (wiphy == NULL){
+		goto end;
+	}
+
+	channel = ieee80211_get_channel_khz(wiphy, ieee80211_rx_status_to_khz(rx_status));
+	if (channel == NULL || (channel->flags & IEEE80211_CHAN_DISABLED)){
+		goto end;
+	}
+
+	scan_cache_observe(local, skb, channel, fixed_hdr_len);
+	end:
+}
+
+/* print the scan results */
+static inline void scan_cache_print(void){
+	int printed = 0;
+	struct exsul_scan_result *entry = NULL;
+
+	printf("[*] hw_scan finished, detected %u networks!\n", director.scan_result_count);
+	for (u32 i = 0; i < EXSUL_MAX_SCAN_RESULTS; i++) {
+		entry = &director.scan_results[i];
+
+		if (!entry->valid){
+			continue;
+		}
+
+		printf("[%03u] %02x:%02x:%02x:%02x:%02x:%02x  ",
+		       printed,
+		       entry->bssid[0], entry->bssid[1], entry->bssid[2],
+		       entry->bssid[3], entry->bssid[4], entry->bssid[5]);
+		printf("ssid=\"");
+		if (entry->ssid_len == 0) {
+			printf("<hidden>");
+		}else{
+			for (u8 j = 0; j < entry->ssid_len; j++) {
+				u8 c = entry->ssid[j];
+
+				if (c >= 32 && c <= 126){
+					putchar(c);
+				}else{
+					/* use '.' for non ASCII characters in the ssid */
+					putchar('.');
+				}
+			}
+		}
+		printf("\" freq=%u MHz", entry->center_freq);
+		if (entry->channel != 0){
+			printf(" ch=%u", entry->channel);
+		}
+		printf(" signal=%d", entry->signal);
+		printed++;
+	}
+}
+
 /**
  * ieee80211_channel_to_khz - convert ieee80211_channel to frequency in KHz
  * @chan: struct ieee80211_channel to convert
@@ -7302,166 +7657,6 @@ static inline bool ieee80211_has_protected(__le16 fc){
  */
 static inline bool ieee80211_has_order(__le16 fc){
 	return (fc & cpu_to_le16(IEEE80211_FCTL_ORDER)) != 0;
-}
-
-/*
- * ieee80211_is_mgmt - check if type is IEEE80211_FTYPE_MGMT
- * @fc: frame control bytes in little-endian byteorder
- * Return: whether or not the frame type is management
- */
-static inline bool ieee80211_is_mgmt(__le16 fc){
-	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE)) ==
-	       cpu_to_le16(IEEE80211_FTYPE_MGMT);
-}
-
-/*
- * ieee80211_is_ctl - check if type is IEEE80211_FTYPE_CTL
- * @fc: frame control bytes in little-endian byteorder
- * Return: whether or not the frame type is control
- */
-static inline bool ieee80211_is_ctl(__le16 fc){
-	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE)) ==
-	       cpu_to_le16(IEEE80211_FTYPE_CTL);
-}
-
-/*
- * ieee80211_is_data - check if type is IEEE80211_FTYPE_DATA
- * @fc: frame control bytes in little-endian byteorder
- * Return: whether or not the frame is a data frame
- */
-static inline bool ieee80211_is_data(__le16 fc){
-	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE)) ==
-	       cpu_to_le16(IEEE80211_FTYPE_DATA);
-}
-
-/*
- * ieee80211_is_ext - check if type is IEEE80211_FTYPE_EXT
- * @fc: frame control bytes in little-endian byteorder
- * Return: whether or not the frame type is extended
- */
-static inline bool ieee80211_is_ext(__le16 fc){
-	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE)) ==
-	       cpu_to_le16(IEEE80211_FTYPE_EXT);
-}
-
-
-/*
- * ieee80211_is_data_qos - check if type is IEEE80211_FTYPE_DATA and IEEE80211_STYPE_QOS_DATA is set
- * @fc: frame control bytes in little-endian byteorder
- * Return: whether or not the frame is a QoS data frame
- */
-static inline bool ieee80211_is_data_qos(__le16 fc){
-	/*
-	 * mask with QOS_DATA rather than IEEE80211_FCTL_STYPE as we just need
-	 * to check the one bit
-	 */
-	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE | IEEE80211_STYPE_QOS_DATA)) ==
-	       cpu_to_le16(IEEE80211_FTYPE_DATA | IEEE80211_STYPE_QOS_DATA);
-}
-
-/*
- * ieee80211_is_data_present - check if type is IEEE80211_FTYPE_DATA and has data
- * @fc: frame control bytes in little-endian byteorder
- * Return: whether or not the frame is a QoS data frame that has data
- *	(i.e. is not null data)
- */
-static inline bool ieee80211_is_data_present(__le16 fc){
-	/*
-	 * mask with 0x40 and test that that bit is clear to only return true
-	 * for the data-containing substypes.
-	 */
-	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE | 0x40)) ==
-	       cpu_to_le16(IEEE80211_FTYPE_DATA);
-}
-
-/*
- * ieee80211_is_assoc_req - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_ASSOC_REQ
- * @fc: frame control bytes in little-endian byteorder
- * Return: whether or not the frame is an association request
- */
-static inline bool ieee80211_is_assoc_req(__le16 fc)
-{
-	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE | IEEE80211_FCTL_STYPE)) ==
-	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_ASSOC_REQ);
-}
-
-/*
- * ieee80211_is_assoc_resp - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_ASSOC_RESP
- * @fc: frame control bytes in little-endian byteorder
- * Return: whether or not the frame is an association response
- */
-static inline bool ieee80211_is_assoc_resp(__le16 fc)
-{
-	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE | IEEE80211_FCTL_STYPE)) ==
-	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_ASSOC_RESP);
-}
-
-/*
- * ieee80211_is_reassoc_req - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_REASSOC_REQ
- * @fc: frame control bytes in little-endian byteorder
- * Return: whether or not the frame is a reassociation request
- */
-static inline bool ieee80211_is_reassoc_req(__le16 fc)
-{
-	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE | IEEE80211_FCTL_STYPE)) ==
-	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_REASSOC_REQ);
-}
-
-/*
- * ieee80211_is_reassoc_resp - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_REASSOC_RESP
- * @fc: frame control bytes in little-endian byteorder
- * Return: whether or not the frame is a reassociation response
- */
-static inline bool ieee80211_is_reassoc_resp(__le16 fc)
-{
-	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE | IEEE80211_FCTL_STYPE)) ==
-	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_REASSOC_RESP);
-}
-
-/*
- * ieee80211_is_probe_req - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_PROBE_REQ
- * @fc: frame control bytes in little-endian byteorder
- * Return: whether or not the frame is a probe request
- */
-static inline bool ieee80211_is_probe_req(__le16 fc)
-{
-	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE | IEEE80211_FCTL_STYPE)) ==
-	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_PROBE_REQ);
-}
-
-/*
- * ieee80211_is_probe_resp - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_PROBE_RESP
- * @fc: frame control bytes in little-endian byteorder
- * Return: whether or not the frame is a probe response
- */
-static inline bool ieee80211_is_probe_resp(__le16 fc)
-{
-	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE | IEEE80211_FCTL_STYPE)) ==
-	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_PROBE_RESP);
-}
-
-/*
- * ieee80211_is_beacon - check if IEEE80211_FTYPE_MGMT && IEEE80211_STYPE_BEACON
- * @fc: frame control bytes in little-endian byteorder
- * Return: whether or not the frame is a (regular, not S1G) beacon
- */
-static inline bool ieee80211_is_beacon(__le16 fc)
-{
-	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE | IEEE80211_FCTL_STYPE)) ==
-	       cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_BEACON);
-}
-
-/*
- * ieee80211_is_s1g_beacon - check if IEEE80211_FTYPE_EXT &&
- * IEEE80211_STYPE_S1G_BEACON
- * @fc: frame control bytes in little-endian byteorder
- * Return: whether or not the frame is an S1G beacon
- */
-static inline bool ieee80211_is_s1g_beacon(__le16 fc)
-{
-	return (fc & cpu_to_le16(IEEE80211_FCTL_FTYPE |
-				 IEEE80211_FCTL_STYPE)) ==
-	       cpu_to_le16(IEEE80211_FTYPE_EXT | IEEE80211_STYPE_S1G_BEACON);
 }
 
 /*
@@ -7999,11 +8194,12 @@ static void rate_control_deinitialize(struct ieee80211_local *local){
 	ref = local->rate_ctrl;
 
 	if (ref == NULL){
-		return;
+		goto end;
 	}
 
 	local->rate_ctrl = NULL;
 	rate_control_free(local, ref);
+	end:
 }
 
 static int ieee80211_mcs_to_chains(const struct ieee80211_mcs_info *mcs){
@@ -8726,14 +8922,15 @@ static void ieee80211_key_iter(struct ieee80211_hw *hw,
 		   void *iter_data){
 	/* skip keys of station in removal process */
 	if (key->sta && key->sta->removed){
-		return;
+		goto end;
 	}
 
 	if (!(key->flags & KEY_FLAG_UPLOADED_TO_HARDWARE)){
-		return;
+		goto end;
 	}
 
 	iter(hw, vif, key->sta ? &key->sta->sta : NULL, &key->conf, iter_data);
+	end:
 }
 
 static void _ieee80211_iter_keys_rcu(struct ieee80211_hw *hw,  struct ieee80211_sub_if_data *sdata,
@@ -9073,12 +9270,16 @@ static void ieee80211_report_used_skb(struct ieee80211_local *local, struct sk_b
 static void __iterate_interfaces(struct ieee80211_local *local, u32 iter_flags, void (*iterator)(void *data, u8 *mac, struct ieee80211_vif *vif), void *data){
 	struct ieee80211_vif *ieee80211_vif = local->ieee80211_vif;
 
-	if (ieee80211_vif == NULL)
-		return;
-	if (ieee80211_vif->type == NL80211_IFTYPE_AP_VLAN)
-		return;
+	if (ieee80211_vif == NULL){
+		goto end;
+	}
+
+	if (ieee80211_vif->type == NL80211_IFTYPE_AP_VLAN){
+		goto end;
+	}
 
 	iterator(data, ieee80211_vif->addr, ieee80211_vif);
+	end:
 }
 
 static void _ieee80211_wake_txqs(struct ieee80211_local *local){
@@ -9454,11 +9655,13 @@ static void ieee80211_vif_cfg_change_notify(struct ieee80211_sub_if_data *sdata,
 
 	local = director.ieee80211_local;
 	ieee80211_vif = sdata->vif;
+
 	if (!changed || ieee80211_vif->type == NL80211_IFTYPE_AP_VLAN){
-		return;
+		goto end;
 	}
 
 	drv_vif_cfg_changed(local, sdata, changed);
+	end:
 }
 
 static void ieee80211_remove_interfaces(struct ieee80211_local *local){
@@ -9725,6 +9928,10 @@ static void ieee80211_scan_rx(struct ieee80211_local *local, struct sk_buff *skb
 	struct ieee80211_channel *channel = NULL;
 	struct ieee80211_rx_status *rx_status = NULL;
 
+	if (local == NULL || skb == NULL || skb->data == NULL || skb->len < IEEE80211_MIN_HDR_LEN){
+		goto end;
+	}
+
 	wiphy = local->wiphy;
 	mgmt = (void *)skb->data;
 	rx_status = (struct ieee80211_rx_status *)skb->cb;
@@ -9739,7 +9946,7 @@ static void ieee80211_scan_rx(struct ieee80211_local *local, struct sk_buff *skb
 		min_hdr_len = offsetof(struct ieee80211_ext, u.s1g_beacon.variable) + ieee80211_s1g_optional_len(ext->frame_control);
 	}
 
-	if (skb->len < min_hdr_len){
+	if (skb->data == NULL || skb->len < min_hdr_len || skb->len > 4096){
 		goto end;
 	}
 
@@ -9753,10 +9960,17 @@ static void ieee80211_scan_rx(struct ieee80211_local *local, struct sk_buff *skb
 		//wiphy_delayed_work_queue(wiphy, &local->scan_work, 0);
 	}
 
+	if (rx_status == NULL || rx_status->freq == 0 || local->hw.wiphy == NULL){
+		goto end;
+	}
+
 	channel = ieee80211_get_channel_khz(local->hw.wiphy, ieee80211_rx_status_to_khz(rx_status));
 
 	if (!channel || channel->flags & IEEE80211_CHAN_DISABLED){
 		goto end;
+	}
+	if (!ieee80211_is_s1g_beacon(mgmt->frame_control)){
+		scan_cache_observe(local, skb, channel, min_hdr_len);
 	}
 
 	end:
@@ -9781,13 +9995,17 @@ static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw, struct ieee802
 	struct ieee80211_rx_data rx = {};
 
 	if (skb == NULL){
-		return;
+		goto end;
+	}
+	if (skb->data == NULL || skb->len < IEEE80211_MIN_HDR_LEN){
+		dev_kfree_skb(skb);
+		goto end;
 	}
 
 	local = director.ieee80211_local;
 	if (local == NULL){
 		dev_kfree_skb(skb);
-		return;
+		goto end;
 	}
 
 	status = IEEE80211_SKB_RXCB(skb);
@@ -9810,7 +10028,7 @@ static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw, struct ieee802
 
 	if (ret) {
 		dev_kfree_skb(skb);
-		return;
+		goto end;
 	}
 
 	hdr = (struct ieee80211_hdr *)skb->data;
@@ -9850,7 +10068,7 @@ static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw, struct ieee802
 					}
 				}
 				if (ieee80211_prepare_and_rx_handle(&rx, skb, true)){
-					return;
+					goto end;
 				}
 				goto out;
 			}
@@ -9896,19 +10114,19 @@ static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw, struct ieee802
 			}
 
 			if (ieee80211_prepare_and_rx_handle(&rx, skb, true)){
-				return;
+				goto end;
 			}
 			goto out;
 		}
 	}
 
 	prev = NULL;
-	ieee80211_vif = sdata->vif;
 	for (pos = local->interfaces.next; pos != &local->interfaces; pos = pos->next) {
 		sdata = (struct ieee80211_sub_if_data *)pos;
 		if (sdata == NULL || sdata->vif == NULL){
 			continue;
 		}
+		ieee80211_vif = sdata->vif;
 		if (!ieee80211_sdata_running(sdata)){
 			continue;
 		}
@@ -9929,12 +10147,14 @@ static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw, struct ieee802
 	if (prev != NULL) {
 		rx.sdata = prev;
 		if (ieee80211_rx_for_interface(&rx, skb, true)){
-			return;
+			goto end;
 		}
 	}
-
 out:
-	dev_kfree_skb(skb);
+end:
+	if(skb != NULL){
+		dev_kfree_skb(skb);
+	}
 }
 
 static void __ieee80211_rx_handle_8023(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, struct sk_buff *skb, struct list_head *list){
@@ -9983,7 +10203,9 @@ static void __ieee80211_rx_handle_8023(struct ieee80211_hw *hw, struct ieee80211
 	ieee80211_rx_8023(&rx, NULL, skb->len);
 	return;
 drop:
-	dev_kfree_skb(skb);
+	if(skb != NULL){
+		dev_kfree_skb(skb);
+	}
 }
 
 /* nl80211 based function wrappers (must be working for both Linux and Windows) */

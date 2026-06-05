@@ -221,6 +221,10 @@ typedef _Atomic(unsigned int) atomic_uint;
 /* defines the maximun number of usb devices which can be present in the current kernel module */
 #define MAX_USB_DEV_LIST		36
 
+/* diagnostic scan cache used by the userspace mac80211 translation */
+#define EXSUL_MAX_SCAN_RESULTS		128
+#define EXSUL_MAX_SCAN_SSID_LEN		32
+
 /* array size of the module memory allocated by the functions 'kmem_xxx' */
 #define MAX_KMEM_ARRAY_SIZE		36
 
