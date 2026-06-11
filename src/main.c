@@ -179,7 +179,8 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 	struct libusb_device_descriptor dev_desc	= {};
 
 	if (handler == NULL || in_intf == NULL) {
-                return -EINVAL;
+                ret = -EINVAL;
+		return ret;
         }
 
         *in_intf = NULL;
@@ -187,13 +188,15 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
         libusb_dev = libusb_get_device(handler);
         if (libusb_dev == NULL) {
                 printf("[!] failed to acquire libusb_device!\n");
-                return -EINVAL;
+                ret = -EINVAL;
+		return ret;
         }
 
 	ret = libusb_get_active_config_descriptor(libusb_dev, &cfg);
         if (ret < 0) {
                 printf("[!] failed to get libusb_config_descriptor!\n");
-                return -EINVAL;
+                ret = -EINVAL;
+		return ret;
         }
 
 	if (cfg->bNumInterfaces == 0) {
@@ -803,16 +806,17 @@ static char *get_modinfo(const struct load_info *info, const char *tag) {
 }
 
 static int elf_validity_cache_copy(struct load_info *info, int flags) {
-	unsigned int i		   = 0;
-	Elf(Shdr) *shdr		   = NULL;
-	Elf(Shdr) *strhdr	   = NULL;
-	int	     err	   = 0;
+	int ret = 0;
+	int i   = 0;
+	int err = 0;
 	unsigned int num_mod_secs  = 0;
 	unsigned int mod_idx	   = 0;
 	unsigned int num_info_secs = 0;
 	unsigned int info_idx	   = 0;
 	unsigned int num_sym_secs  = 0;
 	unsigned int sym_idx	   = 0;
+	Elf(Shdr) *shdr            = NULL;
+        Elf(Shdr) *strhdr          = NULL;
 
 	if (info->hdr->e_shentsize != sizeof(Elf(Shdr))) {
 		printf("Invalid ELF section header size\n");
@@ -890,9 +894,11 @@ static int elf_validity_cache_copy(struct load_info *info, int flags) {
 			}
 			if (shdr->sh_flags & SHF_ALLOC) {
 				if (shdr->sh_name >= strhdr->sh_size) {
-					printf("Invalid ELF section name in module (section %u type %u)\n",
-					       i, shdr->sh_type);
-					return -ENOEXEC;
+					#ifdef ENABLE_DBG_PRINT
+					printf("Invalid ELF section name in module (section %u type %u)\n", i, shdr->sh_type);
+					#endif
+					ret = -ENOEXEC;
+					return ret;
 				}
 			}
 			break;
@@ -968,8 +974,9 @@ static int elf_validity_cache_copy(struct load_info *info, int flags) {
 
 	return 0;
 
-no_exec:
-	return -ENOEXEC;
+	no_exec:
+	ret = -ENOEXEC;
+	return ret;
 }
 
 static int rewrite_section_headers(struct load_info *info, int flags) {
@@ -1005,8 +1012,8 @@ static inline bool within_module_mem_type(uintptr_t	       addr,
 	return addr - base < size;
 }
 
-int module_enforce_rwx_sections(Elf(Ehdr) * hdr, Elf(Shdr) * sechdrs,
-				char *secstrings, struct module *mod) {
+int module_enforce_rwx_sections(Elf(Ehdr) * hdr, Elf(Shdr) * sechdrs, char *secstrings, struct module *mod) {
+	int ret = 0;
 	const unsigned long shf_wx = SHF_WRITE | SHF_EXECINSTR;
 
 	for (int i = 0; i < hdr->e_shnum; i++) {
@@ -1016,10 +1023,11 @@ int module_enforce_rwx_sections(Elf(Ehdr) * hdr, Elf(Shdr) * sechdrs,
 			       "WRITE|EXEC flags\n",
 			       mod->name, secstrings + sechdrs[i].sh_name, i);
 			#endif
-			return -ENOEXEC;
+			ret = -ENOEXEC;
+			return ret;
 		}
 	}
-	return 0;
+	return ret;
 }
 
 static unsigned int find_sec(const struct load_info *info, const char *name) {
@@ -1138,9 +1146,10 @@ static void layout_sections(struct module *mod, struct load_info *info) {
 }
 
 static int module_memory_alloc(struct module *mod, enum mod_mem_type type) {
+	int ret = 0;
 	unsigned int size = PAGE_ALIGN(mod->mem[type].size);
 	unsigned int mem_flags = PROT_READ | PROT_WRITE;
-	void	    *ptr;
+	void	    *ptr = NULL;
 
 	mod->mem[type].size = size;
 	#ifdef ENABLE_DBG_PRINT
@@ -1153,7 +1162,8 @@ static int module_memory_alloc(struct module *mod, enum mod_mem_type type) {
 		   MAP_PRIVATE | MAP_ANON | MAP_32BIT, -1, 0x00);
 
 	if (ptr == MAP_FAILED) {
-		return -ENOMEM;
+		ret = -ENOMEM;
+		return ret;
 	}
 	director.module_allocation_list = new_allocation(ALLOCATION_TYPE_MMAP, ptr, size, mem_flags, PT_LOAD, director.module_allocation_list);
 	memset(ptr, 0, size);
@@ -1979,7 +1989,8 @@ static int call_final_function(struct module *mod, struct load_info *info,
 	}
 
 	printf("Function not found in symtab: %s\n", function_name);
-	return -ENOENT;
+	ret = -ENOENT;
+	return ret;
 }
 
 /* update the kernel version by converting the vermagic string, it will be useful later for setting the function arguments */
@@ -2011,25 +2022,28 @@ void update_kernel_version(unsigned char *vermagic){
 
 /* main entry point of the kernel "module_init" function, permits to load entirely a kernel module, in our case instead, it will load it only in memory and wait for the function to run */
 int module_init(unsigned char *file_name, unsigned char *function_name, struct load_info *info) {
-	int	       fd		= 0;
-	long	       err		= 0;
-	unsigned int   file_size	= 0;
-	bool	       module_allocated = false;
-	struct module *mod		= NULL;
-	char	      *after_dashes	= NULL;
-	unsigned char *mapped_file	= NULL;
-	unsigned char *tmp_mapped_file	= NULL;
-	struct stat    file_stats	= {};
+	int ret = 0;
+	int fd = 0;
+	long err = 0;
+	unsigned int file_size	= 0;
+	bool module_allocated = false;
+	struct module *mod = NULL;
+	char *after_dashes = NULL;
+	unsigned char *mapped_file = NULL;
+	unsigned char *tmp_mapped_file = NULL;
+	struct stat file_stats = {};
 
 	if (file_name == NULL) {
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 
 	fd = open(file_name, O_RDONLY);
 
 	if(fd < 0){
 		printf("[!] file %s not exist!\n", file_name);
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 
 	fstat(fd, &file_stats);
@@ -2037,7 +2051,8 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 
 	if(file_size == 0){
 		printf("[!] file %s is empty!\n", file_name);
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 
 	tmp_mapped_file = (unsigned char *)mmap(
@@ -2056,7 +2071,8 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 			munmap(mapped_file, file_size);
 		}
 		close(fd);
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 
 	/* track the size of the *entire* module loaded in memory */
@@ -3393,24 +3409,64 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 }
 
 #ifdef TCC_SCRIPTING
+static int tcc_add_runtime_symbols(TCCState *tcc_ctx){
+	int ret = 0;
+	bool duplicate = false;
+
+	if(tcc_ctx == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	for(int j = 0; sym_table[j].function_ptr != NULL && sym_table[j].function_name[0] != '\0'; j++){
+		duplicate = false;
+
+		if(strcmp(sym_table[j].function_name, "main") == 0){
+			continue;
+		}
+
+		for(int i = 0; i < j; i++){
+			if(strcmp(sym_table[i].function_name, sym_table[j].function_name) == 0){
+				duplicate = true;
+				break;
+			}
+		}
+		if(duplicate){
+			continue;
+		}
+
+		ret = tcc_add_symbol(tcc_ctx, sym_table[j].function_name, sym_table[j].function_ptr);
+		if(ret < 0){
+			return ret;
+		}
+	}
+
+	return ret;
+}
+
 /*
  * initilize the tcc scripting engine, this feature will permit to write high level C from the TUI and apply the patch at runtime to the loaded
  * kernel modules.
  */
 int drv_integrate_scripting(void){
 	int ret = 0;
+
 	director.tcc_ctx = tcc_new();
 	if(director.tcc_ctx == NULL){
-		return -ENOMEM;
+		ret = -ENOMEM;
+		return ret;
 	}
 
+	/* step 1: disable boring tcc script warnings */
+	tcc_set_options(director.tcc_ctx, "-w");
+	/* step 2: set tcc output type, compilation in memory */
 	tcc_set_output_type(director.tcc_ctx, TCC_OUTPUT_MEMORY);
-	/* use the sym_table for adding automatically the symbols to tcc */
-	for (int j = 0; sym_table[j].function_ptr != NULL && sym_table[j].function_name[0] != '\0'; j++) {
-		if(strcmp(sym_table[j].function_name, "main") == 0){
-			continue;
-		}
-		tcc_add_symbol(director.tcc_ctx, sym_table[j].function_name, sym_table[j].function_ptr);
+	/* step 3: use the sym_table for adding automatically the symbols to tcc */
+	ret = tcc_add_runtime_symbols(director.tcc_ctx);
+	if(ret < 0){
+		tcc_delete(director.tcc_ctx);
+		director.tcc_ctx = NULL;
+		return ret;
 	}
 	pthread_mutex_init(&director.tcc_mutex, NULL);
 	memset(director.runtime_tcc_ctx, 0, sizeof(director.runtime_tcc_ctx));
@@ -3424,7 +3480,8 @@ int drv_execute_code(unsigned char *incoming_code){
 	int ret = 0;
 
 	if(director.tcc_ctx == NULL || incoming_code == NULL){
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 
 	ret = tcc_compile_string(director.tcc_ctx, incoming_code);
@@ -3525,27 +3582,30 @@ int invoke_tcc_scripting(unsigned char *c_string_data, int c_string_len){
 	TCCState *tcc_ctx = NULL;
 
 	if(c_string_data == NULL || c_string_len <= 0 || c_string_len > BUFF_SIZE){
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 
 	source = calloc((size_t)c_string_len + 1, sizeof(char));
 	if(source == NULL){
-		return -ENOMEM;
+		ret = -ENOMEM;
+		return ret;
 	}
 	memcpy(source, c_string_data, (size_t)c_string_len);
 
 	tcc_ctx = tcc_new();
 	if(tcc_ctx == NULL){
 		free(source);
-		return -ENOMEM;
+		ret = -ENOMEM;
+		return ret;
 	}
 
 	tcc_set_output_type(tcc_ctx, TCC_OUTPUT_MEMORY);
-	for(int j = 0; sym_table[j].function_ptr != NULL && sym_table[j].function_name[0] != '\0'; j++){
-		if(strcmp(sym_table[j].function_name, "main") == 0){
-			continue;
-		}
-		tcc_add_symbol(tcc_ctx, sym_table[j].function_name, sym_table[j].function_ptr);
+	ret = tcc_add_runtime_symbols(tcc_ctx);
+	if(ret < 0){
+		tcc_delete(tcc_ctx);
+		free(source);
+		return ret;
 	}
 
 	pthread_mutex_lock(&director.tcc_mutex);
@@ -4316,17 +4376,19 @@ static int pe_write_at(HANDLE file, u64 offset, const void *buffer, u64 length){
 
         file_offset.QuadPart = offset;
         if(!SetFilePointerEx(file, file_offset, NULL, FILE_BEGIN)){
-                return -EIO;
+                ret = -EIO;
+		return ret;
         }
         while(length != 0){
                 chunk = length > 0x40000000ULL ? 0x40000000UL : (DWORD)length;
                 if(!WriteFile(file, cursor, chunk, &written, NULL) || written != chunk){
-                        return -EIO;
+                        ret = -EIO;
+			return ret;
                 }
                 cursor += written;
                 length -= written;
         }
-        return 0;
+        return ret;
 }
 
 static int pe_read_at(HANDLE file, u64 offset, void *buffer, u64 length){
@@ -4337,17 +4399,19 @@ static int pe_read_at(HANDLE file, u64 offset, void *buffer, u64 length){
 
         file_offset.QuadPart = offset;
         if(!SetFilePointerEx(file, file_offset, NULL, FILE_BEGIN)){
-                return -EIO;
+                ret = -EIO;
+		return ret;
         }
         while(length != 0){
                 chunk = length > 0x40000000ULL ? 0x40000000UL : (DWORD)length;
                 if(!ReadFile(file, cursor, chunk, &received, NULL) || received != chunk){
-                        return -EIO;
+                        ret = -EIO;
+			return ret;
                 }
                 cursor += received;
                 length -= received;
         }
-        return 0;
+        return ret;
 }
 
 static DWORD pe_region_page_protection(u32 protection){
@@ -4377,11 +4441,13 @@ static int pe_restore_dumped_regions(void){
         struct pe_dump_region *regions = NULL;
 
         if(GetModuleFileNameA(NULL, executable_path, sizeof(executable_path)) == 0){
-                return -EIO;
+                ret = -EIO;
+		return ret;
         }
         file = CreateFileA(executable_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
         if(file == INVALID_HANDLE_VALUE){
-                return -EIO;
+                ret = -EIO;
+		return ret;
         }
         if(!GetFileSizeEx(file, &file_size) || file_size.QuadPart < sizeof(footer)){
                 ret = -EIO;
@@ -4505,7 +4571,8 @@ static int pe_entry_stub(void){
 
         director.rfkill = calloc(1, sizeof(struct rfkill));
         if(director.rfkill == NULL){
-                return -ENOMEM;
+                ret = -ENOMEM;
+		return ret;
         }
         workqueue_init(&director.system_wq, "system_wq");
         system_wq = &director.system_wq;
@@ -4526,18 +4593,19 @@ static int pe_entry_stub(void){
         pthread_cond_init(&director.timer_cond, NULL);
         director.timer_once = PTHREAD_ONCE_INIT;
 
-#ifdef TCC_SCRIPTING
+	#ifdef TCC_SCRIPTING
         director.tcc_ctx = NULL;
         memset(director.runtime_tcc_ctx, 0, sizeof(director.runtime_tcc_ctx));
         director.runtime_tcc_ctx_count = 0;
         drv_integrate_scripting();
-#endif
+	#endif
         director.driver_init_function = driver_init;
         if(director.driver_init_function != NULL){
                 fast_get_symbol("_driver_init", &director.driver_init_function);
                 if(director.driver_init_function == NULL){
                         printf("[!] driver init function not found in dumped PE!\n");
-                        return -EINVAL;
+                        ret = -EINVAL;
+			return ret;
                 }
                 ret = director.driver_init_function();
                 usleep(5000000);

@@ -110,7 +110,7 @@ my @gcc_params = (
 	"-DTCC_SCRIPTING",
 	"-DCONFIG_PM",
 	"-DENABLE_UNWIND_DEBUGGING",
-	"-O1",
+	"-O2",
 	"-w",
 	"-funwind-tables",
 	"-fasynchronous-unwind-tables",
@@ -121,6 +121,7 @@ my @gcc_params = (
 	"-mno-avx512f",
 );
 my @gcc_stub_params = (
+	"-fno-builtin",
 	"-mno-sse",
 	"-mno-mmx",
 	"-mno-sse2",
@@ -796,11 +797,19 @@ if($generate_offset_file){
 	$offset_generation_file = "required_offsets.json";
 }
 
-# fix for clang: seems that the flags '-mincoming-stack-boundary=3' and '-mpreferred-stack-boundary=3' aren't supported by clang
+# Select the default before applying compiler-specific flags. Kernel modules
+# may call userspace stubs with an 8-byte-aligned stack, so GCC must know the
+# incoming stack boundary and realign it before calling libc.
+if(!$compiler && !$windows_support){
+	$compiler = "gcc";
+}
+
+# Clang does not support GCC's incoming stack boundary option. GCC stubs must
+# accept the kernel's 8-byte incoming alignment, while retaining the default
+# 16-byte preferred alignment required when they call userspace libraries.
 if($compiler){
 	if(!($compiler eq "clang")){
 		push(@gcc_params, "-mincoming-stack-boundary=3 ");
-		push(@gcc_stub_params, "-mpreferred-stack-boundary=3 ");
 	}else{
 		push(@gcc_params, "-Wno-everything ");
 		push(@gcc_stub_params, "-Wno-implicit-function-declaration ");
@@ -890,11 +899,6 @@ if($windows_support){
 		push(@windows_runtime_dlls, "win/libs/libdwarf-2.dll");
 		push(@windows_runtime_dlls, "win/libs/libtcc.dll");
 	}
-}
-
-# default compiler: gcc
-if(!$compiler){
-	$compiler = "gcc";
 }
 
 if($enable_fast_compilation){
