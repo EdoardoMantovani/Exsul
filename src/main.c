@@ -2093,8 +2093,8 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 
 	early_mod_check(info, 0);
 
-	printf("name %s\n", get_modinfo(info, "name"));
 	#ifdef ENABLE_DBG_PRINT
+	printf("name %s\n", get_modinfo(info, "name"));
 	printf("vermagic %s\n", get_modinfo(info, "vermagic"));
 	#endif
 
@@ -2227,6 +2227,11 @@ int initialize_director(struct module_controller *director, struct load_info **i
 
 	/* initialize skb queue mutex */
 	pthread_mutex_init(&director->skb_queue_lock, NULL);
+
+	pthread_mutex_init(&director->scan_cache_lock, NULL);
+	atomic_store(&director->scan_generation, 0);
+	atomic_store(&director->scan_result_epoch, 0);
+	atomic_store(&director->scan_in_progress, false);
 
 	pthread_mutex_init(&director->timer_lock, NULL);
 	pthread_cond_init(&director->timer_cond, NULL);
@@ -2446,7 +2451,6 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 	struct ieee80211_vif *ieee80211_vif = NULL;
 	struct ieee80211_vif *ieee80211_ap_vif = NULL;
 	struct ieee80211_vif *ieee80211_mon_vif = NULL;
-	struct ieee80211_scan_request *scan_req = NULL;
 	int (*start)(struct ieee80211_hw *hw) = NULL;
 	void (*stop)(struct ieee80211_hw *hw, bool suspend) = NULL;
 	int (*add_interface)(struct ieee80211_hw *hw, struct ieee80211_vif *vif) = NULL;
@@ -2505,6 +2509,10 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 				bss_conf->link_id = 0;
 				ether_addr_copy(bss_conf->addr, ieee80211_vif->addr);
 				bss_conf->bssid = bss_conf->addr;
+				for (u8 ac = 0; ac < IEEE80211_NUM_ACS; ac++){
+					ieee80211_vif->hw_queue[ac] = ac;
+				}
+				ieee80211_vif->cab_queue = IEEE80211_INVAL_HW_QUEUE;
 				rcu_assign_pointer(ieee80211_vif->link_conf[0], bss_conf);
 				ieee80211_vif->valid_links  |= BIT(0);
 				ieee80211_vif->active_links |= BIT(0);
@@ -2535,15 +2543,7 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 	if(current_op == IEEE80211_HW_SCAN){
 		hw_scan = ops->hw_scan;
 		if(hw_scan != NULL && local->ieee80211_vif != NULL){
-			if(scan_req != NULL){
-				free(scan_req);
-				scan_req = NULL;
-			}
-			scan_req = calloc(1, sizeof(struct ieee80211_scan_request) + 39 * sizeof(void *));
-			/* generate the callback parameters */
-			ret = fill_hw_scan_req(scan_req);
-			scan_cache_reset();
-			ret = hw_scan(local->ieee80211_hw, local->ieee80211_vif, scan_req);
+			ret = start_hw_scan(local, hw_scan);
 		}else{
 			goto ieee80211_vif_not_initialized;
 		}
@@ -3047,7 +3047,7 @@ int drv_cmd_get(struct module_controller *director, char *argv[], int num_args) 
 		#ifdef __linux__
 		elf_generator_handler();
 		#else
-
+		pe_generator_handler();
 		#endif
 	}
 
@@ -3123,17 +3123,17 @@ int handle_ieee80211_conf_tx(struct ieee80211_hw *ieee80211_hw, struct ieee80211
 int handle_ieee80211_config(struct ieee80211_hw *ieee80211_hw, struct ieee80211_ops *ops){
 	int ret = 0;
 
-	if(director.kernel_major_version >= 6 && director.kernel_minor_version > 17){
+	if(director.kernel_major_version > 6 || (director.kernel_major_version == 6 && director.kernel_minor_version > 17)){
 		int (*config)(struct ieee80211_hw *hw, int radio_idx, u32 changed) = NULL;
 		config = ops->config;
 		if(config != NULL){
-			ret = config(ieee80211_hw, -1, 16);
+			ret = config(ieee80211_hw, -1, IEEE80211_CONF_CHANGE_CHANNEL);
 		}
 	}else{
 		int (*config)(struct ieee80211_hw *hw, u32 changed) = NULL;
 		config = ops->config;
 		if(config != NULL){
-			ret = config(ieee80211_hw, 16);
+			ret = config(ieee80211_hw, IEEE80211_CONF_CHANGE_CHANNEL);
 		}
 	}
 	return ret;
@@ -3152,7 +3152,6 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	struct ieee80211_vif *ieee80211_vif = NULL;
 	struct ieee80211_vif *ieee80211_ap_vif = NULL;
 	struct ieee80211_vif *ieee80211_mon_vif = NULL;
-	struct ieee80211_scan_request *scan_req = NULL;
 	/* callbacks prototypes */
 	int (*start)(struct ieee80211_hw *hw) = NULL;
 	void (*stop)(struct ieee80211_hw *hw, bool suspend) = NULL;
@@ -3220,9 +3219,13 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 				bss_conf = &ieee80211_vif->bss_conf;
 				bss_conf->vif = ieee80211_vif;
 				bss_conf->link_id = 0;
-				memcpy(ieee80211_vif->addr, (u8[]){0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, ETH_ALEN);
+				memcpy(ieee80211_vif->addr, (u8[]){0x02, 0x00, 0x00, 0x52, 0xc0, 0x01}, ETH_ALEN);
 				ether_addr_copy(bss_conf->addr, ieee80211_vif->addr);
 				bss_conf->bssid = bss_conf->addr;
+				for (u8 ac = 0; ac < IEEE80211_NUM_ACS; ac++){
+					ieee80211_vif->hw_queue[ac] = ac;
+				}
+				ieee80211_vif->cab_queue = IEEE80211_INVAL_HW_QUEUE;
 				rcu_assign_pointer(ieee80211_vif->link_conf[0], bss_conf);
 				ieee80211_vif->valid_links  |= BIT(0);
 				ieee80211_vif->active_links |= BIT(0);
@@ -3254,6 +3257,15 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		}
 	}
 
+	if(strcmp(ops_req, "connect") == 0){
+		if(num_args < 3 || argv[2] == NULL){
+			printf("[!] connect: ops connect <ssid> [password]\n");
+			ret = -EINVAL;
+			return ret;
+		}
+		ret = wifi_auth_connection_start(local, argv[2], num_args >= 4 ? argv[3] : NULL);
+	}
+
 	if(strcmp(ops_req, "conf_tx") == 0){
 		/* handle in the same way of 'config' */
 		ret = handle_ieee80211_conf_tx(local->ieee80211_hw, local->ieee80211_vif, ops);
@@ -3276,15 +3288,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	if(strcmp(ops_req, "scan") == 0){
 		hw_scan = ops->hw_scan;
 		if(hw_scan != NULL && local->ieee80211_vif != NULL){
-			if(scan_req != NULL){
-				free(scan_req);
-				scan_req = NULL;
-			}
-			scan_req = calloc(1, sizeof(struct ieee80211_scan_request) + 39 * sizeof(void *));
-			/* generate the callback parameters */
-			ret = fill_hw_scan_req(scan_req);
-			scan_cache_reset();
-			ret = hw_scan(local->ieee80211_hw, local->ieee80211_vif, scan_req);
+			ret = start_hw_scan(local, hw_scan);
 		}else{
 			goto ieee80211_vif_not_initialized;
 		}
@@ -3482,40 +3486,6 @@ int drv_shutdown_scripting(void){
 	return ret;
 }
 
-#endif
-
-#ifdef _WIN64
-int pe_generator_handler(void){
-	int ret = 0;
-	BYTE *base_addr = NULL;
-	IMAGE_DOS_HEADER *dos_header = NULL;
-	IMAGE_NT_HEADERS *nt_header = NULL;
-
-	base_addr = GetModuleHandleW(NULL);
-	if(base_addr == NULL){
-		ret = -EINVAL;
-		return ret;
-	}
-	dos_header = (IMAGE_DOS_HEADER *)base_addr;
-	if (dos_header->e_magic != IMAGE_DOS_SIGNATURE){
-		printf("[!] not a DOS header!\n");
-		ret = -EINVAL;
-		return ret;
-	}
-	nt_header = (IMAGE_NT_HEADERS *)(base_addr + dos_header->e_lfanew);
-	if (nt_header->Signature != IMAGE_NT_SIGNATURE){
-		printf("[!] not an NT header!\n");
-		ret = -EINVAL;
-		return ret;
-	}
-
-	printf("Image base      : %p\n", base_addr);
-	printf("SizeOfImage     : 0x%lx\n", (unsigned long)nt_header->OptionalHeader.SizeOfImage);
-	printf("SizeOfHeaders   : 0x%lx\n", (unsigned long)nt_header->OptionalHeader.SizeOfHeaders);
-	printf("EntryPoint RVA  : 0x%lx\n", (unsigned long)nt_header->OptionalHeader.AddressOfEntryPoint);
-
-	return ret;
-}
 #endif
 
 void elf_crash_handler(int sig){
@@ -3849,6 +3819,11 @@ int elf_entry_stub(int argc, char *argv[]){
 
 	/* initialize skb queue mutex */
 	pthread_mutex_init(&director.skb_queue_lock, NULL);
+
+	pthread_mutex_init(&director.scan_cache_lock, NULL);
+	atomic_store(&director.scan_generation, 0);
+	atomic_store(&director.scan_result_epoch, 0);
+	atomic_store(&director.scan_in_progress, false);
 
 	pthread_mutex_init(&director.timer_lock, NULL);
 	pthread_cond_init(&director.timer_cond, NULL);
@@ -4292,6 +4267,490 @@ int elf_generator_handler(void){
 	close(elf_dump_fd);
 	return ret;
 }
+#else
+/* Arbitrary module mappings cannot be represented reliably as PE sections because section RVAs are 32-bit.
+ * Keep them in an overlay and restore them at their original addresses before invoking the driver. */
+#define PE_DUMP_VERSION                 1
+#define PE_STANDALONE_MARKER            0x45585045U
+
+static const u8 pe_dump_magic[8] = {'E', 'X', 'S', 'U', 'L', 'P', 'E', '1'};
+static const u8 pe_dump_footer_magic[8] = {'E', 'X', 'S', 'U', 'L', 'P', 'F', '1'};
+static volatile u32 pe_standalone_mode;
+
+#pragma pack(push, 1)
+struct pe_dump_header {
+        u8 magic[8];
+        u32 version;
+        u32 region_count;
+        u64 region_table_offset;
+};
+
+struct pe_dump_region {
+        u64 address;
+        u64 size;
+        u64 file_offset;
+        u32 protection;
+        u32 reserved;
+};
+
+struct pe_dump_footer {
+        u8 magic[8];
+        u32 version;
+        u32 region_count;
+        u64 header_offset;
+};
+#pragma pack(pop)
+
+static u64 pe_align_value(u64 value, u64 alignment){
+        if(alignment == 0){
+                return value;
+        }
+        return (value + alignment - 1) & ~(alignment - 1);
+}
+
+static int pe_write_at(HANDLE file, u64 offset, const void *buffer, u64 length){
+        DWORD written = 0;
+        DWORD chunk = 0;
+        LARGE_INTEGER file_offset = {};
+        const u8 *cursor = buffer;
+
+        file_offset.QuadPart = offset;
+        if(!SetFilePointerEx(file, file_offset, NULL, FILE_BEGIN)){
+                return -EIO;
+        }
+        while(length != 0){
+                chunk = length > 0x40000000ULL ? 0x40000000UL : (DWORD)length;
+                if(!WriteFile(file, cursor, chunk, &written, NULL) || written != chunk){
+                        return -EIO;
+                }
+                cursor += written;
+                length -= written;
+        }
+        return 0;
+}
+
+static int pe_read_at(HANDLE file, u64 offset, void *buffer, u64 length){
+        DWORD received = 0;
+        DWORD chunk = 0;
+        LARGE_INTEGER file_offset = {};
+        u8 *cursor = buffer;
+
+        file_offset.QuadPart = offset;
+        if(!SetFilePointerEx(file, file_offset, NULL, FILE_BEGIN)){
+                return -EIO;
+        }
+        while(length != 0){
+                chunk = length > 0x40000000ULL ? 0x40000000UL : (DWORD)length;
+                if(!ReadFile(file, cursor, chunk, &received, NULL) || received != chunk){
+                        return -EIO;
+                }
+                cursor += received;
+                length -= received;
+        }
+        return 0;
+}
+
+static DWORD pe_region_page_protection(u32 protection){
+        if(protection & PROT_EXEC){
+                if(protection & PROT_WRITE){
+                        return PAGE_EXECUTE_READWRITE;
+                }
+                return (protection & PROT_READ) ? PAGE_EXECUTE_READ : PAGE_EXECUTE;
+        }
+        if(protection & PROT_WRITE){
+                return PAGE_READWRITE;
+        }
+        return (protection & PROT_READ) ? PAGE_READONLY : PAGE_NOACCESS;
+}
+
+/* Restore relocated module text and data before any persisted function pointer is used. */
+static int pe_restore_dumped_regions(void){
+        int ret = 0;
+        u32 restored_count = 0;
+        DWORD old_protection = 0;
+        char executable_path[MAX_PATH] = {};
+        HANDLE file = INVALID_HANDLE_VALUE;
+        LARGE_INTEGER file_size = {};
+        LPVOID mapped_region = NULL;
+        struct pe_dump_header header = {};
+        struct pe_dump_footer footer = {};
+        struct pe_dump_region *regions = NULL;
+
+        if(GetModuleFileNameA(NULL, executable_path, sizeof(executable_path)) == 0){
+                return -EIO;
+        }
+        file = CreateFileA(executable_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if(file == INVALID_HANDLE_VALUE){
+                return -EIO;
+        }
+        if(!GetFileSizeEx(file, &file_size) || file_size.QuadPart < sizeof(footer)){
+                ret = -EIO;
+                goto out;
+        }
+        ret = pe_read_at(file, (u64)file_size.QuadPart - sizeof(footer), &footer, sizeof(footer));
+        if(ret != 0 || memcmp(footer.magic, pe_dump_footer_magic, sizeof(footer.magic)) != 0 ||
+           footer.version != PE_DUMP_VERSION || footer.header_offset >= (u64)file_size.QuadPart){
+                printf("[!] invalid or missing Exsul PE dump footer!\n");
+                ret = -EINVAL;
+                goto out;
+        }
+        ret = pe_read_at(file, footer.header_offset, &header, sizeof(header));
+        if(ret != 0 || memcmp(header.magic, pe_dump_magic, sizeof(header.magic)) != 0 ||
+           header.version != PE_DUMP_VERSION || header.region_count != footer.region_count ||
+           header.region_table_offset > (u64)file_size.QuadPart){
+                printf("[!] invalid Exsul PE dump header!\n");
+                ret = -EINVAL;
+                goto out;
+        }
+        if(header.region_count == 0 || header.region_count > (SIZE_MAX / sizeof(*regions))){
+                ret = -EINVAL;
+                goto out;
+        }
+        regions = calloc(header.region_count, sizeof(*regions));
+        if(regions == NULL){
+                ret = -ENOMEM;
+                goto out;
+        }
+        ret = pe_read_at(file, header.region_table_offset, regions, (u64)header.region_count * sizeof(*regions));
+        if(ret != 0){
+                goto out;
+        }
+
+        director.module_allocation_list = NULL;
+        for(u32 i = 0; i < header.region_count; i++){
+                if(regions[i].address == 0 || regions[i].size == 0 ||
+                   regions[i].file_offset > (u64)file_size.QuadPart ||
+                   regions[i].size > (u64)file_size.QuadPart - regions[i].file_offset){
+                        ret = -EINVAL;
+                        goto restore_fail;
+                }
+                mapped_region = VirtualAlloc((LPVOID)(uintptr_t)regions[i].address, (SIZE_T)regions[i].size,
+                                             MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+                if(mapped_region != (LPVOID)(uintptr_t)regions[i].address){
+                        if(mapped_region != NULL){
+                                VirtualFree(mapped_region, 0, MEM_RELEASE);
+                        }
+                        printf("[!] cannot restore PE region at %p (%llu bytes), error %lu\n",
+                               (void *)(uintptr_t)regions[i].address, (unsigned long long)regions[i].size,
+                               (unsigned long)GetLastError());
+                        ret = -ENOMEM;
+                        goto restore_fail;
+                }
+                restored_count++;
+                ret = pe_read_at(file, regions[i].file_offset, mapped_region, regions[i].size);
+                if(ret != 0){
+                        goto restore_fail;
+                }
+                if(!VirtualProtect(mapped_region, (SIZE_T)regions[i].size,
+                                   pe_region_page_protection(regions[i].protection), &old_protection)){
+                        ret = -EIO;
+                        goto restore_fail;
+                }
+                if(regions[i].protection & PROT_EXEC){
+                        FlushInstructionCache(GetCurrentProcess(), mapped_region, (SIZE_T)regions[i].size);
+                }
+                director.module_allocation_list = new_allocation(ALLOCATION_TYPE_MMAP, mapped_region,
+                        (int)regions[i].size, (u8)regions[i].protection, PT_LOAD, director.module_allocation_list);
+        }
+        goto out;
+
+restore_fail:
+        for(u32 i = 0; i < restored_count; i++){
+                if(regions[i].address != 0){
+                        VirtualFree((LPVOID)(uintptr_t)regions[i].address, 0, MEM_RELEASE);
+                }
+        }
+        director.module_allocation_list = NULL;
+out:
+        if(regions != NULL){
+                free(regions);
+        }
+        if(file != INVALID_HANDLE_VALUE){
+                CloseHandle(file);
+        }
+        return ret;
+}
+
+static int pe_entry_stub(void){
+        int ret = 0;
+        void *driver_init = director.driver_init_function;
+
+        ret = pe_restore_dumped_regions();
+        if(ret != 0){
+                return ret;
+        }
+        director.internal_cb_table = &sym_table;
+        director.envp = NULL;
+        director.info = NULL;
+        director.rfkill = NULL;
+        director.usb_dev = NULL;
+        director.usb_device_ptr = NULL;
+        director.usb_interface = NULL;
+        director.usb_device_id = NULL;
+        director.ieee80211_local = NULL;
+        director.rdev = NULL;
+        director.ieee80211_ops = NULL;
+        director.active_scan_req = NULL;
+        director.connection_fsm = NULL;
+        director.libusb_event_thread = 0;
+        memset(director.kmem_array, 0, sizeof(director.kmem_array));
+        memset(director.file_table, 0, sizeof(director.file_table));
+
+        system_wq = NULL;
+        system_dfl_wq = NULL;
+        system_freezable_wq = NULL;
+        libusb_init(NULL);
+        atomic_store(&director.libusb_thread_stop, false);
+        pthread_create(&director.libusb_event_thread, NULL, libusb_thread, NULL);
+
+        director.rfkill = calloc(1, sizeof(struct rfkill));
+        if(director.rfkill == NULL){
+                return -ENOMEM;
+        }
+        workqueue_init(&director.system_wq, "system_wq");
+        system_wq = &director.system_wq;
+        workqueue_init(&director.system_dfl_wq, "system_dfl_wq");
+        system_dfl_wq = &director.system_dfl_wq;
+        workqueue_init(&director.system_freezable_wq, "system_freezable_wq");
+        system_freezable_wq = &director.system_freezable_wq;
+
+        pthread_mutex_init(&director.usb_io_lock, NULL);
+        pthread_cond_init(&director.usb_io_idle, NULL);
+        director.usb_io_depth = 0;
+        pthread_mutex_init(&director.skb_queue_lock, NULL);
+        pthread_mutex_init(&director.scan_cache_lock, NULL);
+        atomic_store(&director.scan_generation, 0);
+        atomic_store(&director.scan_result_epoch, 0);
+        atomic_store(&director.scan_in_progress, false);
+        pthread_mutex_init(&director.timer_lock, NULL);
+        pthread_cond_init(&director.timer_cond, NULL);
+        director.timer_once = PTHREAD_ONCE_INIT;
+
+#ifdef TCC_SCRIPTING
+        director.tcc_ctx = NULL;
+        memset(director.runtime_tcc_ctx, 0, sizeof(director.runtime_tcc_ctx));
+        director.runtime_tcc_ctx_count = 0;
+        drv_integrate_scripting();
+#endif
+        director.driver_init_function = driver_init;
+        if(director.driver_init_function != NULL){
+                fast_get_symbol("_driver_init", &director.driver_init_function);
+                if(director.driver_init_function == NULL){
+                        printf("[!] driver init function not found in dumped PE!\n");
+                        return -EINVAL;
+                }
+                ret = director.driver_init_function();
+                usleep(5000000);
+                ret = director.driver_init_function();
+        }
+        return ret;
+}
+
+int pe_generator_handler(void){
+        int ret = 0;
+        u32 region_count = 0;
+        u32 section_count = 0;
+        u64 raw_cursor = 0;
+        u64 dump_size = 0;
+        u64 raw_section_size = 0;
+        u64 overlay_offset = 0;
+        u64 data_cursor = 0;
+        u64 final_size = 0;
+        u64 size_of_code = 0;
+        u64 size_of_initialized_data = 0;
+        u8 *base_addr = NULL;
+        u8 *headers   = NULL;
+	struct allocation_list *head = NULL;
+        IMAGE_DOS_HEADER *dos_header = NULL;
+        IMAGE_NT_HEADERS64 *nt_header = NULL;
+	IMAGE_SECTION_HEADER *sections = NULL;
+        IMAGE_NT_HEADERS64 *dump_nt_header = NULL;
+        IMAGE_SECTION_HEADER *dump_sections = NULL;
+       	LARGE_INTEGER end_position = {};
+        struct pe_dump_header dump_header = {};
+        struct pe_dump_footer dump_footer = {};
+        struct pe_dump_region *regions = NULL;
+
+	HANDLE dump_file = INVALID_HANDLE_VALUE;
+        if(director.module_allocation_list == NULL || director.loaded_lkm_num == 0){
+                printf("[!] no modules loaded!\n");
+                ret = -EINVAL;
+		return ret;
+        }
+
+        base_addr = (BYTE *)GetModuleHandleW(NULL);
+        if(base_addr == NULL){
+                ret = -EINVAL;
+		return ret;
+        }
+        dos_header = (IMAGE_DOS_HEADER *)base_addr;
+        if(dos_header->e_magic != IMAGE_DOS_SIGNATURE){
+                printf("[!] current executable has no valid DOS header!\n");
+                ret = -EINVAL;
+		return ret;
+        }
+        nt_header = (IMAGE_NT_HEADERS64 *)(base_addr + dos_header->e_lfanew);
+        if(nt_header->Signature != IMAGE_NT_SIGNATURE || nt_header->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC){
+                printf("[!] current executable has no valid PE32+ header!\n");
+                ret = -EINVAL;
+		return ret;
+        }
+        for(head = director.module_allocation_list; head != NULL; head = head->alloc_next){
+                if(head->alloc_ptr != NULL && head->alloc_len > 0){
+                        region_count++;
+                }
+        }
+        if(region_count == 0){
+                ret = -EINVAL;
+		return ret;
+        }
+
+        section_count = nt_header->FileHeader.NumberOfSections;
+        headers = calloc(1, nt_header->OptionalHeader.SizeOfHeaders);
+        regions = calloc(region_count, sizeof(*regions));
+        if(headers == NULL || regions == NULL){
+                ret = -ENOMEM;
+                goto out;
+        }
+        memcpy(headers, base_addr, nt_header->OptionalHeader.SizeOfHeaders);
+        dump_nt_header = (IMAGE_NT_HEADERS64 *)(headers + dos_header->e_lfanew);
+        sections = IMAGE_FIRST_SECTION(nt_header);
+        dump_sections = IMAGE_FIRST_SECTION(dump_nt_header);
+        raw_cursor = pe_align_value(dump_nt_header->OptionalHeader.SizeOfHeaders, dump_nt_header->OptionalHeader.FileAlignment);
+
+        for(u32 i = 0; i < section_count; i++){
+                dump_size = sections[i].Misc.VirtualSize;
+                if(dump_size < sections[i].SizeOfRawData){
+                        dump_size = sections[i].SizeOfRawData;
+                }
+                if((u64)sections[i].VirtualAddress + dump_size > nt_header->OptionalHeader.SizeOfImage){
+                        dump_size = nt_header->OptionalHeader.SizeOfImage - sections[i].VirtualAddress;
+                }
+                if(dump_size == 0){
+                        dump_sections[i].PointerToRawData = 0;
+                        dump_sections[i].SizeOfRawData = 0;
+                        continue;
+                }
+                raw_section_size = pe_align_value(dump_size, dump_nt_header->OptionalHeader.FileAlignment);
+                if(raw_cursor > UINT32_MAX || raw_section_size > UINT32_MAX - raw_cursor){
+                        printf("[!] rebuilt PE image exceeds the 32-bit raw file offset limit!\n");
+                        ret = -EFBIG;
+                        goto out;
+                }
+                dump_sections[i].PointerToRawData = (DWORD)raw_cursor;
+                dump_sections[i].SizeOfRawData = (DWORD)raw_section_size;
+                raw_cursor += raw_section_size;
+                if(dump_sections[i].Characteristics & IMAGE_SCN_CNT_UNINITIALIZED_DATA){
+                        dump_sections[i].Characteristics &= ~IMAGE_SCN_CNT_UNINITIALIZED_DATA;
+                        dump_sections[i].Characteristics |= IMAGE_SCN_CNT_INITIALIZED_DATA;
+                }
+                if(dump_sections[i].Characteristics & IMAGE_SCN_CNT_CODE){
+                        size_of_code += dump_sections[i].SizeOfRawData;
+                }else{
+                        size_of_initialized_data += dump_sections[i].SizeOfRawData;
+                }
+        }
+
+        dump_nt_header->OptionalHeader.ImageBase = (ULONGLONG)(uintptr_t)base_addr;
+        dump_nt_header->OptionalHeader.SizeOfCode = (DWORD)size_of_code;
+        dump_nt_header->OptionalHeader.SizeOfInitializedData = (DWORD)size_of_initialized_data;
+        dump_nt_header->OptionalHeader.SizeOfUninitializedData = 0;
+        dump_nt_header->OptionalHeader.CheckSum = 0;
+        dump_nt_header->OptionalHeader.DllCharacteristics &= ~(IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE | IMAGE_DLLCHARACTERISTICS_HIGH_ENTROPY_VA);
+        dump_nt_header->FileHeader.Characteristics |= IMAGE_FILE_RELOCS_STRIPPED;
+        memset(&dump_nt_header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC], 0, sizeof(IMAGE_DATA_DIRECTORY));
+        memset(&dump_nt_header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT], 0, sizeof(IMAGE_DATA_DIRECTORY));
+        memset(&dump_nt_header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_SECURITY], 0, sizeof(IMAGE_DATA_DIRECTORY));
+        memset(&dump_nt_header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG], 0, sizeof(IMAGE_DATA_DIRECTORY));
+
+        fast_get_symbol("_driver_init", &director.driver_init_function);
+        pe_standalone_mode = PE_STANDALONE_MARKER;
+        dump_file = CreateFileA("dumped_driver.exe", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        if(dump_file == INVALID_HANDLE_VALUE){
+                ret = -EIO;
+                goto out;
+        }
+        ret = pe_write_at(dump_file, 0, headers, dump_nt_header->OptionalHeader.SizeOfHeaders);
+        if(ret != 0){
+                goto out;
+        }
+        for(u32 i = 0; i < section_count; i++){
+                dump_size = sections[i].Misc.VirtualSize;
+                if(dump_size < sections[i].SizeOfRawData){
+                        dump_size = sections[i].SizeOfRawData;
+                }
+                if((u64)sections[i].VirtualAddress + dump_size > nt_header->OptionalHeader.SizeOfImage){
+                        dump_size = nt_header->OptionalHeader.SizeOfImage - sections[i].VirtualAddress;
+                }
+                if(dump_size != 0){
+                        ret = pe_write_at(dump_file, dump_sections[i].PointerToRawData, base_addr + sections[i].VirtualAddress, dump_size);
+                        if(ret != 0){
+                                goto out;
+                        }
+                }
+        }
+
+        overlay_offset = raw_cursor;
+        memcpy(dump_header.magic, pe_dump_magic, sizeof(dump_header.magic));
+        dump_header.version = PE_DUMP_VERSION;
+        dump_header.region_count = region_count;
+        dump_header.region_table_offset = overlay_offset + sizeof(dump_header);
+        data_cursor = pe_align_value(dump_header.region_table_offset + ((u64)region_count * sizeof(*regions)), 16);
+        head = director.module_allocation_list;
+        for(u32 i = 0; i < region_count; i++){
+                while(head != NULL && (head->alloc_ptr == NULL || head->alloc_len <= 0)){
+                        head = head->alloc_next;
+                }
+                if(head == NULL){
+                        ret = -EINVAL;
+                        goto out;
+                }
+                regions[i].address = (u64)(uintptr_t)head->alloc_ptr;
+                regions[i].size = (u64)head->alloc_len;
+                regions[i].file_offset = data_cursor;
+                regions[i].protection = head->alloc_flags;
+                data_cursor = pe_align_value(data_cursor + regions[i].size, 16);
+                head = head->alloc_next;
+        }
+        memcpy(dump_footer.magic, pe_dump_footer_magic, sizeof(dump_footer.magic));
+        dump_footer.version = PE_DUMP_VERSION;
+        dump_footer.region_count = region_count;
+        dump_footer.header_offset = overlay_offset;
+
+        ret = pe_write_at(dump_file, overlay_offset, &dump_header, sizeof(dump_header));
+        if(ret == 0){
+                ret = pe_write_at(dump_file, dump_header.region_table_offset, regions, (u64)region_count * sizeof(*regions));
+        }
+        for(u32 i = 0; ret == 0 && i < region_count; i++){
+                ret = pe_write_at(dump_file, regions[i].file_offset, (void *)(uintptr_t)regions[i].address, regions[i].size);
+        }
+        if(ret != 0){
+                goto out;
+        }
+        final_size = data_cursor + sizeof(dump_footer);
+        ret = pe_write_at(dump_file, data_cursor, &dump_footer, sizeof(dump_footer));
+        if(ret != 0){
+                goto out;
+        }
+        end_position.QuadPart = final_size;
+        if(!SetFilePointerEx(dump_file, end_position, NULL, FILE_BEGIN) || !SetEndOfFile(dump_file)){
+                ret = -EIO;
+                goto out;
+        }
+
+	out:
+        pe_standalone_mode = 0;
+        if(dump_file != INVALID_HANDLE_VALUE){
+                CloseHandle(dump_file);
+        }
+        if(headers != NULL){
+                free(headers);
+        }
+        if(regions != NULL){
+                free(regions);
+        }
+        return ret;
+}
 #endif
 
 #ifdef __linux__
@@ -4667,7 +5126,7 @@ int main(int argc, char *argv[], char *envp[]) {
 		},
 		[DRV_CMD_OPS] = {
 			.cmd_name = "ops",
-			.cmd_args = 1,
+			.cmd_args = 0xFF,
 			.cmd_ptr  = drv_cmd_ops,
 		},
 	};
@@ -4675,6 +5134,16 @@ int main(int argc, char *argv[], char *envp[]) {
 	signal(SIGSEGV, crash_handler);
 	signal(SIGABRT, crash_handler);
 	signal(SIGILL,  crash_handler);
+
+	#ifdef _WIN64
+	if(pe_standalone_mode == PE_STANDALONE_MARKER){
+		ret = pe_entry_stub();
+		if(ret != 0){
+			return ret;
+		}
+		goto command_loop;
+	}
+	#endif
 
 	director.internal_cb_table = &sym_table;
 	director.envp = envp;
@@ -4751,6 +5220,7 @@ int main(int argc, char *argv[], char *envp[]) {
 		}
 	}
 
+	command_loop:
 	while (true) {
 		printf("> ");
 		fflush(stdout);

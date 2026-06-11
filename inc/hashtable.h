@@ -439,6 +439,44 @@ static inline struct rhash_head *rht_ptr_exclusive(struct rhash_lock_head __rcu 
 	return __rht_ptr(rcu_dereference_protected(*bkt, 1), bkt, RHT_LOOKUP_NORMAL);
 }
 
+static inline int rhltable_insert_simple(struct rhltable *hlt, struct rhlist_head *node, const struct rhashtable_params params){
+	struct rhashtable *ht = NULL;
+	struct bucket_table *tbl = NULL;
+	struct rhash_lock_head **bucket = NULL;
+	struct rhash_head *old = NULL;
+	void *object = NULL;
+	void *key = NULL;
+	unsigned int hash = 0;
+
+	if (hlt == NULL || node == NULL){
+		return -EINVAL;
+	}
+
+	ht = &hlt->ht;
+	tbl = rcu_dereference_protected(ht->tbl, 1);
+	if (tbl == NULL){
+		return -EINVAL;
+	}
+
+	object = (char *)node - params.head_offset;
+	key = (char *)object + params.key_offset;
+	hash = rht_key_hashfn(ht, tbl, key, params);
+	bucket = rht_bucket_insert(ht, tbl, hash);
+	if (bucket == NULL){
+		return -ENOMEM;
+	}
+
+	pthread_mutex_lock(&director.rhashtable_lock);
+	old = rht_ptr_exclusive(bucket);
+	node->next = NULL;
+	node->rhead.next = old;
+	rcu_assign_pointer(*bucket, (struct rhash_lock_head *)&node->rhead);
+	atomic_fetch_add_explicit(&ht->nelems, 1, memory_order_relaxed);
+	pthread_mutex_unlock(&director.rhashtable_lock);
+
+	return 0;
+}
+
 
 static void rhashtable_free_one(struct rhashtable *ht, struct rhash_head *obj, void (*free_fn)(void *ptr, void *arg), void *arg){
 	struct rhlist_head *list = NULL;

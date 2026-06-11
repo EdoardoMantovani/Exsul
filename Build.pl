@@ -37,7 +37,7 @@ my $stubs   = "stubs";
 my $build   = "build";
 my $bin     = "./bin";
 
-my $final_program = "translator";
+my $final_program = "exsul";
 
 my $main      = "main.c";
 my $win_layer = "layer.h";
@@ -140,7 +140,8 @@ my @gcc_final_linkings = (
 	"-ldwarf",
 	"-ltcc",
 	"-lunwind",
-	"-lunwind-x86_64"
+	"-lunwind-x86_64",
+	"-lcrypto"
 );
 
 my %struct_whitelist = (
@@ -166,6 +167,15 @@ my %struct_whitelist = (
 	"link_conf"		=> "ieee80211_bss_conf",
 	"ieee80211_vif" 	=> "ieee80211_vif",
 	"ieee80211_vif_cfg"	=> "ieee80211_vif_cfg",
+	"connection_vif"	=> "ieee80211_vif",
+	"connection_sta"	=> "ieee80211_sta",
+	"connection_link_sta"	=> "ieee80211_link_sta",
+	"connection_ops"	=> "ieee80211_ops",
+);
+
+my %fixed_only_structs = (
+	"ieee80211_sta"      => 1,
+	"ieee80211_link_sta" => 1,
 );
 
 my %field_ctype = (
@@ -663,12 +673,28 @@ my %field_ctype = (
 	},
 	ieee80211_vif_cfg => {
 		"assoc"					=> "bool",
+		"aid"					=> "u16",
 		"ibss_joined"				=> "bool",
 		"ibss_creator"				=> "bool",
 		"ssid"					=> "u8",
 		"ssid_len"				=> "int",
 		"idle"					=> "bool",
 		"ap_addr"				=> "u8",
+	},
+	ieee80211_sta => {
+		"addr"					=> "u8",
+		"aid"					=> "u16",
+		"wme"					=> "bool",
+		"valid_links"				=> "u16",
+		"deflink"				=> "struct ieee80211_link_sta",
+		"link"					=> "struct ieee80211_link_sta *",
+	},
+	ieee80211_link_sta => {
+		"sta"					=> "struct ieee80211_sta *",
+		"addr"					=> "u8",
+		"link_id"				=> "u8",
+		"supp_rates"				=> "u32",
+		"rx_nss"				=> "u8",
 	},
 );
 
@@ -704,6 +730,14 @@ my %inline_array_field = (
 	ieee80211_vif_cfg => {
 		"ssid"				=> 1,
 		"ap_addr"			=> 1,
+	},
+	ieee80211_sta => {
+		"addr"				=> 1,
+		"link"				=> 1,
+	},
+	ieee80211_link_sta => {
+		"addr"				=> 1,
+		"supp_rates"			=> 1,
 	},
 );
 
@@ -815,7 +849,7 @@ if($clean){
 # same as using --compiler=mingw
 if($windows_support){
 	$compiler = "x86_64-w64-mingw32-gcc";
-	$final_program = "translator.exe";
+	$final_program = "exsul.exe";
 	push(@gcc_params, "-I./win/include/ ");
 	# set also a variant of readelf
 	$readelf = "x86_64-w64-mingw32-nm";
@@ -1008,6 +1042,7 @@ sub harvest_declared_ptr_aliases {
 	my %found = ();
 
 	foreach my $struct (keys %struct_set) {
+		next if $fixed_only_structs{$struct};
 		my @vars = get_extended_ptr_variables($line, $struct);
 		foreach my $v (@vars) {
 			$found{$v} = $struct;
@@ -1589,7 +1624,7 @@ if($enable_fast_compilation){
 }
 print("[*] compiling main.c...\n");
 system("$compiler @gcc_params -c -I./$virtual_compilation_folder/$arch -I./$virtual_compilation_folder/$include $virtual_compilation_folder/$source/$main -o $bin/$final_program $final_obj_line");
-# now reads the defined symbols under /bin/translator
+# now reads the defined symbols under /bin/exsul
 close(FH);
 my $d = q{-i '$ d'};
 `$sed $d $cb_header`;
@@ -1625,7 +1660,7 @@ print FH "};\n\n";
 close(FH) or die $!;
 close(PROTO) or die $!;
 print("[*] global callback table generated...\n");
-# now delete 'translator'
+# now delete 'exsul'
 `$rm $bin/$final_program`;
 # copy the new 'cb_table.h' in the out directory
 `$cp $include/$cb_table $virtual_compilation_folder/$include/$cb_table`;

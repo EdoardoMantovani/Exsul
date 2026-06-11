@@ -96,6 +96,7 @@ struct module_controller {
 	pthread_mutex_t			  urb_anchor_mutex;
 
 	pthread_mutex_t			  skb_queue_lock;
+	bool				  connection_tx_trace;
 
 	/* threads associated with libusb's async urb transfer, permits to implement the 'usb_send_urb' kernel function */
 	pthread_t			  libusb_event_thread;
@@ -138,6 +139,12 @@ struct module_controller {
         struct cfg80211_registered_device *rdev;
 	struct exsul_scan_result scan_results[EXSUL_MAX_SCAN_RESULTS];
 	u32 scan_result_count;
+	pthread_mutex_t scan_cache_lock;
+	atomic_uint scan_generation;
+	atomic_uint scan_result_epoch;
+	void *active_scan_req;
+	atomic_bool scan_in_progress;
+	void *connection_fsm;
 
 	/* store here the backup for every 'ops' struct, it will be called later via the 'ops' command */
 	struct ieee80211_ops *ieee80211_ops;

@@ -72,7 +72,11 @@ static void *worker_thread(void *arg){
 			pthread_mutex_lock(&wq->lock);
 
 			wq->nr_active--;
-			atomic_store_explicit(&work->data, 0, memory_order_release);
+			if (atomic_load_explicit(&work->data, memory_order_acquire) & WORK_STRUCT_PENDING){
+				atomic_store_explicit(&work->data, work_encode(wq, WORK_STRUCT_PENDING), memory_order_release);
+			}else{
+				atomic_store_explicit(&work->data, 0, memory_order_release);
+			}
 			pthread_cond_broadcast(&wq->cond);
 			continue;
 		}

@@ -1,35 +1,23 @@
 int queue_work_on(int cpu, struct workqueue_struct *wq, struct work_struct *work){
-	int ret = 0;
-	long expected = 0;
-	long desired = 0;
+	long state;
 	pthread_attr_t attr;
 
 	if (wq == NULL || work == NULL){
-		if(wq == NULL){
+		if (wq == NULL){
 			printf("[%s] wq is null!\n", __FUNCTION__);
 		}
-		return ret;
-	}
-
-	expected = atomic_load_explicit(&work->data, memory_order_acquire);
-	if (expected & (WORK_STRUCT_PENDING | WORK_STRUCT_RUNNING)) {
-		#ifdef ENABLE_DBG_PRINT
-		printf("[%s] work already pending or running!\n", __FUNCTION__);
-		#endif
-		return ret;
-	}
-	desired = work_encode(wq, WORK_STRUCT_PENDING);
-
-	ret = atomic_compare_exchange_strong_explicit(&work->data, &expected, desired, memory_order_acq_rel, memory_order_relaxed);
-	if(ret == 0){
-		return ret;
+		return false;
 	}
 
 	pthread_mutex_lock(&wq->lock);
-	if (wq->stop == true) {
+	state = atomic_load_explicit(&work->data, memory_order_acquire);
+	if (state & WORK_STRUCT_PENDING){
 		pthread_mutex_unlock(&wq->lock);
-		atomic_store_explicit(&work->data, 0, memory_order_release);
-		return ret;
+		return false;
+	}
+	if (wq->stop){
+		pthread_mutex_unlock(&wq->lock);
+		return false;
 	}
 
 	if (wq->thread == 0) {
@@ -39,10 +27,13 @@ int queue_work_on(int cpu, struct workqueue_struct *wq, struct work_struct *work
 		pthread_attr_destroy(&attr);
 	}
 
+	atomic_store_explicit(&work->data,
+			      work_encode(wq, WORK_STRUCT_PENDING | (state & WORK_STRUCT_RUNNING)),
+			      memory_order_release);
 	list_add_tail(&work->entry, &wq->work_list);
 	pthread_cond_signal(&wq->cond);
 	pthread_mutex_unlock(&wq->lock);
 
-	ret = true;
-	return ret;
+	return true;
+
 }

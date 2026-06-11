@@ -21,10 +21,14 @@ int cancel_work_sync(struct work_struct *work){
 	pthread_mutex_lock(&wq->lock);
 
 	if (work_flags(work) & WORK_STRUCT_PENDING) {
+		long flags = work_flags(work);
+
 		if (work_is_linked(work)){
 			list_del_init(&work->entry);
 		}
-		atomic_store_explicit(&work->data, 0, memory_order_release);
+		atomic_store_explicit(&work->data,
+				      flags & WORK_STRUCT_RUNNING ? work_encode(wq, WORK_STRUCT_RUNNING) : 0,
+				      memory_order_release);
 		pthread_cond_broadcast(&wq->cond);
 		cancel = true;
 	}
