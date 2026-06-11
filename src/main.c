@@ -1043,9 +1043,13 @@ static unsigned int find_sec(const struct load_info *info, const char *name) {
 	return 0;
 }
 
-bool module_init_section(const char *name) { return strstarts(name, ".init"); }
+bool module_init_section(const char *name) {
+	return strstarts(name, ".init");
+}
 
-bool module_exit_section(const char *name) { return strstarts(name, ".exit"); }
+bool module_exit_section(const char *name) {
+	return strstarts(name, ".exit");
+}
 
 bool module_init_layout_section(const char *sname) {
 	return module_init_section(sname);
@@ -1417,9 +1421,8 @@ static int find_module_sections(struct module *mod, struct load_info *info) {
 	    info, "__ksymtab_gpl", sizeof(*mod->gpl_syms), &mod->num_gpl_syms);
 	mod->gpl_crcs = section_addr(info, "__kcrctab_gpl");
 
-#ifdef CONFIG_CONSTRUCTORS
-	mod->ctors =
-	    section_objs(info, ".ctors", sizeof(*mod->ctors), &mod->num_ctors);
+	#ifdef CONFIG_CONSTRUCTORS
+	mod->ctors = section_objs(info, ".ctors", sizeof(*mod->ctors), &mod->num_ctors);
 	if (!mod->ctors) {
 		mod->ctors = section_objs(info, ".init_array",
 					  sizeof(*mod->ctors), &mod->num_ctors);
@@ -1428,13 +1431,10 @@ static int find_module_sections(struct module *mod, struct load_info *info) {
 		ret = -EINVAL;
 		return ret;
 	}
-#endif
+	#endif
 
-	mod->noinstr_text_start =
-	    section_objs(info, ".noinstr.text", 1, &mod->noinstr_text_size);
-
-	mod->extable = section_objs(info, "__ex_table", sizeof(*mod->extable),
-				    &mod->num_exentries);
+	mod->noinstr_text_start = section_objs(info, ".noinstr.text", 1, &mod->noinstr_text_size);
+	mod->extable = section_objs(info, "__ex_table", sizeof(*mod->extable), &mod->num_exentries);
 
 	if (section_addr(info, "__obsparm")) {
 		#ifdef ENABLE_DBG_PRINT
@@ -1443,12 +1443,8 @@ static int find_module_sections(struct module *mod, struct load_info *info) {
 	}
 
 	#ifdef ENABLE_DYNDBG
-	mod->dyndbg_info.descs =
-	    section_objs(info, "__dyndbg", sizeof(*mod->dyndbg_info.descs),
-			 &mod->dyndbg_info.num_descs);
-	mod->dyndbg_info.classes = section_objs(
-	    info, "__dyndbg_classes", sizeof(*mod->dyndbg_info.classes),
-	    &mod->dyndbg_info.num_classes);
+	mod->dyndbg_info.descs = section_objs(info, "__dyndbg", sizeof(*mod->dyndbg_info.descs), &mod->dyndbg_info.num_descs);
+	mod->dyndbg_info.classes = section_objs(info, "__dyndbg_classes", sizeof(*mod->dyndbg_info.classes), &mod->dyndbg_info.num_classes);
 	#endif
 	return ret;
 }
@@ -1682,8 +1678,7 @@ static char elf_type(const Elf(Sym) * sym, const struct load_info *info) {
 			return 'b';
 		}
 	}
-	if (strstarts(info->secstrings + sechdrs[sym->st_shndx].sh_name,
-		      ".debug")) {
+	if (strstarts(info->secstrings + sechdrs[sym->st_shndx].sh_name, ".debug")) {
 		return 'n';
 	}
 	return '?';
@@ -1749,16 +1744,17 @@ void add_kallsyms(struct module *mod, const struct load_info *info) {
 	mod->core_kallsyms.num_symtab = ndst;
 }
 
-void sort_extable(struct exception_table_entry *start,
-		  struct exception_table_entry *finish) {
+void sort_extable(struct exception_table_entry *start, struct exception_table_entry *finish) {
 	/* do nothing */
 }
 
 static int post_relocation(struct module *mod, const struct load_info *info) {
+	int ret = 0;
 	sort_extable(mod->extable, mod->extable + mod->num_exentries);
 
 	add_kallsyms(mod, info);
-	return module_finalize(info->hdr, info->sechdrs, mod);
+	ret = module_finalize(info->hdr, info->sechdrs, mod);
+	return ret;
 }
 
 static int module_set_memory(const struct module *mod, enum mod_mem_type type) {
@@ -1767,7 +1763,7 @@ static int module_set_memory(const struct module *mod, enum mod_mem_type type) {
 		unsigned int size;
 	};
 
-	unsigned int	      mprotect_perm = 0;
+	unsigned int mprotect_perm = 0;
 	struct module_memory *mod_mem = (struct module_memory *)&mod->mem[type];
 
 	if (mod_mem->base == NULL) {
@@ -2658,6 +2654,8 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 
 /* used inside the tcc scripts for the standalone.elf for initializing the driver, calls start, add_interface and so on.. */
 void elf_initialize_driver(void){
+	/* invoke the 'config' callback */
+	fast_run_ieee80211_cb(IEEE80211_CONFIG);
 	/* invoke the 'start' callback */
 	fast_run_ieee80211_cb(IEEE80211_START);
 	/* invoke the 'add_interface' callback */
@@ -2940,10 +2938,90 @@ int drv_cmd_unload(struct module_controller *director, char *argv[], int num_arg
 	return ret;
 }
 
-/* 'start' is used as an alias for 'run' */
+static int drv_resolve_driver_init(struct module_controller *director, unsigned char **resolved_name){
+	int ret = 0;
+	int name_len = 0;
+	int suffix_len = 0;
+	unsigned char *name = NULL;
+
+	ret = -ENOENT;
+	suffix_len = strlen("_driver_init");
+
+	if(director == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	director->driver_init_function = NULL;
+	if(resolved_name != NULL){
+		*resolved_name = NULL;
+	}
+
+	/* Keep the last matching initializer: modules are appended in load order,
+	 * and the bus-specific driver module is normally loaded last. */
+	for(u16 i = 0; i < SYM_ENTRIES; i++){
+		name = sym_table[i].function_name;
+		name_len = 0;
+
+		if(name[0] == '\0' || sym_table[i].function_ptr == NULL){
+			continue;
+		}
+		name_len = strnlen(name, sizeof(sym_table[i].function_name));
+		if(name_len == sizeof(sym_table[i].function_name) || name_len <= suffix_len ||
+		   strncmp(name, "__pfx_", 6) == 0 || strcmp(name + name_len - suffix_len, "_driver_init") != 0){
+			continue;
+		}
+
+		director->driver_init_function = (int (*)(void))(uintptr_t)sym_table[i].function_ptr;
+		if(resolved_name != NULL){
+			*resolved_name = name;
+		}
+		ret = 0;
+	}
+
+	return ret;
+}
+
+/* 'start' will permit to fully initialize the Wi-Fi/Bluetooth interface without the need of invoking 'ops' command  */
 int drv_cmd_start(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
+	unsigned char *driver_init_name = NULL;
 
+	if(director->ieee80211_ops != NULL || director->ieee80211_local != NULL){
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] driver is already initialized\n");
+		#endif
+		ret = -EALREADY;
+		return ret;
+	}
+
+	ret = drv_resolve_driver_init(director, &driver_init_name);
+	if(ret < 0 || director->driver_init_function == NULL){
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] driver init function not found!\n");
+		#endif
+		ret = -ENOENT;
+		return ret;
+	}
+
+	ret = director->driver_init_function();
+	usleep(5000000);
+	ret = director->driver_init_function();
+
+	if(ret < 0){
+		return ret;
+	}
+
+	if(director->ieee80211_ops == NULL || director->ieee80211_local == NULL){
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] driver initialized without registering mac80211 operations\n");
+		#endif
+		ret = -ENODEV;
+		return ret;
+	}
+
+	/* call the 'ops' callbacks */
+	elf_initialize_driver();
 	return ret;
 }
 
@@ -5167,7 +5245,7 @@ int main(int argc, char *argv[], char *envp[]) {
 		[DRV_CMD_START] =
 		{
 			.cmd_name = "start",
-			.cmd_args = 1,
+			.cmd_args = 0,
 			.cmd_ptr  = drv_cmd_start,
 		},
 		[DRV_CMD_STOP] =

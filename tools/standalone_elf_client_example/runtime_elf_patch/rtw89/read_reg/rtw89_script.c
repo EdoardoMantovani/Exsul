@@ -64,7 +64,7 @@
 #define MAX_DRIVER_TO_USERSPACE_IO_SIZE 256
 #define IEEE80211_HT_MCS_MASK_LEN       10
 
-#define atomic_bool bool
+#define atomic_bool			bool
 
 #define BITS_PER_BYTE           	8
 #define BITS_PER_TYPE(type)     	(sizeof(type) * BITS_PER_BYTE)

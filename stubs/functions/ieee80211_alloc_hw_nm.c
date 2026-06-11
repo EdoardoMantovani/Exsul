@@ -154,6 +154,7 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, struct ieee8021
 	INIT_LIST_HEAD(&local->wiphy_work_list);
 
 	pthread_mutex_init(&local->iflist_mtx, NULL);
+	pthread_mutex_init(&local->wiphy_work_queue_mutex, NULL);
 	local->airtime_flags = AIRTIME_USE_TX | AIRTIME_USE_RX;
 	local->aql_threshold = IEEE80211_AQL_THRESHOLD;
 	atomic_store(&local->aql_total_pending_airtime, 0);
