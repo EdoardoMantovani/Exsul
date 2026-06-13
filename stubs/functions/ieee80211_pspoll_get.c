@@ -27,7 +27,7 @@ struct sk_buff *ieee80211_pspoll_get(struct ieee80211_hw *hw, struct ieee80211_v
 	/* aid in PS-Poll has its two MSBs each set to 1 */
 	pspoll->aid |= cpu_to_le16(1 << 15 | 1 << 14);
 
-	memcpy(pspoll->bssid, sdata->deflink.u.mgd.bssid, ETH_ALEN);
+	memcpy(pspoll->bssid, cfg->ap_addr, ETH_ALEN);
 	memcpy(pspoll->ta, ieee80211_vif->addr, ETH_ALEN);
 
 	return skb;

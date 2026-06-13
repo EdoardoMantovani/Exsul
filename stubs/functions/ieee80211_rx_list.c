@@ -17,6 +17,7 @@ void ieee80211_rx_list(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, st
 		goto drop;
 	}
 	hdr = (struct ieee80211_hdr *)skb->data;
+	rx_dump_skb(skb, status);
 
 	local = director.ieee80211_local;
 	if (local == NULL || local->wiphy == NULL){

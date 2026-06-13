@@ -9,7 +9,9 @@ int usb_submit_urb(struct urb *urb, int mem_flags){
 		return ret;
 	}
 
-	atomic_load_explicit(&urb->reject, memory_order_acquire);
+	if (atomic_load_explicit(&urb->reject, memory_order_acquire) != 0){
+		return -EPERM;
+	}
 
 	pipe = urb->pipe;
 	ep   = convert_usb_pipe_to_ep(pipe);
@@ -32,7 +34,9 @@ int usb_submit_urb(struct urb *urb, int mem_flags){
 	}
 
 	urb->hcpriv = transfer;
-	/* increase the 'use_count' field by 1, ipotize that the transfer will be succesfull */
+	/* The USB core owns an URB reference until the completion callback returns. */
+	usb_get_urb(urb);
+	/* increase the 'use_count' field by 1, assume that the transfer will be successful */
 	atomic_fetch_add_explicit(&urb->use_count, 1, memory_order_relaxed);
 
 	ret = libusb_submit_transfer(transfer);
@@ -41,6 +45,7 @@ int usb_submit_urb(struct urb *urb, int mem_flags){
 		urb->hcpriv = NULL;
 		/* if the transfer fails, decrease the urb 'use_count' field by 1 */
 		atomic_fetch_sub_explicit(&urb->use_count, 1, memory_order_relaxed);
+		usb_free_urb(urb);
 		libusb_free_transfer(transfer);
 		ret = -EIO;
 		return ret;

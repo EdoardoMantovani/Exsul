@@ -35,6 +35,7 @@ struct exsul_scan_result {
 	u32 center_freq;
 	s8 signal;
 	u32 seen;
+	u32 last_seen_generation;
 };
 
 #define MAX_TCC_RUNTIME_CONTEXTS 4
@@ -97,6 +98,8 @@ struct module_controller {
 
 	pthread_mutex_t			  skb_queue_lock;
 	bool				  connection_tx_trace;
+	atomic_bool			  rx_dump_enabled;
+	atomic_uint			  rx_dump_sequence;
 
 	/* threads associated with libusb's async urb transfer, permits to implement the 'usb_send_urb' kernel function */
 	pthread_t			  libusb_event_thread;

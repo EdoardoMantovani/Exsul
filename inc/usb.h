@@ -439,12 +439,17 @@ static void libusb_urb_callback(struct libusb_transfer *transfer){
 	urb->hcpriv = NULL;
 	atomic_fetch_sub_explicit(&urb->use_count, 1, memory_order_release);
 
+	/* Linux removes a completed URB from its anchor before invoking the driver. */
+	usb_unanchor_urb(urb);
+
 	usb_completion_cb = (usb_complete_t)(urb->complete);
 	if (usb_completion_cb != NULL){
 		usb_completion_cb(urb);
 	}
 
 	libusb_free_transfer(transfer);
+	/* Drop the reference acquired by usb_submit_urb(). */
+	usb_free_urb(urb);
 }
 
 static void *libusb_thread(void *unused){

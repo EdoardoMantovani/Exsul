@@ -1,18 +1,23 @@
 void ieee80211_tx_status_irqsafe(struct ieee80211_hw *hw, struct sk_buff *skb){
-	int tmp = 0;
-	struct ieee80211_local *local = NULL;
+	struct ieee80211_local *local = director.ieee80211_local;
 	struct ieee80211_tx_info *info = NULL;
 
-	local = director.ieee80211_local;
-	info = skb->cb;
-
-	skb->pkt_type = IEEE80211_TX_STATUS_MSG;
-	skb_queue_tail(info->flags & IEEE80211_TX_CTL_REQ_TX_STATUS ? &local->skb_queue : &local->skb_queue_unreliable, skb);
-	tmp = skb_queue_len(&local->skb_queue) + skb_queue_len(&local->skb_queue_unreliable);
-	while (tmp > IEEE80211_IRQSAFE_QUEUE_LIMIT && (skb = skb_dequeue(&local->skb_queue_unreliable))) {
-		ieee80211_free_txskb(hw, skb);
-		tmp--;
-		local->tx_status_drop++;
+	if (skb == NULL || IS_ERR(skb)){
+		return;
 	}
-	tasklet_schedule(&local->tasklet);
+	info = skb->cb;
+	if (skb->data != NULL && skb->len >= IEEE80211_MIN_HDR_LEN &&
+	    info != NULL && (info->flags & IEEE80211_TX_INTFL_MLME_CONN_TX)){
+		struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+		const char *kind = ieee80211_is_auth(hdr->frame_control) ? "authentication" :
+			ieee80211_is_assoc_req(hdr->frame_control) ? "association" : "management";
+
+		printf("[*] %s TX status: %s\n", kind, (info->flags & IEEE80211_TX_STAT_ACK) ? "acknowledged" : "not acknowledged");
+	}
+
+	if (local != NULL){
+		ieee80211_report_used_skb(local, skb, false, 0);
+	}
+	dev_kfree_skb_any_reason(skb, SKB_DROP_REASON_NOT_SPECIFIED);
+
 }

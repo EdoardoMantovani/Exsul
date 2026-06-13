@@ -561,7 +561,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[3] = {
 				.struct_size = 0,
 				.struct_name = "ieee80211_bss_conf",
-				.struct_field_num = 42,
+				.struct_field_num = 43,
 				.fields = {
 					[0] = {
 						.field_name = "addr",
@@ -596,138 +596,142 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[8] = {
-						.field_name = "chanreq",
+						.field_name = "chanctx_conf",
 						.field_offset = 0,
 					},
 					[9] = {
-						.field_name = "cqm_rssi_high",
+						.field_name = "chanreq",
 						.field_offset = 0,
 					},
 					[10] = {
-						.field_name = "cqm_rssi_hyst",
+						.field_name = "cqm_rssi_high",
 						.field_offset = 0,
 					},
 					[11] = {
-						.field_name = "cqm_rssi_low",
+						.field_name = "cqm_rssi_hyst",
 						.field_offset = 0,
 					},
 					[12] = {
-						.field_name = "cqm_rssi_thold",
+						.field_name = "cqm_rssi_low",
 						.field_offset = 0,
 					},
 					[13] = {
-						.field_name = "dtim_period",
+						.field_name = "cqm_rssi_thold",
 						.field_offset = 0,
 					},
 					[14] = {
-						.field_name = "eht_support",
+						.field_name = "dtim_period",
 						.field_offset = 0,
 					},
 					[15] = {
-						.field_name = "enable_beacon",
+						.field_name = "eht_support",
 						.field_offset = 0,
 					},
 					[16] = {
-						.field_name = "frame_time_rts_th",
+						.field_name = "enable_beacon",
 						.field_offset = 0,
 					},
 					[17] = {
-						.field_name = "ftm_responder",
+						.field_name = "frame_time_rts_th",
 						.field_offset = 0,
 					},
 					[18] = {
-						.field_name = "ftm_responder_params",
+						.field_name = "ftm_responder",
 						.field_offset = 0,
 					},
 					[19] = {
-						.field_name = "he_support",
+						.field_name = "ftm_responder_params",
 						.field_offset = 0,
 					},
 					[20] = {
-						.field_name = "hidden_ssid",
+						.field_name = "he_support",
 						.field_offset = 0,
 					},
 					[21] = {
-						.field_name = "ht_operation_mode",
+						.field_name = "hidden_ssid",
 						.field_offset = 0,
 					},
 					[22] = {
-						.field_name = "idle",
+						.field_name = "ht_operation_mode",
 						.field_offset = 0,
 					},
 					[23] = {
-						.field_name = "link_id",
+						.field_name = "idle",
 						.field_offset = 0,
 					},
 					[24] = {
-						.field_name = "mcast_rate",
+						.field_name = "link_id",
 						.field_offset = 0,
 					},
 					[25] = {
-						.field_name = "multicast_to_unicast",
+						.field_name = "mcast_rate",
 						.field_offset = 0,
 					},
 					[26] = {
-						.field_name = "ps",
+						.field_name = "multicast_to_unicast",
 						.field_offset = 0,
 					},
 					[27] = {
-						.field_name = "qos",
+						.field_name = "ps",
 						.field_offset = 0,
 					},
 					[28] = {
-						.field_name = "sync_device_ts",
+						.field_name = "qos",
 						.field_offset = 0,
 					},
 					[29] = {
-						.field_name = "sync_dtim_count",
+						.field_name = "sync_device_ts",
 						.field_offset = 0,
 					},
 					[30] = {
-						.field_name = "sync_tsf",
+						.field_name = "sync_dtim_count",
 						.field_offset = 0,
 					},
 					[31] = {
-						.field_name = "twt_broadcast",
+						.field_name = "sync_tsf",
 						.field_offset = 0,
 					},
 					[32] = {
-						.field_name = "twt_protected",
+						.field_name = "twt_broadcast",
 						.field_offset = 0,
 					},
 					[33] = {
-						.field_name = "twt_requester",
+						.field_name = "twt_protected",
 						.field_offset = 0,
 					},
 					[34] = {
-						.field_name = "twt_responder",
+						.field_name = "twt_requester",
 						.field_offset = 0,
 					},
 					[35] = {
-						.field_name = "tx_bss_conf",
+						.field_name = "twt_responder",
 						.field_offset = 0,
 					},
 					[36] = {
-						.field_name = "txpower",
+						.field_name = "tx_bss_conf",
 						.field_offset = 0,
 					},
 					[37] = {
-						.field_name = "txpower_type",
+						.field_name = "txpower",
 						.field_offset = 0,
 					},
 					[38] = {
-						.field_name = "use_cts_prot",
+						.field_name = "txpower_type",
 						.field_offset = 0,
 					},
 					[39] = {
-						.field_name = "use_short_preamble",
+						.field_name = "use_cts_prot",
 						.field_offset = 0,
 					},
 					[40] = {
-						.field_name = "use_short_slot",
+						.field_name = "use_short_preamble",
 						.field_offset = 0,
 					},
 					[41] = {
+						.field_name = "use_short_slot",
+						.field_offset = 0,
+					},
+					[42] = {
 						.field_name = "vif",
 						.field_offset = 0,
 					},
@@ -866,121 +870,137 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[6] = {
 				.struct_size = 0,
 				.struct_name = "ieee80211_ops",
-				.struct_field_num = 29,
+				.struct_field_num = 33,
 				.fields = {
 					[0] = {
-						.field_name = "add_interface",
+						.field_name = "add_chanctx",
 						.field_offset = 0,
 					},
 					[1] = {
-						.field_name = "add_nan_func",
+						.field_name = "add_interface",
 						.field_offset = 0,
 					},
 					[2] = {
-						.field_name = "bss_info_changed",
+						.field_name = "add_nan_func",
 						.field_offset = 0,
 					},
 					[3] = {
-						.field_name = "cancel_hw_scan",
+						.field_name = "assign_vif_chanctx",
 						.field_offset = 0,
 					},
 					[4] = {
-						.field_name = "conf_tx",
+						.field_name = "bss_info_changed",
 						.field_offset = 0,
 					},
 					[5] = {
-						.field_name = "config",
+						.field_name = "cancel_hw_scan",
 						.field_offset = 0,
 					},
 					[6] = {
-						.field_name = "configure_filter",
+						.field_name = "change_chanctx",
 						.field_offset = 0,
 					},
 					[7] = {
-						.field_name = "del_nan_func",
+						.field_name = "conf_tx",
 						.field_offset = 0,
 					},
 					[8] = {
-						.field_name = "hw_scan",
+						.field_name = "config",
 						.field_offset = 0,
 					},
 					[9] = {
-						.field_name = "link_info_changed",
+						.field_name = "configure_filter",
 						.field_offset = 0,
 					},
 					[10] = {
-						.field_name = "prepare_multicast",
+						.field_name = "del_nan_func",
 						.field_offset = 0,
 					},
 					[11] = {
-						.field_name = "remain_on_channel",
+						.field_name = "hw_scan",
 						.field_offset = 0,
 					},
 					[12] = {
-						.field_name = "remove_interface",
+						.field_name = "link_info_changed",
 						.field_offset = 0,
 					},
 					[13] = {
-						.field_name = "set_key",
+						.field_name = "prepare_multicast",
 						.field_offset = 0,
 					},
 					[14] = {
-						.field_name = "set_mac_acl",
+						.field_name = "remain_on_channel",
 						.field_offset = 0,
 					},
 					[15] = {
-						.field_name = "set_rts_threshold",
+						.field_name = "remove_chanctx",
 						.field_offset = 0,
 					},
 					[16] = {
-						.field_name = "sta_state",
+						.field_name = "remove_interface",
 						.field_offset = 0,
 					},
 					[17] = {
-						.field_name = "start",
+						.field_name = "set_key",
 						.field_offset = 0,
 					},
 					[18] = {
-						.field_name = "start_ap",
+						.field_name = "set_mac_acl",
 						.field_offset = 0,
 					},
 					[19] = {
-						.field_name = "start_nan",
+						.field_name = "set_rts_threshold",
 						.field_offset = 0,
 					},
 					[20] = {
-						.field_name = "stop",
+						.field_name = "sta_state",
 						.field_offset = 0,
 					},
 					[21] = {
-						.field_name = "stop_ap",
+						.field_name = "start",
 						.field_offset = 0,
 					},
 					[22] = {
-						.field_name = "stop_nan",
+						.field_name = "start_ap",
 						.field_offset = 0,
 					},
 					[23] = {
-						.field_name = "sw_scan_start",
+						.field_name = "start_nan",
 						.field_offset = 0,
 					},
 					[24] = {
-						.field_name = "tdls_cancel_channel_switch",
+						.field_name = "stop",
 						.field_offset = 0,
 					},
 					[25] = {
-						.field_name = "tdls_channel_switch",
+						.field_name = "stop_ap",
 						.field_offset = 0,
 					},
 					[26] = {
-						.field_name = "tdls_recv_channel_switch",
+						.field_name = "stop_nan",
 						.field_offset = 0,
 					},
 					[27] = {
-						.field_name = "tx",
+						.field_name = "sw_scan_start",
 						.field_offset = 0,
 					},
 					[28] = {
+						.field_name = "tdls_cancel_channel_switch",
+						.field_offset = 0,
+					},
+					[29] = {
+						.field_name = "tdls_channel_switch",
+						.field_offset = 0,
+					},
+					[30] = {
+						.field_name = "tdls_recv_channel_switch",
+						.field_offset = 0,
+					},
+					[31] = {
+						.field_name = "tx",
+						.field_offset = 0,
+					},
+					[32] = {
 						.field_name = "vif_cfg_changed",
 						.field_offset = 0,
 					},

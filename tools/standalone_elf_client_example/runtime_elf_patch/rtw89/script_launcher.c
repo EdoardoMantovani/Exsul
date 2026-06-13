@@ -15,7 +15,7 @@
 
 /* remember to change those parameters accordingly to the main Exsul source code. */
 #define MAX_CONNECTION  1
-#define BUFFER_SIZE     1024 * 32 * 4
+#define BUFFER_SIZE     1024 * 32
 #define SOCKET_PATH	"/tmp/exsul_socket"
 
 #define u8		uint8_t
@@ -33,18 +33,16 @@ struct exsul_protocol_hdr {
 	u16 len;
 };
 
-static inline void exsul_protocol_set_len(struct exsul_protocol_hdr *hdr,
-					  u32 len)
-{
-	hdr->len_hi = (u8)((len >> 16) & 0xff);
-	hdr->len = (u16)(len & 0xffff);
-}
-
 /* protocol types FOR 'exsul_protocol_hdr' */
 enum {
 	STANDALONE_TCC_SCRIPTING = 1,
 	STANDALONE_CONSOLE_MGMT  = 2,
 };
+
+static inline void exsul_protocol_set_len(struct exsul_protocol_hdr *hdr, u32 len){
+	hdr->len_hi = (u8)((len >> 16) & 0xff);
+	hdr->len = (u16)(len & 0xffff);
+}
 
 static int send_all(int fd, const void *buffer, size_t length){
 	int ret = 0;

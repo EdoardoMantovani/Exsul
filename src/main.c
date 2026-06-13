@@ -2239,11 +2239,14 @@ int initialize_director(struct module_controller *director, struct load_info **i
 
 	/* initialize skb queue mutex */
 	pthread_mutex_init(&director->skb_queue_lock, NULL);
-
+	/* initialize the scan lock */
 	pthread_mutex_init(&director->scan_cache_lock, NULL);
+	/* set to '0' the scan and rx_dump parameters */
 	atomic_store(&director->scan_generation, 0);
 	atomic_store(&director->scan_result_epoch, 0);
 	atomic_store(&director->scan_in_progress, false);
+	atomic_store(&director->rx_dump_enabled, false);
+	atomic_store(&director->rx_dump_sequence, 0);
 
 	pthread_mutex_init(&director->timer_lock, NULL);
 	pthread_cond_init(&director->timer_cond, NULL);
@@ -2554,8 +2557,9 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 	}
 	if(current_op == IEEE80211_HW_SCAN){
 		hw_scan = ops->hw_scan;
+		cancel_hw_scan = ops->cancel_hw_scan;
 		if(hw_scan != NULL && local->ieee80211_vif != NULL){
-			ret = start_hw_scan(local, hw_scan);
+			ret = start_hw_scan(local, hw_scan, cancel_hw_scan);
 		}else{
 			goto ieee80211_vif_not_initialized;
 		}
@@ -2654,9 +2658,7 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 
 /* used inside the tcc scripts for the standalone.elf for initializing the driver, calls start, add_interface and so on.. */
 void elf_initialize_driver(void){
-	/* invoke the 'config' callback */
-	fast_run_ieee80211_cb(IEEE80211_CONFIG);
-	/* invoke the 'start' callback */
+	/* Start hardware before invoking callbacks which access channel state. */
 	fast_run_ieee80211_cb(IEEE80211_START);
 	/* invoke the 'add_interface' callback */
 	fast_run_ieee80211_cb(IEEE80211_ADD_INTERFACE);
@@ -3217,7 +3219,15 @@ int handle_ieee80211_conf_tx(struct ieee80211_hw *ieee80211_hw, struct ieee80211
 int handle_ieee80211_config(struct ieee80211_hw *ieee80211_hw, struct ieee80211_ops *ops){
 	int ret = 0;
 
-	if(director.kernel_major_version > 6 || (director.kernel_major_version == 6 && director.kernel_minor_version > 17)){
+	if (ieee80211_hw == NULL || ops == NULL){
+		return -EINVAL;
+	}
+	if (ieee80211_hw->conf.chandef.chan == NULL){
+		printf("[*] ops config: no channel selected; skipping channel change\n");
+		return 0;
+	}
+
+	if(director.kernel_major_version > 6 || (director.kernel_major_version == 6 && director.kernel_minor_version >= 17)){
 		int (*config)(struct ieee80211_hw *hw, int radio_idx, u32 changed) = NULL;
 		config = ops->config;
 		if(config != NULL){
@@ -3236,6 +3246,7 @@ int handle_ieee80211_config(struct ieee80211_hw *ieee80211_hw, struct ieee80211_
 /* permits to invoke various 'ops' struct registered by running the loaded kernel module, like 'ieee80211_ops' */
 int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args) {
         int ret = 0;
+	bool enable = false;
         unsigned char *ops_req = NULL;
 	struct ieee80211_ops *ops = NULL;
 	struct ieee80211_local *local = NULL;
@@ -3360,6 +3371,25 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		ret = wifi_auth_connection_start(local, argv[2], num_args >= 4 ? argv[3] : NULL);
 	}
 
+	if(strcmp(ops_req, "rx") == 0){
+		enable = true;
+
+		if(num_args >= 3 && argv[2] != NULL){
+			if(strcmp(argv[2], "off") == 0 || strcmp(argv[2], "0") == 0){
+				enable = false;
+			}else if(strcmp(argv[2], "on") != 0 && strcmp(argv[2], "1") != 0){
+				printf("[!] rx: ops rx [on|off|status]\n");
+				ret = -EINVAL;
+				return ret;
+			}
+		}
+		atomic_store(&__director->rx_dump_enabled, enable);
+		if(enable){
+			atomic_store(&__director->rx_dump_sequence, 0);
+		}
+		printf("[*] RX hexdump %s\n", enable ? "enabled" : "disabled");
+	}
+
 	if(strcmp(ops_req, "conf_tx") == 0){
 		/* handle in the same way of 'config' */
 		ret = handle_ieee80211_conf_tx(local->ieee80211_hw, local->ieee80211_vif, ops);
@@ -3379,10 +3409,11 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	if(strcmp(ops_req, "sta_remove") == 0){
 
 	}
-	if(strcmp(ops_req, "scan") == 0){
+	if(strcmp(ops_req, "scan") == 0 || strcmp(ops_req, "hw_scan") == 0){
 		hw_scan = ops->hw_scan;
+		cancel_hw_scan = ops->cancel_hw_scan;
 		if(hw_scan != NULL && local->ieee80211_vif != NULL){
-			ret = start_hw_scan(local, hw_scan);
+			ret = start_hw_scan(local, hw_scan, cancel_hw_scan);
 		}else{
 			goto ieee80211_vif_not_initialized;
 		}
@@ -3962,6 +3993,8 @@ int elf_entry_stub(int argc, char *argv[]){
 	atomic_store(&director.scan_generation, 0);
 	atomic_store(&director.scan_result_epoch, 0);
 	atomic_store(&director.scan_in_progress, false);
+	atomic_store(&director.rx_dump_enabled, false);
+	atomic_store(&director.rx_dump_sequence, 0);
 
 	pthread_mutex_init(&director.timer_lock, NULL);
 	pthread_cond_init(&director.timer_cond, NULL);
@@ -4667,6 +4700,8 @@ static int pe_entry_stub(void){
         atomic_store(&director.scan_generation, 0);
         atomic_store(&director.scan_result_epoch, 0);
         atomic_store(&director.scan_in_progress, false);
+	atomic_store(&director.rx_dump_enabled, false);
+	atomic_store(&director.rx_dump_sequence, 0);
         pthread_mutex_init(&director.timer_lock, NULL);
         pthread_cond_init(&director.timer_cond, NULL);
         director.timer_once = PTHREAD_ONCE_INIT;
