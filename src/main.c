@@ -4480,6 +4480,7 @@ static u64 pe_align_value(u64 value, u64 alignment){
 }
 
 static int pe_write_at(HANDLE file, u64 offset, const void *buffer, u64 length){
+	int ret = 0;
         DWORD written = 0;
         DWORD chunk = 0;
         LARGE_INTEGER file_offset = {};
@@ -4503,6 +4504,7 @@ static int pe_write_at(HANDLE file, u64 offset, const void *buffer, u64 length){
 }
 
 static int pe_read_at(HANDLE file, u64 offset, void *buffer, u64 length){
+	int ret = 0;
         DWORD received = 0;
         DWORD chunk = 0;
         LARGE_INTEGER file_offset = {};

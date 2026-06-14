@@ -155,7 +155,7 @@ struct internal_cb_table sym_table[4096] = {
     [146] = { .function_name = "ktime_get", .function_ptr = ktime_get, .function_size = 102 },
     [147] = { .function_name = "sysfs_streq", .function_ptr = sysfs_streq, .function_size = 129 },
     [148] = { .function_name = "devm_kasprintf", .function_ptr = devm_kasprintf, .function_size = 108 },
-    [149] = { .function_name = "ieee80211_nullfunc_get", .function_ptr = ieee80211_nullfunc_get, .function_size = 764 },
+    [149] = { .function_name = "ieee80211_nullfunc_get", .function_ptr = ieee80211_nullfunc_get, .function_size = 861 },
     [150] = { .function_name = "hci_drv_process_cmd", .function_ptr = hci_drv_process_cmd, .function_size = 295 },
     [151] = { .function_name = "__hci_cmd_sync_ev", .function_ptr = __hci_cmd_sync_ev, .function_size = 51 },
     [152] = { .function_name = "cfg80211_report_wowlan_wakeup", .function_ptr = cfg80211_report_wowlan_wakeup, .function_size = 5 },

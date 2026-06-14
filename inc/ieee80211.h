@@ -7404,7 +7404,6 @@ static inline int connection_hmac_sha1(const u8 *key, int key_len, const u8 *dat
 }
 
 static inline int connection_derive_ptk(struct connection_fsm *fsm, const u8 *station_addr){
-	#ifdef __linux__
 	int ret = 0;
 	int written = 0;
 	int data_len = 0;
@@ -7416,7 +7415,7 @@ static inline int connection_derive_ptk(struct connection_fsm *fsm, const u8 *st
 	const u8 *nonce1 = fsm->anonce;
 	const u8 *nonce2 = fsm->snonce;
 	const u8 label[] = "Pairwise key expansion";
-
+	#ifdef __linux__
 	if (PKCS5_PBKDF2_HMAC(fsm->passphrase, fsm->passphrase_len, fsm->ssid, fsm->ssid_len, 4096, EVP_sha1(), sizeof(fsm->pmk), fsm->pmk) != 1){
 		ret = -EINVAL;
 		return ret;

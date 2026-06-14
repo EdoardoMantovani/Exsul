@@ -1563,11 +1563,11 @@ foreach(`$find $stubs/$functions/ $find_command_arg`){
 	$iterator = (((split("/", $stub_name))[-1]));
 	# get the symbol size
 	if($windows_support){
-		$sym_size = `$readelf -S --size-sort --radix=d build/merged_functions.o 2>/dev/null | $grep \" $iterator\$\" 2>/dev/null | $awk $readelf_table_parse 2>/dev/null`;
+		$sym_size = `$readelf -S --size-sort --radix=x build/merged_functions.o 2>/dev/null | $grep \" $iterator\$\" 2>/dev/null | $awk $readelf_table_parse 2>/dev/null`;
 		if($iterator eq "snprintf" || $iterator eq "sscanf"){
 			$sym_size = "00";
 		}
-		$sym_size = "0x" . $sym_size;
+		$sym_size = length($sym_size) ? "0x" . $sym_size : 0;
 	}else{
 		$sym_size = `$readelf -sW $build/merged_functions.o 2>/dev/null | $grep \" $iterator\$\" 2>/dev/null | $awk $readelf_table_parse 2>/dev/null`;	
 	}
