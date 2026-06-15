@@ -1739,7 +1739,7 @@ void *patch_dest(void *dest, bool direct){
 
 	/* Ensure there are nops */
 	if (memcmp(pad, nops, tsize)) {
-		printf("Invalid padding area for %pS\n", dest);
+		printf("Invalid padding area for %p\n", dest);
 		return NULL;
 	}
 
@@ -1765,8 +1765,7 @@ void patch_call(void *addr, const struct core_text *ct){
 	}
 
 	#ifdef ENABLE_DBG_PRINT
-	printf("Patch call at: %pS %p to %pS %p -> %p \n", addr, addr,
-		dest, dest, pad);
+	printf("[*] patch call at: %p %p to %p %p -> %p \n", addr, addr, dest, dest, pad);
 	#endif
 	__text_gen_insn(bytes, CALL_INSN_OPCODE, addr, pad, CALL_INSN_SIZE);
 	memcpy(addr, bytes, CALL_INSN_SIZE);
@@ -1782,11 +1781,11 @@ void patch_call_sites(s32 *start, s32 *end, const struct core_text *ct){
 
 void callthunks_setup(struct callthunk_sites *cs, const struct core_text *ct){
 	#ifdef ENABLE_DBG_PRINT
-	printf("Patching call sites %s\n", ct->name);
+	printf("[*] patching call sites %s\n", ct->name);
 	#endif
 	patch_call_sites(cs->call_start, cs->call_end, ct);
 	#ifdef ENABLE_DBG_PRINT
-	printf("Patching call sites done: %s\n", ct->name);
+	printf("[*] patching call sites done: %s\n", ct->name);
 	#endif
 }
 
@@ -1906,7 +1905,7 @@ void __attribute__((noinline)) apply_alternatives(struct alt_instr *start, struc
 		#endif
 
 		#ifdef ENABLE_DBG_PRINT
-		printf("feat: %d*32+%d, old: (%pS (%p) len: %d), repl: (%p, len: %d) flags: 0x%x",
+		printf("feat: %d*32+%d, old: (%p (%p) len: %d), repl: (%p, len: %d) flags: 0x%x",
 			a->cpuid >> 5,
 			a->cpuid & 0x1f,
 			instr, instr, a->instrlen,

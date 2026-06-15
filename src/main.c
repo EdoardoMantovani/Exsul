@@ -91,7 +91,9 @@ int parse_module_usb_table(struct usb_device_id **id){
 	}
 	usb_table_size = fast_get_symbol(USB_TABLE_SYM_NAME, &p);
 	if(p == NULL || usb_table_size == 0){
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] failed to get the usb_table_size symbol!\n");
+		#endif
 		ret = -ENOMEM;
 		return ret;
 	}else{
@@ -103,17 +105,23 @@ int parse_module_usb_table(struct usb_device_id **id){
 	*id = p;
 	ret = (usb_table_size % sizeof(struct usb_device_id));
 	if(ret != 0){
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] usb device table symbol isn't aligned with the size of \'struct usb_device_id\', aborting...\n");
+		#endif
 		ret = -EINVAL;
 		return ret;
 	}
 
+	#ifdef ENABLE_DBG_PRINT
 	printf("[*] usb devices detected for the current kernel module:\n");
+	#endif
 	for(u8 j = 0; ; j++){
 		if(p == NULL || p->idProduct == 0x00 || p->idVendor == 0x00){
 			break;
 		}
+		#ifdef ENABLE_DBG_PRINT
 		printf("[*] usb pid: 0x%08x vid: 0x%08x\n", p->idProduct, p->idVendor);
+		#endif
 		/* now add the pid/vid tuple into our main struct, this will be used later for the libusb device handling */
 		for(u8 k = 0; k < MAX_USB_DEV_LIST; k++){
 			if(director.usb_dev_list[k].is_used == false){
@@ -162,23 +170,26 @@ void dump_usb_host_interface(struct usb_interface *intf){
 #endif
 
 int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface **in_intf) {
-        int ret                                         = 0;
-        int int_number                                  = 0;
-        u32 struct_usb_interface_size                   = 0;
-        u32 struct_usb_device_size                      = 0;
-        u32 struct_device_size                          = 0;
-        u8  num_altsetting                              = 0;
-        u8  num_ep                                      = 0;
-        libusb_device                       *libusb_dev = NULL;
-	struct libusb_config_descriptor     *cfg        = NULL;
-	const struct libusb_interface       *libusb_intf= NULL;
-	struct usb_interface                *intf_ptr   = NULL;
-	struct usb_device                   *udev_ptr   = NULL;
-	const struct libusb_interface_descriptor *alt   = NULL;
-	const struct libusb_endpoint_descriptor  *ep    = NULL;
-	struct libusb_device_descriptor dev_desc	= {};
+        int ret = 0;
+        int int_number = 0;
+        u32 struct_usb_interface_size = 0;
+        u32 struct_usb_device_size = 0;
+        u32 struct_device_size = 0;
+        u8  num_altsetting  = 0;
+        u8  num_ep = 0;
+        libusb_device *libusb_dev = NULL;
+	struct libusb_config_descriptor *cfg = NULL;
+	const struct libusb_interface *libusb_intf = NULL;
+	struct usb_interface *intf_ptr = NULL;
+	struct usb_device *udev_ptr = NULL;
+	const struct libusb_interface_descriptor *alt = NULL;
+	const struct libusb_endpoint_descriptor *ep = NULL;
+	struct libusb_device_descriptor dev_desc = {};
 
 	if (handler == NULL || in_intf == NULL) {
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] invalid usb handler or invalid usb interface!\n");
+		#endif
                 ret = -EINVAL;
 		return ret;
         }
@@ -187,20 +198,26 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 
         libusb_dev = libusb_get_device(handler);
         if (libusb_dev == NULL) {
+		#ifdef ENABLE_DBG_PRINT
                 printf("[!] failed to acquire libusb_device!\n");
+		#endif
                 ret = -EINVAL;
 		return ret;
         }
 
 	ret = libusb_get_active_config_descriptor(libusb_dev, &cfg);
         if (ret < 0) {
+		#ifdef ENABLE_DBG_PRINT
                 printf("[!] failed to get libusb_config_descriptor!\n");
+		#endif
                 ret = -EINVAL;
 		return ret;
         }
 
 	if (cfg->bNumInterfaces == 0) {
+		#ifdef ENABLE_DBG_PRINT
                 printf("[!] device has no interfaces!\n");
+		#endif
                 ret = -ENODEV;
                 goto fail_free_cfg;
         }
@@ -210,24 +227,32 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
         struct_device_size        = director.struct_sizes.device;
 
 	if (struct_usb_interface_size == 0) {
+		#ifdef ENABLE_DBG_PRINT
                 printf("[!] failed to retrieve size for struct usb_interface!\n");
+		#endif
                 ret = -EINVAL;
                 goto fail_free_cfg;
         }
         if (struct_usb_device_size == 0) {
+		#ifdef ENABLE_DBG_PRINT
                 printf("[!] failed to retrieve size for struct usb_device!\n");
+		#endif
                 ret = -EINVAL;
                 goto fail_free_cfg;
         }
         if (struct_device_size == 0) {
+		#ifdef ENABLE_DBG_PRINT
                 printf("[!] failed to retrieve size for struct device!\n");
+		#endif
                 ret = -EINVAL;
                 goto fail_free_cfg;
         }
 
 	intf_ptr = (struct usb_interface *)calloc(1, struct_usb_interface_size);
         if (intf_ptr == NULL) {
+		#ifdef ENABLE_DBG_PRINT
                 printf("[!] failed to allocate usb_interface!\n");
+		#endif
                 ret = -ENOMEM;
                 goto fail_free_cfg;
         }
@@ -240,14 +265,18 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 	#endif
 
         if (num_altsetting == 0) {
+		#ifdef ENABLE_DBG_PRINT
                 printf("[!] interface 0 has no altsettings!\n");
+		#endif
                 ret = -ENODEV;
                 goto fail_free_intf;
         }
 
         intf_ptr->altsetting = (struct usb_host_interface *)calloc(num_altsetting, sizeof(struct usb_host_interface));
         if (intf_ptr->altsetting == NULL) {
+		#ifdef ENABLE_DBG_PRINT
                 printf("[!] failed to allocate usb_host_interface array!\n");
+		#endif
                 ret = -ENOMEM;
                 goto fail_free_intf;
         }
@@ -259,8 +288,7 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
                 num_ep = alt->bNumEndpoints;
 
 		#ifdef ADVANCED_USB_DEBUGGING
-                printf("[*] altsetting %u: bInterfaceNumber=%u bNumEndpoints=%u\n",
-                       k, alt->bInterfaceNumber, num_ep);
+                printf("[*] altsetting %u: bInterfaceNumber=%u bNumEndpoints=%u\n", k, alt->bInterfaceNumber, num_ep);
 		#endif
                 intf_ptr->altsetting[k].desc.bLength              = alt->bLength;
                 intf_ptr->altsetting[k].desc.bDescriptorType      = alt->bDescriptorType;
@@ -308,7 +336,9 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 
         udev_ptr = (struct usb_device *)calloc(1, struct_usb_device_size);
         if (udev_ptr == NULL) {
+		#ifdef ENABLE_DBG_PRINT
                 printf("[!] failed to allocate usb_device!\n");
+		#endif
                 ret = -ENOMEM;
                 goto fail_free_endpoints;
         }
@@ -330,7 +360,9 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 		udev_ptr->descriptor.iSerialNumber      = dev_desc.iSerialNumber;
 		udev_ptr->descriptor.bNumConfigurations = dev_desc.bNumConfigurations;
 	}else{
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] failed to get libusb device descriptor, defaulting bNumConfigurations=1\n");
+		#endif
                 udev_ptr->descriptor.bNumConfigurations = 1;
 	}
 
@@ -364,17 +396,17 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
         libusb_free_config_descriptor(cfg);
         return int_number;
 
-fail_free_endpoints:
+	fail_free_endpoints:
         for (u8 m = 0; m < num_altsetting; m++) {
                 free(intf_ptr->altsetting[m].endpoint);
                 intf_ptr->altsetting[m].endpoint = NULL;
         }
-fail_free_altsetting:
+	fail_free_altsetting:
         free(intf_ptr->altsetting);
         intf_ptr->altsetting = NULL;
-fail_free_intf:
+	fail_free_intf:
         free(intf_ptr);
-fail_free_cfg:
+	fail_free_cfg:
         libusb_free_config_descriptor(cfg);
         return ret;
 }
@@ -426,6 +458,9 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 
 		return ret;
 	}
+	#ifdef ENABLE_DBG_PRINT
+	printf("[!] usb device not attached to the host!\n");
+	#endif
 	ret = -ENODEV;
 	return ret;
 }
@@ -435,6 +470,9 @@ int invoke_usb_probe(struct usb_driver *new_driver, struct usb_device_id *id, st
 	int (*probe)(struct usb_interface *intf, const struct usb_device_id *id) = NULL;
 	probe = new_driver->probe;
 
+	#ifdef ENABLE_DBG_PRINT
+	printf("[*] invoking usb probe!\n");
+	#endif
 	/* in normal conditions here a mutex would have been implemented, but in this case there is no necessity */
 	probe(intf, id);
 
@@ -449,8 +487,9 @@ static Dwarf_Unsigned dwarf_get_member_offset(Dwarf_Debug dbg, Dwarf_Die member_
 	Dwarf_Unsigned exprlen = 0;
 	char *block = NULL;
 
-	if (dwarf_attr(member_die, DW_AT_data_member_location, &attr, &err) != DW_DLV_OK)
+	if (dwarf_attr(member_die, DW_AT_data_member_location, &attr, &err) != DW_DLV_OK){
 		return 0;
+	}
 	if (dwarf_formudata(attr, &offset, &err) != DW_DLV_OK) {
 		if (dwarf_formexprloc(attr, &exprlen, &block, &err) == DW_DLV_OK && exprlen > 0 && block) {
 			if (block[0] == DW_OP_plus_uconst || block[0] == DW_OP_constu){
@@ -476,6 +515,9 @@ static int dwarf_search_field_recursive(unsigned char *field_input_name, Dwarf_D
 
 	ret = dwarf_child(struct_die, &child, &err);
 	if (ret != DW_DLV_OK){
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] failed to get the dwarf child!\n");
+		#endif
 		ret = -ENOENT;
 		return ret;
 	}
@@ -529,7 +571,9 @@ static int dwarf_search_field_recursive(unsigned char *field_input_name, Dwarf_D
 		}
 		cur = sib;
 	}
-
+	#ifdef ENABLE_DBG_PRINT
+	printf("[!] dwarf child not found!\n");
+	#endif
 	ret = -ENOENT;
 	return ret;
 }
@@ -553,6 +597,9 @@ int dwarf_detect_struct(Dwarf_Debug dbg, Dwarf_Die die, unsigned char *struct_to
 
 	ret = dwarf_tag(die, &tag, &err);
 	if (ret != DW_DLV_OK){
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] failed to find dwarf tag\n");
+		#endif
 		ret = false;
 		return ret;
 	}
@@ -584,6 +631,9 @@ int dwarf_detect_struct(Dwarf_Debug dbg, Dwarf_Die die, unsigned char *struct_to
 	}
 	ret = dwarf_child(die, &child, &err);
 	if (ret != DW_DLV_OK){
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] failed to get dwarf child!\n");
+		#endif
 		ret = false;
 		return ret;
 	}
@@ -707,7 +757,9 @@ int parse_module_offset_table(void){
 	runtime_structs = &runtime_generated_structs;
 
 	if(runtime_structs == NULL){
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] no runtime struct data!\n");
+		#endif
 		ret = -EINVAL;
 		return ret;
 	}
@@ -779,15 +831,17 @@ unsigned char *module_next_tag_pair(char *string, unsigned long *secsize) {
 	return string;
 }
 
-static char *get_next_modinfo(const struct load_info *info, const char *tag,
-			      char *prev) {
-	unsigned char *p      = NULL;
-	unsigned int   taglen = strlen(tag);
-	Elf(Shdr) *infosec    = &info->sechdrs[info->index.info];
-	unsigned long size    = infosec->sh_size;
+static char *get_next_modinfo(const struct load_info *info, const char *tag, unsigned char *prev) {
+	unsigned long size = 0;
+	unsigned int taglen = 0;
+	unsigned char *p = NULL;
+	unsigned char *modinfo = NULL;
+	Elf(Shdr) *infosec = &info->sechdrs[info->index.info];
 
-	char *modinfo = (char *)info->hdr + infosec->sh_offset;
+	taglen = strlen(tag);
+	size    = infosec->sh_size;
 
+	modinfo = (unsigned char *)info->hdr + infosec->sh_offset;
 	if (prev) {
 		size -= prev - modinfo;
 		modinfo = module_next_tag_pair(prev, &size);
@@ -980,9 +1034,10 @@ static int elf_validity_cache_copy(struct load_info *info, int flags) {
 }
 
 static int rewrite_section_headers(struct load_info *info, int flags) {
+	int ret = 0;
 	Elf(Shdr) *shdr		 = NULL;
-	info->sechdrs[0].sh_addr = 0;
 
+	info->sechdrs[0].sh_addr = 0;
 	for (unsigned int i = 1; i < info->hdr->e_shnum; i++) {
 		shdr	      = &info->sechdrs[i];
 		shdr->sh_addr = (size_t)info->hdr + shdr->sh_offset;
@@ -990,20 +1045,17 @@ static int rewrite_section_headers(struct load_info *info, int flags) {
 
 	info->sechdrs[info->index.vers].sh_flags &= ~(unsigned long)SHF_ALLOC;
 	info->sechdrs[info->index.info].sh_flags &= ~(unsigned long)SHF_ALLOC;
-
-	return 0;
+	return ret;
 }
 
 static int early_mod_check(struct load_info *info, int flags) {
-	int err = 0;
-	err	= rewrite_section_headers(info, flags);
+	int ret = 0;
 
-	return err;
+	ret = rewrite_section_headers(info, flags);
+	return ret;
 }
 
-static inline bool within_module_mem_type(uintptr_t	       addr,
-					  const struct module *mod,
-					  enum mod_mem_type    type) {
+static inline bool within_module_mem_type(uintptr_t addr, const struct module *mod, enum mod_mem_type type) {
 	uintptr_t base = 0;
 	uintptr_t size = 0;
 
@@ -1019,8 +1071,7 @@ int module_enforce_rwx_sections(Elf(Ehdr) * hdr, Elf(Shdr) * sechdrs, char *secs
 	for (int i = 0; i < hdr->e_shnum; i++) {
 		if ((sechdrs[i].sh_flags & shf_wx) == shf_wx) {
 			#ifdef ENABLE_DBG_PRINT
-			printf("%s: section %s (index %d) has invalid "
-			       "WRITE|EXEC flags\n",
+			printf("[*] %s: section %s (index %d) has invalid WRITE|EXEC flags\n",
 			       mod->name, secstrings + sechdrs[i].sh_name, i);
 			#endif
 			ret = -ENOEXEC;
@@ -1035,8 +1086,7 @@ static unsigned int find_sec(const struct load_info *info, const char *name) {
 	for (int i = 1; i < info->hdr->e_shnum; i++) {
 		shdr = &info->sechdrs[i];
 		/* Alloc bit cleared means "ignore it." */
-		if ((shdr->sh_flags & SHF_ALLOC) &&
-		    strcmp(info->secstrings + shdr->sh_name, name) == 0) {
+		if ((shdr->sh_flags & SHF_ALLOC) && strcmp(info->secstrings + shdr->sh_name, name) == 0) {
 			return i;
 		}
 	}
@@ -1055,13 +1105,11 @@ bool module_init_layout_section(const char *sname) {
 	return module_init_section(sname);
 }
 
-Elf(Xword) module_get_offset_and_type(struct module *mod, enum mod_mem_type type,
-				Elf(Shdr) * sechdr, unsigned int      section) {
+Elf(Xword) module_get_offset_and_type(struct module *mod, enum mod_mem_type type, Elf(Shdr) * sechdr, unsigned int      section) {
 	Elf(Xword) offset = 0;
 	Elf(Xword) mask   = 0;
 
-	mask = ((Elf(Xword))(type)&SH_ENTSIZE_TYPE_MASK)
-	       << SH_ENTSIZE_TYPE_SHIFT;
+	mask = ((Elf(Xword))(type)&SH_ENTSIZE_TYPE_MASK) << SH_ENTSIZE_TYPE_SHIFT;
 
 	mod->mem[type].size += 0;
 	offset = ALIGN(mod->mem[type].size, sechdr->sh_addralign ?: 1);
@@ -1077,12 +1125,11 @@ Elf(Xword) module_get_offset_and_type(struct module *mod, enum mod_mem_type type
 	return offset | mask;
 }
 
-static void __layout_sections(struct module *mod, struct load_info *info,
-			      bool is_init) {
-	unsigned int	  m = 0;
-	unsigned int	  i = 0;
-	enum mod_mem_type type;
-	Elf(Shdr) *s	  = NULL;
+static void __layout_sections(struct module *mod, struct load_info *info, bool is_init) {
+	unsigned int m = 0;
+	unsigned int i = 0;
+	enum mod_mem_type type = 0;
+	Elf(Shdr) *s = NULL;
 	const char *sname = NULL;
 
 	static const unsigned long masks[][2] = {
@@ -1138,12 +1185,12 @@ static void layout_sections(struct module *mod, struct load_info *info) {
 	}
 
 	#ifdef ENABLE_DBG_PRINT
-	printf("Core section allocation order for %s:\n", mod->name);
+	printf("[*] core section allocation order for %s:\n", mod->name);
 	#endif
 	__layout_sections(mod, info, false);
 
 	#ifdef ENABLE_DBG_PRINT
-	printf("Init section allocation order for %s:\n", mod->name);
+	printf("[*] init section allocation order for %s:\n", mod->name);
 	#endif
 	__layout_sections(mod, info, true);
 	return;
@@ -1153,7 +1200,7 @@ static int module_memory_alloc(struct module *mod, enum mod_mem_type type) {
 	int ret = 0;
 	unsigned int size = PAGE_ALIGN(mod->mem[type].size);
 	unsigned int mem_flags = PROT_READ | PROT_WRITE;
-	void	    *ptr = NULL;
+	void *ptr = NULL;
 
 	mod->mem[type].size = size;
 	#ifdef ENABLE_DBG_PRINT
@@ -1176,8 +1223,7 @@ static int module_memory_alloc(struct module *mod, enum mod_mem_type type) {
 	return 0;
 }
 
-static void module_memory_free(struct module *mod, enum mod_mem_type type,
-			       bool unload_codetags) {
+static void module_memory_free(struct module *mod, enum mod_mem_type type, bool unload_codetags) {
 	void *ptr = mod->mem[type].base;
 
 	if (mod_mem_type_is_core_data(type)) {
@@ -1186,12 +1232,11 @@ static void module_memory_free(struct module *mod, enum mod_mem_type type,
 }
 
 static int move_module(struct module *mod, struct load_info *info) {
-	int		  ret  = ENOMEM;
-	int		  i    = 0;
-	enum mod_mem_type t    = 0;
+	int ret = 0;
+	enum mod_mem_type t = 0;
 	enum mod_mem_type type = 0;
-	void		 *dest = NULL;
-	Elf(Shdr) *shdr	       = NULL;
+	void *dest = NULL;
+	Elf(Shdr) *shdr	= NULL;
 
 	for_each_mod_mem_type(type) {
 		if (!mod->mem[type].size) {
@@ -1207,9 +1252,9 @@ static int move_module(struct module *mod, struct load_info *info) {
 	}
 
 	#ifdef ENABLE_DBG_PRINT
-	printf("Final section addresses for %s:\n", mod->name);
+	printf("[*] final section addresses for %s:\n", mod->name);
 	#endif
-	for (i = 0; i < info->hdr->e_shnum; i++) {
+	for (int i = 0; i < info->hdr->e_shnum; i++) {
 		dest = NULL;
 		shdr = &info->sechdrs[i];
 		type = (enum mod_mem_type)(shdr->sh_entsize >> SH_ENTSIZE_TYPE_SHIFT);
@@ -1218,8 +1263,7 @@ static int move_module(struct module *mod, struct load_info *info) {
 			continue;
 		}
 
-		dest = (char *)mod->mem[type].base +
-		       (shdr->sh_entsize & SH_ENTSIZE_OFFSET_MASK);
+		dest = (char *)mod->mem[type].base + (shdr->sh_entsize & SH_ENTSIZE_OFFSET_MASK);
 
 		if (shdr->sh_type != SHT_NOBITS) {
 			memcpy(dest, (void *)shdr->sh_addr, shdr->sh_size);
@@ -1231,20 +1275,18 @@ static int move_module(struct module *mod, struct load_info *info) {
 	}
 
 	return 0;
-out_enomem:
+	out_enomem:
 	for (t--; t >= 0; t--) {
 		module_memory_free(mod, t, true);
 	}
 	return ret;
 }
 
-static bool is_core_symbol(const Elf(Sym) * src, const Elf(Shdr) * sechdrs,
-			   unsigned int shnum, unsigned int pcpundx) {
-	const Elf(Shdr) * sec;
-	enum mod_mem_type type;
+static bool is_core_symbol(const Elf(Sym) * src, const Elf(Shdr) * sechdrs, unsigned int shnum, unsigned int pcpundx) {
+	enum mod_mem_type type = 0;
+	const Elf(Shdr) * sec = NULL;
 
-	if (src->st_shndx == SHN_UNDEF || src->st_shndx >= shnum ||
-	    !src->st_name) {
+	if (src->st_shndx == SHN_UNDEF || src->st_shndx >= shnum || !src->st_name) {
 		return false;
 	}
 
@@ -1258,14 +1300,14 @@ static bool is_core_symbol(const Elf(Sym) * src, const Elf(Shdr) * sechdrs,
 }
 
 void layout_symtab(struct module *mod, struct load_info *info) {
+	int i = 0;
+	int nsrc = 0;
+	int ndst = 0;
+	int strtab_size = 0;
+	Elf(Sym) *src = NULL;
+
 	Elf(Shdr) *symsect = (Elf(Shdr) *)(info->sechdrs + info->index.sym);
 	Elf(Shdr) *strsect = (Elf(Shdr) *)(info->sechdrs + info->index.str);
-
-	Elf(Sym) *src				= NULL;
-	unsigned int	      i			= 0;
-	unsigned int	      nsrc		= 0;
-	unsigned int	      ndst		= 0;
-	unsigned int	      strtab_size	= 0;
 	struct module_memory *mod_mem_data	= &mod->mem[MOD_DATA];
 	struct module_memory *mod_mem_init_data = &mod->mem[MOD_INIT_DATA];
 
@@ -1279,11 +1321,8 @@ void layout_symtab(struct module *mod, struct load_info *info) {
 	nsrc = symsect->sh_size / sizeof(*src);
 
 	for (ndst = i = 0; i < nsrc; i++) {
-		if (i == 0 ||
-		    is_core_symbol(src + i, info->sechdrs, info->hdr->e_shnum,
-				   info->index.pcpu)) {
-			strtab_size +=
-			    strlen(&info->strtab[src[i].st_name]) + 1;
+		if (i == 0 || is_core_symbol(src + i, info->sechdrs, info->hdr->e_shnum, info->index.pcpu)) {
+			strtab_size += strlen(&info->strtab[src[i].st_name]) + 1;
 			ndst++;
 		}
 	}
@@ -1309,56 +1348,50 @@ void layout_symtab(struct module *mod, struct load_info *info) {
 }
 
 static struct module *layout_and_allocate(struct load_info *info, int flags) {
+	int ret = 0;
+	int ndx = 0;
 	struct module *mod = NULL;
-	unsigned int   ndx = 0;
-	int	       err = 0;
 
-	err = module_frob_arch_sections(info->hdr, info->sechdrs,
-					info->secstrings, info->mod);
-
-	if (err < 0) {
+	ret = module_frob_arch_sections(info->hdr, info->sechdrs, info->secstrings, info->mod);
+	if (ret < 0) {
 		return NULL;
 	}
 
-	err = module_enforce_rwx_sections(info->hdr, info->sechdrs,
-					  info->secstrings, info->mod);
-
-	if (err < 0) {
+	ret = module_enforce_rwx_sections(info->hdr, info->sechdrs, info->secstrings, info->mod);
+	if (ret < 0) {
 		return NULL;
 	}
 
 	info->sechdrs[info->index.pcpu].sh_flags &= ~(unsigned long)SHF_ALLOC;
-
 	ndx = find_sec(info, ".data..ro_after_init");
 
 	if (ndx) {
 		#ifdef ENABLE_DBG_PRINT
-		printf("section %s found!\n", ".data..ro_after_init");
+		printf("[*] section %s found!\n", ".data..ro_after_init");
 		#endif
 		info->sechdrs[ndx].sh_flags |= SHF_RO_AFTER_INIT;
 	}
 
 	ndx = find_sec(info, "__jump_table");
-
 	if (ndx) {
 		#ifdef ENABLE_DBG_PRINT
-		printf("section %s found!\n", "__jump_table");
+		printf("[*] section %s found!\n", "__jump_table");
 		#endif
 		info->sechdrs[ndx].sh_flags |= SHF_RO_AFTER_INIT;
 	}
 
 	layout_sections(info->mod, info);
-
 	layout_symtab(info->mod, info);
 
-	err = move_module(info->mod, info);
-	if (err) {
+	ret = move_module(info->mod, info);
+	if (ret) {
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] failed to move module!\n");
+		#endif
 		return NULL;
 	}
 
 	mod = (void *)info->sechdrs[info->index.mod].sh_addr;
-
 	return mod;
 }
 
@@ -1368,8 +1401,7 @@ static int percpu_modalloc(struct module *mod, struct load_info *info) {
 	return ret;
 }
 
-static void *section_objs(const struct load_info *info, const char *name,
-			  size_t object_size, unsigned int *num) {
+static void *section_objs(const struct load_info *info, const char *name, size_t object_size, unsigned int *num) {
 	unsigned int sec = find_sec(info, name);
 
 	/* Section 0 has sh_addr 0 and sh_size 0. */
@@ -1382,15 +1414,13 @@ static void *section_addr(const struct load_info *info, const char *name) {
 	return (void *)info->sechdrs[find_sec(info, name)].sh_addr;
 }
 
-void *find_runtime_section(struct module *mod, struct load_info *info,
-			   unsigned char *section_name) {
-	int		  ret  = 0;
-	unsigned int	  i    = 0;
+void *find_runtime_section(struct module *mod, struct load_info *info, unsigned char *section_name) {
+	int ret  = 0;
 	enum mod_mem_type type = 0;
-	void		 *dest = NULL;
-	Elf(Shdr) *shdr	       = NULL;
+	void *dest = NULL;
+	Elf(Shdr) *shdr = NULL;
 
-	for (i = 0; i < info->hdr->e_shnum; i++) {
+	for (int i = 0; i < info->hdr->e_shnum; i++) {
 		dest = NULL;
 		shdr = &info->sechdrs[i];
 		type = (enum mod_mem_type)(shdr->sh_entsize >> SH_ENTSIZE_TYPE_SHIFT);
@@ -1399,35 +1429,31 @@ void *find_runtime_section(struct module *mod, struct load_info *info,
 			continue;
 		}
 
-		dest = (char *)mod->mem[type].base +
-		       (shdr->sh_entsize & SH_ENTSIZE_OFFSET_MASK);
-
-		if (strcmp((unsigned char *)(info->secstrings + shdr->sh_name),
-			   section_name) == 0) {
+		dest = (char *)mod->mem[type].base + (shdr->sh_entsize & SH_ENTSIZE_OFFSET_MASK);
+		if (strcmp((unsigned char *)(info->secstrings + shdr->sh_name), section_name) == 0) {
 			return (void *)shdr->sh_addr;
 		}
 	}
-out_enomem:
+	out_enomem:
 	return NULL;
 }
 
 static int find_module_sections(struct module *mod, struct load_info *info) {
 	int ret = 0;
 	mod->kp = section_objs(info, "__param", sizeof(*mod->kp), &mod->num_kp);
-	mod->syms =
-	    section_objs(info, "__ksymtab", sizeof(*mod->syms), &mod->num_syms);
+	mod->syms = section_objs(info, "__ksymtab", sizeof(*mod->syms), &mod->num_syms);
 	mod->crcs     = section_addr(info, "__kcrctab");
-	mod->gpl_syms = section_objs(
-	    info, "__ksymtab_gpl", sizeof(*mod->gpl_syms), &mod->num_gpl_syms);
+	mod->gpl_syms = section_objs(info, "__ksymtab_gpl", sizeof(*mod->gpl_syms), &mod->num_gpl_syms);
 	mod->gpl_crcs = section_addr(info, "__kcrctab_gpl");
 
 	#ifdef CONFIG_CONSTRUCTORS
 	mod->ctors = section_objs(info, ".ctors", sizeof(*mod->ctors), &mod->num_ctors);
 	if (!mod->ctors) {
-		mod->ctors = section_objs(info, ".init_array",
-					  sizeof(*mod->ctors), &mod->num_ctors);
-	} else if (find_sec(info, ".init_array")) {
+		mod->ctors = section_objs(info, ".init_array", sizeof(*mod->ctors), &mod->num_ctors);
+	}else if (find_sec(info, ".init_array")) {
+		#ifdef ENABLE_DBG_PRINT
 		printf("%s: has both .ctors and .init_array.\n", mod->name);
+		#endif
 		ret = -EINVAL;
 		return ret;
 	}
@@ -1438,7 +1464,7 @@ static int find_module_sections(struct module *mod, struct load_info *info) {
 
 	if (section_addr(info, "__obsparm")) {
 		#ifdef ENABLE_DBG_PRINT
-		printf("%s: Ignoring obsolete parameters\n", mod->name);
+		printf("[*] %s: Ignoring obsolete parameters\n", mod->name);
 		#endif
 	}
 
@@ -1450,16 +1476,17 @@ static int find_module_sections(struct module *mod, struct load_info *info) {
 }
 
 static int simplify_symbols(struct module *mod, struct load_info *info) {
+	int ret = 0;
+	int i = 0;
+	long secbase = 0;
+	void *target = NULL;
+        void *dlopen_ctx = NULL;
+        void *trampoline = NULL;
+        unsigned char *name = NULL;
+	struct kernel_symbol *ksym = NULL;
+
 	Elf(Shdr) *symsec = (Elf(Shdr) *)&info->sechdrs[info->index.sym];
 	Elf(Sym) *sym	  = (void *)symsec->sh_addr;
-	unsigned long	      secbase	 = 0;
-	unsigned int	      i		 = 0;
-	int		      ret	 = 0;
-	struct kernel_symbol *ksym	 = NULL;
-	void		     *target     = NULL;
-	void		     *dlopen_ctx = NULL;
-	void                 *trampoline = NULL;
-	unsigned char	     *name	 = NULL;
 
 	for (i = 1; i < symsec->sh_size / sizeof(Elf(Sym)); i++) {
 		name = (unsigned char *)(info->strtab + sym[i].st_name);
@@ -1469,16 +1496,15 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 			if (!strncmp(name, "__gnu_lto", 9)) {
 				break;
 			}
-#ifdef ENABLE_DBG_PRINT
-			printf("Common symbol: %s\n", name);
-#endif
+			#ifdef ENABLE_DBG_PRINT
+			printf("[*] common symbol: %s\n", name);
+			#endif
 			ret = -ENOEXEC;
 			break;
 		case SHN_ABS:
-#ifdef ENABLE_DBG_PRINT
-			printf("Absolute symbol:  0x%08lx %s\n",
-			       (long)sym[i].st_value, name);
-#endif
+			#ifdef ENABLE_DBG_PRINT
+			printf("[*] absolute symbol: 0x%08lx %s\n", (long)sym[i].st_value, name);
+			#endif
 			break;
 		case SHN_UNDEF:
 			target = NULL;
@@ -1486,8 +1512,7 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 			     j++) {
 				if (strcmp(
 					(char *)name,
-					(char *)sym_table[j].function_name) ==
-				    0) {
+					(char *)sym_table[j].function_name) == 0) {
 					target = sym_table[j].function_ptr;
 					break;
 				}
@@ -1499,48 +1524,43 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 			}
 			#endif
 			if (target == NULL) {
-#ifdef ENABLE_DBG_PRINT
+				#ifdef ENABLE_DBG_PRINT
 				printf("[!] missing function: %s\n", name);
-#endif
+				#endif
 				ret = -ENOEXEC;
 				break;
 			}
-#if defined(__x86_64__)
+			#if defined(__x86_64__)
 			/* only trampoline functions; objects are another story
 			 */
 			if (ELF64_ST_TYPE(sym[i].st_info) == STT_FUNC) {
 				trampoline = x86_64_make_trampoline(target);
 				if (trampoline == NULL) {
 					#ifdef ENABLE_DBG_PRINT
-					printf(
-					    "[!] trampoline alloc failed for %s\n",
-					    name);
+					printf("[!] trampoline alloc failed for %s\n", name);
 					#endif
 					ret = -ENOMEM;
 					break;
 				}
 				sym[i].st_value = (Elf64_Addr)(uintptr_t)trampoline;
-#ifdef ENABLE_DBG_PRINT
-				printf("- resolved %-24s target=%p tramp=%p\n",
-				       name, target, trampoline);
-#endif
+				#ifdef ENABLE_DBG_PRINT
+				printf("- resolved %-24s target=%p tramp=%p\n", name, target, trampoline);
+				#endif
 			}else{
 				sym[i].st_value = (Elf64_Addr)(uintptr_t)target;
-#ifdef ENABLE_DBG_PRINT
-				printf("- resolved %-24s target=%p\n",
-				       name, target);
-#endif
+				#ifdef ENABLE_DBG_PRINT
+				printf("- resolved %-24s target=%p\n", name, target);
+				#endif
 			}
-#else
+			#else
 			sym[i].st_value = (Elf64_Addr)(uintptr_t)target;
-#endif
+			#endif
 			break;
 		default:
 			if (sym[i].st_shndx == info->index.pcpu) {
 				secbase = (unsigned long)(mod->percpu);
-			} else {
-				secbase =
-				    info->sechdrs[sym[i].st_shndx].sh_addr;
+			}else{
+				secbase = info->sechdrs[sym[i].st_shndx].sh_addr;
 			}
 			sym[i].st_value += secbase;
                         /*
@@ -1602,10 +1622,11 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 }
 
 static int apply_relocations(struct module *mod, const struct load_info *info) {
-	int err = 0;
+	int ret = 0;
+	int infosec = 0;
 
-	for (unsigned int i = 1; i < info->hdr->e_shnum; i++) {
-		unsigned int infosec = info->sechdrs[i].sh_info;
+	for (int i = 1; i < info->hdr->e_shnum; i++) {
+		infosec = info->sechdrs[i].sh_info;
 
 		if (infosec >= info->hdr->e_shnum) {
 			continue;
@@ -1616,28 +1637,26 @@ static int apply_relocations(struct module *mod, const struct load_info *info) {
 		}
 
 		if (info->sechdrs[i].sh_flags & SHF_RELA_LIVEPATCH) {
-#ifdef ENABLE_DBG_PRINT
-			printf("LIVEPATCH not supported!\n");
-#endif
-			return err;
+			#ifdef ENABLE_DBG_PRINT
+			printf("[!] livepatch not supported!\n");
+			#endif
+			return ret;
 		}
 
 		if (info->sechdrs[i].sh_type == SHT_REL) {
-			err = apply_relocate(info->sechdrs, info->strtab,
-					     info->index.sym, i, mod);
+			ret = apply_relocate(info->sechdrs, info->strtab, info->index.sym, i, mod);
 		} else if (info->sechdrs[i].sh_type == SHT_RELA) {
-			err = apply_relocate_add(info->sechdrs, info->strtab,
-						 info->index.sym, i, mod);
+			ret = apply_relocate_add(info->sechdrs, info->strtab, info->index.sym, i, mod);
 		}
 
-		if (err < 0) {
+		if (ret < 0) {
 			break;
 		}
 	}
-	return err;
+	return ret;
 }
 
-static char elf_type(const Elf(Sym) * sym, const struct load_info *info) {
+static char elf_type(const Elf(Sym) *sym, const struct load_info *info) {
 	const Elf(Shdr) *sechdrs = NULL;
 
 	sechdrs = info->sechdrs;
@@ -1685,17 +1704,19 @@ static char elf_type(const Elf(Sym) * sym, const struct load_info *info) {
 }
 
 void add_kallsyms(struct module *mod, const struct load_info *info) {
-	unsigned int i	    = 0;
-	unsigned int ndst   = 0;
-	ssize_t	     ret    = 0;
+	int ret = 0;
+	unsigned int i = 0;
+	unsigned int ndst = 0;
+	unsigned long strtab_size = 0;
+	char *s = NULL;
+	void *data_base = NULL;
+	void *init_data_base = NULL;
+	Elf(Sym) *dst = NULL;
 	const Elf(Sym) *src = NULL;
-	Elf(Sym) *dst	    = NULL;
-	char *s		    = NULL;
 
-	Elf(Shdr) *symsec	     = &info->sechdrs[info->index.sym];
-	unsigned long strtab_size    = 0;
-	void	     *data_base	     = mod->mem[MOD_DATA].base;
-	void	     *init_data_base = mod->mem[MOD_INIT_DATA].base;
+	Elf(Shdr) *symsec = &info->sechdrs[info->index.sym];
+	data_base = mod->mem[MOD_DATA].base;
+	init_data_base = mod->mem[MOD_INIT_DATA].base;
 
 	mod->kallsyms = (void *)init_data_base + info->mod_kallsyms_init_off;
 
@@ -1758,16 +1779,13 @@ static int post_relocation(struct module *mod, const struct load_info *info) {
 }
 
 static int module_set_memory(const struct module *mod, enum mod_mem_type type) {
-	struct module_memory {
-		void	    *base;
-		unsigned int size;
-	};
-
+	int ret = 0;
 	unsigned int mprotect_perm = 0;
-	struct module_memory *mod_mem = (struct module_memory *)&mod->mem[type];
+	struct module_memory *mod_mem = NULL;
 
+	mod_mem = (struct module_memory *)&mod->mem[type];
 	if (mod_mem->base == NULL) {
-		return 0;
+		return ret;
 	}
 
 	switch (type) {
@@ -1785,14 +1803,14 @@ static int module_set_memory(const struct module *mod, enum mod_mem_type type) {
 		mprotect_perm = PROT_READ | PROT_EXEC | PROT_WRITE;
 		break;
 	default:
-#ifdef ENABLE_DBG_PRINT
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] unknown memory type: %d\n", type);
-#endif
-		return 0;
+		#endif
+		return ret;
 	}
 
-	return mprotect(mod_mem->base, mod_mem->size,
-			mprotect_perm);
+	ret = mprotect(mod_mem->base, mod_mem->size, mprotect_perm);
+	return ret;
 }
 
 int module_enable_rodata_ro(const struct module *mod, bool after_init) {
@@ -1811,9 +1829,9 @@ int module_enable_rodata_ro(const struct module *mod, bool after_init) {
 	}
 
 	if (after_init) {
-		return module_set_memory(mod, MOD_RO_AFTER_INIT);
+		ret = module_set_memory(mod, MOD_RO_AFTER_INIT);
 	}
-	return 0;
+	return ret;
 }
 
 int module_enable_data_nx(const struct module *mod) {
@@ -1826,7 +1844,7 @@ int module_enable_data_nx(const struct module *mod) {
 			return ret;
 		}
 	}
-	return 0;
+	return ret;
 }
 
 int module_enable_text_rox(const struct module *mod) {
@@ -1839,53 +1857,45 @@ int module_enable_text_rox(const struct module *mod) {
 			return ret;
 		}
 	}
-	return 0;
+	return ret;
 }
 
 static int complete_formation(struct module *mod, struct load_info *info) {
-	int err = 0;
+	int ret = 0;
 
-	err = module_enable_rodata_ro(mod, false);
-
-	if (err) {
+	ret = module_enable_rodata_ro(mod, false);
+	if (ret) {
 		goto out_strict_rwx;
 	}
 
-	err = module_enable_data_nx(mod);
-
-	if (err) {
+	ret = module_enable_data_nx(mod);
+	if (ret) {
 		goto out_strict_rwx;
 	}
 
-	err = module_enable_text_rox(mod);
-
-	if (err) {
+	ret = module_enable_text_rox(mod);
+	if (ret) {
 		goto out_strict_rwx;
 	}
 
-	mod->state    = MODULE_STATE_COMING;
-	return 0;
+	mod->state = MODULE_STATE_COMING;
+	return ret;
 
-out_strict_rwx:
+	out_strict_rwx:
 	/** do nothing **/
-out:
-	return err;
+	out:
+	return ret;
 }
 
 static void do_mod_ctors(struct module *mod) {
-	unsigned long i = 0;
-
-	//        for (i = 0; i < mod->num_ctors; i++){
-	//              mod->ctors[i]();
-	//    }
+	/* do nothing here */
 }
 
 static inline unsigned long ex_to_insn(const struct exception_table_entry *x) {
 	return (unsigned long)&x->insn + x->insn;
 }
 
-static inline bool within_module_init(unsigned long	   addr,
-				      const struct module *mod) {
+static inline bool within_module_init(unsigned long addr, const struct module *mod) {
 	for_class_mod_mem_type(type, init) {
 		if (within_module_mem_type(addr, mod, type)) {
 			return true;
@@ -1917,21 +1927,20 @@ static int do_init_module(struct module *mod) {
 	do_mod_ctors(mod);
 
 	if (ret > 0) {
-#ifdef ENABLE_DBG_PRINT
+		#ifdef ENABLE_DBG_PRINT
 		printf("%s: '%s'->init suspiciously returned %d, it should "
 		       "follow 0/-E convention\n"
 		       "%s: loading module anyway...\n",
 		       __FUNCTION__, mod->name, ret, __FUNCTION__);
-#endif
+		#endif
 	}
 
 	mod->state = MODULE_STATE_LIVE;
 	trim_init_extable(mod);
-	return 0;
+	return ret;
 }
 
-static int call_final_function(struct module *mod, struct load_info *info,
-			       unsigned char *function_name) {
+static int call_final_function(struct module *mod, struct load_info *info, unsigned char *function_name) {
 	int ret = 0;
 	unsigned int n = 0;
 	char *strtab = NULL;
@@ -1957,7 +1966,9 @@ static int call_final_function(struct module *mod, struct load_info *info,
 		/* mark the module execution */
 		printf("--------------------------\n");
 		ret = fn();
-		printf("%s returned %d\n", name, ret);
+		#ifdef ENABLE_DBG_PRINT
+		printf("[*] %s returned %d\n", name, ret);
+		#endif
 	}
 
 	for (unsigned int i = 0; i < n; i++) {
@@ -1978,13 +1989,15 @@ static int call_final_function(struct module *mod, struct load_info *info,
 			/* mark the module execution */
 			printf("--------------------------\n");
 			ret = fn();
-			printf("%s returned %d\n", name, ret);
-
+			#ifdef ENABLE_DBG_PRINT
+			printf("[*] %s returned %d\n", name, ret);
+			#endif
 			return ret;
 		}
 	}
-
-	printf("Function not found in symtab: %s\n", function_name);
+	#ifdef ENABLE_DBG_PRINT
+	printf("[!] function not found in symtab: %s\n", function_name);
+	#endif
 	ret = -ENOENT;
 	return ret;
 }
@@ -1992,13 +2005,15 @@ static int call_final_function(struct module *mod, struct load_info *info,
 /* update the kernel version by converting the vermagic string, it will be useful later for setting the function arguments */
 void update_kernel_version(unsigned char *vermagic){
 	char *separate_version = NULL;
-	unsigned char kernel_version_string_part[16];
+	unsigned char kernel_version_string_part[32] = {0};
 
 	if(vermagic == NULL || strlen(vermagic) < 16){
 		goto end;
 	}
 
-	sscanf(vermagic, "%16s", kernel_version_string_part);
+	if(sscanf(vermagic, "%31s", kernel_version_string_part) != 1){
+		goto end;
+	}
 
 	/* isolate the version.subversion part */
 	separate_version = strchr(kernel_version_string_part, '-');
@@ -2009,7 +2024,9 @@ void update_kernel_version(unsigned char *vermagic){
 
 	/* final parsing */
 	if (sscanf(kernel_version_string_part, "%hhu.%hhu.%hhu", &director.kernel_major_version, &director.kernel_minor_version, &director.kernel_patch) != 3){
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] failed to parse kernel version!\n");
+		#endif
 		goto end;
 	}
 
@@ -2020,7 +2037,6 @@ void update_kernel_version(unsigned char *vermagic){
 int module_init(unsigned char *file_name, unsigned char *function_name, struct load_info *info) {
 	int ret = 0;
 	int fd = 0;
-	long err = 0;
 	unsigned int file_size	= 0;
 	bool module_allocated = false;
 	struct module *mod = NULL;
@@ -2031,14 +2047,19 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 
 	if (file_name == NULL) {
 		ret = -EINVAL;
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] file name is null!\n");
+		#endif
 		return ret;
 	}
 
 	fd = open(file_name, O_RDONLY);
 
 	if(fd < 0){
-		printf("[!] file %s not exist!\n", file_name);
 		ret = -EINVAL;
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] file %s not exist!\n", file_name);
+		#endif
 		return ret;
 	}
 
@@ -2046,7 +2067,9 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	file_size = file_stats.st_size;
 
 	if(file_size == 0){
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] file %s is empty!\n", file_name);
+		#endif
 		ret = -EINVAL;
 		return ret;
 	}
@@ -2059,7 +2082,9 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	    MAP_ANON | MAP_PRIVATE, -1, 0x00);
 
 	if(tmp_mapped_file == MAP_FAILED || mapped_file == MAP_FAILED){
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] error during mmap! aborting...\n");
+		#endif
 		if(tmp_mapped_file != NULL){
 			munmap(tmp_mapped_file, file_size);
 		}
@@ -2083,9 +2108,11 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
         if(director.offset_init_by_conf == true){
 		goto skip_dwarf;
 	}else{
-		err = dwarf_init_b(director.fd, DW_DLC_READ, DW_GROUPNUMBER_ANY, NULL, NULL, &director.dbg, &director.err);
-		if(err != DW_DLV_OK){
+		ret = dwarf_init_b(director.fd, DW_DLC_READ, DW_GROUPNUMBER_ANY, NULL, NULL, &director.dbg, &director.err);
+		if(ret != DW_DLV_OK){
+			#ifdef ENABLE_DBG_PRINT
 			printf("[!] failed to initialize libdwarf!\n");
+			#endif
 			/*
 			 * instead of not loading the kernel object,
 			 * skip this phase, we may rely on other kernel objects loaded alongisde this module!
@@ -2100,74 +2127,87 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 
 	info->hdr = (Elf(Ehdr) *)mapped_file;
 	info->len = file_size;
-
 	elf_validity_cache_copy(info, 0);
-
 	early_mod_check(info, 0);
 
 	#ifdef ENABLE_DBG_PRINT
-	printf("name %s\n", get_modinfo(info, "name"));
-	printf("vermagic %s\n", get_modinfo(info, "vermagic"));
+	printf("[*] name %s\n", get_modinfo(info, "name"));
+	printf("[*] vermagic %s\n", get_modinfo(info, "vermagic"));
 	#endif
 
 	/* save the kernel version values for later use */
 	update_kernel_version(get_modinfo(info, "vermagic"));
-
 	mod = layout_and_allocate(info, 0);
-
 	if (mod == NULL) {
-		printf("module struct is null!\n");
-		return -1;
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] module struct is null!\n");
+		#endif
+		ret = -EINVAL;
+		return ret;
 	}
 
 	module_allocated = true;
-	err		 = percpu_modalloc(mod, info);
-
-	if (err) {
-		printf("end at line: %d\n", __LINE__);
-		return -1;
+	ret  = percpu_modalloc(mod, info);
+	if (ret) {
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] end at line: %d\n", __LINE__);
+		#endif
+		ret = -EINVAL;
+		return ret;
 	}
 
-	err = find_module_sections(mod, info);
-
-	if (err) {
-		printf("end at line: %d\n", __LINE__);
-		return -1;
+	ret = find_module_sections(mod, info);
+	if (ret) {
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] end at line: %d\n", __LINE__);
+		#endif
+		ret = -EINVAL;
+		return ret;
 	}
 
-	err = simplify_symbols(mod, info);
-
-	if (err < 0 && director.global_conf.strict_missing_syms == true) {
-		printf("end at line: %d\n", __LINE__);
-		return -1;
+	ret = simplify_symbols(mod, info);
+	if (ret < 0 && director.global_conf.strict_missing_syms == true) {
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] end at line: %d\n", __LINE__);
+		#endif
+		ret = -EINVAL;
+		return ret;
 	}
 
-	err = apply_relocations(mod, info);
-
-	if (err < 0) {
-		printf("end at line: %d\n", __LINE__);
-		return -1;
+	ret = apply_relocations(mod, info);
+	if (ret < 0) {
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] end at line: %d\n", __LINE__);
+		#endif
+		ret = -EINVAL;
+		return ret;
 	}
 
-	err = post_relocation(mod, info);
-
-	if (err < 0) {
-		printf("end at line: %d\n", __LINE__);
-		return -1;
+	ret = post_relocation(mod, info);
+	if (ret < 0) {
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] end at line: %d\n", __LINE__);
+		#endif
+		ret = -EINVAL;
+		return ret;
 	}
 
-	err = complete_formation(mod, info);
-
-	if (err) {
-		printf("end at line: %d\n", __LINE__);
-		return -1;
+	ret = complete_formation(mod, info);
+	if (ret) {
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] end at line: %d\n", __LINE__);
+		#endif
+		ret = -EINVAL;
+		return ret;
 	}
 
-	err = do_init_module(mod);
-
-	if (err) {
-		printf("end at line: %d\n", __LINE__);
-		return -1;
+	ret = do_init_module(mod);
+	if (ret) {
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] end at line: %d\n", __LINE__);
+		#endif
+		ret = -EINVAL;
+		return ret;
 	}
 
 	free(director.info);
@@ -2176,7 +2216,7 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	munmap(mapped_file, file_size);
 	mapped_file = NULL;
 	file_size = 0;
-	return err;
+	return ret;
 }
 
 /* internal function used for initialize a workqueue */
@@ -3038,6 +3078,7 @@ int drv_cmd_stop(struct module_controller *director, char *argv[], int num_args)
 int drv_cmd_run(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
 	u8 found = false;
+	void *tgt = NULL;
 	int (*fn)(void) = NULL;
 	unsigned char *ptr = NULL;
 	unsigned char *module_name = NULL;
@@ -3070,11 +3111,14 @@ int drv_cmd_run(struct module_controller *director, char *argv[], int num_args) 
 			ptr = (unsigned char *)fn;
 			if (ptr[0] == 0xE8) {
 				s32 disp = *(s32 *)(ptr + 1);
-				void   *tgt  = ptr + 5 + disp;
+				tgt  = ptr + 5 + disp;
 			}
 
 			/* mark the module execution */
 			printf("--------------------------\n");
+			#ifdef ENABLE_DBG_PRINT
+			printf("[*] function at: 0x%08x\n", fn);
+			#endif
 			ret = fn();
 			printf("%s returned %d\n", module_function, ret);
 		}
@@ -3083,7 +3127,9 @@ int drv_cmd_run(struct module_controller *director, char *argv[], int num_args) 
 		}
 	}
 	if(found == false){
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] failed to execute function '%s'\n", module_function);
+		#endif
 	}
 	return ret;
 }

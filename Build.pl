@@ -81,6 +81,7 @@ my $pahole_kernel = undef;
 my $windows_support = undef;
 my $windows_static = undef;
 my $verbose = undef;
+my $dbg = undef;
 my $enable_exported_symbols_tracing = undef;
 my $clean = undef;
 my $help = undef;
@@ -767,6 +768,7 @@ GetOptions(
 	"pahole_kernel=s" => \$pahole_kernel,
 	"windows"         => \$windows_static,
 	"verbose"	  => \$verbose,
+	"dbg"		  => \$dbg,
 	"trace"		  => \$enable_exported_symbols_tracing,
 	"clean"           => \$clean,
 	"help"            => \$help,
@@ -782,6 +784,7 @@ if($help){
 	print("--generate_offset -> generate a special json file which can be used for creating the offset backup plan\n");
 	print("--windows -> enable windows compilation and require static Windows libraries for a single executable\n");
 	print("--verbose -> show compilation command line\n");
+	print("--dbg -> enable debugging strings in Exsul\n");
 	print("--trace -> trace every exported function, used mainly for debugging!\n");
 	print("clean -> clear every compilation file\n");
 	print("help -> display this help text\n");
@@ -797,14 +800,19 @@ if($generate_offset_file){
 	$offset_generation_file = "required_offsets.json";
 }
 
-# Select the default before applying compiler-specific flags. Kernel modules
+# enable the debugging strings in Exsul
+if($dbg){
+	push(@gcc_params, "-DENABLE_DBG_PRINT ");
+}
+
+# select the default before applying compiler-specific flags. Kernel modules
 # may call userspace stubs with an 8-byte-aligned stack, so GCC must know the
 # incoming stack boundary and realign it before calling libc.
 if(!$compiler && !$windows_support){
 	$compiler = "gcc";
 }
 
-# Clang does not support GCC's incoming stack boundary option. GCC stubs must
+# clang does not support GCC's incoming stack boundary option. GCC stubs must
 # accept the kernel's 8-byte incoming alignment, while retaining the default
 # 16-byte preferred alignment required when they call userspace libraries.
 if($compiler){
