@@ -631,9 +631,6 @@ int dwarf_detect_struct(Dwarf_Debug dbg, Dwarf_Die die, unsigned char *struct_to
 	}
 	ret = dwarf_child(die, &child, &err);
 	if (ret != DW_DLV_OK){
-		#ifdef ENABLE_DBG_PRINT
-		printf("[!] failed to get dwarf child!\n");
-		#endif
 		ret = false;
 		return ret;
 	}
