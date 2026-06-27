@@ -1475,7 +1475,7 @@ static int find_module_sections(struct module *mod, struct load_info *info) {
 	return ret;
 }
 
-#if defined(__x86_64__) || defined(_M_X64)
+#ifdef _WIN64
 static bool symbol_uses_plt32(struct load_info *info, unsigned int symbol_index){
 	Elf(Shdr) *section = NULL;
 	Elf(Rela) *relocations = NULL;
@@ -1504,6 +1504,8 @@ static bool symbol_uses_plt32(struct load_info *info, unsigned int symbol_index)
 static int simplify_symbols(struct module *mod, struct load_info *info) {
 	int ret = 0;
 	bool target_is_native_stub = false;
+	bool needs_trampoline = false;
+	bool return_thunk = false;
 	int i = 0;
 	long secbase = 0;
 	void *target = NULL;
@@ -1567,10 +1569,16 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 				break;
 			}
 			#if defined(__x86_64__) || defined(_M_X64)
-			/* Undefined kernel imports are commonly STT_NOTYPE. PLT32 identifies calls without treating data as code. */
-			if (ELF64_ST_TYPE(sym[i].st_info) == STT_FUNC || symbol_uses_plt32(info, i)) {
+			needs_trampoline = ELF64_ST_TYPE(sym[i].st_info) == STT_FUNC;
+			return_thunk = false;
+			#ifdef _WIN64
+			/* Undefined kernel imports are commonly STT_NOTYPE on Windows. */
+			needs_trampoline |= symbol_uses_plt32(info, i);
+			return_thunk = strcmp((char *)name, "__x86_return_thunk") == 0;
+			#endif
+			if (needs_trampoline) {
 				trampoline = x86_64_make_trampoline(target, target_is_native_stub,
-								strcmp((char *)name, "__x86_return_thunk") == 0);
+								return_thunk);
 				if (trampoline == NULL) {
 					#ifdef ENABLE_DBG_PRINT
 					printf("[!] trampoline alloc failed for %s\n", name);
