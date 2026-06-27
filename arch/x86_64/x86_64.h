@@ -560,8 +560,14 @@ void arch__const_udelay(unsigned long xloops){
 	__delay(++xloops);
 }
 
-void *x86_64_make_trampoline(void *target_stub){
+void *x86_64_make_trampoline(void *target_stub, bool abi_bridge, bool return_thunk){
 	unsigned char *current_stub = NULL;
+	unsigned int offset = 0;
+	#ifdef _WIN64
+	const unsigned int trampoline_size = abi_bridge && !return_thunk ? 160 : 16;
+	#else
+	const unsigned int trampoline_size = 16;
+	#endif
 
 	if(director.trampoline_area == NULL){
 		director.trampoline_area = mmap(NULL,
@@ -577,12 +583,89 @@ void *x86_64_make_trampoline(void *target_stub){
 		return NULL;
 	}
 
-	if (director.trampoline_used + 16 > TRAMP_REGION_SIZE){
+	if (director.trampoline_used + trampoline_size > TRAMP_REGION_SIZE){
 		return NULL;
 	}
 
 	current_stub = director.trampoline_area + director.trampoline_used;
-	director.trampoline_used += 16;
+	director.trampoline_used += trampoline_size;
+	if(return_thunk){
+		current_stub[0] = 0xC3;
+		memset(current_stub + 1, 0x90, trampoline_size - 1);
+		__builtin___clear_cache((char *)current_stub,
+					(char *)current_stub + trampoline_size);
+		return current_stub;
+	}
+	#ifdef _WIN64
+	if(abi_bridge){
+	/* Linux modules use SysV while native Windows stubs use Microsoft x64. */
+	current_stub[offset++] = 0x49; /* mov r10, rdx */
+	current_stub[offset++] = 0x89;
+	current_stub[offset++] = 0xD2;
+	current_stub[offset++] = 0x49; /* mov r11, rcx */
+	current_stub[offset++] = 0x89;
+	current_stub[offset++] = 0xCB;
+	current_stub[offset++] = 0x48; /* sub rsp, 0x78 */
+	current_stub[offset++] = 0x83;
+	current_stub[offset++] = 0xEC;
+	current_stub[offset++] = 0x78;
+	current_stub[offset++] = 0x4C; /* mov [rsp + 0x20], r8 */
+	current_stub[offset++] = 0x89;
+	current_stub[offset++] = 0x44;
+	current_stub[offset++] = 0x24;
+	current_stub[offset++] = 0x20;
+	current_stub[offset++] = 0x4C; /* mov [rsp + 0x28], r9 */
+	current_stub[offset++] = 0x89;
+	current_stub[offset++] = 0x4C;
+	current_stub[offset++] = 0x24;
+	current_stub[offset++] = 0x28;
+
+	/* Copy SysV stack arguments 7..12 into Microsoft argument slots 7..12. */
+	for (unsigned int arg = 0; arg < 6; arg++) {
+		unsigned int source = 0x80 + arg * 8;
+		unsigned int destination = 0x30 + arg * 8;
+
+		current_stub[offset++] = 0x48; /* mov rax, [rsp + source] */
+		current_stub[offset++] = 0x8B;
+		current_stub[offset++] = 0x84;
+		current_stub[offset++] = 0x24;
+		*(u32 *)(current_stub + offset) = source;
+		offset += sizeof(u32);
+		current_stub[offset++] = 0x48; /* mov [rsp + destination], rax */
+		current_stub[offset++] = 0x89;
+		current_stub[offset++] = 0x44;
+		current_stub[offset++] = 0x24;
+		current_stub[offset++] = destination;
+	}
+
+	current_stub[offset++] = 0x48; /* mov rcx, rdi */
+	current_stub[offset++] = 0x89;
+	current_stub[offset++] = 0xF9;
+	current_stub[offset++] = 0x48; /* mov rdx, rsi */
+	current_stub[offset++] = 0x89;
+	current_stub[offset++] = 0xF2;
+	current_stub[offset++] = 0x4D; /* mov r8, r10 */
+	current_stub[offset++] = 0x89;
+	current_stub[offset++] = 0xD0;
+	current_stub[offset++] = 0x4D; /* mov r9, r11 */
+	current_stub[offset++] = 0x89;
+	current_stub[offset++] = 0xD9;
+	current_stub[offset++] = 0x48; /* movabs rax, target_stub */
+	current_stub[offset++] = 0xB8;
+	*(u64 *)(current_stub + offset) = (u64)(uintptr_t)target_stub;
+	offset += sizeof(u64);
+	current_stub[offset++] = 0xFF; /* call rax */
+	current_stub[offset++] = 0xD0;
+	current_stub[offset++] = 0x48; /* add rsp, 0x78 */
+	current_stub[offset++] = 0x83;
+	current_stub[offset++] = 0xC4;
+	current_stub[offset++] = 0x78;
+	current_stub[offset++] = 0xC3; /* ret */
+		__builtin___clear_cache((char *)current_stub,
+					(char *)current_stub + trampoline_size);
+		return current_stub;
+	}
+	#endif
 	/* movabs r11, imm64 ; jmp r11 */
 	current_stub[0]  = 0x49;
 	current_stub[1]  = 0xBB;
@@ -593,7 +676,8 @@ void *x86_64_make_trampoline(void *target_stub){
 	current_stub[13] = 0x90;
 	current_stub[14] = 0x90;
 	current_stub[15] = 0x90;
-	__builtin___clear_cache((char *)current_stub, (char *)current_stub + 16);
+	__builtin___clear_cache((char *)current_stub,
+				(char *)current_stub + trampoline_size);
 	return current_stub;
 }
 

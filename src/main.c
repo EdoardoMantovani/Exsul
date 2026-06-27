@@ -7,6 +7,7 @@
 /* global symbol table */
 struct internal_cb_table sym_table[SYM_ENTRIES];
 struct module_controller director;
+static unsigned int native_cb_entries;
 
 /* command entry, those are the commands the user can use from Exsul's shell */
 struct cmd_table_entry {
@@ -422,6 +423,7 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 			continue;
 		}
 
+		#ifndef _WIN64
 		ret = libusb_kernel_driver_active(director.usb_dev, 1);
 		if(ret){
 			/* if there is a kernel driver attached to the interface, reset the usb device */
@@ -435,6 +437,7 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 		}else{
 			ret = libusb_detach_kernel_driver(director.usb_dev, 0);
 		}
+		#endif
 
 		/* alloc the usb_interface which will be passed to the '->probe' callback */
 		ret = parse_usb_and_alloc_intf(director.usb_dev, &usb_intf);
@@ -467,7 +470,7 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 
 int invoke_usb_probe(struct usb_driver *new_driver, struct usb_device_id *id, struct usb_interface *intf){
 	int ret = 0;
-	int (*probe)(struct usb_interface *intf, const struct usb_device_id *id) = NULL;
+	int (LINUX_ABI *probe)(struct usb_interface *intf, const struct usb_device_id *id) = NULL;
 	probe = new_driver->probe;
 
 	#ifdef ENABLE_DBG_PRINT
@@ -1472,8 +1475,35 @@ static int find_module_sections(struct module *mod, struct load_info *info) {
 	return ret;
 }
 
+#if defined(__x86_64__) || defined(_M_X64)
+static bool symbol_uses_plt32(struct load_info *info, unsigned int symbol_index){
+	Elf(Shdr) *section = NULL;
+	Elf(Rela) *relocations = NULL;
+	unsigned int relocation_count = 0;
+
+	for (unsigned int i = 1; i < info->hdr->e_shnum; i++) {
+		section = &info->sechdrs[i];
+		if(section->sh_type != SHT_RELA || section->sh_link != info->index.sym){
+			continue;
+		}
+
+		relocations = (Elf(Rela) *)(uintptr_t)section->sh_addr;
+		relocation_count = section->sh_size / sizeof(*relocations);
+		for (unsigned int j = 0; j < relocation_count; j++) {
+			if(ELF64_R_SYM(relocations[j].r_info) == symbol_index &&
+			   ELF64_R_TYPE(relocations[j].r_info) == R_X86_64_PLT32){
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+#endif
+
 static int simplify_symbols(struct module *mod, struct load_info *info) {
 	int ret = 0;
+	bool target_is_native_stub = false;
 	int i = 0;
 	long secbase = 0;
 	void *target = NULL;
@@ -1484,6 +1514,13 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 
 	Elf(Shdr) *symsec = (Elf(Shdr) *)&info->sechdrs[info->index.sym];
 	Elf(Sym) *sym	  = (void *)symsec->sh_addr;
+
+	if(native_cb_entries == 0){
+		while(native_cb_entries < SYM_ENTRIES &&
+		      sym_table[native_cb_entries].function_ptr != NULL){
+			native_cb_entries++;
+		}
+	}
 
 	for (i = 1; i < symsec->sh_size / sizeof(Elf(Sym)); i++) {
 		name = (unsigned char *)(info->strtab + sym[i].st_name);
@@ -1505,12 +1542,14 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 			break;
 		case SHN_UNDEF:
 			target = NULL;
+			target_is_native_stub = false;
 			for (int j = 0; sym_table[j].function_ptr != NULL;
 			     j++) {
 				if (strcmp(
 					(char *)name,
 					(char *)sym_table[j].function_name) == 0) {
 					target = sym_table[j].function_ptr;
+					target_is_native_stub = (unsigned int)j < native_cb_entries;
 					break;
 				}
 			}
@@ -1527,11 +1566,11 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 				ret = -ENOEXEC;
 				break;
 			}
-			#if defined(__x86_64__)
-			/* only trampoline functions; objects are another story
-			 */
-			if (ELF64_ST_TYPE(sym[i].st_info) == STT_FUNC) {
-				trampoline = x86_64_make_trampoline(target);
+			#if defined(__x86_64__) || defined(_M_X64)
+			/* Undefined kernel imports are commonly STT_NOTYPE. PLT32 identifies calls without treating data as code. */
+			if (ELF64_ST_TYPE(sym[i].st_info) == STT_FUNC || symbol_uses_plt32(info, i)) {
+				trampoline = x86_64_make_trampoline(target, target_is_native_stub,
+								strcmp((char *)name, "__x86_return_thunk") == 0);
 				if (trampoline == NULL) {
 					#ifdef ENABLE_DBG_PRINT
 					printf("[!] trampoline alloc failed for %s\n", name);
@@ -1943,7 +1982,7 @@ static int call_final_function(struct module *mod, struct load_info *info, unsig
 	char *strtab = NULL;
 	const char *name = NULL;
 	unsigned char *ptr = NULL;
-	int (*fn)(void) = NULL;
+	int (LINUX_ABI *fn)(void) = NULL;
 	Elf(Ehdr) *header = info->hdr;
 	Elf(Shdr) *symsect = &info->sechdrs[info->index.sym];
 
@@ -2831,12 +2870,12 @@ int fast_get_name_in_so(void *sym_addr, unsigned char **sym_name){
 int fast_execute_function(unsigned char *function_name){
 	int ret = 0;
 	u8 found = false;
-	int (*fn)(void) = NULL;
+	int (LINUX_ABI *fn)(void) = NULL;
 	unsigned char *ptr = NULL;
 	unsigned char *current_function_name = NULL;
 
 	/* call the function */
-	for (unsigned int i = 0; ; i++) {
+	for (unsigned int i = 0; i < SYM_ENTRIES; i++) {
 		current_function_name = sym_table[i].function_name;
 
 		if (current_function_name == NULL || current_function_name[0] == '\0'){
@@ -2844,7 +2883,7 @@ int fast_execute_function(unsigned char *function_name){
 		}
 		if (strcmp(current_function_name, function_name) == 0) {
 			found = true;
-			fn = (int (*)(void))(uintptr_t)sym_table[i].function_ptr;
+			fn = (int (LINUX_ABI *)(void))(uintptr_t)sym_table[i].function_ptr;
 			ptr = (unsigned char *)fn;
 			if (ptr[0] == 0xE8) {
 				int32_t disp = *(int32_t *)(ptr + 1);
@@ -2855,9 +2894,6 @@ int fast_execute_function(unsigned char *function_name){
 			printf("--------------------------\n");
 			ret = fn();
 			printf("%s returned %d\n", function_name, ret);
-		}
-		if(sym_table[i + 1].function_name[0] == '\0'){
-			break;
 		}
 	}
 	if(found == false){
@@ -3011,7 +3047,7 @@ static int drv_resolve_driver_init(struct module_controller *director, unsigned 
 			continue;
 		}
 
-		director->driver_init_function = (int (*)(void))(uintptr_t)sym_table[i].function_ptr;
+		director->driver_init_function = (int (LINUX_ABI *)(void))(uintptr_t)sym_table[i].function_ptr;
 		if(resolved_name != NULL){
 			*resolved_name = name;
 		}
@@ -3076,7 +3112,7 @@ int drv_cmd_run(struct module_controller *director, char *argv[], int num_args) 
 	int ret = 0;
 	u8 found = false;
 	void *tgt = NULL;
-	int (*fn)(void) = NULL;
+	int (LINUX_ABI *fn)(void) = NULL;
 	unsigned char *ptr = NULL;
 	unsigned char *module_name = NULL;
 	unsigned char *module_function = NULL;
@@ -3104,7 +3140,7 @@ int drv_cmd_run(struct module_controller *director, char *argv[], int num_args) 
 		}
 		if (strcmp((char *)module_function, current_function_name) == 0) {
 			found = true;
-			fn = (int (*)(void))(uintptr_t)sym_table[i].function_ptr;
+			fn = (int (LINUX_ABI *)(void))(uintptr_t)sym_table[i].function_ptr;
 			ptr = (unsigned char *)fn;
 			if (ptr[0] == 0xE8) {
 				s32 disp = *(s32 *)(ptr + 1);

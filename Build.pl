@@ -786,8 +786,8 @@ if($help){
 	print("--verbose -> show compilation command line\n");
 	print("--dbg -> enable debugging strings in Exsul\n");
 	print("--trace -> trace every exported function, used mainly for debugging!\n");
-	print("clean -> clear every compilation file\n");
-	print("help -> display this help text\n");
+	print("--clean -> clear every compilation file\n");
+	print("--help -> display this help text\n");
 	exit(0);
 }
 

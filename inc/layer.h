@@ -1,6 +1,12 @@
 #ifndef __LAYER_H__
 #define __LAYER_H__
 
+#ifdef _WIN64
+#define LINUX_ABI __attribute__((sysv_abi))
+#else
+#define LINUX_ABI
+#endif
+
 #ifdef __linux__
 #define _GNU_SOURCE
 #include <asm-generic/errno-base.h>

@@ -77,7 +77,7 @@ struct usb_device_id {
 	__u8		bInterfaceNumber;
 
 	/* not matched against */
-	unsigned long	driver_info __attribute__((aligned(sizeof(unsigned long))));
+	u64		driver_info __attribute__((aligned(sizeof(u64))));
 };
 
 /* USB_DT_EUSB2_ISOC_ENDPOINT_COMP: eUSB2 Isoch Endpoint Companion descriptor */
@@ -280,11 +280,11 @@ struct usbdrv_wrap {
 
 struct usb_driver {
 	const char *name;
-	int (*probe) (struct usb_interface *intf, const struct usb_device_id *id);
-	void (*disconnect) (struct usb_interface *intf);
+	int (LINUX_ABI *probe) (struct usb_interface *intf, const struct usb_device_id *id);
+	void (LINUX_ABI *disconnect) (struct usb_interface *intf);
 };
 
-typedef void (*usb_complete_t)(struct urb *);
+typedef void (LINUX_ABI *usb_complete_t)(struct urb *);
 
 static int usb_anchor_check_wakeup(struct usb_anchor *anchor){
 	return anchor->suspend_wakeups == 0 && list_empty(&anchor->urb_list);
