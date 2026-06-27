@@ -20,13 +20,21 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[0] = {
 				.struct_size = 0,
 				.struct_name = "device",
-				.struct_field_num = 2,
+				.struct_field_num = 4,
 				.fields = {
 					[0] = {
-						.field_name = "init_name",
+						.field_name = "cfg",
 						.field_offset = 0,
 					},
 					[1] = {
+						.field_name = "ethtool",
+						.field_offset = 0,
+					},
+					[2] = {
+						.field_name = "init_name",
+						.field_offset = 0,
+					},
+					[3] = {
 						.field_name = "kobj",
 						.field_offset = 0,
 					},

@@ -1,11 +1,15 @@
 void destroy_workqueue(struct workqueue_struct *wq){
 	pthread_t thread;
-	struct list_head *pos = NULL;
+	bool free_wq = true;
 	struct list_head *n = NULL;
+	struct list_head *pos = NULL;
 	struct work_struct *work = NULL;
 
 	if(wq == NULL){
 		goto out;
+	}
+	if(wq == &director.system_wq || wq == &director.system_dfl_wq || wq == &director.system_freezable_wq){
+		free_wq = false;
 	}
 
 	pthread_mutex_lock(&wq->lock);
@@ -33,7 +37,9 @@ void destroy_workqueue(struct workqueue_struct *wq){
 
 	pthread_cond_destroy(&wq->cond);
 	pthread_mutex_destroy(&wq->lock);
-	free(wq);
+	if(free_wq == true){
+		free(wq);
+	}
 
 	out:
 }

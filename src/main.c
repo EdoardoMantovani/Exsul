@@ -3096,7 +3096,7 @@ int drv_cmd_run(struct module_controller *director, char *argv[], int num_args) 
 	}
 
 	/* call the function */
-	for (unsigned int i = 0; ; i++) {
+	for (unsigned int i = 0; i < SYM_ENTRIES; i++) {
 		current_function_name = sym_table[i].function_name;
 
 		if (current_function_name[0] == '\0'){
@@ -3118,9 +3118,6 @@ int drv_cmd_run(struct module_controller *director, char *argv[], int num_args) 
 			#endif
 			ret = fn();
 			printf("%s returned %d\n", module_function, ret);
-		}
-		if(sym_table[i + 1].function_name[0] == '\0'){
-			break;
 		}
 	}
 	if(found == false){
