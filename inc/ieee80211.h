@@ -12312,13 +12312,10 @@ static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 }
 
 static int start_hw_scan(struct ieee80211_local *local,
-			 int (*hw_scan)(struct ieee80211_hw *hw,
-					struct ieee80211_vif *vif,
-					struct ieee80211_scan_request *req),
-			 void (*cancel_hw_scan)(struct ieee80211_hw *hw,
-					struct ieee80211_vif *vif)){
-	u32 n_channels;
-	int ret;
+			 int (*hw_scan)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_scan_request *req),
+			 void (*cancel_hw_scan)(struct ieee80211_hw *hw, struct ieee80211_vif *vif)){
+	int ret = 0;
+	u32 n_channels = 0;
 	struct ieee80211_scan_request *scan_req;
 
 	if (local == NULL || local->wiphy == NULL || local->ieee80211_hw == NULL ||

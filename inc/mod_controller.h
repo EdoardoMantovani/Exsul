@@ -57,6 +57,9 @@ struct module_controller {
 	/* emulates jiffies */
 	u64 jiffies;
 
+	/* special flag which permits to search for the vid/pid of the 'DISK' version of the usb dongles */
+	bool enable_usb_disk_search;
+
         int libusb_ret;
 
 	/* socket file handler used for the standalone ELF ipc */

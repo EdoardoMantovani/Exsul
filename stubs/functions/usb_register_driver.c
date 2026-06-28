@@ -31,7 +31,6 @@ int usb_register_driver(struct usb_driver *new_driver, struct module *owner, con
 	}
 
 	usb_interface:
-	/* update: add a specific "matched_id" which refers to the 'usb_device_id' linked with the current attached usb dongle */
 	ret = detect_usb_device(id, &intf, &matched_id);
 	if(ret || intf == NULL || matched_id == NULL){
 		printf("[!] failed to detect the usb dongle! aborting...\n");

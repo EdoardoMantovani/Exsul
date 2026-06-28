@@ -412,12 +412,69 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
         return ret;
 }
 
+/* Under Windows and other OS, 'usb_modeswitch' isn't always available, in this case, invoke the hardcoded minimal implementation of modeswitch */
+static int usb_disk_modeswitch(struct module_controller *controller){
+	int ret = 0;
+	int transferred = 0;
+	const struct usb_device_id *id = NULL;
+	const u8 eject_cmd[] = {
+		0x55, 0x53, 0x42, 0x43, 0x12, 0x34, 0x56, 0x78,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x1b,
+		0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+	};
+	const struct usb_device_id usb_disk_ids[] = {
+		{
+			.idVendor = 0x0bda,
+			.idProduct = 0x1a2b
+		},
+		{}
+	};
+
+	for(id = usb_disk_ids; id->idVendor && id->idProduct; id++){
+		controller->usb_dev = libusb_open_device_with_vid_pid(NULL, id->idVendor, id->idProduct);
+		if(controller->usb_dev != NULL){
+			break;
+		}
+	}
+	if(controller->usb_dev == NULL){
+		ret = -ENODEV;
+		return ret;
+	}
+
+	ret = libusb_claim_interface(controller->usb_dev, 0);
+	if(ret == 0){
+		#ifdef ENABLE_DBG_PRINT
+		printf("[*] detected \'DISK\' device, sending the eject command!\n");
+		#endif
+		ret = libusb_bulk_transfer(controller->usb_dev, 0x02, (u8 *)eject_cmd, sizeof(eject_cmd), &transferred, 5000);
+		libusb_release_interface(controller->usb_dev, 0);
+	}
+	libusb_close(controller->usb_dev);
+	controller->usb_dev = NULL;
+
+	if(ret < 0 || transferred != sizeof(eject_cmd)){
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] failed to eject the \'DISK\'!\n");
+		#endif
+		ret = -EIO;
+		return ret;
+	}
+
+	#ifdef _WIN64
+	Sleep(3000);
+	#else
+	usleep(3000);
+	#endif
+	return ret;
+}
+
 /* main function for detecting the attached usb dongle, requires a full 'usb_dev_list' table */
 int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface **intf_out, const struct usb_device_id **matched_id_out){
 	int ret = 0;
 	struct usb_interface *usb_intf = NULL;
 
-	for (struct usb_device_id *p = id_table; p && p->idVendor && p->idProduct; p++) {
+	for (struct usb_device_id *p = id_table; p != NULL && p->idVendor && p->idProduct; p++) {
 		director.usb_dev = libusb_open_device_with_vid_pid(NULL, p->idVendor, p->idProduct);
 		if (director.usb_dev == NULL){
 			continue;
@@ -461,11 +518,20 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 
 		return ret;
 	}
+
+	/* when the original vid/pid pair isn't detected, search for any 'DISK' attached to the system and try to eject it */
+	director.enable_usb_disk_search = true;
+	if(director.enable_usb_disk_search == true){
+		ret = usb_disk_modeswitch(&director);
+		if(ret == 0){
+			ret = detect_usb_device(id_table, intf_out, matched_id_out);
+			return ret;
+		}
+	}
 	#ifdef ENABLE_DBG_PRINT
 	printf("[!] usb device not attached to the host!\n");
 	#endif
-	ret = -ENODEV;
-	return ret;
+	return -ENODEV;
 }
 
 int invoke_usb_probe(struct usb_driver *new_driver, struct usb_device_id *id, struct usb_interface *intf){

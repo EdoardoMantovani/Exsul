@@ -1285,16 +1285,17 @@ err_out:
 }
 
 int insn_get_displacement(struct insn *insn){
+	int ret = 0;
 	insn_byte_t mod, rm, base;
-	int ret;
 
-	if (insn->displacement.got)
-		return 0;
+	if (insn->displacement.got){
+		return ret;
+	}
 
 	ret = insn_get_sib(insn);
-	if (ret)
+	if (ret){
 		return ret;
-
+	}
 	if (insn->modrm.nbytes) {
 		/*
 		 * Interpreting the modrm byte:
@@ -1332,10 +1333,11 @@ int insn_get_displacement(struct insn *insn){
 	}
 out:
 	insn->displacement.got = 1;
-	return 0;
+	return ret;
 
 err_out:
-	return -ENODATA;
+	ret = -ENODATA;
+	return ret;
 }
 
 int insn_get_immediate(struct insn *insn){
