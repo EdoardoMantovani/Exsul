@@ -3,7 +3,6 @@
 #include "inat.h"
 
 #define MAX_UNWIND_ITERATIONS			16
-
 #define EM_CURRENT_ARCH				EM_X86_64
 #define TRAMP_REGION_SIZE			(64 * 1024)
 
@@ -343,14 +342,6 @@ struct callthunk_sites {
 	struct alt_instr          *alt_end;
 };
 
-#if 0
-struct exception_table_entry {
-	int insn;
-	int fixup;
-	int data;
-};
-#endif
-
 static inline u8 * instr_va(struct alt_instr *i){
 	return (u8 *)&i->instr_offset + i->instr_offset;
 }
@@ -686,27 +677,28 @@ insn_attr_t inat_get_opcode_attribute(insn_byte_t opcode){
 }
 
 insn_attr_t inat_get_escape_attribute(insn_byte_t opcode, int lpfx_id, insn_attr_t esc_attr){
+	int ret = 0;
+	int n = 0;
 	const insn_attr_t *table = NULL;
-	int n;
 
 	n = inat_escape_id(esc_attr);
 
 	table = inat_escape_tables[n][0];
 	if (!table){
-		return 0;
+		return ret;
 	}
 	if (inat_has_variant(table[opcode]) && lpfx_id) {
 		table = inat_escape_tables[n][lpfx_id];
 		if (!table){
-			return 0;
+			return ret;
 		}
 	}
 	return table[opcode];
 }
 
 insn_attr_t inat_get_group_attribute(insn_byte_t modrm, int lpfx_id, insn_attr_t grp_attr){
-	const insn_attr_t *table;
-	int n;
+	int n = 0;
+	const insn_attr_t *table = NULL;
 
 	n = inat_group_id(grp_attr);
 
@@ -724,36 +716,39 @@ insn_attr_t inat_get_group_attribute(insn_byte_t modrm, int lpfx_id, insn_attr_t
 }
 
 insn_attr_t inat_get_avx_attribute(insn_byte_t opcode, insn_byte_t vex_m, insn_byte_t vex_p){
-	const insn_attr_t *table;
+	int ret = 0;
+	const insn_attr_t *table = NULL;
+
 	if (vex_m > X86_VEX_M_MAX || vex_p > INAT_LSTPFX_MAX){
-		return 0;
+		return ret;
 	}
 	/* At first, this checks the master table */
 	table = inat_avx_tables[vex_m][0];
 	if (table == NULL){
-		return 0;
+		return ret;
 	}
 	if (!inat_is_group(table[opcode]) && vex_p) {
 		/* If this is not a group, get attribute directly */
 		table = inat_avx_tables[vex_m][vex_p];
 		if (table == NULL){
-			return 0;
+			return ret;
 		}
 	}
 	return table[opcode];
 }
 
 insn_attr_t inat_get_xop_attribute(insn_byte_t opcode, insn_byte_t map_select){
-	const insn_attr_t *table;
+	int ret = 0;
+	const insn_attr_t *table = NULL;
 
 	if (map_select < X86_XOP_M_MIN || map_select > X86_XOP_M_MAX){
-		return 0;
+		return ret;
 	}
 	map_select -= X86_XOP_M_MIN;
 	/* At first, this checks the master table */
 	table = inat_xop_tables[map_select];
 	if (table == NULL){
-		return 0;
+		return ret;
 	}
 	return table[opcode];
 }
@@ -768,8 +763,7 @@ static int __insn_get_emulate_prefix(struct insn *insn, const insn_byte_t *prefi
 	insn->next_byte += len;
 
 	return 1;
-
-err_out:
+	err_out:
 	return 0;
 }
 
@@ -782,11 +776,11 @@ static void insn_get_emulate_prefix(struct insn *insn){
 }
 
 static inline insn_byte_t insn_vex_m_bits(struct insn *insn){
-	if (insn->vex_prefix.nbytes == 2){	/* 2 bytes VEX */
+	if (insn->vex_prefix.nbytes == 2){		/* 2 bytes VEX */
 		return X86_VEX2_M;
 	}else if (insn->vex_prefix.nbytes == 3){	/* 3 bytes VEX */
 		return X86_VEX3_M(insn->vex_prefix.bytes[1]);
-	}else{					/* EVEX */
+	}else{						/* EVEX */
 		return X86_EVEX_M(insn->vex_prefix.bytes[1]);
 	}
 }
@@ -800,15 +794,19 @@ static inline insn_byte_t insn_vex_p_bits(struct insn *insn){
 }
 
 static inline insn_byte_t insn_vex_w_bit(struct insn *insn){
+	int ret = 0;
+
 	if (insn->vex_prefix.nbytes < 3){
-		return 0;
+		return ret;
 	}
 	return X86_VEX_W(insn->vex_prefix.bytes[2]);
 }
 
 static inline insn_byte_t insn_xop_map_bits(struct insn *insn){
+	int ret = 0;
+
 	if (insn->xop_prefix.nbytes < 3){	/* XOP is 3 bytes */
-		return 0;
+		return ret;
 	}
 	return X86_XOP_M(insn->xop_prefix.bytes[1]);
 }
@@ -818,13 +816,15 @@ static inline insn_byte_t insn_xop_p_bits(struct insn *insn){
 }
 
 int insn_get_prefixes(struct insn *insn){
+	int ret = 0;
+	int i = 0;
+	int nb = 0;
 	struct insn_field *prefixes = &insn->prefixes;
 	insn_attr_t attr;
 	insn_byte_t b, lb;
-	int i, nb;
 
 	if (prefixes->got){
-		return 0;
+		return ret;
 	}
 	insn_get_emulate_prefix(insn);
 
@@ -834,24 +834,28 @@ int insn_get_prefixes(struct insn *insn){
 	attr = inat_get_opcode_attribute(b);
 	while (inat_is_legacy_prefix(attr)) {
 		/* Skip if same prefix */
-		for (i = 0; i < nb; i++)
-			if (prefixes->bytes[i] == b)
+		for (i = 0; i < nb; i++){
+			if (prefixes->bytes[i] == b){
 				goto found;
-		if (nb == 4)
+			}
+		}
+		if (nb == 4){
 			/* Invalid instruction */
 			break;
+		}
 		prefixes->bytes[nb++] = b;
 		if (inat_is_address_size_prefix(attr)) {
 			/* address size switches 2/4 or 4/8 */
-			if (insn->x86_64)
+			if (insn->x86_64){
 				insn->addr_bytes ^= 12;
-			else
+			}else{
 				insn->addr_bytes ^= 6;
-		} else if (inat_is_operand_size_prefix(attr)) {
+			}
+		}else if (inat_is_operand_size_prefix(attr)) {
 			/* oprand size switches 2/4 */
 			insn->opnd_bytes ^= 6;
 		}
-found:
+	found:
 		prefixes->nbytes++;
 		insn->next_byte++;
 		lb = b;
@@ -863,9 +867,11 @@ found:
 		if (unlikely(insn->prefixes.bytes[3])) {
 			/* Swap the last prefix */
 			b = insn->prefixes.bytes[3];
-			for (i = 0; i < nb; i++)
-				if (prefixes->bytes[i] == lb)
+			for (i = 0; i < nb; i++){
+				if (prefixes->bytes[i] == lb){
 					insn_set_byte(prefixes, i, b);
+				}
+			}
 		}
 		insn_set_byte(&insn->prefixes, 3, lb);
 	}
@@ -877,18 +883,20 @@ found:
 		if (inat_is_rex_prefix(attr)) {
 			insn_field_set(&insn->rex_prefix, b, 1);
 			insn->next_byte++;
-			if (X86_REX_W(b))
+			if (X86_REX_W(b)){
 				/* REX.W overrides opnd_size */
 				insn->opnd_bytes = 8;
-		} else if (inat_is_rex2_prefix(attr)) {
+			}
+		}else if (inat_is_rex2_prefix(attr)) {
 			insn_set_byte(&insn->rex_prefix, 0, b);
 			b = peek_nbyte_next(insn_byte_t, insn, 1);
 			insn_set_byte(&insn->rex_prefix, 1, b);
 			insn->rex_prefix.nbytes = 2;
 			insn->next_byte += 2;
-			if (X86_REX_W(b))
+			if (X86_REX_W(b)){
 				/* REX.W overrides opnd_size */
 				insn->opnd_bytes = 8;
+			}
 			insn->rex_prefix.got = 1;
 			goto vex_end;
 		}
@@ -909,8 +917,9 @@ found:
 			 * ModRM) on the second byte are not 11b, it is
 			 * LDS or LES or BOUND.
 			 */
-			if (X86_MODRM_MOD(b2) != 3)
+			if (X86_MODRM_MOD(b2) != 3){
 				goto vex_end;
+			}
 		}
 		insn_set_byte(&insn->vex_prefix, 0, b);
 		insn_set_byte(&insn->vex_prefix, 1, b2);
@@ -924,7 +933,7 @@ found:
 			if (insn->x86_64 && X86_VEX_W(b2))
 				/* VEX.W overrides opnd_size */
 				insn->opnd_bytes = 8;
-		} else if (inat_is_vex3_prefix(attr) || inat_is_xop_prefix(attr)) {
+		}else if (inat_is_vex3_prefix(attr) || inat_is_xop_prefix(attr)) {
 			b2 = peek_nbyte_next(insn_byte_t, insn, 2);
 			insn_set_byte(&insn->vex_prefix, 2, b2);
 			insn->vex_prefix.nbytes = 3;
@@ -932,7 +941,7 @@ found:
 			if (insn->x86_64 && X86_VEX_W(b2))
 				/* VEX.W/XOP.W overrides opnd_size */
 				insn->opnd_bytes = 8;
-		} else {
+		}else{
 			/*
 			 * For VEX2, fake VEX3-like byte#2.
 			 * Makes it easier to decode vex.W, vex.vvvv,
@@ -943,15 +952,16 @@ found:
 			insn->next_byte += 2;
 		}
 	}
-vex_end:
+	vex_end:
 	insn->vex_prefix.got = 1;
 
 	prefixes->got = 1;
 
-	return 0;
+	return ret;
 
-err_out:
-	return -ENODATA;
+	err_out:
+	ret = -ENODATA;
+	return ret;
 }
 
 static inline int insn_is_rex2(struct insn *insn){
@@ -1015,6 +1025,8 @@ void __text_gen_insn(void *buf, u8 opcode, const void *addr, const void *dest, i
 
 /* Decode moffset16/32/64. Return 0 if failed */
 static int __get_moffset(struct insn *insn){
+	int ret = 0;
+
 	switch (insn->addr_bytes) {
 	case 2:
 		insn_field_set(&insn->moffset1, get_next(short, insn), 2);
@@ -1033,8 +1045,8 @@ static int __get_moffset(struct insn *insn){
 
 	return 1;
 
-err_out:
-	return 0;
+	err_out:
+	return ret;
 }
 
 /* Decode imm v32(Iz). Return 0 if failed */

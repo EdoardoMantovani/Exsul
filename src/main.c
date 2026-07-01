@@ -640,9 +640,7 @@ static int dwarf_search_field_recursive(unsigned char *field_input_name, Dwarf_D
 		}
 		cur = sib;
 	}
-	#ifdef ENABLE_DBG_PRINT
-	printf("[!] dwarf child not found!\n");
-	#endif
+
 	ret = -ENOENT;
 	return ret;
 }
