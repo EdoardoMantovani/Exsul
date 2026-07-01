@@ -6,11 +6,17 @@ int usb_register_driver(struct usb_driver *new_driver, struct module *owner, con
 	const struct usb_device_id *matched_id = NULL;
 
 	if(new_driver == NULL){
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] \'usb_driver\' is invalid!\n");
+		#endif
 		ret = -EINVAL;
 		return ret;
 	}
 
 	if(new_driver->probe == NULL){
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] %s: the \'probe\' callback is invalid!\n", new_driver->name);
+		#endif
 		ret = -EINVAL;
 		return ret;
 	}

@@ -32,7 +32,7 @@ int hci_drv_process_cmd(struct hci_dev *hdev, struct sk_buff *skb){
 		if (opcode < hci_drv->common_handler_count){
 			handler = &hci_drv->common_handlers[opcode];
 		}
-	} else {
+	}else{
 		if (ocf < hci_drv->specific_handler_count){
 			handler = &hci_drv->specific_handlers[ocf];
 		}

@@ -1,4 +1,5 @@
 int strncmp(const char *cs, const char *ct, size_t count){
+	int ret = 0;
 	unsigned char c1 = 0;
 	unsigned char c2 = 0;
 
@@ -13,5 +14,5 @@ int strncmp(const char *cs, const char *ct, size_t count){
 		}
 		count--;
 	}
-	return 0;
+	return ret;
 }

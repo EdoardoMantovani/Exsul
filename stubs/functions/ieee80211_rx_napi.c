@@ -13,7 +13,7 @@ void ieee80211_rx_napi(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, st
 
 	if (napi == NULL) {
 		netif_receive_skb_list(&list);
-		return;
+		goto end;
 	}
 
 	pos = list.next;
@@ -24,4 +24,5 @@ void ieee80211_rx_napi(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, st
 		netif_receive_skb(entry);
 		pos = next;
 	}
+	end:
 }

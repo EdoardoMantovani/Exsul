@@ -23,7 +23,7 @@ void *crypto_create_tfm_node(struct crypto_alg *alg, struct crypto_type *fronten
 
 	goto out;
 
-cra_init_failed:
+	cra_init_failed:
 	/* inline 'crypto_exit_ops' here */
 	type = tfm->__crt_alg->cra_type;
 
@@ -31,12 +31,13 @@ cra_init_failed:
 		tfm->exit(tfm);
 	}
 
-out_free_tfm:
+	out_free_tfm:
 	if (ret == -EAGAIN){
 		crypto_shoot_alg(alg);
 	}
 	kfree(mem);
 	mem = ERR_PTR(ret);
-out:
+
+	out:
 	return mem;
 }

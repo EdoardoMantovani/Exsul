@@ -1,9 +1,11 @@
-u32 ieee80211_channel_to_freq_khz(int chan, enum nl80211_band band)
-{
+u32 ieee80211_channel_to_freq_khz(int chan, enum nl80211_band band){
+	int ret = 0;
+
 	/* see 802.11 17.3.8.3.2 and Annex J
 	 * there are overlapping channel numbers in 5GHz and 2GHz bands */
-	if (chan <= 0)
-		return 0; /* not supported */
+	if (chan <= 0){
+		return ret; /* not supported */
+	}
 	switch (band) {
 	case NL80211_BAND_2GHZ:
 	case NL80211_BAND_LC:
@@ -34,5 +36,5 @@ u32 ieee80211_channel_to_freq_khz(int chan, enum nl80211_band band)
 	default:
 		;
 	}
-	return 0; /* not supported */
+	return ret; /* not supported */
 }

@@ -11,6 +11,5 @@ void usb_anchor_urb(struct urb *urb, struct usb_anchor *anchor){
 		atomic_fetch_add_explicit(&urb->reject, 1, memory_order_release);
 		#endif
 	}
-
 	pthread_mutex_unlock(&director.urb_anchor_mutex);
 }

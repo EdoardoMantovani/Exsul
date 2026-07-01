@@ -47,7 +47,9 @@ struct net_device *alloc_netdev_mqs(int sizeof_priv, char *name, unsigned char n
 	netdev->gso_max_segs = GSO_MAX_SEGS;
 
 	netdev->priv_flags = IFF_XMIT_DST_RELEASE | IFF_XMIT_DST_RELEASE_PERM;
-	setup(netdev);
+	if(setup != NULL){
+		setup(netdev);
+	}
 
 	if (netdev->tx_queue_len == 0) {
 		netdev->priv_flags |= IFF_NO_QUEUE;
@@ -88,7 +90,7 @@ struct net_device *alloc_netdev_mqs(int sizeof_priv, char *name, unsigned char n
 
 	return netdev;
 
-free_all:
+	free_all:
 	free(netdev);
 	return NULL;
 }

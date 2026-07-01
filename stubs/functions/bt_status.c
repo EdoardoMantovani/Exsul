@@ -1,6 +1,7 @@
 __u8 bt_status(int err){
-	if (err >= 0)
+	if (err >= 0){
 		return err;
+	}
 
 	switch (err) {
 	case -EBADRQC:

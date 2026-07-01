@@ -3,7 +3,7 @@ void wiphy_work_flush(struct wiphy *wiphy, struct wiphy_work *work){
 	struct ieee80211_local *local = director.ieee80211_local;
 
 	if(local == NULL || director.rdev == NULL){
-		return;
+		goto end;
 	}
 
 	pthread_mutex_lock(&local->wiphy_work_queue_mutex);
@@ -16,4 +16,5 @@ void wiphy_work_flush(struct wiphy *wiphy, struct wiphy_work *work){
 	if(run){
 		cfg80211_process_wiphy_works(director.rdev, work);
 	}
+	end:
 }

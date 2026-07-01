@@ -1,6 +1,6 @@
 int sscanf(const char *buf, const char *fmt, ...){
+	int i = 0;
 	va_list args;
-	int i;
 
 	va_start(args, fmt);
 	i = vsscanf(buf, fmt, args);

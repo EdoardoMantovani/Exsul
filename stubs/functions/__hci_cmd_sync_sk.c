@@ -15,7 +15,7 @@ struct sk_buff *__hci_cmd_sync_sk(struct hci_dev *hdev, u16 opcode, u32 plen, co
 	if (err < 0){
 		return ERR_PTR(err);
 	}
-	// TODO
+
 	//err = wait_event_interruptible_timeout(hdev->req_wait_q, hdev->req_status != HCI_REQ_PEND, timeout);
 
 	if (err == -ERESTARTSYS){

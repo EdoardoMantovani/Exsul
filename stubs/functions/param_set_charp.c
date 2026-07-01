@@ -1,11 +1,13 @@
 int param_set_charp(const char *val, const struct kernel_param *kp){
+	int ret = 0;
 	size_t len = 0;
 	size_t maxlen = 1024;
 
 	len = strnlen(val, maxlen + 1);
 	if (len == maxlen + 1) {
 		pr_err("%s: string parameter too long\n", kp->name);
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 
 	/*
@@ -14,5 +16,5 @@ int param_set_charp(const char *val, const struct kernel_param *kp){
 	 */
 	*(const char **)kp->arg = val;
 
-	return 0;
+	return ret;
 }

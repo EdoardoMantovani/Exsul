@@ -4,6 +4,5 @@ void usb_deregister(struct usb_driver *driver){
 	}
 
 	pr_info("[usbcore] deregistering interface driver %s\n", driver->name);
-
 	end:
 }

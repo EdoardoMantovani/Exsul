@@ -1051,12 +1051,12 @@ out:										\
 #define CONCATENATE(a, b)		__CONCAT(a, b)
 
 #ifdef __WIN64__
-#define strscpy(dst, src, ...)		sized_strscpy(dst, src, __VA_ARGS__)
+#define strscpy(dst, src, ...)		exsul_sized_strscpy(dst, src, __VA_ARGS__)
 #else
 #define strscpy(dst, src, ...)		CONCATENATE(__strscpy, COUNT_ARGS(__VA_ARGS__))(dst, src, __VA_ARGS__)
 #endif
 
-#define __strscpy1(dst, src, size)	sized_strscpy(dst, src, size)
+#define __strscpy1(dst, src, size)	exsul_sized_strscpy(dst, src, size)
 
 #define tolower(c)			__tolower(c)
 #define toupper(c)			__toupper(c)
@@ -1688,7 +1688,7 @@ static inline unsigned long create_zero_mask(unsigned long bits){
 
 static unsigned long zero_bytemask(unsigned long bits);
 
-static ssize_t sized_strscpy(char *dest, const char *src, size_t count){
+static ssize_t exsul_sized_strscpy(char *dest, const char *src, size_t count){
         const struct word_at_a_time constants           = WORD_AT_A_TIME_CONSTANTS;
         size_t max                                      = count;
         long res                                        = 0;

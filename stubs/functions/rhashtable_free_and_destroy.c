@@ -6,7 +6,7 @@ void rhashtable_free_and_destroy(struct rhashtable *ht, void (*free_fn)(void *pt
 	mutex_lock(&ht->mutex);
 	tbl = rht_dereference(ht->tbl, ht);
 
-restart:
+	restart:
 	if (free_fn) {
 		for (int i = 0; i < tbl->size; i++) {
 			struct rhash_head *pos, *next;

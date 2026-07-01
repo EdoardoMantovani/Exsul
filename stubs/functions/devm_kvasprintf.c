@@ -1,6 +1,6 @@
 char *devm_kvasprintf(struct device *dev, int gfp, const char *fmt, va_list ap){
-	unsigned int len;
-	char *p;
+	unsigned int len = 0;
+	char *p = NULL;
 	va_list aq;
 
 	va_copy(aq, ap);
@@ -8,9 +8,9 @@ char *devm_kvasprintf(struct device *dev, int gfp, const char *fmt, va_list ap){
 	va_end(aq);
 
 	p = devm_kmalloc(dev, len+1, gfp);
-	if (!p)
+	if (p == NULL){
 		return NULL;
-
+	}
 	vsnprintf(p, len+1, fmt, ap);
 
 	return p;

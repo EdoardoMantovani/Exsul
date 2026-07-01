@@ -1,5 +1,5 @@
 void __bitmap_replace(unsigned long *dst, unsigned long *old, const unsigned long *new, unsigned long *mask, unsigned int nbits){
-	unsigned int k;
+	unsigned int k = 0;
 	unsigned int nr = BITS_TO_LONGS(nbits);
 
 	for (k = 0; k < nr; k++){

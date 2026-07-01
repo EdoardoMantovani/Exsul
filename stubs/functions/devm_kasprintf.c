@@ -1,6 +1,6 @@
 char *devm_kasprintf(struct device *dev, int gfp, const char *fmt, ...){
 	va_list ap;
-	char *p;
+	char *p = NULL;
 
 	va_start(ap, fmt);
 	p = devm_kvasprintf(dev, gfp, fmt, ap);

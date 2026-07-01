@@ -1,5 +1,6 @@
 int filp_close(struct file_layer *filp, void *id){
 	int ret = 0;
+
 	if(filp != NULL){
 		close(filp->actual_fd);
 		filp->actual_fd = 0xFF;

@@ -1,6 +1,9 @@
 int kstrtobool(const char *s, bool *res){
+	int ret = 0;
+
 	if (!s){
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 	switch (s[0]) {
 	case 'e':
@@ -40,5 +43,6 @@ int kstrtobool(const char *s, bool *res){
 		break;
 	}
 
-	return -EINVAL;
+	ret = -EINVAL;
+	return ret;
 }

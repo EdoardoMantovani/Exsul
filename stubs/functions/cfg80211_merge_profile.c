@@ -1,9 +1,10 @@
 size_t cfg80211_merge_profile(const u8 *ie, size_t ielen, const struct element *mbssid_elem, const struct element *sub_elem, u8 *merged_ie, size_t max_copy_len){
-	size_t copied_len = sub_elem->datalen;
+	int ret = 0;
+	int copied_len = sub_elem->datalen;
 	const struct element *next_mbssid = NULL;
 
 	if (sub_elem->datalen > max_copy_len){
-		return 0;
+		return ret;
 	}
 
 	memcpy(merged_ie, sub_elem->data, sub_elem->datalen);

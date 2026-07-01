@@ -11,7 +11,7 @@ bool ieee80211_beacon_cntdwn_is_complete(struct ieee80211_vif *ieee80211_vif, un
 	}
 
 	if (link_id >= IEEE80211_MLD_MAX_NUM_LINKS){
-		return 0;
+		return ret;
 	}
 
 	link = rcu_dereference(sdata->link[link_id]);

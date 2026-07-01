@@ -3,7 +3,7 @@ void ieee80211_tx_status_irqsafe(struct ieee80211_hw *hw, struct sk_buff *skb){
 	struct ieee80211_tx_info *info = NULL;
 
 	if (skb == NULL || IS_ERR(skb)){
-		return;
+		goto end;
 	}
 	info = skb->cb;
 	if (skb->data != NULL && skb->len >= IEEE80211_MIN_HDR_LEN &&
@@ -20,4 +20,5 @@ void ieee80211_tx_status_irqsafe(struct ieee80211_hw *hw, struct sk_buff *skb){
 	}
 	dev_kfree_skb_any_reason(skb, SKB_DROP_REASON_NOT_SPECIFIED);
 
+	end:
 }

@@ -1,5 +1,6 @@
 void seq_pad(struct seq_file *m, char c){
 	int size = m->pad_until - m->count;
+
 	if (size > 0) {
 		if (size + m->count > m->size) {
 			m->count = m->size;

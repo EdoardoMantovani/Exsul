@@ -1,21 +1,20 @@
 int cfg80211_get_ies_channel_number(const u8 *ie, size_t ielen, enum nl80211_band band){
-	const struct element *tmp;
+	const struct element *tmp = NULL;
+	struct ieee80211_he_operation *he_oper = NULL;
 
 	if (band == NL80211_BAND_6GHZ) {
-		struct ieee80211_he_operation *he_oper;
+		he_oper = NULL;
 
-		tmp = cfg80211_find_ext_elem(WLAN_EID_EXT_HE_OPERATION, ie,
-					     ielen);
-		if (tmp && tmp->datalen >= sizeof(*he_oper) &&
-		    tmp->datalen >= ieee80211_he_oper_size(&tmp->data[1])) {
+		tmp = cfg80211_find_ext_elem(WLAN_EID_EXT_HE_OPERATION, ie, ielen);
+		if (tmp && tmp->datalen >= sizeof(*he_oper) && tmp->datalen >= ieee80211_he_oper_size(&tmp->data[1])) {
 			const struct ieee80211_he_6ghz_oper *he_6ghz_oper;
 
 			he_oper = (void *)&tmp->data[1];
 
 			he_6ghz_oper = ieee80211_he_6ghz_oper(he_oper);
-			if (!he_6ghz_oper)
+			if (!he_6ghz_oper){
 				return -1;
-
+			}
 			return he_6ghz_oper->primary;
 		}
 	} else if (band == NL80211_BAND_S1GHZ) {

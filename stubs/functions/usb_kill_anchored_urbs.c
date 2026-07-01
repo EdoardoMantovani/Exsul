@@ -12,5 +12,5 @@ void usb_kill_anchored_urbs(struct usb_anchor *anchor){
 			usb_put_urb(victim);
 		}
 		surely_empty = usb_anchor_check_wakeup(anchor);
-	} while (!surely_empty);
+	}while (!surely_empty);
 }

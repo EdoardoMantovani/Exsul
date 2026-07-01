@@ -1584,8 +1584,7 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 	Elf(Sym) *sym	  = (void *)symsec->sh_addr;
 
 	if(native_cb_entries == 0){
-		while(native_cb_entries < SYM_ENTRIES &&
-		      sym_table[native_cb_entries].function_ptr != NULL){
+		while(native_cb_entries < SYM_ENTRIES && sym_table[native_cb_entries].function_ptr != NULL){
 			native_cb_entries++;
 		}
 	}
@@ -1611,11 +1610,11 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 		case SHN_UNDEF:
 			target = NULL;
 			target_is_native_stub = false;
-			for (int j = 0; sym_table[j].function_ptr != NULL;
-			     j++) {
-				if (strcmp(
-					(char *)name,
-					(char *)sym_table[j].function_name) == 0) {
+			for (int j = 0; j < SYM_ENTRIES; j++) {
+				if(sym_table[j].function_ptr == NULL){
+					continue;
+				}
+				if (strcmp(name, sym_table[j].function_name) == 0) {
 					target = sym_table[j].function_ptr;
 					target_is_native_stub = (unsigned int)j < native_cb_entries;
 					break;
@@ -1705,24 +1704,23 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 				if(name[0] == '_' && name[1] == '_' && name[2] == 't' && name[3] == 'h' && name[4] == 'i' && name[5] == 's' && name[6] == '_' && name[7] == 'm' && name[8] == 'o'){
 					break;
 				}
-                                for (int j = 0; sym_table[j].function_ptr != NULL; j++){
-                                        if((j + 1 ) >= ARRAY_SIZE(sym_table)){
-                                                break;
-                                        }
-                                        if(sym_table[j + 1].function_ptr == NULL){
-                                                /* insert the function and it's name */
-						sym_table[j + 1].function_ptr  = sym[i].st_value;
-						memset(sym_table[j + 1].function_name, 0, sizeof(sym_table[j].function_name));
-						if(strlen(name) < sizeof(sym_table[j].function_name)){
-							strncpy(sym_table[j + 1].function_name, name, strlen(name));
-						}else{
-							strncpy(sym_table[j + 1].function_name, name, sizeof(sym_table[j].function_name));
+				if(sym[i].st_value != 0){
+					for (int j = 0; j < ARRAY_SIZE(sym_table); j++){
+						if(sym_table[j].function_ptr != NULL){
+							continue;
 						}
-						sym_table[j + 1].function_size = sym[i].st_size;
+						sym_table[j].function_ptr = sym[i].st_value;
+						memset(sym_table[j].function_name, 0, sizeof(sym_table[j].function_name));
+						if(strlen(name) < sizeof(sym_table[j].function_name)){
+							strncpy(sym_table[j].function_name, name, strlen(name));
+						}else{
+							strncpy(sym_table[j].function_name, name, sizeof(sym_table[j].function_name));
+						}
+						sym_table[j].function_size = sym[i].st_size;
 						director.total_memory_used += strlen(name);
-                                                break;
-                                        }
-                                }
+						break;
+					}
+				}
                         }
 			break;
 		}

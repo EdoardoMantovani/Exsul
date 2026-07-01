@@ -10,11 +10,11 @@ void ieee80211_stop_tx_ba_cb_irqsafe(struct ieee80211_vif *vif, u8 *ra, u16 tid)
 	#if 0
 	tid_tx = ieee80211_lookup_tid_tx(sdata, ra, tid, &sta);
 	if (tid_tx == NULL){
-		goto out;
+		goto end;
 	}
 
 	set_bit(HT_AGG_STATE_STOP_CB, &tid_tx->state);
 	wiphy_work_queue(local->wiphy, &local->ampdu_mlme.work);
 	#endif
-out:
+	end:
 }

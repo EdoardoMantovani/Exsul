@@ -8,6 +8,7 @@ int hci_drv_cmd_status(struct hci_dev *hdev, u16 cmd, u8 status){
 	skb = bt_skb_alloc(sizeof(*hdr) + sizeof(*ev), GFP_KERNEL);
 	if (skb == NULL){
 		ret = -ENOMEM;
+		return ret;
 	}
 	bt_cb = (struct bt_skb_cb *)skb->cb;
 	hdr = skb_put(skb, sizeof(*hdr));

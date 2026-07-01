@@ -13,6 +13,4 @@ void ieee80211_scan_completed(struct ieee80211_hw *hw, struct cfg80211_scan_info
 	}
 	atomic_store(&director.scan_in_progress, false);
 	scan_cache_schedule_print();
-
-//	wiphy_delayed_work_queue(local->hw.wiphy, &local->scan_work, 0);
 }

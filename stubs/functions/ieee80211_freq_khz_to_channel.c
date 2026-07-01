@@ -1,5 +1,4 @@
-int ieee80211_freq_khz_to_channel(u32 freq)
-{
+int ieee80211_freq_khz_to_channel(u32 freq){
 	/* TODO: just handle MHz for now */
 	freq = KHZ_TO_MHZ(freq);
 

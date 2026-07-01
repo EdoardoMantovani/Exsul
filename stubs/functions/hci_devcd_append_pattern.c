@@ -21,5 +21,5 @@ int hci_devcd_append_pattern(struct hci_dev *hdev, u8 pattern, u32 len){
 	skb_queue_tail(&dump->dump_q, skb);
 	queue_work(hdev->workqueue, &dump->dump_rx);
 
-	return 0;
+	return ret;
 }

@@ -1,3 +1,4 @@
 int acpi_evaluate_object(void *obj, ...){
-	return 0;
+	int ret = 0;
+	return ret;
 }

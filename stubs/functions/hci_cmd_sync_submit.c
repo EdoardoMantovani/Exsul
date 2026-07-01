@@ -15,6 +15,6 @@ int hci_cmd_sync_submit(struct hci_dev *hdev, int(*func)(struct hci_dev *hdev, v
 
 	queue_work(hdev->req_workqueue, &hdev->cmd_sync_work);
 
-unlock:
+	unlock:
 	return ret;
 }

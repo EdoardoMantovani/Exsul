@@ -1,11 +1,13 @@
 int usb_wait_anchor_empty_timeout(struct usb_anchor *anchor, unsigned int timeout){
+	int ret = 0;
+	int empty = 0;
 	struct timespec deadline;
 	struct timespec now;
 	struct timeval tv = {0, 500};
-	int empty = 0;
 
 	if (anchor == NULL){
-		return 1;
+		ret = -EINVAL;
+		return ret;
 	}
 
 	clock_gettime(CLOCK_MONOTONIC, &deadline);
@@ -28,7 +30,7 @@ int usb_wait_anchor_empty_timeout(struct usb_anchor *anchor, unsigned int timeou
 		clock_gettime(CLOCK_MONOTONIC, &now);
 		if (now.tv_sec > deadline.tv_sec ||
 		    (now.tv_sec == deadline.tv_sec && now.tv_nsec >= deadline.tv_nsec)){
-			return 0;
+			return ret;
 		}
 
 		libusb_handle_events_timeout(NULL, &tv);

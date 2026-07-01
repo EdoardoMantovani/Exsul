@@ -5,9 +5,10 @@ void seq_vprintf(struct seq_file *m, const char *f, va_list args){
 		len = vsnprintf(m->buf + m->count, m->size - m->count, f, args);
 		if (m->count + len < m->size) {
 			m->count += len;
-			return;
+			goto end;
 		}
 	}
 	m->count = m->size;
+	end:
 }
 

@@ -3,11 +3,11 @@ void crypto_destroy_tfm(void *mem, struct crypto_tfm *tfm){
 	struct crypto_type *type = NULL;
 
 	if (unlikely(!mem) || IS_ERR_VALUE((unsigned long)mem)){
-		return;
+		goto end;
 	}
 
 	if (!refcount_dec_and_test(&tfm->refcnt)){
-		return;
+		goto end;
 	}
 
 	alg = tfm->__crt_alg;
@@ -29,4 +29,5 @@ void crypto_destroy_tfm(void *mem, struct crypto_tfm *tfm){
 	}
 
 	kfree_sensitive(mem);
+	end:
 }

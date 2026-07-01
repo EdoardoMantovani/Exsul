@@ -152,6 +152,7 @@ struct module_controller {
 	atomic_bool scan_in_progress;
 	void *connection_fsm;
 
+	pthread_mutex_t rtnl_mutex;
 	/* store here the backup for every 'ops' struct, it will be called later via the 'ops' command */
 	struct ieee80211_ops *ieee80211_ops;
 

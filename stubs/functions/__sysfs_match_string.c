@@ -1,6 +1,7 @@
 int __sysfs_match_string(const char * const *array, size_t n, const char *str){
-	const char *item = NULL;
+	int ret = 0;
 	int index = 0;
+	const char *item = NULL;
 
 	for (index = 0; index < n; index++) {
 		item = array[index];
@@ -11,5 +12,7 @@ int __sysfs_match_string(const char * const *array, size_t n, const char *str){
 			return index;
 		}
 	}
-	return -EINVAL;
+
+	ret = -EINVAL;
+	return ret;
 }

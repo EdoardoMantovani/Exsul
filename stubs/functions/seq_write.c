@@ -1,9 +1,12 @@
 int seq_write(struct seq_file *seq, const void *data, size_t len){
+	int ret = 0;
+
 	if (seq->count + len < seq->size) {
 		memcpy(seq->buf + seq->count, data, len);
 		seq->count += len;
-		return 0;
+		return ret;
 	}
 	seq->count = seq->size;
-	return -1;
+	ret = -EIO;
+	return ret;
 }

@@ -1,15 +1,18 @@
 int regulatory_hint(struct wiphy *wiphy, const char *alpha2){
+	int ret = 0;
 	struct regulatory_request *request = NULL;
 
 	if (!alpha2 || !wiphy){
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 
 	wiphy->regulatory_flags &= ~REGULATORY_CUSTOM_REG;
 
 	request = __kmalloc_large_noprof(sizeof(struct regulatory_request), GFP_KERNEL);
 	if (!request){
-		return -ENOMEM;
+		ret = -ENOMEM;
+		return ret;
 	}
 	//request->wiphy_idx = get_wiphy_idx(wiphy);
 
@@ -28,5 +31,5 @@ int regulatory_hint(struct wiphy *wiphy, const char *alpha2){
 	list_add_tail(&request->list, &director.ieee80211_local->reg_requests_list);
 	pthread_mutex_unlock(&director.ieee80211_local->regulatory_req_mutex);
 
-	return 0;
+	return ret;
 }
