@@ -9,26 +9,6 @@ struct internal_cb_table sym_table[SYM_ENTRIES];
 struct module_controller director;
 static unsigned int native_cb_entries;
 
-/* command entry, those are the commands the user can use from Exsul's shell */
-struct cmd_table_entry {
-	u8 cmd_name[18];
-	u8 cmd_args;
-	int (*cmd_ptr)(struct module_controller *, char **, int);
-};
-
-/* protocol format for the standalone ELF ipc */
-struct exsul_protocol_hdr {
-	u8 type;
-	u8 len_hi;
-	u16 len;
-};
-
-/* protocol types FOR 'exsul_protocol_hdr' */
-enum {
-	STANDALONE_TCC_SCRIPTING = 1,
-	STANDALONE_CONSOLE_MGMT  = 2,
-};
-
 /* include here the headers for the various supported architectures */
 #include <arm64/arm64.h>
 #include <x86_64/x86_64.h>
@@ -45,6 +25,26 @@ enum {
 	DRV_CMD_SET,
 	DRV_CMD_GET,
 	DRV_CMD_OPS,
+};
+
+/* protocol types FOR 'exsul_protocol_hdr' */
+enum {
+        STANDALONE_TCC_SCRIPTING = 1,
+        STANDALONE_CONSOLE_MGMT  = 2,
+};
+
+/* command entry, those are the commands the user can use from Exsul's shell */
+struct cmd_table_entry {
+        u8 cmd_name[18];
+        u8 cmd_args;
+        int (*cmd_ptr)(struct module_controller *, char **, int);
+};
+
+/* protocol format for the standalone ELF ipc */
+struct exsul_protocol_hdr {
+        u8 type;
+        u8 len_hi;
+        u16 len;
 };
 
 /* get the main context, trick for helping during the script mode of the standalone ELF */
@@ -1539,7 +1539,7 @@ static int find_module_sections(struct module *mod, struct load_info *info) {
 	return ret;
 }
 
-#ifdef _WIN64
+#if defined(__x86_64__) || defined(_M_X64)
 static bool symbol_uses_plt32(struct load_info *info, unsigned int symbol_index){
 	Elf(Shdr) *section = NULL;
 	Elf(Rela) *relocations = NULL;
@@ -1565,12 +1565,58 @@ static bool symbol_uses_plt32(struct load_info *info, unsigned int symbol_index)
 }
 #endif
 
+#if defined(__linux__) && defined(__x86_64__)
+static bool symbol_needs_plt32_trampoline(struct load_info *info,
+					 unsigned int symbol_index,
+					 const void *target){
+	Elf(Shdr) *section = NULL;
+	Elf(Shdr) *target_section = NULL;
+	Elf(Rela) *relocations = NULL;
+	unsigned int relocation_count = 0;
+	uint64_t location = 0;
+	int64_t displacement = 0;
+	unsigned int relocation_type = 0;
+
+	for (unsigned int i = 1; i < info->hdr->e_shnum; i++) {
+		section = &info->sechdrs[i];
+		if(section->sh_type != SHT_RELA ||
+		   section->sh_link != info->index.sym ||
+		   section->sh_info >= info->hdr->e_shnum){
+			continue;
+		}
+
+		target_section = &info->sechdrs[section->sh_info];
+		relocations = (Elf(Rela) *)(uintptr_t)section->sh_addr;
+		relocation_count = section->sh_size / sizeof(*relocations);
+		for (unsigned int j = 0; j < relocation_count; j++) {
+			if(ELF64_R_SYM(relocations[j].r_info) != symbol_index){
+				continue;
+			}
+
+			relocation_type = ELF64_R_TYPE(relocations[j].r_info);
+			if(relocation_type != R_X86_64_PLT32){
+				continue;
+			}
+
+			location = target_section->sh_addr + relocations[j].r_offset;
+			displacement = (int64_t)(uintptr_t)target +
+				       relocations[j].r_addend - (int64_t)location;
+			if(displacement != (int64_t)(int32_t)displacement){
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+#endif
+
 static int simplify_symbols(struct module *mod, struct load_info *info) {
 	int ret = 0;
-	bool target_is_native_stub = false;
-	bool needs_trampoline = false;
-	bool return_thunk = false;
 	int i = 0;
+	bool return_thunk = false;
+	bool needs_trampoline = false;
+	bool target_is_native_stub = false;
 	long secbase = 0;
 	void *target = NULL;
         void *dlopen_ctx = NULL;
@@ -1622,6 +1668,9 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 			if (target == NULL) {
 				dlopen_ctx = dlopen(NULL, 0);
 				target	   = dlsym(dlopen_ctx, (char *)name);
+				if(target != NULL){
+					target_is_native_stub = true;
+				}
 			}
 			#endif
 			if (target == NULL) {
@@ -1633,7 +1682,17 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 			}
 			#if defined(__x86_64__) || defined(_M_X64)
 			needs_trampoline = ELF64_ST_TYPE(sym[i].st_info) == STT_FUNC;
+			#if defined(__linux__) && defined(__x86_64__)
+			/* Keep architecture thunks directly identifiable by apply_retpolines(). */
+			needs_trampoline |= target_is_native_stub &&
+					      symbol_uses_plt32(info, i) &&
+					      strstr((char *)name, "__x86_indirect_thunk_") == NULL &&
+					      strcmp((char *)name, "__x86_return_thunk") != 0;
+			#endif
 			return_thunk = false;
+			#if defined(__linux__) && defined(__x86_64__)
+			needs_trampoline |= symbol_needs_plt32_trampoline(info, i, target);
+			#endif
 			#ifdef _WIN64
 			/* Undefined kernel imports are commonly STT_NOTYPE on Windows. */
 			needs_trampoline |= symbol_uses_plt32(info, i);
@@ -2438,6 +2497,15 @@ int collect_sizes(struct module_controller *director){
         int ret = 0;
         u16 current_struct_size = 0;
         memset(&director->struct_sizes, 0, sizeof(director->struct_sizes));
+
+	current_struct_size = get_struct_size("file");
+	if(current_struct_size != director->struct_sizes.file && current_struct_size > 0){
+		director->struct_sizes.file = current_struct_size;
+	}
+	current_struct_size = get_struct_size("wiphy");
+	if(current_struct_size != director->struct_sizes.wiphy && current_struct_size > 0){
+		director->struct_sizes.wiphy = current_struct_size;
+	}
         current_struct_size = get_struct_size("ieee80211_hw");
         if(current_struct_size != director->struct_sizes.ieee80211_hw && current_struct_size > 0){
                 director->struct_sizes.ieee80211_hw = current_struct_size;

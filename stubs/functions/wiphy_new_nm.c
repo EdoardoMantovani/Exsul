@@ -1,13 +1,33 @@
 struct wiphy *wiphy_new_nm(const struct cfg80211_ops *ops, int sizeof_priv, const char *requested_name){
-	int alloc_size = 0;
+	size_t alloc_size = 0;
+	size_t wiphy_size = 0;
+	void *allocation = NULL;
 	struct device *dev = NULL;
 	struct wiphy *wiphy = NULL;
 	struct cfg80211_registered_device *rdev = NULL;
 
-	alloc_size = sizeof_priv + sizeof(struct cfg80211_registered_device);
-	rdev = (struct cfg80211_registered_device *)calloc(1, alloc_size);
+	wiphy_size = director.struct_sizes.wiphy;
+	if(sizeof_priv < 0 || wiphy_size == 0){
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!]  wiphy_size or sizeof_priv are wrong!\n");
+		#endif
+		return NULL;
+	}
+
+	alloc_size = sizeof(struct cfg80211_registered_device) + sizeof(void *) + 31 + wiphy_size + sizeof_priv;
+	allocation = calloc(1, alloc_size);
+	if(allocation == NULL){
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] failed to allocate the new wiphy!\n");
+		#endif
+		return NULL;
+	}
+	rdev = allocation;
 	director.rdev = rdev;
-	wiphy = (struct wiphy *)((char *)rdev + sizeof(struct cfg80211_registered_device));
+	wiphy = (struct wiphy *)ALIGN((uintptr_t)((char *)allocation +
+					 sizeof(struct cfg80211_registered_device) +
+					 sizeof(void *)), 32);
+	((void **)wiphy)[-1] = allocation;
 	rdev->ops = ops;
 	rdev->wiphy_idx = 0;
 	INIT_LIST_HEAD(&rdev->beacon_registrations);
@@ -27,7 +47,6 @@ struct wiphy *wiphy_new_nm(const struct cfg80211_ops *ops, int sizeof_priv, cons
 	wiphy->coverage_class = 0;
 
 	wiphy->max_num_csa_counters = 1;
-
 	wiphy->max_sched_scan_plans = 1;
 	wiphy->max_sched_scan_plan_interval = ~0U;
 

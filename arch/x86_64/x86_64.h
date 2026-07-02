@@ -557,7 +557,7 @@ void *x86_64_make_trampoline(void *target_stub, bool abi_bridge, bool return_thu
 	#ifdef _WIN64
 	const unsigned int trampoline_size = abi_bridge && !return_thunk ? 160 : 16;
 	#else
-	const unsigned int trampoline_size = 16;
+	const unsigned int trampoline_size = abi_bridge ? 128 : 16;
 	#endif
 
 	if(director.trampoline_area == NULL){
@@ -652,6 +652,63 @@ void *x86_64_make_trampoline(void *target_stub, bool abi_bridge, bool return_thu
 	current_stub[offset++] = 0xC4;
 	current_stub[offset++] = 0x78;
 	current_stub[offset++] = 0xC3; /* ret */
+		__builtin___clear_cache((char *)current_stub,
+					(char *)current_stub + trampoline_size);
+		return current_stub;
+	}
+	#endif
+	#ifdef __linux__
+	if(abi_bridge){
+		/* Kernel code may provide only 8-byte stack alignment. */
+		current_stub[offset++] = 0x49; /* mov r11, rsp */
+		current_stub[offset++] = 0x89;
+		current_stub[offset++] = 0xE3;
+		current_stub[offset++] = 0x48; /* and rsp, -16 */
+		current_stub[offset++] = 0x83;
+		current_stub[offset++] = 0xE4;
+		current_stub[offset++] = 0xF0;
+		current_stub[offset++] = 0x48; /* sub rsp, 0x50 */
+		current_stub[offset++] = 0x83;
+		current_stub[offset++] = 0xEC;
+		current_stub[offset++] = 0x50;
+
+		/* Preserve up to eight stack arguments across the realignment. */
+		for (unsigned int arg = 0; arg < 8; arg++) {
+			unsigned int source = 0x08 + arg * 8;
+			unsigned int destination = arg * 8;
+
+			current_stub[offset++] = 0x4D; /* mov r10, [r11 + source] */
+			current_stub[offset++] = 0x8B;
+			current_stub[offset++] = 0x53;
+			current_stub[offset++] = source;
+			current_stub[offset++] = 0x4C; /* mov [rsp + destination], r10 */
+			current_stub[offset++] = 0x89;
+			current_stub[offset++] = 0x54;
+			current_stub[offset++] = 0x24;
+			current_stub[offset++] = destination;
+		}
+
+		current_stub[offset++] = 0x4C; /* mov [rsp + 0x40], r11 */
+		current_stub[offset++] = 0x89;
+		current_stub[offset++] = 0x5C;
+		current_stub[offset++] = 0x24;
+		current_stub[offset++] = 0x40;
+		current_stub[offset++] = 0x49; /* movabs r11, target_stub */
+		current_stub[offset++] = 0xBB;
+		*(u64 *)(current_stub + offset) = (u64)(uintptr_t)target_stub;
+		offset += sizeof(u64);
+		current_stub[offset++] = 0x41; /* call r11 */
+		current_stub[offset++] = 0xFF;
+		current_stub[offset++] = 0xD3;
+		current_stub[offset++] = 0x4C; /* mov r11, [rsp + 0x40] */
+		current_stub[offset++] = 0x8B;
+		current_stub[offset++] = 0x5C;
+		current_stub[offset++] = 0x24;
+		current_stub[offset++] = 0x40;
+		current_stub[offset++] = 0x4C; /* mov rsp, r11 */
+		current_stub[offset++] = 0x89;
+		current_stub[offset++] = 0xDC;
+		current_stub[offset++] = 0xC3;
 		__builtin___clear_cache((char *)current_stub,
 					(char *)current_stub + trampoline_size);
 		return current_stub;

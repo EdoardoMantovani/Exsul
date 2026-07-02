@@ -4,6 +4,8 @@ struct global_conf {
 };
 
 struct fast_struct_size {
+	u16 file;
+	u16 wiphy;
         u16 ieee80211_hw;
         u16 ieee80211_ops;
 	u16 ieee80211_vif;

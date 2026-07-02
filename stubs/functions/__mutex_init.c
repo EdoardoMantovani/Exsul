@@ -1,3 +1,5 @@
-void __mutex_init(pthread_mutex_t *lock, const char *name, void *key){
-	pthread_mutex_init(lock, NULL);
+void __mutex_init(struct mutex *lock, const char *name, void *key){
+	if(lock != NULL){
+		mutex_init_generic(lock);
+	}
 }

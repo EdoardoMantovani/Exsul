@@ -1,5 +1,11 @@
 void wiphy_free(void *wiphy){
+	void *allocation = NULL;
+
 	if(wiphy != NULL){
-		free((char *)wiphy - sizeof(struct cfg80211_registered_device));
+		allocation = ((void **)wiphy)[-1];
+		if((void *)director.rdev == allocation){
+			director.rdev = NULL;
+		}
+		free(allocation);
 	}
 }

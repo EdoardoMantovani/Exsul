@@ -29,7 +29,6 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, struct ieee8021
 	 *
 	 */
 	priv_size = ALIGN(sizeof(struct ieee80211_local), 32) + priv_data_len; /* 'NETDEV_ALIGN' = 32 */
-
 	wiphy = wiphy_new_nm(NULL, /*&mac80211_config_ops,*/ priv_size, requested_name);
 
 	if (wiphy == NULL){
@@ -172,7 +171,8 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, struct ieee8021
 	director.ieee80211_ops = ieee80211_ops;
 
 	return hw;
-err_free:
+
+	err_free:
 	wiphy_free(wiphy);
 	return NULL;
 }

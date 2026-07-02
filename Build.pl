@@ -147,6 +147,7 @@ my @gcc_final_linkings = (
 );
 
 my %struct_whitelist = (
+	"file"			=> "file",
 	"skb"			=> "sk_buff",
 	"skb_info"		=> "skb_shared_info",
 	"mod"			=> "module",
@@ -181,6 +182,9 @@ my %fixed_only_structs = (
 );
 
 my %field_ctype = (
+	file => {
+		"f_flags"				=> "unsigned int",
+	},
 	module => {
 		"mem"					=> "struct module_memory",
 		"crcs"					=> "u32 *",
@@ -301,6 +305,10 @@ my %field_ctype = (
 		"flags"					=> "u32",
 		"regulatory_flags"			=> "u32",
 		"features"				=> "u32",
+		"software_iftypes"			=> "u16",
+		"n_addresses"				=> "u16",
+		"interface_modes"			=> "u16",
+		"max_acl_mac_addrs"			=> "u16",
 		"ext_features"				=> "u8",
 		"priv"					=> "void *",
 		"max_num_csa_counters"			=> "u8",
@@ -311,6 +319,23 @@ my %field_ctype = (
 		"iftype_akm_suites"			=> "struct wiphy_iftype_akm_suites *",
 		"retry_short"				=> "u8",
 		"retry_long"				=> "u8",
+		"frag_threshold"			=> "u32",
+		"rts_threshold"				=> "u32",
+		"coverage_class"			=> "u8",
+		"max_scan_ssids"			=> "u8",
+		"max_sched_scan_reqs"			=> "u8",
+		"max_sched_scan_ssids"			=> "u8",
+		"max_match_sets"			=> "u8",
+		"max_scan_ie_len"			=> "u16",
+		"max_sched_scan_ie_len"			=> "u16",
+		"max_sched_scan_plans"			=> "u32",
+		"max_sched_scan_plan_interval"		=> "u32",
+		"max_sched_scan_plan_iterations"	=> "u32",
+		"max_remain_on_channel_duration"	=> "u16",
+		"available_antennas_tx"			=> "u32",
+		"available_antennas_rx"			=> "u32",
+		"probe_resp_offload"			=> "u32",
+		"registered"				=> "bool",
 	},
 	net_device => {
 		"name"					=> "char",

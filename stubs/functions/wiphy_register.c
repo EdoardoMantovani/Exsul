@@ -12,27 +12,43 @@ int wiphy_register(struct wiphy *wiphy){
 	void (*reg_notifier)(struct wiphy *wiphy, struct regulatory_request *request) = NULL;
 
 	local = director.ieee80211_local;
-	if(local == NULL){
-
-	}
-	rdev = &director.ieee80211_local->rdev;
+	rdev = director.rdev;
 	if(rdev == NULL){
-
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] ieee80211_rdev is null!\n");
+		#endif
+		ret = -EINVAL;
+		return ret;
 	}
-	ieee80211_ops = local->ieee80211_ops;
-	if(ieee80211_ops == NULL){
+	if(local != NULL){
+		ieee80211_ops = local->ieee80211_ops;
+	}
+	if(local != NULL && ieee80211_ops == NULL){
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] ieee80211_ops is null!\n");
+		#endif
 		ret = -EINVAL;
 		return ret;
 	}
 
 	ifmodes = wiphy->interface_modes;
 
-	if ((wiphy->interface_modes & BIT(NL80211_IFTYPE_NAN)) && (!ieee80211_ops->start_nan || !ieee80211_ops->stop_nan || !ieee80211_ops->add_nan_func || !ieee80211_ops->del_nan_func || !(wiphy->nan_supported_bands & BIT(NL80211_BAND_2GHZ)))){
+	if (ieee80211_ops != NULL &&
+	    (wiphy->interface_modes & BIT(NL80211_IFTYPE_NAN)) &&
+	    (!ieee80211_ops->start_nan || !ieee80211_ops->stop_nan ||
+	     !ieee80211_ops->add_nan_func || !ieee80211_ops->del_nan_func ||
+	     !(wiphy->nan_supported_bands & BIT(NL80211_BAND_2GHZ)))){
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] missing callbacks in ieee80211_ops!\n");
+		#endif
 		ret = -EINVAL;
 		return ret;
 	}
 
 	if (wiphy->interface_modes & BIT(NL80211_IFTYPE_WDS)){
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] wrong interface modes!\n");
+		#endif
 		ret = -EINVAL;
 		return ret;
 	}
@@ -68,7 +84,8 @@ int wiphy_register(struct wiphy *wiphy){
 			return ret;
 		}
 
-		if (wiphy->max_acl_mac_addrs && (!(wiphy->flags & WIPHY_FLAG_HAVE_AP_SME) || !ieee80211_ops->set_mac_acl)){
+		if (ieee80211_ops != NULL && wiphy->max_acl_mac_addrs &&
+			    (!(wiphy->flags & WIPHY_FLAG_HAVE_AP_SME) || !ieee80211_ops->set_mac_acl)){
 			ret = -EINVAL;
 			return ret;
 		}
@@ -79,7 +96,7 @@ int wiphy_register(struct wiphy *wiphy){
 			u16 types = 0;
 			bool have_he = false;
 
-			sband = wiphy->bands + sizeof(struct ieee80211_supported_band) * band;
+			sband = wiphy->bands[band];
 			if (sband == NULL){
 				continue;
 			}
@@ -166,13 +183,16 @@ int wiphy_register(struct wiphy *wiphy){
 	/* set up regulatory info */
 	if (wiphy->reg_notifier != NULL) {
 		request = NULL;
-		if (!list_empty(&local->reg_requests_list)) {
+		if (local != NULL && !list_empty(&local->reg_requests_list)) {
 			request = list_last_entry(&local->reg_requests_list, struct regulatory_request, list);
 		}
 
 		if (request == NULL) {
 			request = __kmalloc_large_noprof(sizeof(struct regulatory_request), GFP_KERNEL);
 			if (request == NULL) {
+				#ifdef ENABLE_DBG_PRINT
+				printf("[!] failed to allocate the regulatory_request!\n");
+				#endif
 				ret = -ENOMEM;
 				return ret;
 			}
