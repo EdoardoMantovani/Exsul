@@ -2510,6 +2510,10 @@ int collect_sizes(struct module_controller *director){
         if(current_struct_size != director->struct_sizes.ieee80211_hw && current_struct_size > 0){
                 director->struct_sizes.ieee80211_hw = current_struct_size;
         }
+	current_struct_size = get_struct_size("ieee80211_sta");
+	if(current_struct_size != director->struct_sizes.ieee80211_sta && current_struct_size > 0){
+		director->struct_sizes.ieee80211_sta = current_struct_size;
+	}
         current_struct_size = get_struct_size("ieee80211_vif");
         if(current_struct_size != director->struct_sizes.ieee80211_vif && current_struct_size > 0){
                 director->struct_sizes.ieee80211_vif = current_struct_size;
@@ -3466,6 +3470,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	bool enable = false;
 	struct wiphy *wiphy = NULL;
         unsigned char *ops_req = NULL;
+	unsigned char *ap_ssid = NULL;
 	struct ieee80211_ops *ops = NULL;
 	struct ieee80211_local *local = NULL;
 	struct ieee80211_hw *ieee80211_hw = NULL;
@@ -3758,7 +3763,14 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 
 	}
 	if(strcmp(ops_req, "start_ap") == 0){
-
+		ap_ssid = argv[2];
+		if(ap_ssid == NULL){
+			ret = -EINVAL;
+			return ret;
+		}
+		director.ap_ssid = ap_ssid;
+		director.ap_ssid_len = strlen(ap_ssid);
+		fill_cfg80211_start_ap_req(ap_settings);
 	}
 	if(strcmp(ops_req, "stop_ap") == 0){
 

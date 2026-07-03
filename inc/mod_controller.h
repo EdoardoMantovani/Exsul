@@ -7,6 +7,7 @@ struct fast_struct_size {
 	u16 file;
 	u16 wiphy;
 	u16 cfg80211_ops;
+	u16 ieee80211_sta;
         u16 ieee80211_hw;
         u16 ieee80211_ops;
 	u16 ieee80211_vif;
@@ -159,6 +160,10 @@ struct module_controller {
 	/* store here the backup for every 'ops' struct, it will be called later via the 'ops' command */
 	struct ieee80211_ops *ieee80211_ops;
 	struct cfg80211_ops  *cfg80211_ops;
+
+	/* access point mode configuration */
+	u8 *ap_ssid;
+	u8  ap_ssid_len;
 
 	/* array of pointers which emulates the functions 'devm_kxxx', when the driver will quit, every element of the array will be freed */
 	void *kmem_array[MAX_KMEM_ARRAY_SIZE];

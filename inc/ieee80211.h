@@ -7928,7 +7928,7 @@ static inline int connection_prepare_station(struct ieee80211_local *local, stru
 	if (fsm->sta != NULL){
 		return ret;
 	}
-	sta_size = get_struct_size("ieee80211_sta");
+	sta_size = director.struct_sizes.ieee80211_sta;
 	if (sta_size == 0){
 		ret = -EINVAL;
 		return ret;
@@ -12135,6 +12135,83 @@ static int bss_conf_init(struct ieee80211_hw *ieee80211_hw, struct ieee80211_vif
 	return ret;
 }
 
+static int fill_cfg80211_start_ap_req(struct cfg80211_ap_settings *ap_settings){
+	int ret = 0;
+	u8 ch = 1;
+	u8 tail[6];
+	u8 head[83];
+	u8 *head_ptr = NULL;
+	struct ieee80211_channel *chan = NULL;
+	struct cfg80211_beacon_data *beacon_data = NULL;
+
+	u8 xrates[4]     = {0x30,0x48,0x60,0x6c};
+	u8 brd[ETH_ALEN] = {0xff,0xff,0xff,0xff,0xff,0xff};
+	u8 rates[8]      = {0x82,0x84,0x8b,0x96,0x0c,0x12,0x18,0x24};
+
+	head_ptr = head;
+	/* generate the beacon header */
+	put_unaligned_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_BEACON, head_ptr);
+	head_ptr += 2;
+	put_unaligned_le16(0, head_ptr);
+	head_ptr += 2;
+	ether_addr_copy(head_ptr, brd);
+	head_ptr += ETH_ALEN;
+	ether_addr_copy(head_ptr, 0);
+	head_ptr += ETH_ALEN;
+	ether_addr_copy(head_ptr, 0);
+	head_ptr += ETH_ALEN;
+	put_unaligned_le16(0, head_ptr);
+	head_ptr += 2;
+
+	memset(head_ptr, 0, 8);
+	head_ptr += 8;
+	put_unaligned_le16(100, head_ptr);
+	head_ptr += 2;
+	put_unaligned_le16(WLAN_CAPABILITY_ESS | WLAN_CAPABILITY_SHORT_PREAMBLE, head_ptr);
+	head_ptr += 2;
+
+	/* apply the ssid */
+	*head_ptr++ = WLAN_EID_SSID;
+	*head_ptr++ = director.ap_ssid_len;
+	memcpy(head_ptr, director.ap_ssid, director.ap_ssid_len);
+	head_ptr += director.ap_ssid_len;
+
+	/* insert the supported rates */
+	*head_ptr++ = WLAN_EID_SUPP_RATES;
+	*head_ptr++ = sizeof(rates);
+	memcpy(head_ptr, rates, sizeof(rates));
+	head_ptr += sizeof(rates);
+
+	*head_ptr++ = WLAN_EID_DS_PARAMS;
+	*head_ptr++ = 1;
+	*head_ptr++ = ch;
+
+	tail[0] = WLAN_EID_EXT_SUPP_RATES;
+	tail[1] = sizeof(xrates);
+	memcpy(&tail[2], xrates, sizeof(xrates));
+
+	beacon_data = &ap_settings->beacon;
+	beacon_data->head = head;
+	beacon_data->head_len = head_ptr - head;
+	beacon_data->tail = tail;
+	beacon_data->tail_len = sizeof(tail);
+
+	ap_settings->ssid = director.ap_ssid;
+	ap_settings->ssid_len = director.ap_ssid_len;
+
+	ap_settings->hidden_ssid = NL80211_HIDDEN_SSID_NOT_IN_USE;
+	ap_settings->auth_type = NL80211_AUTHTYPE_OPEN_SYSTEM;
+	ap_settings->beacon_interval = 100;
+	ap_settings->dtim_period = 2;
+	ap_settings->privacy = false;
+
+	ap_settings->chandef.chan = chan;
+	ap_settings->chandef.width = NL80211_CHAN_WIDTH_20;
+	ap_settings->chandef.center_freq1 = chan->center_freq;
+
+	return ret;
+}
+
 /* fill the 'start_ap'/'stop_ap' parameters */
 static int fill_start_ap_req(struct ieee80211_bss_conf *link_conf){
 	int ret = 0;
@@ -12172,7 +12249,7 @@ static int fill_start_ap_req(struct ieee80211_bss_conf *link_conf){
 		link_conf->chanreq.oper.center_freq2 = 0;
 	}
 
-	link_conf->basic_rates      = BIT(0) | BIT(1) | BIT(2) | BIT(3);
+	link_conf->basic_rates       = BIT(0) | BIT(1) | BIT(2) | BIT(3);
 	link_conf->ht_operation_mode = 0;
 	link_conf->qos               = false;
 	link_conf->txpower           = 0;
@@ -12307,7 +12384,6 @@ static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 	}
 
 	scan_req->req.wdev = wdev;
-
 	return ret;
 }
 
@@ -12318,26 +12394,28 @@ static int start_hw_scan(struct ieee80211_local *local,
 	u32 n_channels = 0;
 	struct ieee80211_scan_request *scan_req;
 
-	if (local == NULL || local->wiphy == NULL || local->ieee80211_hw == NULL ||
-	    local->ieee80211_vif == NULL || hw_scan == NULL){
-		return -EINVAL;
+	if (local == NULL || local->wiphy == NULL || local->ieee80211_hw == NULL || local->ieee80211_vif == NULL || hw_scan == NULL){
+		ret = -EINVAL;
+		return ret;
 	}
 	if (atomic_load(&director.scan_in_progress)){
 		printf("[!] hw_scan is already in progress\n");
-		return -EBUSY;
+		ret = -EBUSY;
+		return ret;
 	}
 
 	n_channels = hw_scan_channel_count(local->wiphy);
 	if (n_channels == 0){
 		printf("[!] hw_scan: no enabled channels are registered\n");
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 
 	free(director.active_scan_req);
-	director.active_scan_req = calloc(1, sizeof(*scan_req) +
-					    n_channels * sizeof(scan_req->req.channels[0]));
+	director.active_scan_req = calloc(1, sizeof(*scan_req) + n_channels * sizeof(scan_req->req.channels[0]));
 	if (director.active_scan_req == NULL){
-		return -ENOMEM;
+		ret = -ENOMEM;
+		return ret;
 	}
 	scan_req = director.active_scan_req;
 
@@ -12361,8 +12439,7 @@ static int start_hw_scan(struct ieee80211_local *local,
 	}
 	if (ret != 0){
 		atomic_store(&director.scan_in_progress, false);
-		printf("[!] hw_scan could not start: %d%s\n", ret,
-		       ret == -EBUSY ? " (driver is busy or still completing the previous scan)" : "");
+		printf("[!] hw_scan could not start!\n");
 	}
 	return ret;
 }
