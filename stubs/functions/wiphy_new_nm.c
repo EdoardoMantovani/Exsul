@@ -14,6 +14,9 @@ struct wiphy *wiphy_new_nm(const struct cfg80211_ops *ops, int sizeof_priv, cons
 		return NULL;
 	}
 
+	/* save 'cfg80211_ops' */
+	director.cfg80211_ops = ops;
+
 	alloc_size = sizeof(struct cfg80211_registered_device) + sizeof(void *) + 31 + wiphy_size + sizeof_priv;
 	allocation = calloc(1, alloc_size);
 	if(allocation == NULL){

@@ -157,6 +157,7 @@ struct module_controller {
 	pthread_mutex_t rtnl_mutex;
 	/* store here the backup for every 'ops' struct, it will be called later via the 'ops' command */
 	struct ieee80211_ops *ieee80211_ops;
+	struct cfg80211_ops  *cfg80211_ops;
 
 	/* array of pointers which emulates the functions 'devm_kxxx', when the driver will quit, every element of the array will be freed */
 	void *kmem_array[MAX_KMEM_ARRAY_SIZE];

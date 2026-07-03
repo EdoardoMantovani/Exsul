@@ -3471,7 +3471,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	struct ieee80211_vif *ieee80211_vif = NULL;
 	struct ieee80211_vif *ieee80211_ap_vif = NULL;
 	struct ieee80211_vif *ieee80211_mon_vif = NULL;
-	/* callbacks prototypes */
+	/* callbacks prototypes for mac80211 */
 	int (*start)(struct ieee80211_hw *hw) = NULL;
 	void (*stop)(struct ieee80211_hw *hw, bool suspend) = NULL;
 	int (*add_interface)(struct ieee80211_hw *hw, struct ieee80211_vif *vif) = NULL;
@@ -3493,12 +3493,15 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 
 	ops_req = argv[1];
 
-	/* for now use only 'ieee80211_ops' as reference */
 	ops = __director->ieee80211_ops;
 	if(ops == NULL){
-		printf("[!] ieee80211_ops is NULL!\n");
-		ret = -EINVAL;
-		return ret;
+		/* search if 'cfg80211_ops' is available */
+		ops = __director->cfg80211_ops;
+		if(ops == NULL){
+			printf("[!] ieee80211 and cfg80211 callbacks are NULL!\n");
+			ret = -EINVAL;
+			return ret;
+		}
 	}
 
 	local = __director->ieee80211_local;
