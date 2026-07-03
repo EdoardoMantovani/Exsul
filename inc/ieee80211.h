@@ -7517,6 +7517,64 @@ static inline struct ieee80211_channel *connection_find_channel(struct wiphy *wi
 	return ieee80211_get_channel_khz(wiphy, MHZ_TO_KHZ(center_freq));
 }
 
+/*
+ * ieee80211_channel_to_frequency - convert channel number to frequency
+ * @chan: channel number
+ * @band: band, necessary due to channel number overlap
+ * Return: The corresponding frequency (in MHz), or 0 if the conversion failed.
+ */
+static inline int ieee80211_channel_to_frequency(int chan, enum nl80211_band band){
+	int ret = 0;
+
+	ret = KHZ_TO_MHZ(ieee80211_channel_to_freq_khz(chan, band));
+	return ret;
+}
+
+/*
+ * ieee80211_frequency_to_channel - convert frequency to channel number
+ * @freq: center frequency in MHz
+ * Return: The corresponding channel, or 0 if the conversion failed.
+ */
+static inline int ieee80211_frequency_to_channel(int freq){
+	int ret = 0;
+
+	ret = ieee80211_freq_khz_to_channel(MHZ_TO_KHZ(freq));
+	return ret;
+}
+
+/*
+ * ieee80211_get_channel - get channel struct from wiphy for specified frequency
+ *
+ * @wiphy: the struct wiphy to get the channel for
+ * @freq: the center frequency (in MHz) of the channel
+ * Return: The channel struct from @wiphy at @freq.
+ */
+static inline struct ieee80211_channel *ieee80211_get_channel(struct wiphy *wiphy, int freq){
+	if(wiphy == NULL || freq == 0){
+		return NULL;
+	}
+	return ieee80211_get_channel_khz(wiphy, MHZ_TO_KHZ(freq));
+}
+
+/*
+ * cfg80211_channel_is_psc - Check if the channel is a 6 GHz PSC
+ * @chan: control channel to check
+ *
+ * The Preferred Scanning Channels (PSC) are defined in
+ * Draft IEEE P802.11ax/D5.0, 26.17.2.3.3
+ *
+ * Return: %true if channel is a PSC, %false otherwise
+ */
+static inline bool cfg80211_channel_is_psc(struct ieee80211_channel *chan){
+	if(chan == NULL){
+		return false;
+	}
+	if (chan->band != NL80211_BAND_6GHZ){
+		return false;
+	}
+	return ieee80211_frequency_to_channel(chan->center_freq) % 16 == 5;
+}
+
 static inline struct ieee80211_sub_if_data *connection_find_sdata(struct ieee80211_local *local, struct ieee80211_vif *connection_vif){
 	struct list_head *pos = NULL;
 
@@ -9060,7 +9118,7 @@ static inline void scan_cache_print(void){
 		}
 		printf("\" freq=%u MHz", entry->center_freq);
 		if (entry->channel != 0){
-			printf(" ch=%u", entry->channel);
+			printf(" channel=%u", entry->channel);
 		}
 		printf(" signal=%d\n", entry->signal);
 		printed++;
@@ -12141,6 +12199,7 @@ static int fill_cfg80211_start_ap_req(struct cfg80211_ap_settings *ap_settings){
 	u8 tail[6];
 	u8 head[83];
 	u8 *head_ptr = NULL;
+	struct wiphy *wiphy = NULL;
 	struct ieee80211_channel *chan = NULL;
 	struct cfg80211_beacon_data *beacon_data = NULL;
 
@@ -12149,6 +12208,8 @@ static int fill_cfg80211_start_ap_req(struct cfg80211_ap_settings *ap_settings){
 	u8 rates[8]      = {0x82,0x84,0x8b,0x96,0x0c,0x12,0x18,0x24};
 
 	head_ptr = head;
+
+	chan = ieee80211_get_channel(director.wiphy, ieee80211_channel_to_frequency(ch, NL80211_BAND_2GHZ));
 	/* generate the beacon header */
 	put_unaligned_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_BEACON, head_ptr);
 	head_ptr += 2;

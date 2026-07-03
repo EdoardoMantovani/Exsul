@@ -144,6 +144,7 @@ struct module_controller {
 	/* track every memory region mapped in the actual memory, it doesn't matter much the original module they belongs to */
 	struct allocation_list *module_allocation_list;
 
+	struct wiphy *wiphy;
         struct rfkill *rfkill;
 	struct ieee80211_local *ieee80211_local;
         struct cfg80211_registered_device *rdev;

@@ -775,7 +775,7 @@ struct internal_cb_table sym_table[4096] = {
     [766] = { .function_name = "handle_ieee80211_config", .function_ptr = handle_ieee80211_config, .function_size = 166 },
     [767] = { .function_name = "fast_run_ieee80211_cb", .function_ptr = fast_run_ieee80211_cb, .function_size = 1846 },
     [768] = { .function_name = "drv_cmd_start", .function_ptr = drv_cmd_start, .function_size = 391 },
-    [769] = { .function_name = "drv_cmd_ops", .function_ptr = drv_cmd_ops, .function_size = 6472 },
+    [769] = { .function_name = "drv_cmd_ops", .function_ptr = drv_cmd_ops, .function_size = 6572 },
     [770] = { .function_name = "elf_initialize_driver", .function_ptr = elf_initialize_driver, .function_size = 340 },
     [771] = { .function_name = "drv_integrate_scripting", .function_ptr = drv_integrate_scripting, .function_size = 176 },
     [772] = { .function_name = "initialize_director", .function_ptr = initialize_director, .function_size = 460 },
