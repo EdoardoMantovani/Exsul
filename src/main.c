@@ -2494,10 +2494,10 @@ void finalize_director(void){
 }
 
 int collect_sizes(struct module_controller *director){
-        int ret = 0;
-        u16 current_struct_size = 0;
-        memset(&director->struct_sizes, 0, sizeof(director->struct_sizes));
+	int ret = 0;
+	u16 current_struct_size = 0;
 
+	memset(&director->struct_sizes, 0, sizeof(director->struct_sizes));
 	current_struct_size = get_struct_size("file");
 	if(current_struct_size != director->struct_sizes.file && current_struct_size > 0){
 		director->struct_sizes.file = current_struct_size;
@@ -2522,6 +2522,10 @@ int collect_sizes(struct module_controller *director){
         if(current_struct_size != director->struct_sizes.ieee80211_ops && current_struct_size > 0){
                 director->struct_sizes.ieee80211_ops = current_struct_size;
         }
+	current_struct_size = get_struct_size("cfg80211_ops");
+	if(current_struct_size != director->struct_sizes.cfg80211_ops && current_struct_size > 0){
+		director->struct_sizes.cfg80211_ops = current_struct_size;
+	}
         current_struct_size = get_struct_size("module");
         if(current_struct_size != director->struct_sizes.module && current_struct_size > 0){
                 director->struct_sizes.module = current_struct_size;
@@ -2574,7 +2578,6 @@ int collect_sizes(struct module_controller *director){
         if(current_struct_size != director->struct_sizes.hci_dev && current_struct_size > 0){
                 director->struct_sizes.hci_dev = current_struct_size;
         }
-
         if(director->struct_sizes.skb_shared_info == 0){
                 director->struct_sizes.skb_shared_info = sizeof(struct skb_shared_info);
         }
@@ -3461,6 +3464,7 @@ int handle_ieee80211_config(struct ieee80211_hw *ieee80211_hw, struct ieee80211_
 int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args) {
         int ret = 0;
 	bool enable = false;
+	struct wiphy *wiphy = NULL;
         unsigned char *ops_req = NULL;
 	struct ieee80211_ops *ops = NULL;
 	struct ieee80211_local *local = NULL;
@@ -3471,6 +3475,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	struct ieee80211_vif *ieee80211_vif = NULL;
 	struct ieee80211_vif *ieee80211_ap_vif = NULL;
 	struct ieee80211_vif *ieee80211_mon_vif = NULL;
+	struct cfg80211_ap_settings *ap_settings = NULL;
 	/* callbacks prototypes for mac80211 */
 	int (*start)(struct ieee80211_hw *hw) = NULL;
 	void (*stop)(struct ieee80211_hw *hw, bool suspend) = NULL;
@@ -3484,6 +3489,16 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	void (*stop_ap)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_bss_conf *link_conf) = NULL;
 	int (*ampdu_action)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_ampdu_params *params) = NULL;
 	void (*configure_filter)(struct ieee80211_hw *hw, unsigned int changed_flags, unsigned int *new_flags, u64 multicast) = NULL;
+	/* callbacks prototypes for cfg80211 */
+	void (*abort_scan)(struct wiphy *wiphy, struct wireless_dev *wdev) = NULL;
+	int (*scan)(struct wiphy *wiphy, struct cfg80211_scan_request *request) = NULL;
+	int (*del_virtual_intf)(struct wiphy *wiphy, struct wireless_dev *wdev) = NULL;
+	int (*cfg80211_stop_ap)(struct wiphy *wiphy, struct net_device *dev, unsigned int link_id) = NULL;
+	int (*auth)(struct wiphy *wiphy, struct net_device *dev, struct cfg80211_auth_request *req) = NULL;
+	int (*assoc)(struct wiphy *wiphy, struct net_device *dev, struct cfg80211_assoc_request *req) = NULL;
+	int (*deauth)(struct wiphy *wiphy, struct net_device *dev, struct cfg80211_deauth_request *req) = NULL;
+	int (*cfg80211_start_ap)(struct wiphy *wiphy, struct net_device *dev, struct cfg80211_ap_settings *settings) = NULL;
+	struct wireless_dev *(*add_virtual_intf)(struct wiphy *wiphy, const char *name, unsigned char name_assign_type, enum nl80211_iftype type, struct vif_params *params) = NULL;
 
 	if(argv[1] == NULL){
 		printf("[!] ops <callback name>\n");
@@ -3492,6 +3507,13 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	}
 
 	ops_req = argv[1];
+
+	local = __director->ieee80211_local;
+	if(local->ieee80211_hw == NULL){
+		printf("[!] local->ieee80211_hw is NULL!\n");
+		ret = -EINVAL;
+		return ret;
+	}
 
 	ops = __director->ieee80211_ops;
 	if(ops == NULL){
@@ -3502,15 +3524,17 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			ret = -EINVAL;
 			return ret;
 		}
+		/* before proceeding with the cfg80211_ops callbacks invocation, verify if 'wiphy' and 'net_device' are well formed */
+		wiphy = local->wiphy;
+		if(wiphy == NULL){
+			printf("[!] wiphy is NULL!\n");
+			ret = -EINVAL;
+			return ret;
+		}
+		goto cfg80211_ops;
 	}
 
-	local = __director->ieee80211_local;
-	if(local->ieee80211_hw == NULL){
-		printf("[!] local->ieee80211_hw is NULL!\n");
-		ret = -EINVAL;
-		return ret;
-	}
-
+	mac80211_ops:
 	if(strcmp(ops_req, "start") == 0){
 		start = ops->start;
 		if(start != NULL){
@@ -3578,7 +3602,6 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			configure_filter(local->ieee80211_hw, 0, &ret, 0);
 		}
 	}
-
 	if(strcmp(ops_req, "connect") == 0){
 		if(num_args < 3 || argv[2] == NULL){
 			printf("[!] connect: ops connect <ssid> [password]\n");
@@ -3587,7 +3610,6 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		}
 		ret = wifi_auth_connection_start(local, argv[2], num_args >= 4 ? argv[3] : NULL);
 	}
-
 	if(strcmp(ops_req, "rx") == 0){
 		enable = true;
 
@@ -3606,7 +3628,6 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		}
 		printf("[*] RX hexdump %s\n", enable ? "enabled" : "disabled");
 	}
-
 	if(strcmp(ops_req, "conf_tx") == 0){
 		/* handle in the same way of 'config' */
 		ret = handle_ieee80211_conf_tx(local->ieee80211_hw, local->ieee80211_vif, ops);
@@ -3697,7 +3718,6 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			goto ieee80211_vif_not_initialized;
 		}
 	}
-
 	/* monitor mode is a new virtual interface with the type == NL80211_IFTYPE_MONITOR */
 	if(strcmp(ops_req, "monitor") == 0){
 		add_interface = ops->add_interface;
@@ -3728,6 +3748,32 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	}
 
 	return ret;
+
+	/* handle here the hardmac driver callbacks */
+	cfg80211_ops:
+	if(strcmp(ops_req, "add_interface") == 0){
+
+	}
+	if(strcmp(ops_req, "remove_interface") == 0){
+
+	}
+	if(strcmp(ops_req, "start_ap") == 0){
+
+	}
+	if(strcmp(ops_req, "stop_ap") == 0){
+
+	}
+	if(strcmp(ops_req, "monitor") == 0){
+
+	}
+	if(strcmp(ops_req, "set_antenna") == 0){
+
+	}
+	if(strcmp(ops_req, "get_antenna") == 0){
+
+	}
+	return ret;
+
 	ieee80211_vif_not_initialized:
 	printf("[!] ieee80211_vif is not initialized!\n");
 	ret = -EINVAL;
