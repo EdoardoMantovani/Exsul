@@ -2518,6 +2518,10 @@ int collect_sizes(struct module_controller *director){
         if(current_struct_size != director->struct_sizes.ieee80211_vif && current_struct_size > 0){
                 director->struct_sizes.ieee80211_vif = current_struct_size;
         }
+	current_struct_size = get_struct_size("cfg80211_ap_settings");
+	if(current_struct_size != director->struct_sizes.cfg80211_ap_settings && current_struct_size > 0){
+		director->struct_sizes.cfg80211_ap_settings = current_struct_size;
+	}
         current_struct_size = get_struct_size("ieee80211_bss_conf");
         if(current_struct_size != director->struct_sizes.ieee80211_bss_conf && current_struct_size > 0){
                 director->struct_sizes.ieee80211_bss_conf = current_struct_size;
@@ -3469,9 +3473,12 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
         int ret = 0;
 	bool enable = false;
 	struct wiphy *wiphy = NULL;
+	struct net_device *net_device = NULL;
+	struct wireless_dev *wireless_dev = NULL;
         unsigned char *ops_req = NULL;
 	unsigned char *ap_ssid = NULL;
 	struct ieee80211_ops *ops = NULL;
+	struct cfg80211_ops *cfg_ops = NULL;
 	struct ieee80211_local *local = NULL;
 	struct ieee80211_hw *ieee80211_hw = NULL;
 	struct ieee80211_vif_cfg *vif_cfg = NULL;
@@ -3498,12 +3505,17 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	void (*abort_scan)(struct wiphy *wiphy, struct wireless_dev *wdev) = NULL;
 	int (*scan)(struct wiphy *wiphy, struct cfg80211_scan_request *request) = NULL;
 	int (*del_virtual_intf)(struct wiphy *wiphy, struct wireless_dev *wdev) = NULL;
+	int (*change_virtual_intf)(struct wiphy *wiphy, struct net_device *dev, enum nl80211_iftype type, struct vif_params *params) = NULL;
 	int (*cfg80211_stop_ap)(struct wiphy *wiphy, struct net_device *dev, unsigned int link_id) = NULL;
 	int (*auth)(struct wiphy *wiphy, struct net_device *dev, struct cfg80211_auth_request *req) = NULL;
 	int (*assoc)(struct wiphy *wiphy, struct net_device *dev, struct cfg80211_assoc_request *req) = NULL;
 	int (*deauth)(struct wiphy *wiphy, struct net_device *dev, struct cfg80211_deauth_request *req) = NULL;
 	int (*cfg80211_start_ap)(struct wiphy *wiphy, struct net_device *dev, struct cfg80211_ap_settings *settings) = NULL;
 	struct wireless_dev *(*add_virtual_intf)(struct wiphy *wiphy, const char *name, unsigned char name_assign_type, enum nl80211_iftype type, struct vif_params *params) = NULL;
+
+	struct vif_params params = {
+		.use_4addr = -1
+	};
 
 	if(argv[1] == NULL){
 		printf("[!] ops <callback name>\n");
@@ -3513,30 +3525,32 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 
 	ops_req = argv[1];
 
-	local = __director->ieee80211_local;
-	if(local->ieee80211_hw == NULL){
-		printf("[!] local->ieee80211_hw is NULL!\n");
-		ret = -EINVAL;
-		return ret;
-	}
-
 	ops = __director->ieee80211_ops;
 	if(ops == NULL){
-		/* search if 'cfg80211_ops' is available */
-		ops = __director->cfg80211_ops;
-		if(ops == NULL){
+		cfg_ops = __director->cfg80211_ops;
+		if(cfg_ops == NULL){
 			printf("[!] ieee80211 and cfg80211 callbacks are NULL!\n");
-			ret = -EINVAL;
-			return ret;
+			return -EINVAL;
 		}
-		/* before proceeding with the cfg80211_ops callbacks invocation, verify if 'wiphy' and 'net_device' are well formed */
-		wiphy = local->wiphy;
-		if(wiphy == NULL){
-			printf("[!] wiphy is NULL!\n");
-			ret = -EINVAL;
-			return ret;
+
+		wiphy = __director->wiphy;
+		if(wiphy == NULL && __director->rdev != NULL){
+			wiphy = __director->rdev->wiphy;
 		}
+		net_device = __director->net_device;
+		if(wiphy == NULL || net_device == NULL){
+			printf("[!] cfg80211 wiphy or net_device is NULL!\n");
+			return -EINVAL;
+		}
+		__director->wiphy = wiphy;
+		wireless_dev = net_device->ieee80211_ptr;
 		goto cfg80211_ops;
+	}
+
+	local = __director->ieee80211_local;
+	if(local == NULL || local->ieee80211_hw == NULL){
+		printf("[!] local->ieee80211_hw is NULL!\n");
+		return -EINVAL;
 	}
 
 	mac80211_ops:
@@ -3677,6 +3691,15 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	}
 	if(strcmp(ops_req, "start_ap") == 0){
 		start_ap = ops->start_ap;
+		ap_ssid  = argv[2];
+		if(ap_ssid != NULL){
+			director.ap_ssid     = ap_ssid;
+			director.ap_ssid_len = strlen(ap_ssid);
+		}else{
+			director.ap_ssid     = "test_ap";
+			director.ap_ssid_len = sizeof("test_ap");
+		}
+		change_virtual_intf = cfg_ops->change_virtual_intf;
 		/* initialize the AP interface */
 		if(local->ieee80211_ap_vif == NULL){
 			ieee80211_hw = local->ieee80211_hw;
@@ -3696,8 +3719,8 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			vif_cfg = &ieee80211_ap_vif->cfg;
 			vif_cfg->assoc = true;
 			vif_cfg->idle = false;
-			strncpy(vif_cfg->ssid, "test_network", sizeof("test_network"));
-			vif_cfg->ssid_len = sizeof("test_network");
+			strncpy(vif_cfg->ssid, director.ap_ssid, director.ap_ssid_len);
+			vif_cfg->ssid_len = director.ap_ssid_len;
 			ether_addr_copy(vif_cfg->ap_addr, ieee80211_ap_vif->addr);
 			/* register the interface */
 			add_interface = ops->add_interface;
@@ -3751,16 +3774,26 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			ret = add_interface(local->ieee80211_hw, local->ieee80211_mon_vif);
 		}
 	}
-
 	return ret;
 
 	/* handle here the hardmac driver callbacks */
 	cfg80211_ops:
 	if(strcmp(ops_req, "add_interface") == 0){
-
+		add_virtual_intf = cfg_ops->add_virtual_intf;
+		if(add_virtual_intf != NULL){
+			wireless_dev = add_virtual_intf(wiphy, num_args >= 3 ? argv[2] : "wlan1", 0, NL80211_IFTYPE_STATION, NULL);
+			if(IS_ERR(wireless_dev)){
+				ret = -EINVAL;
+				return ret;
+			}
+		}
 	}
 	if(strcmp(ops_req, "remove_interface") == 0){
-
+		del_virtual_intf = cfg_ops->del_virtual_intf;
+		if(del_virtual_intf != NULL && wireless_dev != NULL){
+			ret = del_virtual_intf(wiphy, wireless_dev);
+			return ret;
+		}
 	}
 	if(strcmp(ops_req, "start_ap") == 0){
 		ap_ssid = argv[2];
@@ -3770,10 +3803,32 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		}
 		director.ap_ssid = ap_ssid;
 		director.ap_ssid_len = strlen(ap_ssid);
-		fill_cfg80211_start_ap_req(ap_settings);
+		change_virtual_intf = cfg_ops->change_virtual_intf;
+		if(change_virtual_intf != NULL){
+			ret = change_virtual_intf(wiphy, net_device, NL80211_IFTYPE_AP, &params);
+			if(ret != 0){
+				return ret;
+			}
+		}
+		/* allocate the 'ap_settings' struct */
+		ap_settings = calloc(1, director.struct_sizes.cfg80211_ap_settings);
+		if(ap_settings == NULL){
+			ret = -ENOMEM;
+			return ret;
+		}
+		ret = fill_cfg80211_start_ap_req(ap_settings);
+		cfg80211_start_ap = cfg_ops->start_ap;
+		if(ret == 0 && cfg80211_start_ap != NULL){
+			ret = cfg80211_start_ap(wiphy, net_device, ap_settings);
+		}
+		free(ap_settings);
+		ap_settings = NULL;
 	}
 	if(strcmp(ops_req, "stop_ap") == 0){
-
+		cfg80211_stop_ap = cfg_ops->stop_ap;
+		if(cfg80211_stop_ap != NULL){
+			ret = cfg80211_stop_ap(wiphy, net_device, 0);
+		}
 	}
 	if(strcmp(ops_req, "monitor") == 0){
 
@@ -4943,6 +4998,7 @@ static int pe_entry_stub(void){
         director.usb_device_id = NULL;
         director.ieee80211_local = NULL;
         director.rdev = NULL;
+        director.net_device = NULL;
         director.ieee80211_ops = NULL;
         director.active_scan_req = NULL;
         director.connection_fsm = NULL;

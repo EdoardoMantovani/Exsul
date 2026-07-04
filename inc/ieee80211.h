@@ -12196,19 +12196,19 @@ static int bss_conf_init(struct ieee80211_hw *ieee80211_hw, struct ieee80211_vif
 static int fill_cfg80211_start_ap_req(struct cfg80211_ap_settings *ap_settings){
 	int ret = 0;
 	u8 ch = 1;
-	u8 tail[6];
-	u8 head[83];
+	static u8 tail[6];
+	static u8 head[83];
 	u8 *head_ptr = NULL;
 	struct wiphy *wiphy = NULL;
 	struct ieee80211_channel *chan = NULL;
 	struct cfg80211_beacon_data *beacon_data = NULL;
 
-	u8 xrates[4]     = {0x30,0x48,0x60,0x6c};
-	u8 brd[ETH_ALEN] = {0xff,0xff,0xff,0xff,0xff,0xff};
-	u8 rates[8]      = {0x82,0x84,0x8b,0x96,0x0c,0x12,0x18,0x24};
+	u8 xrates[4]         = {0x30,0x48,0x60,0x6c};
+	u8 brd[ETH_ALEN]     = {0xff,0xff,0xff,0xff,0xff,0xff};
+	u8 ap_addr[ETH_ALEN] = {0x02,0x00,0x00,0x52,0xc0,0x01};
+	u8 rates[8]          = {0x82,0x84,0x8b,0x96,0x0c,0x12,0x18,0x24};
 
 	head_ptr = head;
-
 	chan = ieee80211_get_channel(director.wiphy, ieee80211_channel_to_frequency(ch, NL80211_BAND_2GHZ));
 	/* generate the beacon header */
 	put_unaligned_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_BEACON, head_ptr);
@@ -12217,9 +12217,9 @@ static int fill_cfg80211_start_ap_req(struct cfg80211_ap_settings *ap_settings){
 	head_ptr += 2;
 	ether_addr_copy(head_ptr, brd);
 	head_ptr += ETH_ALEN;
-	ether_addr_copy(head_ptr, 0);
+	ether_addr_copy(head_ptr, ap_addr);
 	head_ptr += ETH_ALEN;
-	ether_addr_copy(head_ptr, 0);
+	ether_addr_copy(head_ptr, ap_addr);
 	head_ptr += ETH_ALEN;
 	put_unaligned_le16(0, head_ptr);
 	head_ptr += 2;
@@ -12320,10 +12320,11 @@ static int fill_start_ap_req(struct ieee80211_bss_conf *link_conf){
 }
 
 static u32 hw_scan_channel_count(struct wiphy *wiphy){
+	int ret = 0;
 	u32 count = 0;
 
 	if (wiphy == NULL){
-		return 0;
+		return ret;
 	}
 
 	for (enum nl80211_band band = 0; band < NUM_NL80211_BANDS; band++) {
@@ -12344,11 +12345,10 @@ static u32 hw_scan_channel_count(struct wiphy *wiphy){
 /* fill the 'hw_scan' request */
 static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 	int ret = 0;
-	struct ieee80211_local *local;
-	struct ieee80211_vif *ieee80211_vif;
-	struct wireless_dev *wdev = NULL;
 	struct wiphy *wiphy = NULL;
-
+	struct wireless_dev *wdev = NULL;
+	struct ieee80211_local *local = NULL;
+	struct ieee80211_vif *ieee80211_vif = NULL;
 	static struct cfg80211_ssid wildcard_ssid = {
 		.ssid_len = 0,
 	};
@@ -12370,7 +12370,6 @@ static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 		0x8c, 0x12, 0x98, 0x24, 0xb0, 0x48, 0x60, 0x6c,
 	};
 	static u8 scan_ies_combined[sizeof(scan_ies_2ghz) + sizeof(scan_ies_5ghz)];
-
 
 	if (scan_req == NULL){
 		ret = -EINVAL;
@@ -12491,6 +12490,7 @@ static int start_hw_scan(struct ieee80211_local *local,
 	clear_bit(SCAN_COMPLETED, &local->scanning);
 	clear_bit(SCAN_ABORTED, &local->scanning);
 	clear_bit(SCAN_HW_CANCELLED, &local->scanning);
+
 	scan_cache_reset();
 	atomic_store(&director.scan_in_progress, true);
 

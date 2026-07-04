@@ -7,6 +7,7 @@ struct fast_struct_size {
 	u16 file;
 	u16 wiphy;
 	u16 cfg80211_ops;
+	u16 cfg80211_ap_settings;
 	u16 ieee80211_sta;
         u16 ieee80211_hw;
         u16 ieee80211_ops;
@@ -145,6 +146,7 @@ struct module_controller {
 	struct allocation_list *module_allocation_list;
 
 	struct wiphy *wiphy;
+	struct net_device *net_device;
         struct rfkill *rfkill;
 	struct ieee80211_local *ieee80211_local;
         struct cfg80211_registered_device *rdev;

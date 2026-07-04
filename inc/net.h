@@ -483,10 +483,10 @@ static int dev_addr_init(struct net_device *netdev){
 		 * Get the first (previously created) address from the list
 		 * and set dev_addr pointer to this location.
 		 */
-		// TODO
-		//ha = list_first_entry(&netdev->dev_addrs.list, struct netdev_hw_addr, list);
+		ha = list_first_entry(&netdev->dev_addrs.list, struct netdev_hw_addr, list);
 		netdev->dev_addr = ha->addr;
 	}
+	director.net_device = netdev;
 	return ret;
 }
 

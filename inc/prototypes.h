@@ -536,7 +536,7 @@ void wiphy_unregister(void *wiphy);
 void *crypto_alloc_tfm_node(const char *alg_name, const struct crypto_type *frontend, u32 type, u32 mask, int node);
 char *strcat(char *dest, const char *src);
 void __raw_spin_lock_irq(void *lock);
-int register_netdevice(void *dev);
+int register_netdevice(struct net_device *dev);
 u64 get_random_u64(void);
 struct sk_buff *hci_cmd_sync(struct hci_dev *hdev, u16 opcode, u32 plen, const void *param, u32 timeout);
 void pci_clear_master(struct pci_dev *dev);

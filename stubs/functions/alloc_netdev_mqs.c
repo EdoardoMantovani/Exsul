@@ -24,7 +24,7 @@ struct net_device *alloc_netdev_mqs(int sizeof_priv, char *name, unsigned char n
 	}else{
 		netdev_size = director.struct_sizes.net_device;
 	}
-	netdev = calloc(1, netdev_size);
+	netdev = calloc(1, ALIGN(netdev_size, 32) + sizeof_priv);
 	if (netdev == NULL){
 		#ifdef ENABLE_DBG_PRINT
 		printf("[!] failed to allocate netdev!\n");
@@ -62,7 +62,6 @@ struct net_device *alloc_netdev_mqs(int sizeof_priv, char *name, unsigned char n
 		netdev->priv_flags |= IFF_NO_QUEUE;
 		netdev->tx_queue_len = DEFAULT_TX_QUEUE_LEN;
 	}
-
 	netdev->num_tx_queues = txqs;
 	netdev->real_num_tx_queues = txqs;
 	if(netdev->name == NULL){
@@ -72,6 +71,7 @@ struct net_device *alloc_netdev_mqs(int sizeof_priv, char *name, unsigned char n
 	netdev->name_assign_type = name_assign_type;
 	netdev->group = INIT_NETDEV_GROUP;
 
+	director.net_device = netdev;
 	return netdev;
 	free_all:
 	free(netdev);
