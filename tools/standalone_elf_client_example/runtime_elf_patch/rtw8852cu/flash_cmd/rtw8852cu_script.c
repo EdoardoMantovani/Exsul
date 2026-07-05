@@ -94,12 +94,14 @@
 #endif
 
 /* prototypes for the standard kernel API && standalone ELF init functions */
+void *get_net_device(void);
 void elf_initialize_driver(void);
 void *get_ieee80211_priv_data(void);
 u32 mac_flash_read(void *adapter, u32 addr, u32 length, u8 *buffer, u32 timeout);
 
 int main(void){
 	int ret = 0;
+	void *net_device = NULL;
 	u16 read_buffer_len = 0;
 	u8  read_buffer[MAX_READ_BUFFER_LENGTH] = 0;
 
@@ -111,5 +113,5 @@ int main(void){
 		ret = -EINVAL;
 		return ret;
 	}
-
+	net_device = get_net_device();
 }

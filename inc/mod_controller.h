@@ -120,6 +120,8 @@ struct module_controller {
 	pthread_cond_t  usb_io_idle;
 	int usb_io_depth;
 
+	/* official init callback present in 'struct module' */
+	int (LINUX_ABI *init_cb)(void);
 	/* init driver function */
 	int (LINUX_ABI *driver_init_function)(void);
 	/* backup copy of the 'usb_device_id' table */
@@ -148,6 +150,7 @@ struct module_controller {
 	struct allocation_list *module_allocation_list;
 
 	struct wiphy *wiphy;
+	struct wireless_dev *wdev;
 	struct net_device *net_device;
         struct rfkill *rfkill;
 	struct ieee80211_local *ieee80211_local;

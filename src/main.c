@@ -56,6 +56,10 @@ void *get_ieee80211_local(void){
 	return director.ieee80211_local;
 }
 
+void *get_net_device(void){
+	return director.net_device;
+}
+
 void *get_ieee80211_hw(void){
 	if(director.ieee80211_local == NULL){
 		return NULL;
@@ -2101,6 +2105,8 @@ static int do_init_module(struct module *mod) {
 	}
 
 	mod->state = MODULE_STATE_LIVE;
+	/* save the 'init' callback */
+	director.init_cb = mod->init;
 	trim_init_extable(mod);
 	return ret;
 }
@@ -3479,12 +3485,14 @@ int handle_ieee80211_config(struct ieee80211_hw *ieee80211_hw, struct ieee80211_
 /* permits to invoke various 'ops' struct registered by running the loaded kernel module, like 'ieee80211_ops' */
 int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args) {
         int ret = 0;
+	int intf_type = 0;
 	bool enable = false;
 	struct wiphy *wiphy = NULL;
 	struct net_device *net_device = NULL;
 	struct wireless_dev *wireless_dev = NULL;
         unsigned char *ops_req = NULL;
 	unsigned char *ap_ssid = NULL;
+	unsigned char *curr_intf = NULL;
 	struct ieee80211_ops *ops = NULL;
 	struct cfg80211_ops *cfg_ops = NULL;
 	struct ieee80211_local *local = NULL;
@@ -3514,12 +3522,14 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	void (*abort_scan)(struct wiphy *wiphy, struct wireless_dev *wdev) = NULL;
 	int (*scan)(struct wiphy *wiphy, struct cfg80211_scan_request *request) = NULL;
 	int (*del_virtual_intf)(struct wiphy *wiphy, struct wireless_dev *wdev) = NULL;
-	int (*change_virtual_intf)(struct wiphy *wiphy, struct net_device *dev, enum nl80211_iftype type, struct vif_params *params) = NULL;
+	int (*testmode_cmd)(struct wiphy *wiphy, struct wireless_dev *wdev, void *data, int len) = NULL;
 	int (*cfg80211_stop_ap)(struct wiphy *wiphy, struct net_device *dev, unsigned int link_id) = NULL;
 	int (*auth)(struct wiphy *wiphy, struct net_device *dev, struct cfg80211_auth_request *req) = NULL;
 	int (*assoc)(struct wiphy *wiphy, struct net_device *dev, struct cfg80211_assoc_request *req) = NULL;
 	int (*deauth)(struct wiphy *wiphy, struct net_device *dev, struct cfg80211_deauth_request *req) = NULL;
 	int (*cfg80211_start_ap)(struct wiphy *wiphy, struct net_device *dev, struct cfg80211_ap_settings *settings) = NULL;
+	int (*testmode_dump)(struct wiphy *wiphy, struct sk_buff *skb, struct netlink_callback *cb, void *data, int len) = NULL;
+	int (*change_virtual_intf)(struct wiphy *wiphy, struct net_device *dev, enum nl80211_iftype type, struct vif_params *params) = NULL;
 	struct wireless_dev *(*add_virtual_intf)(struct wiphy *wiphy, const char *name, unsigned char name_assign_type, enum nl80211_iftype type, struct vif_params *params) = NULL;
 
 	struct vif_params params = {
@@ -3539,7 +3549,8 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		cfg_ops = __director->cfg80211_ops;
 		if(cfg_ops == NULL){
 			printf("[!] ieee80211 and cfg80211 callbacks are NULL!\n");
-			return -EINVAL;
+			ret = -EINVAL;
+			return ret;
 		}
 
 		wiphy = __director->wiphy;
@@ -3549,7 +3560,8 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		net_device = __director->net_device;
 		if(wiphy == NULL || net_device == NULL){
 			printf("[!] cfg80211 wiphy or net_device is NULL!\n");
-			return -EINVAL;
+			ret = -EINVAL;
+			return ret;
 		}
 		__director->wiphy = wiphy;
 		wireless_dev = net_device->ieee80211_ptr;
@@ -3559,7 +3571,8 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	local = __director->ieee80211_local;
 	if(local == NULL || local->ieee80211_hw == NULL){
 		printf("[!] local->ieee80211_hw is NULL!\n");
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 
 	mac80211_ops:
@@ -3567,6 +3580,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		start = ops->start;
 		if(start != NULL){
 			ret = start(local->ieee80211_hw);
+			return ret;
 		}
 	}
 	if(strcmp(ops_req, "stop") == 0){
@@ -3576,6 +3590,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		}
 	}
 	if(strcmp(ops_req, "add_interface") == 0){
+		curr_intf = argv[2];
 		add_interface = ops->add_interface;
 		if(add_interface != NULL){
 			/* verify that local->ieee80211_vif isn't allocated or initialized */
@@ -3588,7 +3603,34 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 				ieee80211_hw = local->ieee80211_hw;
 				local->ieee80211_vif = calloc(1, director.struct_sizes.ieee80211_vif + ieee80211_hw->vif_data_size);
 				ieee80211_vif = local->ieee80211_vif;
-				ieee80211_vif->type = NL80211_IFTYPE_STATION;
+				if(curr_intf == NULL){
+					ieee80211_vif->type = NL80211_IFTYPE_STATION;
+				}else{
+					if(strstr(curr_intf, "sta") != NULL){
+						ieee80211_vif->type = NL80211_IFTYPE_STATION;
+					}
+					if(strstr(curr_intf, "ap") != NULL){
+						ieee80211_vif->type = NL80211_IFTYPE_AP;
+					}
+					if(strstr(curr_intf, "ocb") != NULL){
+						ieee80211_vif->type = NL80211_IFTYPE_OCB;
+					}
+					if(strstr(curr_intf, "hoc") != NULL){
+						ieee80211_vif->type = NL80211_IFTYPE_ADHOC;
+					}
+					if(strstr(curr_intf, "wds") != NULL){
+						ieee80211_vif->type = NL80211_IFTYPE_WDS;
+					}
+					if(strstr(curr_intf, "monitor") != NULL){
+						ieee80211_vif->type = NL80211_IFTYPE_MONITOR;
+					}
+					if(strstr(curr_intf, "mesh") != NULL){
+						ieee80211_vif->type = NL80211_IFTYPE_MESH_POINT;
+					}
+					if(strstr(curr_intf, "nan") != NULL){
+						ieee80211_vif->type = NL80211_IFTYPE_NAN;
+					}
+				}
 				memset(&ieee80211_vif->bss_conf, 0, director.struct_sizes.ieee80211_bss_conf);
 				bss_conf = &ieee80211_vif->bss_conf;
 				bss_conf->vif = ieee80211_vif;
@@ -3788,13 +3830,52 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	/* handle here the hardmac driver callbacks */
 	cfg80211_ops:
 	if(strcmp(ops_req, "add_interface") == 0){
+		curr_intf = argv[2];
 		add_virtual_intf = cfg_ops->add_virtual_intf;
 		if(add_virtual_intf != NULL){
-			wireless_dev = add_virtual_intf(wiphy, num_args >= 3 ? argv[2] : "wlan1", 0, NL80211_IFTYPE_STATION, NULL);
+			if(curr_intf == NULL){
+				intf_type  = NL80211_IFTYPE_STATION;
+			}else{
+				if(strstr(curr_intf, "sta") != NULL){
+					intf_type = NL80211_IFTYPE_STATION;
+				}
+				if(strstr(curr_intf, "ap") != NULL){
+					intf_type = NL80211_IFTYPE_AP;
+				}
+				if(strstr(curr_intf, "ocb") != NULL){
+					intf_type = NL80211_IFTYPE_OCB;
+				}
+				if(strstr(curr_intf, "hoc") != NULL){
+					intf_type = NL80211_IFTYPE_ADHOC;
+				}
+				if(strstr(curr_intf, "wds") != NULL){
+					intf_type = NL80211_IFTYPE_WDS;
+				}
+				if(strstr(curr_intf, "monitor") != NULL){
+					intf_type  = NL80211_IFTYPE_MONITOR;
+				}
+				if(strstr(curr_intf, "mesh") != NULL){
+					intf_type  = NL80211_IFTYPE_MESH_POINT;
+				}
+				if(strstr(curr_intf, "nan") != NULL){
+					intf_type = NL80211_IFTYPE_NAN;
+				}
+			}
+			net_device = director.net_device;
+			params.flags = 0;
+			params.use_4addr = 0;
+			if(net_device != NULL){
+				memcpy(params.macaddr, director.net_device, ETH_ALEN);
+			}else{
+				memset(params.macaddr, 0xFF, ETH_ALEN);
+			}
+			wireless_dev = add_virtual_intf(wiphy, num_args >= 3 ? curr_intf : "wlan1", 0, intf_type, &params);
 			if(IS_ERR(wireless_dev)){
+				printf("[!] failed to create a new wireless interface!\n");
 				ret = -EINVAL;
 				return ret;
 			}
+			director.wdev = wireless_dev;
 		}
 	}
 	if(strcmp(ops_req, "remove_interface") == 0){
@@ -3802,6 +3883,41 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		if(del_virtual_intf != NULL && wireless_dev != NULL){
 			ret = del_virtual_intf(wiphy, wireless_dev);
 			return ret;
+		}
+	}
+	if(strcmp(ops_req, "switch") == 0 || strcmp(ops_req, "change_interface") == 0){
+		curr_intf = argv[2];
+		change_virtual_intf = cfg_ops->change_virtual_intf;
+		if(change_virtual_intf != NULL){
+			if(curr_intf == NULL){
+				intf_type  = NL80211_IFTYPE_STATION;
+			}else{
+				if(strstr(curr_intf, "sta") != NULL){
+					intf_type = NL80211_IFTYPE_STATION;
+				}
+				if(strstr(curr_intf, "ap") != NULL){
+					intf_type = NL80211_IFTYPE_AP;
+				}
+				if(strstr(curr_intf, "ocb") != NULL){
+					intf_type = NL80211_IFTYPE_OCB;
+				}
+				if(strstr(curr_intf, "hoc") != NULL){
+					intf_type = NL80211_IFTYPE_ADHOC;
+				}
+				if(strstr(curr_intf, "wds") != NULL){
+					intf_type = NL80211_IFTYPE_WDS;
+				}
+				if(strstr(curr_intf, "monitor") != NULL){
+					intf_type  = NL80211_IFTYPE_MONITOR;
+				}
+				if(strstr(curr_intf, "mesh") != NULL){
+					intf_type  = NL80211_IFTYPE_MESH_POINT;
+				}
+				if(strstr(curr_intf, "nan") != NULL){
+					intf_type = NL80211_IFTYPE_NAN;
+				}
+			}
+			ret = change_virtual_intf(wiphy, net_device, intf_type, &params);
 		}
 	}
 	if(strcmp(ops_req, "rx") == 0){
@@ -3865,6 +3981,8 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			ret = -EINVAL;
 			return ret;
 		}
+		/* allocate the scan request for cfg80211 */
+		cfg80211_scan_req = calloc(1, director.struct_sizes.cfg80211_scan_request);
 		ret = fill_cfg80211_start_scan_req(cfg80211_scan_req);
 		if(ret < 0 || cfg80211_scan_req == NULL){
 			printf("[!] failed to create the cfg80211 scan request!\n");
@@ -3878,6 +3996,25 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 
 	}
 	if(strcmp(ops_req, "auth") == 0){
+
+	}
+	if(strcmp(ops_req, "deauth") == 0){
+
+	}
+	if(strcmp(ops_req, "assoc") == 0){
+
+	}
+	if(strcmp(ops_req, "connect") == 0){
+
+	}
+	if(strcmp(ops_req, "disconnect") == 0){
+
+	}
+	/* implement also the 'testmode' callbacks */
+	if(strcmp(ops_req, "testmode_cmd") == 0){
+
+	}
+	if(strcmp(ops_req, "testmode_dump") == 0){
 
 	}
 	if(strcmp(ops_req, "monitor") == 0){
@@ -4385,6 +4522,14 @@ int elf_entry_stub(int argc, char *argv[]){
 	drv_integrate_scripting();
 	#endif
 
+	if(director.init_cb == NULL){
+		goto try_second_init;
+	}else{
+		ret = director.init_cb();
+		elf_entry_socket(&director);
+	}
+
+	try_second_init:
 	/* call the driver init */
 	if(director.driver_init_function != NULL){
 		fast_get_symbol("_driver_init", &director.driver_init_function);

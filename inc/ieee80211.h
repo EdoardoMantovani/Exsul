@@ -12117,6 +12117,96 @@ static int bss_conf_init(struct ieee80211_hw *ieee80211_hw, struct ieee80211_vif
 
 static int fill_cfg80211_start_scan_req(struct cfg80211_scan_request *cfg80211_scan_req){
 	int ret = 0;
+	int n_channels = 0;
+	struct wiphy *wiphy = NULL;
+	struct wireless_dev *wdev = NULL;
+	struct net_device *net_device = NULL;
+	struct ieee80211_local *local = NULL;
+	struct ieee80211_scan_ies *ies = NULL;
+	struct ieee80211_vif *ieee80211_vif = NULL;
+	struct ieee80211_supported_band *sband = NULL;
+	static struct cfg80211_ssid wildcard_ssid = {
+		.ssid_len = 0,
+	};
+
+	/*
+	 * Keep probe requests conservative. Capability IEs copied from a
+	 * different kernel/interface can advertise combinations which do not
+	 * describe the running hardware and some APs simply ignore them.
+	 */
+	const u8 scan_ies_2ghz[] = {
+		WLAN_EID_SUPP_RATES, 8,
+		0x82, 0x84, 0x8b, 0x96, 0x0c, 0x12, 0x18, 0x24,
+		WLAN_EID_EXT_SUPP_RATES, 4,
+		0x30, 0x48, 0x60, 0x6c,
+	};
+	const u8 scan_ies_5ghz[] = {
+		WLAN_EID_SUPP_RATES, 8,
+		0x8c, 0x12, 0x98, 0x24, 0xb0, 0x48, 0x60, 0x6c,
+	};
+	u8 scan_ies_combined[sizeof(scan_ies_2ghz) + sizeof(scan_ies_5ghz)];
+
+	if(director.wiphy == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+	wiphy = director.wiphy;
+	if(director.net_device == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+	net_device = director.net_device;
+	if(net_device->ieee80211_ptr == NULL){
+		if(director.wdev == NULL){
+			ret = -EINVAL;
+			return ret;
+		}
+		wdev = director.wdev;
+	}else{
+		wdev = net_device->ieee80211_ptr;
+	}
+
+	cfg80211_scan_req->ie = scan_ies_combined;
+	cfg80211_scan_req->ie_len = sizeof(scan_ies_combined);
+	cfg80211_scan_req->ssids = &wildcard_ssid;
+	cfg80211_scan_req->n_ssids = 1;
+	cfg80211_scan_req->n_channels = 0;
+	for (enum nl80211_band band = 0; band < NUM_NL80211_BANDS; band++) {
+		sband = wiphy->bands[band];
+		if (sband == NULL || band == NL80211_BAND_6GHZ){
+			continue;
+		}
+		for (int i = 0; i < sband->n_channels; i++) {
+			if (sband->channels[i].flags & IEEE80211_CHAN_DISABLED){
+				continue;
+			}
+			n_channels = cfg80211_scan_req->n_channels++;
+			cfg80211_scan_req->channels[n_channels] = &sband->channels[i];
+		}
+	}
+
+	cfg80211_scan_req->duration = 0;
+	cfg80211_scan_req->duration_mandatory = false;
+	cfg80211_scan_req->scan_start = 0;
+	cfg80211_scan_req->flags = 0;
+
+	for (enum nl80211_band band = 0; band < NUM_NL80211_BANDS; band++){
+		cfg80211_scan_req->rates[band] = wiphy->bands[band] ? (u32)-1 : 0;
+	}
+
+	memset(cfg80211_scan_req->mac_addr, 0, ETH_ALEN);
+	memset(cfg80211_scan_req->mac_addr_mask, 0, ETH_ALEN);
+	eth_broadcast_addr(cfg80211_scan_req->bssid);
+
+	cfg80211_scan_req->no_cck = false;
+	cfg80211_scan_req->scan_6ghz = false;
+	cfg80211_scan_req->first_part = true;
+	cfg80211_scan_req->n_6ghz_params = 0;
+	cfg80211_scan_req->scan_6ghz_params = NULL;
+	cfg80211_scan_req->tsf_report_link_id = -1;
+
+	cfg80211_scan_req->wiphy = wiphy;
+	cfg80211_scan_req->wdev = wdev;
 
 	return ret;
 }
@@ -12308,7 +12398,7 @@ static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 	}
 	local = director.ieee80211_local;
 	if (local == NULL || local->wiphy == NULL){
-		ret =-EINVAL;
+		ret = -EINVAL;
 		return ret;
 	}
 	wiphy = local->wiphy;
