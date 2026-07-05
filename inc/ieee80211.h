@@ -5791,84 +5791,6 @@ struct cfg80211_pmsr_capabilities {
 };
 
 /*
- * struct cfg80211_scan_request - scan request description
- *
- * @ssids: SSIDs to scan for (active scan only)
- * @n_ssids: number of SSIDs
- * @channels: channels to scan on.
- * @n_channels: total number of channels to scan
- * @ie: optional information element(s) to add into Probe Request or %NULL
- * @ie_len: length of ie in octets
- * @duration: how long to listen on each channel, in TUs. If
- *	%duration_mandatory is not set, this is the maximum dwell time and
- *	the actual dwell time may be shorter.
- * @duration_mandatory: if set, the scan duration must be as specified by the
- *	%duration field.
- * @flags: control flags from &enum nl80211_scan_flags
- * @rates: bitmap of rates to advertise for each band
- * @wiphy: the wiphy this was for
- * @scan_start: time (in jiffies) when the scan started
- * @wdev: the wireless device to scan for
- * @no_cck: used to send probe requests at non CCK rate in 2GHz band
- * @mac_addr: MAC address used with randomisation
- * @mac_addr_mask: MAC address mask used with randomisation, bits that
- *	are 0 in the mask should be randomised, bits that are 1 should
- *	be taken from the @mac_addr
- * @scan_6ghz: relevant for split scan request only,
- *	true if this is a 6 GHz scan request
- * @first_part: %true if this is the first part of a split scan request or a
- *	scan that was not split. May be %true for a @scan_6ghz scan if no other
- *	channels were requested
- * @n_6ghz_params: number of 6 GHz params
- * @scan_6ghz_params: 6 GHz params
- * @bssid: BSSID to scan for (most commonly, the wildcard BSSID)
- * @tsf_report_link_id: for MLO, indicates the link ID of the BSS that should be
- *      used for TSF reporting. Can be set to -1 to indicate no preference.
- */
-struct cfg80211_scan_request {
-	struct cfg80211_ssid *ssids;
-	int n_ssids;
-	u32 n_channels;
-	const u8 *ie;
-	size_t ie_len;
-	u16 duration;
-	bool duration_mandatory;
-	u32 flags;
-
-	u32 rates[NUM_NL80211_BANDS];
-
-	struct wireless_dev *wdev;
-
-	u8 mac_addr[ETH_ALEN] __aligned(2);
-	u8 mac_addr_mask[ETH_ALEN] __aligned(2);
-	u8 bssid[ETH_ALEN] __aligned(2);
-	struct wiphy *wiphy;
-	unsigned long scan_start;
-	bool no_cck;
-	bool scan_6ghz;
-	bool first_part;
-	u32 n_6ghz_params;
-	struct cfg80211_scan_6ghz_params *scan_6ghz_params;
-	s8 tsf_report_link_id;
-
-	/* keep last */
-	struct ieee80211_channel *channels[];
-};
-
-/*
- * struct ieee80211_scan_request - hw scan request
- *
- * @ies: pointers different parts of IEs (in req.ie)
- * @req: cfg80211 request.
- */
-struct ieee80211_scan_request {
-	struct ieee80211_scan_ies ies;
-
-	/* Keep last */
-	struct cfg80211_scan_request req;
-};
-
-/*
  * struct ieee80211_sta_he_cap - STA's HE capabilities
  *
  * This structure describes most essential parameters needed
@@ -12193,6 +12115,12 @@ static int bss_conf_init(struct ieee80211_hw *ieee80211_hw, struct ieee80211_vif
 	return ret;
 }
 
+static int fill_cfg80211_start_scan_req(struct cfg80211_scan_request *cfg80211_scan_req){
+	int ret = 0;
+
+	return ret;
+}
+
 static int fill_cfg80211_start_ap_req(struct cfg80211_ap_settings *ap_settings){
 	int ret = 0;
 	u8 ch = 1;
@@ -12345,10 +12273,14 @@ static u32 hw_scan_channel_count(struct wiphy *wiphy){
 /* fill the 'hw_scan' request */
 static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 	int ret = 0;
+	int n_channels = 0;
 	struct wiphy *wiphy = NULL;
 	struct wireless_dev *wdev = NULL;
 	struct ieee80211_local *local = NULL;
+	struct ieee80211_scan_ies *ies = NULL;
 	struct ieee80211_vif *ieee80211_vif = NULL;
+	struct ieee80211_supported_band *sband = NULL;
+	struct cfg80211_scan_request *cfg80211_scan_req = NULL;
 	static struct cfg80211_ssid wildcard_ssid = {
 		.ssid_len = 0,
 	};
@@ -12364,12 +12296,11 @@ static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 		WLAN_EID_EXT_SUPP_RATES, 4,
 		0x30, 0x48, 0x60, 0x6c,
 	};
-
 	const u8 scan_ies_5ghz[] = {
 		WLAN_EID_SUPP_RATES, 8,
 		0x8c, 0x12, 0x98, 0x24, 0xb0, 0x48, 0x60, 0x6c,
 	};
-	static u8 scan_ies_combined[sizeof(scan_ies_2ghz) + sizeof(scan_ies_5ghz)];
+	u8 scan_ies_combined[sizeof(scan_ies_2ghz) + sizeof(scan_ies_5ghz)];
 
 	if (scan_req == NULL){
 		ret = -EINVAL;
@@ -12382,29 +12313,30 @@ static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 	}
 	wiphy = local->wiphy;
 
-	memset(scan_req, 0, sizeof(*scan_req));
+	memset(scan_req, 0, director.struct_sizes.ieee80211_scan_request);
 	memcpy(scan_ies_combined, scan_ies_2ghz, sizeof(scan_ies_2ghz));
 	memcpy(scan_ies_combined + sizeof(scan_ies_2ghz), scan_ies_5ghz, sizeof(scan_ies_5ghz));
 
-	scan_req->ies.ies[NL80211_BAND_2GHZ] = scan_ies_combined;
-	scan_req->ies.len[NL80211_BAND_2GHZ] = sizeof(scan_ies_2ghz);
+	ies = &scan_req->ies;
+	ies->ies[NL80211_BAND_2GHZ] = scan_ies_combined;
+	ies->len[NL80211_BAND_2GHZ] = sizeof(scan_ies_2ghz);
 
-	scan_req->ies.ies[NL80211_BAND_5GHZ] = scan_ies_combined + sizeof(scan_ies_2ghz);
-	scan_req->ies.len[NL80211_BAND_5GHZ] = sizeof(scan_ies_5ghz);
+	ies->ies[NL80211_BAND_5GHZ] = scan_ies_combined + sizeof(scan_ies_2ghz);
+	ies->len[NL80211_BAND_5GHZ] = sizeof(scan_ies_5ghz);
 
-	scan_req->ies.common_ies = NULL;
-	scan_req->ies.common_ie_len = 0;
+	ies->common_ies = NULL;
+	ies->common_ie_len = 0;
 
-	scan_req->req.ie = scan_ies_combined;
-	scan_req->req.ie_len = sizeof(scan_ies_combined);
+	cfg80211_scan_req = &scan_req->req;
+	cfg80211_scan_req->ie = scan_ies_combined;
+	cfg80211_scan_req->ie_len = sizeof(scan_ies_combined);
 
-	scan_req->req.ssids = &wildcard_ssid;
-	scan_req->req.n_ssids = 1;
+	cfg80211_scan_req->ssids = &wildcard_ssid;
+	cfg80211_scan_req->n_ssids = 1;
 
-	scan_req->req.n_channels = 0;
+	cfg80211_scan_req->n_channels = 0;
 	for (enum nl80211_band band = 0; band < NUM_NL80211_BANDS; band++) {
-		struct ieee80211_supported_band *sband = wiphy->bands[band];
-
+		sband = wiphy->bands[band];
 		if (sband == NULL || band == NL80211_BAND_6GHZ){
 			continue;
 		}
@@ -12412,38 +12344,39 @@ static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 			if (sband->channels[i].flags & IEEE80211_CHAN_DISABLED){
 				continue;
 			}
-			scan_req->req.channels[scan_req->req.n_channels++] = &sband->channels[i];
+			n_channels = cfg80211_scan_req->n_channels++;
+			cfg80211_scan_req->channels[n_channels] = &sband->channels[i];
 		}
 	}
 
-	scan_req->req.duration = 0;
-	scan_req->req.duration_mandatory = false;
-	scan_req->req.scan_start = 0;
-	scan_req->req.flags = 0;
+	cfg80211_scan_req->duration = 0;
+	cfg80211_scan_req->duration_mandatory = false;
+	cfg80211_scan_req->scan_start = 0;
+	cfg80211_scan_req->flags = 0;
 
 	for (enum nl80211_band band = 0; band < NUM_NL80211_BANDS; band++){
-		scan_req->req.rates[band] = wiphy->bands[band] ? (u32)-1 : 0;
+		cfg80211_scan_req->rates[band] = wiphy->bands[band] ? (u32)-1 : 0;
 	}
 
-	memset(scan_req->req.mac_addr, 0, ETH_ALEN);
-	memset(scan_req->req.mac_addr_mask, 0, ETH_ALEN);
-	eth_broadcast_addr(scan_req->req.bssid);
+	memset(cfg80211_scan_req->mac_addr, 0, ETH_ALEN);
+	memset(cfg80211_scan_req->mac_addr_mask, 0, ETH_ALEN);
+	eth_broadcast_addr(cfg80211_scan_req->bssid);
 
-	scan_req->req.no_cck = false;
-	scan_req->req.scan_6ghz = false;
-	scan_req->req.first_part = true;
-	scan_req->req.n_6ghz_params = 0;
-	scan_req->req.scan_6ghz_params = NULL;
-	scan_req->req.tsf_report_link_id = -1;
+	cfg80211_scan_req->no_cck = false;
+	cfg80211_scan_req->scan_6ghz = false;
+	cfg80211_scan_req->first_part = true;
+	cfg80211_scan_req->n_6ghz_params = 0;
+	cfg80211_scan_req->scan_6ghz_params = NULL;
+	cfg80211_scan_req->tsf_report_link_id = -1;
 
-	scan_req->req.wiphy = wiphy;
+	cfg80211_scan_req->wiphy = wiphy;
 
 	if (local->ieee80211_vif) {
 		ieee80211_vif = local->ieee80211_vif;
 		wdev = &ieee80211_vif->wdev;
 	}
 
-	scan_req->req.wdev = wdev;
+	cfg80211_scan_req->wdev = wdev;
 	return ret;
 }
 
@@ -12452,7 +12385,7 @@ static int start_hw_scan(struct ieee80211_local *local,
 			 void (*cancel_hw_scan)(struct ieee80211_hw *hw, struct ieee80211_vif *vif)){
 	int ret = 0;
 	u32 n_channels = 0;
-	struct ieee80211_scan_request *scan_req;
+	struct ieee80211_scan_request *scan_req = NULL;
 
 	if (local == NULL || local->wiphy == NULL || local->ieee80211_hw == NULL || local->ieee80211_vif == NULL || hw_scan == NULL){
 		ret = -EINVAL;
@@ -12472,13 +12405,13 @@ static int start_hw_scan(struct ieee80211_local *local,
 	}
 
 	free(director.active_scan_req);
-	director.active_scan_req = calloc(1, sizeof(*scan_req) + n_channels * sizeof(scan_req->req.channels[0]));
+	director.active_scan_req = calloc(1, director.struct_sizes.ieee80211_scan_request + n_channels * sizeof(struct ieee80211_channel));
 	if (director.active_scan_req == NULL){
 		ret = -ENOMEM;
 		return ret;
 	}
-	scan_req = director.active_scan_req;
 
+	scan_req = director.active_scan_req;
 	ret = fill_hw_scan_req(scan_req);
 	if (ret != 0){
 		printf("[!] hw_scan request initialization failed: %d\n", ret);

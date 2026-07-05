@@ -2518,9 +2518,17 @@ int collect_sizes(struct module_controller *director){
         if(current_struct_size != director->struct_sizes.ieee80211_vif && current_struct_size > 0){
                 director->struct_sizes.ieee80211_vif = current_struct_size;
         }
+	current_struct_size = get_struct_size("cfg80211_scan_request");
+	if(current_struct_size != director->struct_sizes.cfg80211_scan_request && current_struct_size > 0){
+		director->struct_sizes.cfg80211_scan_request = current_struct_size;
+	}
 	current_struct_size = get_struct_size("cfg80211_ap_settings");
 	if(current_struct_size != director->struct_sizes.cfg80211_ap_settings && current_struct_size > 0){
 		director->struct_sizes.cfg80211_ap_settings = current_struct_size;
+	}
+	current_struct_size = get_struct_size("ieee80211_scan_request");
+	if(current_struct_size != director->struct_sizes.ieee80211_scan_request && current_struct_size > 0){
+		director->struct_sizes.ieee80211_scan_request = current_struct_size;
 	}
         current_struct_size = get_struct_size("ieee80211_bss_conf");
         if(current_struct_size != director->struct_sizes.ieee80211_bss_conf && current_struct_size > 0){
@@ -3488,6 +3496,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	struct ieee80211_vif *ieee80211_ap_vif = NULL;
 	struct ieee80211_vif *ieee80211_mon_vif = NULL;
 	struct cfg80211_ap_settings *ap_settings = NULL;
+	struct cfg80211_scan_request *cfg80211_scan_req = NULL;
 	/* callbacks prototypes for mac80211 */
 	int (*start)(struct ieee80211_hw *hw) = NULL;
 	void (*stop)(struct ieee80211_hw *hw, bool suspend) = NULL;
@@ -3795,9 +3804,28 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			return ret;
 		}
 	}
+	if(strcmp(ops_req, "rx") == 0){
+		enable = true;
+
+		if(num_args >= 3 && argv[2] != NULL){
+			if(strcmp(argv[2], "off") == 0 || strcmp(argv[2], "0") == 0){
+				enable = false;
+			}else if(strcmp(argv[2], "on") != 0 && strcmp(argv[2], "1") != 0){
+				printf("[!] rx: ops rx [on|off|status]\n");
+				ret = -EINVAL;
+				return ret;
+			}
+		}
+		atomic_store(&__director->rx_dump_enabled, enable);
+		if(enable){
+			atomic_store(&__director->rx_dump_sequence, 0);
+		}
+		printf("[*] RX hexdump %s\n", enable ? "enabled" : "disabled");
+	}
 	if(strcmp(ops_req, "start_ap") == 0){
 		ap_ssid = argv[2];
 		if(ap_ssid == NULL){
+			printf("[!] usage: ops start_ap <ssid_name>!\n");
 			ret = -EINVAL;
 			return ret;
 		}
@@ -3829,6 +3857,28 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		if(cfg80211_stop_ap != NULL){
 			ret = cfg80211_stop_ap(wiphy, net_device, 0);
 		}
+	}
+	if(strcmp(ops_req, "scan") == 0 || strcmp(ops_req, "hw_scan") == 0){
+		scan = cfg_ops->scan;
+		if(scan == NULL){
+			printf("[!] cfg80211 scan callback not found!\n");
+			ret = -EINVAL;
+			return ret;
+		}
+		ret = fill_cfg80211_start_scan_req(cfg80211_scan_req);
+		if(ret < 0 || cfg80211_scan_req == NULL){
+			printf("[!] failed to create the cfg80211 scan request!\n");
+			ret = -ENOMEM;
+			return ret;
+		}
+		ret = scan(wiphy, cfg80211_scan_req);
+		return ret;
+	}
+	if(strcmp(ops_req, "abort_scan") == 0){
+
+	}
+	if(strcmp(ops_req, "auth") == 0){
+
 	}
 	if(strcmp(ops_req, "monitor") == 0){
 

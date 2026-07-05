@@ -55,12 +55,13 @@ static int send_all(int fd, const void *buffer, size_t length){
 			return ret;
 		}
 		if(ret == 0){
-			return -EIO;
+			ret = -EIO;
+			return ret;
 		}
 		sent += (size_t)ret;
 	}
 
-	return 0;
+	return ret;
 }
 
 int main(int argc, char *argv[]){

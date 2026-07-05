@@ -166,9 +166,11 @@ my %struct_whitelist = (
 	"usb_driver"		=> "usb_driver",
 	"hdev"			=> "hci_dev",
 	"hci_conn"		=> "hci_conn",
+	"cfg80211_scan"		=> "cfg80211_scan_request",
 	"settings"		=> "cfg80211_ap_settings",
 	"cfg80211_beacon"	=> "cfg80211_beacon_data",
 	"link_conf"		=> "ieee80211_bss_conf",
+	"ieee80211_scan"	=> "ieee80211_scan_request",
 	"ieee80211_vif" 	=> "ieee80211_vif",
 	"ieee80211_vif_cfg"	=> "ieee80211_vif_cfg",
 	"connection_vif"	=> "ieee80211_vif",
@@ -578,6 +580,31 @@ my %field_ctype = (
 	hci_conn => {
 		"list"					=> "struct list_head",
 	},
+	cfg80211_scan_request => {
+		"ssids"					=> "struct cfg80211_ssid *",
+		"n_ssids"				=> "int",
+		"n_channels"				=> "u32",
+		"scan_width"				=> "int", # translate 'enum nl80211_bss_scan_width' to 'int'
+		"ie"					=> "u8 *",
+		"ie_len"				=> "size_t",
+		"duration"				=> "u16",
+		"duration_mandatory"			=> "bool",
+		"flags"					=> "u32",
+		"rates"					=> "u32",
+		"wdev"					=> "struct wireless_dev *",
+		"mac_addr"				=> "u8",
+		"mac_addr_mask"				=> "u8",
+		"bssid"					=> "u8",
+		"wiphy"					=> "struct wiphy *",
+		"scan_start"				=> "unsigned long",
+		"info"					=> "struct cfg80211_scan_info",
+		"notified"				=> "bool",
+		"no_cck"				=> "bool",
+		"scan_6ghz"				=> "bool",
+		"n_6ghz_params"				=> "u32",
+		"scan_6ghz_params"			=> "struct cfg80211_scan_6ghz_params *",
+		"channels"				=> "struct ieee80211_channel *",
+	},
 	cfg80211_ap_settings => {
 		"chandef"				=> "struct cfg80211_chan_def",
 		"beacon"				=> "struct cfg80211_beacon_data",
@@ -726,6 +753,10 @@ my %field_ctype = (
 		"bss_param_ch_cnt_link_id"		=> "u8",
 		"s1g_long_beacon_period"		=> "u8",
 	},
+	ieee80211_scan_request => {
+		"ies"					=> "struct ieee80211_scan_ies",
+		"req"					=> "struct cfg80211_scan_request",
+	},
 	ieee80211_vif => {
 		"type"					=> "enum nl80211_iftype",
 		"cfg"					=> "struct ieee80211_vif_cfg",
@@ -781,6 +812,13 @@ my %inline_array_field = (
 	},
 	wiphy => {
 		"bands"				=> 1,
+	},
+	cfg80211_scan_request => {
+		"rates"				=> 1,
+		"mac_addr"			=> 1,
+		"mac_addr_mask"			=> 1,
+		"bssid"				=> 1,
+		"channels"			=> 1,
 	},
 	skb_shared_info => {
 		"frags"				=> 1,

@@ -7,7 +7,9 @@ struct fast_struct_size {
 	u16 file;
 	u16 wiphy;
 	u16 cfg80211_ops;
+	u16 cfg80211_scan_request;
 	u16 cfg80211_ap_settings;
+	u16 ieee80211_scan_request;
 	u16 ieee80211_sta;
         u16 ieee80211_hw;
         u16 ieee80211_ops;

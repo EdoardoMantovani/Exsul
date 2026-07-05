@@ -12,6 +12,7 @@ int ieee80211_register_hw(struct ieee80211_hw *hw) {
 	struct wiphy *wiphy = NULL;
 	struct ieee80211_ops *ops = NULL;
 	struct ieee80211_local *local = NULL;
+	struct cfg80211_scan_request *int_scan_req = NULL;
 	struct cfg80211_chan_def dflt_chandef = {};
 
 	local = director.ieee80211_local;
@@ -130,20 +131,19 @@ int ieee80211_register_hw(struct ieee80211_hw *hw) {
 	wiphy->interface_modes |= BIT(NL80211_IFTYPE_MONITOR);
 	wiphy->software_iftypes |= BIT(NL80211_IFTYPE_MONITOR);
 
-	local->int_scan_req = calloc(1, sizeof(struct cfg80211_scan_request) +
-				        sizeof(struct cfg80211_scan_request) * channels);
+	int_scan_req = calloc(1, director.struct_sizes.cfg80211_scan_request + director.struct_sizes.cfg80211_scan_request * channels);
+	local->int_scan_req = int_scan_req;
 	if (local->int_scan_req == NULL){
 		ret = -ENOMEM;
 		return ret;
 	}
 
-	eth_broadcast_addr(local->int_scan_req->bssid);
-
+	eth_broadcast_addr(int_scan_req->bssid);
 	for (band = 0; band < NUM_NL80211_BANDS; band++) {
 		if (!wiphy->bands[band]){
 			continue;
 		}
-		local->int_scan_req->rates[band] = (u32)-1;
+		int_scan_req->rates[band] = (u32)-1;
 	}
 
 	if (wiphy->interface_modes & BIT(NL80211_IFTYPE_MESH_POINT)){
@@ -304,6 +304,6 @@ int ieee80211_register_hw(struct ieee80211_hw *hw) {
 	ieee80211_led_exit(local);
 	destroy_workqueue(local->workqueue);
  fail_workqueue:
-	kfree(local->int_scan_req);
+	kfree(int_scan_req);
 	return ret;
 }
