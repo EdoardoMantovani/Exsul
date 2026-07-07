@@ -1,3 +1,6 @@
 int register_netdev(void *dev){
-	return register_netdevice(dev);
+	int ret = 0;
+
+	ret = register_netdevice(dev);
+	return ret;
 }

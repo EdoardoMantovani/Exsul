@@ -22,6 +22,7 @@
 /* for setting kernel sock attribute on TCP connection setup */
 #define GSO_MAX_SEGS			65535u
 #define GSO_LEGACY_MAX_SIZE		65536u
+
 /* TCP minimal MSS is 8 (TCP_MIN_GSO_SIZE),
  * and shinfo->gso_segs is a 16bit field.
  */
@@ -109,6 +110,21 @@
 #define NETIF_F_GSO_SOFTWARE	(NETIF_F_ALL_TSO | \
 				 NETIF_F_GSO_ACCECN | NETIF_F_GSO_SCTP | \
 				 NETIF_F_GSO_UDP_L4 | NETIF_F_GSO_FRAGLIST)
+#ifndef NETDEV_UP
+#define NETDEV_UP               1
+#define NETDEV_DOWN             2
+#define NETDEV_REBOOT           3
+#define NETDEV_CHANGE           4
+#define NETDEV_REGISTER         5
+#define NETDEV_UNREGISTER       6
+#define NETDEV_GOING_DOWN       9
+#define NETDEV_CHANGENAME       11
+#define NETDEV_PRE_UP           14
+#define NETDEV_POST_INIT        17
+#endif
+
+#define MAX_NETDEVICE_NOTIFIERS 16
+
 enum {
 	NETIF_F_SG_BIT,			/* Scatter/gather IO. */
 	NETIF_F_IP_CSUM_BIT,		/* Can checksum TCP/UDP over IPv4. */
@@ -220,7 +236,20 @@ enum netdev_reg_state {
 	NETREG_DUMMY,		/* dummy device for NAPI poll */
 };
 
-/**
+struct netdev_notifier_info {
+	struct net_device *dev;
+	void *extack;
+};
+
+struct netdev_addr_slot {
+	struct net_device *dev;
+	u8 addr[MAX_ADDR_LEN];
+};
+
+static struct netdev_addr_slot netdev_addr_slots[16];
+static struct notifier_block *netdevice_notifiers[MAX_NETDEVICE_NOTIFIERS];
+
+/*
  * enum netdev_priv_flags - &struct net_device priv_flags
  *
  * These are the &struct net_device, they are only set internally
@@ -459,6 +488,13 @@ static int __hw_addr_add(struct netdev_hw_addr_list *list, unsigned char *addr, 
 	return ret;
 }
 
+static void init_dummy_netdev(struct net_device *netdev){
+	netdev->reg_state = NETREG_DUMMY;
+
+	set_bit(__LINK_STATE_PRESENT, &netdev->state);
+	set_bit(__LINK_STATE_START,   &netdev->state);
+}
+
 /*
  *	dev_addr_init - Init device address list
  *	@dev: device
@@ -488,26 +524,6 @@ static int dev_addr_init(struct net_device *netdev){
 	}
 	director.net_device = netdev;
 	return ret;
-}
-
-/* Initialize the core of a dummy net device.
- * The setup steps dummy netdevs need which normal netdevs get by going
- * through register_netdevice().
- */
-static void init_dummy_netdev(struct net_device *netdev){
-	/* make sure we BUG if trying to hit standard
-	 * register/unregister code path
-	 */
-	netdev->reg_state = NETREG_DUMMY;
-
-	/* a dummy interface is started by default */
-	set_bit(__LINK_STATE_PRESENT, &netdev->state);
-	set_bit(__LINK_STATE_START, &netdev->state);
-
-	/* Note : We dont allocate pcpu_refcnt for dummy devices,
-	 * because users of this 'device' dont need to change
-	 * its refcount.
-	 */
 }
 
 static int __netif_receive_skb_one_core(struct sk_buff *skb, bool pfmemalloc){
@@ -574,5 +590,59 @@ static int netif_receive_skb_internal(struct sk_buff *skb){
 	}
 
 	ret = __netif_receive_skb(skb);
+	return ret;
+}
+
+static int call_netdevice_notifiers(unsigned long state, struct net_device *dev){
+	int ret = 0;
+	int (*notifier_call)(struct notifier_block *nb, unsigned long action, void *data) = NULL;
+
+	struct netdev_notifier_info info = {
+		.dev = dev,
+		.extack = NULL,
+	};
+
+	if(dev == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	for(int i = 0; i < MAX_NETDEVICE_NOTIFIERS; i++){
+		if(netdevice_notifiers[i] == NULL){
+			continue;
+		}
+		notifier_call = netdevice_notifiers[i]->notifier_call;
+		if(notifier_call != NULL){
+			ret = notifier_call(netdevice_notifiers[i], state, &info);
+			if(ret & NOTIFY_STOP_MASK){
+				break;
+			}
+		}
+	}
+	return ret;
+}
+
+static int netdevice_open(struct net_device *dev){
+	int ret = 0;
+	struct net_device_ops *ops = NULL;
+	int (*ndo_open)(struct net_device *dev) = NULL;
+
+	if(dev == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	call_netdevice_notifiers(NETDEV_PRE_UP, dev);
+	ops = dev->netdev_ops;
+	if(ops != NULL){
+		ndo_open = ops->ndo_open;
+	}
+	if(ndo_open != NULL){
+		ret = ndo_open(dev);
+	}
+	if(ret == 0){
+		set_bit(__LINK_STATE_START, &dev->state);
+		call_netdevice_notifiers(NETDEV_UP, dev);
+	}
 	return ret;
 }

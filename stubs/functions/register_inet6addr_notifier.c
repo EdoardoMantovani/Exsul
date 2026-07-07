@@ -1,3 +1,5 @@
 int register_inet6addr_notifier(void *nb){
-	return 0;
+	int ret = 0;
+
+	return ret;
 }

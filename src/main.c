@@ -3505,6 +3505,8 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	struct ieee80211_vif *ieee80211_mon_vif = NULL;
 	struct cfg80211_ap_settings *ap_settings = NULL;
 	struct cfg80211_scan_request *cfg80211_scan_req = NULL;
+	u32 cfg80211_scan_channels = 0;
+	size_t cfg80211_scan_req_size = 0;
 	/* callbacks prototypes for mac80211 */
 	int (*start)(struct ieee80211_hw *hw) = NULL;
 	void (*stop)(struct ieee80211_hw *hw, bool suspend) = NULL;
@@ -3680,6 +3682,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		}
 		ret = wifi_auth_connection_start(local, argv[2], num_args >= 4 ? argv[3] : NULL);
 	}
+
 	if(strcmp(ops_req, "rx") == 0){
 		enable = true;
 
@@ -3920,6 +3923,11 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			ret = change_virtual_intf(wiphy, net_device, intf_type, &params);
 		}
 	}
+	/* simulate the 'net_device' open callback */
+	if(strcmp(ops_req, "open") == 0){
+		ret = netdevice_open(net_device);
+		return ret;
+	}
 	if(strcmp(ops_req, "rx") == 0){
 		enable = true;
 
@@ -3981,11 +3989,25 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			ret = -EINVAL;
 			return ret;
 		}
-		/* allocate the scan request for cfg80211 */
-		cfg80211_scan_req = calloc(1, director.struct_sizes.cfg80211_scan_request);
+		cfg80211_scan_channels = hw_scan_channel_count(wiphy);
+		if(cfg80211_scan_channels == 0){
+			printf("[!] cfg80211 scan: no enabled channels are registered\n");
+			ret = -EINVAL;
+			return ret;
+		}
+
+		/* cfg80211_scan_request has a trailing channels[] pointer array. */
+		cfg80211_scan_req_size = director.struct_sizes.cfg80211_scan_request +
+			cfg80211_scan_channels * sizeof(struct ieee80211_channel *);
+		cfg80211_scan_req = calloc(1, cfg80211_scan_req_size);
+		if(cfg80211_scan_req == NULL){
+			ret = -ENOMEM;
+			return ret;
+		}
 		ret = fill_cfg80211_start_scan_req(cfg80211_scan_req);
-		if(ret < 0 || cfg80211_scan_req == NULL){
+		if(ret < 0){
 			printf("[!] failed to create the cfg80211 scan request!\n");
+			free(cfg80211_scan_req);
 			ret = -ENOMEM;
 			return ret;
 		}

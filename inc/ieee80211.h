@@ -12129,22 +12129,18 @@ static int fill_cfg80211_start_scan_req(struct cfg80211_scan_request *cfg80211_s
 		.ssid_len = 0,
 	};
 
-	/*
-	 * Keep probe requests conservative. Capability IEs copied from a
-	 * different kernel/interface can advertise combinations which do not
-	 * describe the running hardware and some APs simply ignore them.
+/*
+	 * Keep probe requests conservative and keep them in static storage: the
+	 * fullmac cfg80211 path can retain the scan request asynchronously.
 	 */
-	const u8 scan_ies_2ghz[] = {
+	static const u8 scan_ies_combined[] = {
 		WLAN_EID_SUPP_RATES, 8,
 		0x82, 0x84, 0x8b, 0x96, 0x0c, 0x12, 0x18, 0x24,
 		WLAN_EID_EXT_SUPP_RATES, 4,
 		0x30, 0x48, 0x60, 0x6c,
-	};
-	const u8 scan_ies_5ghz[] = {
 		WLAN_EID_SUPP_RATES, 8,
 		0x8c, 0x12, 0x98, 0x24, 0xb0, 0x48, 0x60, 0x6c,
 	};
-	u8 scan_ies_combined[sizeof(scan_ies_2ghz) + sizeof(scan_ies_5ghz)];
 
 	if(director.wiphy == NULL){
 		ret = -EINVAL;

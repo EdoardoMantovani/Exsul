@@ -31,7 +31,20 @@ struct usb_anchor;
 struct usb_interface;
 struct usb_host_config;
 
-struct notifier_block;
+struct net_device;
+
+struct notifier_block {
+	int (*notifier_call)(struct notifier_block *nb, unsigned long action, void *data);
+	struct notifier_block *next;
+	int priority;
+};
+
+struct net_device_ops {
+	int (*ndo_init)(struct net_device *dev);
+	void (*ndo_uninit)(struct net_device *dev);
+	int (*ndo_open)(struct net_device *dev);
+	int (*ndo_stop)(struct net_device *dev);
+};
 
 struct sock;
 struct rfkill;

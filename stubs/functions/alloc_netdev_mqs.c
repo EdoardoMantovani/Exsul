@@ -73,6 +73,7 @@ struct net_device *alloc_netdev_mqs(int sizeof_priv, char *name, unsigned char n
 
 	director.net_device = netdev;
 	return netdev;
+
 	free_all:
 	free(netdev);
 	return NULL;

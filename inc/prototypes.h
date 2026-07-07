@@ -34,7 +34,7 @@ struct ieee80211_channel *ieee80211_get_channel_khz(struct wiphy *wiphy, u32 fre
 int strncmp(const char *cs, const char *ct, size_t count);
 ssize_t memory_read_from_buffer(void *to, size_t count, loff_t *ppos, const void *from, size_t available);
 void _dev_printk(const char *level, const void *dev, const char *fmt, ...);
-int register_netdevice_notifier(void *nb);
+int register_netdevice_notifier(struct notifier_block *nb);
 struct sk_buff *skb_dequeue(struct sk_buff_head *list);
 struct usb_device *usb_get_dev(struct usb_device *dev);
 int param_set_uint_minmax(const char *val, const struct kernel_param *kp, unsigned int min, unsigned int max);
@@ -43,7 +43,7 @@ void cfg80211_chandef_create(struct cfg80211_chan_def *chandef, struct ieee80211
 void get_netmem(netmem_ref netmem);
 int hci_devcd_init(struct hci_dev *hdev, u32 dump_size);
 bool __list_del_entry_valid_or_report(struct list_head *entry);
-int unregister_netdevice_notifier(void *nb);
+int unregister_netdevice_notifier(struct notifier_block *nb);
 void validate_usercopy_range(void);
 void yield(void);
 char *strnchr(const char *s, size_t count, int c);
@@ -373,7 +373,7 @@ void ieee80211_verify_alignment(struct ieee80211_rx_data *rx);
 void __const_udelay(unsigned long xloops);
 void ieee80211_rx_8023(struct ieee80211_rx_data *rx, struct ieee80211_fast_rx *fast_rx, int orig_len);
 void usb_autopm_put_interface(struct usb_interface *intf);
-unsigned short eth_type_trans(void *skb, void *dev);
+unsigned short eth_type_trans(void *skb_ptr, void *dev);
 void *__kmalloc_large_noprof(size_t size, int flags);
 int kstrtouint(const char *s, unsigned int base, unsigned int *res);
 int futex_wait(atomic_int *addr, int expected);

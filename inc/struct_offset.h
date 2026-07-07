@@ -1435,7 +1435,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[17] = {
 				.struct_size = 0,
 				.struct_name = "net_device",
-				.struct_field_num = 31,
+				.struct_field_num = 33,
 				.fields = {
 					[0] = {
 						.field_name = "close_list",
@@ -1454,110 +1454,118 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[4] = {
-						.field_name = "features",
+						.field_name = "ethtool_ops",
 						.field_offset = 0,
 					},
 					[5] = {
-						.field_name = "group",
+						.field_name = "features",
 						.field_offset = 0,
 					},
 					[6] = {
-						.field_name = "gso_max_segs",
+						.field_name = "group",
 						.field_offset = 0,
 					},
 					[7] = {
-						.field_name = "gso_max_size",
+						.field_name = "gso_max_segs",
 						.field_offset = 0,
 					},
 					[8] = {
-						.field_name = "hw_features",
+						.field_name = "gso_max_size",
 						.field_offset = 0,
 					},
 					[9] = {
-						.field_name = "ieee80211_ptr",
+						.field_name = "hw_features",
 						.field_offset = 0,
 					},
 					[10] = {
-						.field_name = "max_mtu",
+						.field_name = "ieee80211_ptr",
 						.field_offset = 0,
 					},
 					[11] = {
-						.field_name = "mc",
+						.field_name = "max_mtu",
 						.field_offset = 0,
 					},
 					[12] = {
-						.field_name = "min_mtu",
+						.field_name = "mc",
 						.field_offset = 0,
 					},
 					[13] = {
-						.field_name = "name",
+						.field_name = "min_mtu",
 						.field_offset = 0,
 					},
 					[14] = {
-						.field_name = "name_assign_type",
+						.field_name = "name",
 						.field_offset = 0,
 					},
 					[15] = {
-						.field_name = "needed_headroom",
+						.field_name = "name_assign_type",
 						.field_offset = 0,
 					},
 					[16] = {
-						.field_name = "needed_tailroom",
+						.field_name = "needed_headroom",
 						.field_offset = 0,
 					},
 					[17] = {
-						.field_name = "net_notifier_list",
+						.field_name = "needed_tailroom",
 						.field_offset = 0,
 					},
 					[18] = {
-						.field_name = "num_tx_queues",
+						.field_name = "net_notifier_list",
 						.field_offset = 0,
 					},
 					[19] = {
-						.field_name = "pcpu_stat_type",
+						.field_name = "netdev_ops",
 						.field_offset = 0,
 					},
 					[20] = {
-						.field_name = "perm_addr",
+						.field_name = "num_tx_queues",
 						.field_offset = 0,
 					},
 					[21] = {
-						.field_name = "priv_flags",
+						.field_name = "pcpu_stat_type",
 						.field_offset = 0,
 					},
 					[22] = {
-						.field_name = "priv_len",
+						.field_name = "perm_addr",
 						.field_offset = 0,
 					},
 					[23] = {
-						.field_name = "ptype_all",
+						.field_name = "priv_flags",
 						.field_offset = 0,
 					},
 					[24] = {
-						.field_name = "ptype_specific",
+						.field_name = "priv_len",
 						.field_offset = 0,
 					},
 					[25] = {
-						.field_name = "real_num_tx_queues",
+						.field_name = "ptype_all",
 						.field_offset = 0,
 					},
 					[26] = {
-						.field_name = "reg_state",
+						.field_name = "ptype_specific",
 						.field_offset = 0,
 					},
 					[27] = {
-						.field_name = "state",
+						.field_name = "real_num_tx_queues",
 						.field_offset = 0,
 					},
 					[28] = {
-						.field_name = "tx_queue_len",
+						.field_name = "reg_state",
 						.field_offset = 0,
 					},
 					[29] = {
-						.field_name = "uc",
+						.field_name = "state",
 						.field_offset = 0,
 					},
 					[30] = {
+						.field_name = "tx_queue_len",
+						.field_offset = 0,
+					},
+					[31] = {
+						.field_name = "uc",
+						.field_offset = 0,
+					},
+					[32] = {
 						.field_name = "unreg_list",
 						.field_offset = 0,
 					},

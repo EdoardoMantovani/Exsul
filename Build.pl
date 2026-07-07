@@ -357,6 +357,11 @@ my %field_ctype = (
 		"rx_handler"				=> "void *",
 		"rx_handler_data"			=> "void *",
 		"state"					=> "unsigned long",
+		"real_num_tx_queues"			=> "unsigned int",
+		"gso_max_size"				=> "unsigned int",
+		"gso_ipv4_max_size"			=> "unsigned int",
+		"gso_max_segs"				=> "u16",
+		"num_tc"				=> "s16",
 	},
 	usb_interface => {
 		"altsetting"				=> "struct usb_host_interface *",
