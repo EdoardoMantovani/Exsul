@@ -1,9 +1,11 @@
 int dev_alloc_name(void *dev, const char *name){
+	int ret = 0;
 	char tmpl[IFNAMSIZ];
 	struct net_device *netdev = dev;
 
 	if(netdev == NULL || name == NULL){
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 
 	strncpy(tmpl, name, sizeof(tmpl) - 1);
@@ -14,5 +16,5 @@ int dev_alloc_name(void *dev, const char *name){
 		strncpy((char *)&netdev->name, tmpl, IFNAMSIZ - 1);
 		((char *)&netdev->name)[IFNAMSIZ - 1] = '\0';
 	}
-	return 0;
+	return ret;
 }

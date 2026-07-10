@@ -1689,18 +1689,21 @@ static inline unsigned long create_zero_mask(unsigned long bits){
 static unsigned long zero_bytemask(unsigned long bits);
 
 static ssize_t exsul_sized_strscpy(char *dest, const char *src, size_t count){
-        const struct word_at_a_time constants           = WORD_AT_A_TIME_CONSTANTS;
-        size_t max                                      = count;
-        long res                                        = 0;
+	int ret = 0;
+	long res = 0;
+	size_t max = 0;
+	const struct word_at_a_time constants = WORD_AT_A_TIME_CONSTANTS;
 
-        if (count == 0 || (count > 99999999)){
-                return -E2BIG;
-        }
+	max = count;
+	if (count == 0 || (count > 99999999)){
+		ret = -EINVAL;
+		return ret;
+	}
 
         if ((long)src & (sizeof(long) - 1)) {
                 size_t limit = 4096 - ((long)src & (4096 - 1));
                 if (limit < max){
-                        max                             = limit;
+                        max = limit;
                 }
         }
 
@@ -1739,7 +1742,8 @@ static ssize_t exsul_sized_strscpy(char *dest, const char *src, size_t count){
                 dest[res-1]                             = '\0';
         }
 
-        return -E2BIG;
+        ret = -E2BIG;
+	return ret;
 }
 
 /**
@@ -1777,10 +1781,12 @@ static bool is_a_number(unsigned char character){
 }
 
 static int speed_duplex_to_capa(int speed, unsigned int duplex){
-	if (duplex == DUPLEX_UNKNOWN || (speed > SPEED_1000 && duplex != DUPLEX_FULL)){
-		return -EINVAL;
-	}
+	int ret = 0;
 
+	if (duplex == DUPLEX_UNKNOWN || (speed > SPEED_1000 && duplex != DUPLEX_FULL)){
+		ret = -EINVAL;
+		return ret;
+	}
 	switch (speed) {
 		case SPEED_10: return duplex == DUPLEX_FULL ? LINK_CAPA_10FD : LINK_CAPA_10HD;
 		case SPEED_100: return duplex == DUPLEX_FULL ? LINK_CAPA_100FD : LINK_CAPA_100HD;
@@ -1800,7 +1806,8 @@ static int speed_duplex_to_capa(int speed, unsigned int duplex){
 		case SPEED_1600000: return LINK_CAPA_1600000FD;
 	}
 
-	return -EINVAL;
+	ret = -EINVAL;
+	return ret;
 }
 
 /* functions for handling the allocation list */

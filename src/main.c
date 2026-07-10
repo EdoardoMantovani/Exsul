@@ -47,13 +47,21 @@ struct exsul_protocol_hdr {
         u16 len;
 };
 
-/* get the main context, trick for helping during the script mode of the standalone ELF */
+/* APIs used by the standalone ELF scripting system */
 void *get_director(void){
 	return &director;
 }
 
 void *get_ieee80211_local(void){
 	return director.ieee80211_local;
+}
+
+void *get_wiphy(void){
+	return director.wiphy;
+}
+
+void *get_wireless_dev(void){
+	return director.wdev;
 }
 
 void *get_net_device(void){
@@ -85,6 +93,7 @@ void *skb_get_data(struct sk_buff *skb){
 	return skb->data;
 }
 
+/* parse_module_usb_table: get the vid/pid entries from the loaded kernel object */
 int parse_module_usb_table(struct usb_device_id **id){
 	int ret = 0;
 	int usb_table_size = 0;
@@ -150,6 +159,7 @@ int parse_module_usb_table(struct usb_device_id **id){
 }
 
 #ifdef ADVANCED_USB_DEBUGGING
+/* dump_usb_host_interface: dump the endpoints from an attached usb device */
 void dump_usb_host_interface(struct usb_interface *intf){
 	if(intf == NULL){
 		return;
@@ -174,6 +184,7 @@ void dump_usb_host_interface(struct usb_interface *intf){
 }
 #endif
 
+/* parse_usb_and_alloc_intf: allocate the 'usb_interface' struct which will be passed to the 'probe' callback of the driver */
 int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface **in_intf) {
         int ret = 0;
         int int_number = 0;
@@ -200,7 +211,6 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
         }
 
         *in_intf = NULL;
-
         libusb_dev = libusb_get_device(handler);
         if (libusb_dev == NULL) {
 		#ifdef ENABLE_DBG_PRINT
@@ -285,8 +295,8 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
                 ret = -ENOMEM;
                 goto fail_free_intf;
         }
-	intf_ptr->num_altsetting = num_altsetting;
 
+	intf_ptr->num_altsetting = num_altsetting;
         for (u8 k = 0; k < num_altsetting; k++) {
                 alt = &libusb_intf->altsetting[k];
 
@@ -338,7 +348,6 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 	}
 
 	intf_ptr->cur_altsetting = &intf_ptr->altsetting[0];
-
         udev_ptr = (struct usb_device *)calloc(1, struct_usb_device_size);
         if (udev_ptr == NULL) {
 		#ifdef ENABLE_DBG_PRINT
@@ -416,7 +425,8 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
         return ret;
 }
 
-/* Under Windows and other OS, 'usb_modeswitch' isn't always available, in this case, invoke the hardcoded minimal implementation of modeswitch */
+/* usb_disk_modeswitch: under Windows and other OS, 'usb_modeswitch' isn't always available,
+ * in this case, invoke the hardcoded minimal implementation of modeswitch */
 static int usb_disk_modeswitch(struct module_controller *controller){
 	int ret = 0;
 	int transferred = 0;
@@ -473,7 +483,7 @@ static int usb_disk_modeswitch(struct module_controller *controller){
 	return ret;
 }
 
-/* main function for detecting the attached usb dongle, requires a full 'usb_dev_list' table */
+/* detect_usb_device: main function for detecting the attached usb dongle, requires a full 'usb_dev_list' table */
 int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface **intf_out, const struct usb_device_id **matched_id_out){
 	int ret = 0;
 	struct usb_interface *usb_intf = NULL;
@@ -535,25 +545,25 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 	#ifdef ENABLE_DBG_PRINT
 	printf("[!] usb device not attached to the host!\n");
 	#endif
-	return -ENODEV;
+	ret = -ENODEV;
+	return ret;
 }
 
+/* invoke_usb_probe: call the driver's probe callback */
 int invoke_usb_probe(struct usb_driver *new_driver, struct usb_device_id *id, struct usb_interface *intf){
 	int ret = 0;
 	int (LINUX_ABI *probe)(struct usb_interface *intf, const struct usb_device_id *id) = NULL;
 	probe = new_driver->probe;
 
-	#ifdef ENABLE_DBG_PRINT
-	printf("[*] invoking usb probe!\n");
-	#endif
 	/* in normal conditions here a mutex would have been implemented, but in this case there is no necessity */
-	probe(intf, id);
+	ret = probe(intf, id);
 
 	return ret;
 }
 
-/* Read the DW_AT_data_member_location of a DWARF member DIE. */
+/* dwarf_get_member_offset: read the DW_AT_data_member_location of a DWARF member DIE. */
 static Dwarf_Unsigned dwarf_get_member_offset(Dwarf_Debug dbg, Dwarf_Die member_die){
+	int ret = 0;
 	Dwarf_Error err = 0;
 	Dwarf_Attribute attr = 0;
 	Dwarf_Unsigned offset = 0;
@@ -561,7 +571,7 @@ static Dwarf_Unsigned dwarf_get_member_offset(Dwarf_Debug dbg, Dwarf_Die member_
 	char *block = NULL;
 
 	if (dwarf_attr(member_die, DW_AT_data_member_location, &attr, &err) != DW_DLV_OK){
-		return 0;
+		return ret;
 	}
 	if (dwarf_formudata(attr, &offset, &err) != DW_DLV_OK) {
 		if (dwarf_formexprloc(attr, &exprlen, &block, &err) == DW_DLV_OK && exprlen > 0 && block) {
@@ -649,12 +659,14 @@ static int dwarf_search_field_recursive(unsigned char *field_input_name, Dwarf_D
 	return ret;
 }
 
+/* dwarf_search_field: wrapper for 'dwarf_search_field_recursive' */
 int dwarf_search_field(unsigned char *field_input_name, Dwarf_Debug dbg, Dwarf_Die struct_die){
 	int ret = 0;
 	ret = dwarf_search_field_recursive(field_input_name, dbg, struct_die, 0);
 	return ret;
 }
 
+/* dwarf_detect_struct: find a struct in the dwarf module data */
 int dwarf_detect_struct(Dwarf_Debug dbg, Dwarf_Die die, unsigned char *struct_to_search, Dwarf_Die *struct_found, unsigned short *out_size){
 	int ret = 0;
 	Dwarf_Error err = 0;
@@ -732,6 +744,7 @@ int dwarf_detect_struct(Dwarf_Debug dbg, Dwarf_Die die, unsigned char *struct_to
 	return ret;
 }
 
+/* dwarf_loader_parser: init the dwarf parser and start the scan on the loaded kernel object */
 int dwarf_loader_parser(unsigned char *struct_to_search, unsigned char *field_to_search, unsigned short *field_offset, unsigned short *out_size){
 	int ret = 0;
 	int fd = -1;
@@ -823,7 +836,6 @@ int parse_module_offset_table(void){
 	struct struct_field *current_struct_fields = NULL;
 
 	runtime_structs = &runtime_generated_structs;
-
 	if(runtime_structs == NULL){
 		#ifdef ENABLE_DBG_PRINT
 		printf("[!] no runtime struct data!\n");
@@ -881,7 +893,7 @@ unsigned char *mem_type_to_string(enum mod_mem_type type){
 }
 #endif
 
-/* start of the core kernel functions related to the loading of lkm */
+/* module_next_tag_pair: start of the core kernel functions related to the loading of lkm */
 unsigned char *module_next_tag_pair(char *string, unsigned long *secsize) {
 	while (string[0]) {
 		string++;
@@ -1733,6 +1745,9 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 				secbase = info->sechdrs[sym[i].st_shndx].sh_addr;
 			}
 			sym[i].st_value += secbase;
+				if(ELF64_ST_TYPE(sym[i].st_info) == STT_FUNC && strcmp(name, "init_module") == 0 && sym[i].st_value != 0){
+					director.init_cb = (int (LINUX_ABI *)(void))(uintptr_t)sym[i].st_value;
+				}
                         /*
                          * if we have a function which is defined inside this module, add it to the internal symbol table, this will permit
                          * to resolve the relocations when we will have multi-modules dependencies
@@ -2094,7 +2109,6 @@ static int do_init_module(struct module *mod) {
 	int ret = 0;
 
 	do_mod_ctors(mod);
-
 	if (ret > 0) {
 		#ifdef ENABLE_DBG_PRINT
 		printf("%s: '%s'->init suspiciously returned %d, it should "
@@ -2105,8 +2119,11 @@ static int do_init_module(struct module *mod) {
 	}
 
 	mod->state = MODULE_STATE_LIVE;
-	/* save the 'init' callback */
-	director.init_cb = mod->init;
+	director.mod = mod;
+	/* Keep the latest loaded module's init callback; dependency modules are loaded first. */
+	if(mod->init != NULL){
+		director.init_cb = (int (LINUX_ABI *)(void))mod->init;
+	}
 	trim_init_extable(mod);
 	return ret;
 }
@@ -2695,6 +2712,28 @@ int fast_get_name_in_range(void *sym_addr, unsigned char **sym_name){
 	return ret;
 }
 
+/* used in the standalone ELF dump, permits to invoke cfg80211 (and callbacks from 'net_device_ops') callbacks in a simpler way */
+int fast_run_cfg80211_cb(enum fast_run_ops current_ops) {
+	int ret = 0;
+	struct net_device *net_device = NULL;
+
+	net_device = director.net_device;
+	if(net_device == NULL){
+		printf("[!] net_device is NULL!\n");
+		ret = -EINVAL;
+		return ret;
+	}
+
+	if(current_ops == NDO_INIT){
+		ret = netdevice_init(net_device);
+	}
+	if(current_ops == NDO_OPEN){
+		ret = netdevice_open(net_device);
+	}
+
+	return ret;
+}
+
 /* used in the standalone ELF dump, permits to invoke ieee80211 callbacks in a simpler way */
 int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 	int ret = 0;
@@ -2725,7 +2764,7 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 	}
 
 	local = director.ieee80211_local;
-	if(local->ieee80211_hw == NULL){
+	if(local == NULL || local->ieee80211_hw == NULL){
 		printf("[!] local->ieee80211_hw is NULL!\n");
 		ret = -EINVAL;
 		return ret;
@@ -2895,18 +2934,24 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 	return ret;
 }
 
-/* used inside the tcc scripts for the standalone.elf for initializing the driver, calls start, add_interface and so on.. */
+/* used inside the tcc scripts for the standalone.elf for initializing the driver, calls 'start', 'add_interface' and so on.. */
 void elf_initialize_driver(void){
-	/* Start hardware before invoking callbacks which access channel state. */
-	fast_run_ieee80211_cb(IEEE80211_START);
-	/* invoke the 'add_interface' callback */
-	fast_run_ieee80211_cb(IEEE80211_ADD_INTERFACE);
-	/* invoke the 'config' callback */
-	fast_run_ieee80211_cb(IEEE80211_CONFIG);
-	/* invoke the 'configure_filter' callback */
-	fast_run_ieee80211_cb(IEEE80211_CONFIGURE_FILTER);
-	/* invoke a preliminary 'hw_scan' */
-	fast_run_ieee80211_cb(IEEE80211_HW_SCAN);
+	/* decide if use 'ieee80211_ops' or 'cfg80211_ops' */
+	if(director.ieee80211_ops != NULL){
+		/* Start hardware before invoking callbacks which access channel state. */
+		fast_run_ieee80211_cb(IEEE80211_START);
+		/* invoke the 'add_interface' callback */
+		fast_run_ieee80211_cb(IEEE80211_ADD_INTERFACE);
+		/* invoke the 'config' callback */
+		fast_run_ieee80211_cb(IEEE80211_CONFIG);
+		/* invoke the 'configure_filter' callback */
+		fast_run_ieee80211_cb(IEEE80211_CONFIGURE_FILTER);
+		/* invoke a preliminary 'hw_scan' */
+		fast_run_ieee80211_cb(IEEE80211_HW_SCAN);
+	}else{
+		/* invoke the 'ndo_open' callback */
+		fast_run_cfg80211_cb(NDO_OPEN);
+	}
 }
 
 #ifdef __linux__
@@ -3220,21 +3265,53 @@ static int drv_resolve_driver_init(struct module_controller *director, unsigned 
 	return ret;
 }
 
-/* 'start' will permit to fully initialize the Wi-Fi/Bluetooth interface without the need of invoking 'ops' command  */
+static int drv_resolve_kernel_object_init(struct module_controller *controller, unsigned char **resolved_name){
+	int ret = 0;
+	struct module *mod = NULL;
+
+	if(controller == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	if(resolved_name != NULL){
+		*resolved_name = NULL;
+	}
+
+	mod = controller->mod;
+	if(mod != NULL && mod->init != NULL){
+		controller->init_cb = (int (LINUX_ABI *)(void))mod->init;
+		controller->driver_init_function = controller->init_cb;
+		if(resolved_name != NULL){
+			*resolved_name = (unsigned char *)"struct module.init";
+		}
+		return ret;
+	}
+
+	if(controller->init_cb != NULL){
+		controller->driver_init_function = controller->init_cb;
+		if(resolved_name != NULL){
+			*resolved_name = (unsigned char *)"init_module";
+		}
+		return ret;
+	}
+
+	ret = drv_resolve_driver_init(controller, resolved_name);
+	if(ret == 0){
+		return ret;
+	}
+
+	ret = -ENOENT;
+	return ret;
+}
+
+/* drv_cmd_start: fully initialize the Wi-Fi/Bluetooth interface without the need of invoking 'ops' command  */
 int drv_cmd_start(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
 	unsigned char *driver_init_name = NULL;
 
-	if(director->ieee80211_ops != NULL || director->ieee80211_local != NULL){
-		#ifdef ENABLE_DBG_PRINT
-		printf("[!] driver is already initialized\n");
-		#endif
-		ret = -EALREADY;
-		return ret;
-	}
-
-	ret = drv_resolve_driver_init(director, &driver_init_name);
-	if(ret < 0 || director->driver_init_function == NULL){
+	ret = drv_resolve_kernel_object_init(director, &driver_init_name);
+	if(ret < 0){
 		#ifdef ENABLE_DBG_PRINT
 		printf("[!] driver init function not found!\n");
 		#endif
@@ -3243,16 +3320,19 @@ int drv_cmd_start(struct module_controller *director, char *argv[], int num_args
 	}
 
 	ret = director->driver_init_function();
-	usleep(5000000);
-	ret = director->driver_init_function();
-
+	#ifdef ENABLE_DBG_PRINT
+	if(driver_init_name != NULL){
+		printf("[*] %s returned %d\n", driver_init_name, ret);
+	}
+	#endif
 	if(ret < 0){
 		return ret;
 	}
 
-	if(director->ieee80211_ops == NULL || director->ieee80211_local == NULL){
+	if((director->ieee80211_ops == NULL || director->ieee80211_local == NULL) &&
+	   (director->cfg80211_ops == NULL || director->wiphy == NULL)){
 		#ifdef ENABLE_DBG_PRINT
-		printf("[!] driver initialized without registering mac80211 operations\n");
+		printf("[!] driver initialized without registering wireless operations\n");
 		#endif
 		ret = -ENODEV;
 		return ret;
@@ -3263,14 +3343,15 @@ int drv_cmd_start(struct module_controller *director, char *argv[], int num_args
 	return ret;
 }
 
-/* stop the driver execution, different from the unload function */
+/* drv_cmd_stop: stop the driver execution, different from the unload function */
 int drv_cmd_stop(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
 
 	return ret;
 }
 
-/* given a kernel module name registered in the system and the init function, run it, this permits to loads different symbols from every loaded driver into the memory */
+/* drv_cmd_run: given a kernel module name registered in the system and the init function, run it,
+ * this permits to loads different symbols from every loaded driver into the memory */
 int drv_cmd_run(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
 	u8 found = false;
@@ -3327,7 +3408,7 @@ int drv_cmd_run(struct module_controller *director, char *argv[], int num_args) 
 	return ret;
 }
 
-/* set a context variable to a specific value, used for changing the runtime of the driver executor */
+/* drv_cmd_set: set a context variable to a specific value, used for changing the runtime of the driver executor */
 int drv_cmd_set(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
 	unsigned char *set_req = NULL;
@@ -3349,7 +3430,7 @@ int drv_cmd_set(struct module_controller *director, char *argv[], int num_args) 
 	return ret;
 }
 
-/* permits to get data from the program */
+/* drv_cmd_get: permits to get data from the program */
 int drv_cmd_get(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
 	unsigned char *get_req = NULL;
@@ -3419,10 +3500,10 @@ int drv_cmd_get(struct module_controller *director, char *argv[], int num_args) 
 		close(ret);
 		ret = 0;
 	}
-
 	return ret;
 }
 
+/* handle_ieee80211_conf_tx: the 'conf_tx' callback in ieee80211_ops uses different prototypes based on kernel version, handle this */
 int handle_ieee80211_conf_tx(struct ieee80211_hw *ieee80211_hw, struct ieee80211_vif *ieee80211_vif, struct ieee80211_ops *ops){
 	int ret = 0;
 	struct ieee80211_tx_queue_params *params = NULL;
@@ -3455,15 +3536,17 @@ int handle_ieee80211_conf_tx(struct ieee80211_hw *ieee80211_hw, struct ieee80211
 	return ret;
 }
 
+/* handle_ieee80211_config: the 'configure' callback in ieee80211_ops uses different prototypes based on kernel version, handle this */
 int handle_ieee80211_config(struct ieee80211_hw *ieee80211_hw, struct ieee80211_ops *ops){
 	int ret = 0;
 
 	if (ieee80211_hw == NULL || ops == NULL){
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 	if (ieee80211_hw->conf.chandef.chan == NULL){
 		printf("[*] ops config: no channel selected; skipping channel change\n");
-		return 0;
+		return ret;
 	}
 
 	if(director.kernel_major_version > 6 || (director.kernel_major_version == 6 && director.kernel_minor_version >= 17)){
@@ -3482,12 +3565,13 @@ int handle_ieee80211_config(struct ieee80211_hw *ieee80211_hw, struct ieee80211_
 	return ret;
 }
 
-/* permits to invoke various 'ops' struct registered by running the loaded kernel module, like 'ieee80211_ops' */
+/* drv_cmd_ops: permits to invoke various 'ops' struct registered by running the loaded kernel module, like 'ieee80211_ops' */
 int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args) {
         int ret = 0;
 	int intf_type = 0;
 	bool enable = false;
 	struct wiphy *wiphy = NULL;
+	void *new_mac_address = NULL;
 	struct net_device *net_device = NULL;
 	struct wireless_dev *wireless_dev = NULL;
         unsigned char *ops_req = NULL;
@@ -3928,6 +4012,28 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		ret = netdevice_open(net_device);
 		return ret;
 	}
+	if(strcmp(ops_req, "stop") == 0){
+		ret = netdevice_stop(net_device);
+		return ret;
+	}
+	/* simulate the 'net_device' init callback */
+	if(strcmp(ops_req, "init") == 0){
+		ret = netdevice_init(net_device);
+		return ret;
+	}
+	if(strcmp(ops_req, "uninit") == 0){
+		ret = netdevice_uninit(net_device);
+		return ret;
+	}
+	if(strcmp(ops_req, "set_rx_mode") == 0){
+		ret = netdevice_set_rx_mode(net_device);
+		return ret;
+	}
+	if(strcmp(ops_req, "mac") == 0){
+		new_mac_address = (void *)argv[2];
+		ret = netdevice_set_mac_address(net_device, new_mac_address);
+		return ret;
+	}
 	if(strcmp(ops_req, "rx") == 0){
 		enable = true;
 
@@ -4057,6 +4163,8 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 }
 
 #ifdef TCC_SCRIPTING
+/* tcc_add_runtime_symbols: used during the standalone ELF entry stub, it registers the symbols from the symbol table to the
+ * tcc scripting engine */
 static int tcc_add_runtime_symbols(TCCState *tcc_ctx){
 	int ret = 0;
 	bool duplicate = false;
@@ -4088,14 +4196,11 @@ static int tcc_add_runtime_symbols(TCCState *tcc_ctx){
 			return ret;
 		}
 	}
-
 	return ret;
 }
 
-/*
- * initilize the tcc scripting engine, this feature will permit to write high level C from the TUI and apply the patch at runtime to the loaded
- * kernel modules.
- */
+/* drv_integrate_scripting: initilize the tcc scripting engine, this feature will permit to write high level C
+ * from the TUI and apply the patch at runtime to the loaded kernel modules. */
 int drv_integrate_scripting(void){
 	int ret = 0;
 
@@ -4104,7 +4209,6 @@ int drv_integrate_scripting(void){
 		ret = -ENOMEM;
 		return ret;
 	}
-
 	/* step 1: disable boring tcc script warnings */
 	tcc_set_options(director.tcc_ctx, "-w");
 	/* step 2: set tcc output type, compilation in memory */
@@ -4119,11 +4223,10 @@ int drv_integrate_scripting(void){
 	pthread_mutex_init(&director.tcc_mutex, NULL);
 	memset(director.runtime_tcc_ctx, 0, sizeof(director.runtime_tcc_ctx));
 	director.runtime_tcc_ctx_count = 0;
-
 	return ret;
 }
 
-/* accept input code from the user and execute it */
+/* drv_execute_code: accept input code from the user and execute it */
 int drv_execute_code(unsigned char *incoming_code){
 	int ret = 0;
 
@@ -4137,11 +4240,10 @@ int drv_execute_code(unsigned char *incoming_code){
 		return ret;
 	}
 	ret = tcc_run(director.tcc_ctx, 0, NULL);
-
 	return ret;
 }
 
-/* open the stdin and read the code */
+/* drv_scripting_loop: open the stdin and read the code */
 int drv_scripting_loop(void) {
 	int ret = 0;
 	int current_line_len = 0;
@@ -4168,7 +4270,7 @@ int drv_scripting_loop(void) {
 	return ret;
 }
 
-/* deinitialize the scripting engine */
+/* drv_shutdown_scripting: deinitialize the scripting engine */
 int drv_shutdown_scripting(void){
 	int ret = 0;
 	if(director.tcc_ctx != NULL){
@@ -4190,9 +4292,9 @@ int drv_shutdown_scripting(void){
 	}
 	return ret;
 }
-
 #endif
 
+/* elf_crash_handler: invoked on Linux when a crash happens, deinitialize as much as possible if we aren't dealing with SIGABRT */
 void elf_crash_handler(int sig){
 	if(sig != SIGABRT){
 		if(director.rfkill != NULL){
@@ -4223,7 +4325,7 @@ void elf_crash_handler(int sig){
 }
 
 #ifdef TCC_SCRIPTING
-/* compile and execute the passed C strings in memory */
+/* invoke_tcc_scripting: compile and execute the passed C strings in memory */
 int invoke_tcc_scripting(unsigned char *c_string_data, int c_string_len){
 	int ret = 0;
 	char *source = NULL;
@@ -4280,12 +4382,12 @@ int invoke_tcc_scripting(unsigned char *c_string_data, int c_string_len){
 		tcc_delete(tcc_ctx);
 	}
 	free(source);
-
 	return ret;
 }
 #else
 int invoke_tcc_scripting(unsigned char *c_string_data, int c_string_len){
 	int ret = 0;
+
 	ret = -EINVAL;
 	return ret;
 }
@@ -4330,7 +4432,7 @@ static int elf_socket_recv_full(int fd, char *buffer, size_t length){
 	return received;
 }
 
-/* protocol handler for the standalone ELF */
+/* elf_handle_driver_protocol: protocol handler for the standalone ELF */
 int elf_handle_driver_protocol(struct module_controller *director, char *socket_buffer_data, int socket_buffer_len){
 	int ret = 0;
 	u32 msg_len = 0;
@@ -4373,7 +4475,8 @@ int elf_handle_driver_protocol(struct module_controller *director, char *socket_
 	return ret;
 }
 
-/* generate the socket interface for ipc communication, heavily inspired by 'https://github.com/nguyenchiemminhvu/LinuxIPC/blob/main/Socket/unix_server.c' */
+/* elf_entry_socket: generate the socket interface for ipc communication,
+ * heavily inspired by 'https://github.com/nguyenchiemminhvu/LinuxIPC/blob/main/Socket/unix_server.c' */
 int elf_entry_socket(struct module_controller *director){
 	int ret = 0;
 	int number_fds = 0;
@@ -4426,13 +4529,11 @@ int elf_entry_socket(struct module_controller *director){
 	}
 
 	/* now if everything is okay, the server will be start polling for new connections */
-
 	memset(poll_fds, 0, sizeof(struct pollfd) * MAXIMUN_SOCKET_CONNECTIONS);
 	poll_fds[0].fd = director->socket_fd;
 	poll_fds[0].events = POLLIN;
 
 	number_fds = 1;
-
 	while (true){
 		ret = poll(poll_fds, number_fds, -1);
 
@@ -4494,16 +4595,16 @@ int elf_entry_socket(struct module_controller *director){
 	return ret;
 }
 
-/* main entry point of the standalone ELF */
+/* elf_entry_stub: main entry point of the standalone ELF */
 int elf_entry_stub(int argc, char *argv[]){
 	int ret = 0;
-	/* insert here any additional code */
 
 	/* this part of code is similar to 'main' and 'initialize_director', we must re-allocate/re-initialize every object */
 	signal(SIGSEGV, elf_crash_handler);
 	signal(SIGABRT, elf_crash_handler);
 	signal(SIGILL,  elf_crash_handler);
 
+	/* init libusb and create the main usb rx thread */
 	libusb_init(NULL);
 	atomic_store(&director.libusb_thread_stop, false);
 	pthread_create(&director.libusb_event_thread, NULL, libusb_thread, NULL);
@@ -4537,35 +4638,25 @@ int elf_entry_stub(int argc, char *argv[]){
 
 	pthread_mutex_init(&director.timer_lock, NULL);
 	pthread_cond_init(&director.timer_cond, NULL);
-	director.timer_once  = PTHREAD_ONCE_INIT;
+	director.timer_once = PTHREAD_ONCE_INIT;
 
 	/* if enabled, initialize also the tcc scripting layer */
 	#ifdef TCC_SCRIPTING
 	drv_integrate_scripting();
 	#endif
 
-	if(director.init_cb == NULL){
-		goto try_second_init;
-	}else{
-		ret = director.init_cb();
-		elf_entry_socket(&director);
+	ret = drv_resolve_kernel_object_init(&director, NULL);
+	if(ret < 0 || director.driver_init_function == NULL){
+		printf("[!] driver init function not found!\n");
+		goto quit;
+	}
+	ret = director.driver_init_function();
+	if(ret < 0){
+		goto quit;
 	}
 
-	try_second_init:
-	/* call the driver init */
-	if(director.driver_init_function != NULL){
-		fast_get_symbol("_driver_init", &director.driver_init_function);
-		if(director.driver_init_function == NULL){
-			printf("[!] driver init function not found!\n");
-			goto quit;
-		}
-		ret = director.driver_init_function();
-		/* sleep for 5 seconds, this is the average waiting time for the rtw89 dongle usb (second) detection */
-		usleep(5000000);
-		ret = director.driver_init_function();
-		/* jump to the ipc server creation and poll */
-		elf_entry_socket(&director);
-	}
+	/* jump to the ipc server creation and poll */
+	elf_entry_socket(&director);
 
 	quit:
 	if(director.rfkill != NULL){
@@ -4691,7 +4782,7 @@ int elf_generator_handler(void){
 	}
 
 	/* save the symbol for the generated ELF */
-	fast_get_symbol("_driver_init", &director.driver_init_function);
+	drv_resolve_kernel_object_init(&director, NULL);
 
 	elf_dump_fd = open("dumped_driver.elf", O_RDWR | O_CREAT | O_TRUNC, 0777);
 	if(elf_dump_fd < 0){
@@ -5180,14 +5271,14 @@ static int pe_restore_dumped_regions(void){
         }
         goto out;
 
-restore_fail:
+	restore_fail:
         for(u32 i = 0; i < restored_count; i++){
                 if(regions[i].address != 0){
                         VirtualFree((LPVOID)(uintptr_t)regions[i].address, 0, MEM_RELEASE);
                 }
         }
         director.module_allocation_list = NULL;
-out:
+	out:
         if(regions != NULL){
                 free(regions);
         }
@@ -5197,6 +5288,7 @@ out:
         return ret;
 }
 
+/* pe_entry_stub: entry point for the PE dumped driver */
 static int pe_entry_stub(void){
         int ret = 0;
         void *driver_init = director.driver_init_function;
@@ -5277,6 +5369,7 @@ static int pe_entry_stub(void){
         return ret;
 }
 
+/* pe_generator_handler: generate the PE dump, invoked by the command 'get pe' */
 int pe_generator_handler(void){
         int ret = 0;
         u32 region_count = 0;
@@ -5486,7 +5579,7 @@ int pe_generator_handler(void){
 
 #ifdef __linux__
 /*
- * add also a crash handler which returns a custom file format when it crash,
+ * crash_handler: returns a custom file format when it crash,
  * output file format is still wip, it should contains both the callback table and the offset table.
 */
 void crash_handler(int sig){
@@ -5582,13 +5675,12 @@ void crash_handler(int sig){
 /* windows version */
 void crash_handler(int sig){
 
-
 }
 #endif
 
 static void trim_inplace(unsigned char *line){
-	unsigned char *start = NULL;
 	unsigned char *end = NULL;
+	unsigned char *start = NULL;
 
 	if (line == NULL){
 		goto quit;
@@ -5596,11 +5688,11 @@ static void trim_inplace(unsigned char *line){
 
 	start = line;
 
-	while (*start && isspace((unsigned char)*start)){
+	while(*start && isspace((unsigned char)*start)){
 		start++;
 	}
 
-	if (start != line){
+	if(start != line){
 		memmove(line, start, strlen(start) + 1);
 	}
 
@@ -5648,6 +5740,7 @@ static struct struct_field *find_field_by_name(struct runtime_struct_layout *run
 	return NULL;
 }
 
+/* parse the offset configuration and patch the offsets at runtime */
 int handle_offset_config(unsigned char *offset_config_name){
 	int ret = 0;
 	int fd = 0;
@@ -5661,7 +5754,6 @@ int handle_offset_config(unsigned char *offset_config_name){
 	struct runtime_struct_layout *current_layout = NULL;
 
 	fd = open(offset_config_name, O_RDONLY);
-
 	if(fd < 0){
 		ret = -EINVAL;
 		return ret;
@@ -5794,6 +5886,7 @@ int handle_offset_config(unsigned char *offset_config_name){
 	return ret;
 }
 
+/* entry point: takes the args and start the interactive shell */
 int main(int argc, char *argv[], char *envp[]) {
 	int	       ret	     = 0;
 	int            fd            = 0;

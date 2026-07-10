@@ -1197,12 +1197,14 @@ static inline int insn_last_prefix_id(struct insn *insn)
 }
 
 int insn_get_opcode(struct insn *insn){
+	int ret = 0;
+	int pfx_id = 0;
 	struct insn_field *opcode = &insn->opcode;
-	int pfx_id, ret;
 	insn_byte_t op;
 
-	if (opcode->got)
-		return 0;
+	if (opcode->got){
+		return ret;
+	}
 
 	ret = insn_get_prefixes(insn);
 	if (ret)
@@ -1223,7 +1225,8 @@ int insn_get_opcode(struct insn *insn){
 			insn->attr = inat_get_xop_attribute(op, m);
 			if (!inat_accept_xop(insn->attr)) {
 				insn->attr = 0;
-				return -EINVAL;
+				ret = -EINVAL;
+				return ret;
 			}
 			/* XOP has only 1 byte for opcode */
 			goto end;

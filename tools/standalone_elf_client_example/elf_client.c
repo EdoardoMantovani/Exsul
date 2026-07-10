@@ -62,12 +62,13 @@ static int send_all(int fd, const void *buffer, size_t length){
 			return ret;
 		}
 		if(ret == 0){
-			return -EIO;
+			ret = -EIO;
+			return ret;
 		}
 		sent += (size_t)ret;
 	}
 
-	return 0;
+	return ret;
 }
 
 void disable_raw_mode(void) {

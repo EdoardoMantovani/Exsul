@@ -1,4 +1,5 @@
 int pskb_expand_head(struct sk_buff *skb, int nhead, int ntail, int gfp_mask){
+	int ret = 0;
 	long off = 0;
 	unsigned int osize = 0;
 	unsigned int size = 0;
@@ -8,11 +9,13 @@ int pskb_expand_head(struct sk_buff *skb, int nhead, int ntail, int gfp_mask){
 	size = osize + nhead + ntail;
 
 	if(nhead < 0){
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 
 	if(skb_shared(skb)){
-		return -ENOMEM;
+		ret = -ENOMEM;
+		return ret;
 	}
 
 	skb_zcopy_downgrade_managed(skb);
@@ -48,7 +51,6 @@ int pskb_expand_head(struct sk_buff *skb, int nhead, int ntail, int gfp_mask){
 		if (skb_has_frag_list(skb)){
 			skb_clone_fraglist(skb);
 		}
-		//skb_release_data(skb, SKB_CONSUMED);
 	} else {
 		skb_free_head(skb);
 	}
@@ -59,9 +61,9 @@ int pskb_expand_head(struct sk_buff *skb, int nhead, int ntail, int gfp_mask){
 	skb->data    += off;
 
 	skb_set_end_offset(skb, size);
-#ifdef NET_SKBUFF_DATA_USES_OFFSET
+	#ifdef NET_SKBUFF_DATA_USES_OFFSET
 	off           = nhead;
-#endif
+	#endif
 	skb->tail	      += off;
 	skb_headers_offset_update(skb, nhead);
 	skb->cloned   = 0;
@@ -76,12 +78,13 @@ int pskb_expand_head(struct sk_buff *skb, int nhead, int ntail, int gfp_mask){
 	if (!skb->sk || skb->destructor == sock_edemux){
 		skb->truesize += size - osize;
 	}
-	return 0;
+	return ret;
 
-nofrags:
+	nofrags:
 	if(data != NULL){
 		kfree(data);
 	}
-nodata:
-	return -ENOMEM;
+	nodata:
+	ret = -ENOMEM;
+	return ret;
 }

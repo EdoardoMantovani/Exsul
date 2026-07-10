@@ -2,7 +2,7 @@
 
 # Made by Edoardo Mantovani, 2026
 # Rewritten with safer local alias inference and guarded field replacement.
-# version 1.6.0 (01 Jul 2026)
+# version 1.7.0 (07 Jul 2026)
 
 use strict;
 use warnings;
@@ -178,6 +178,7 @@ my %struct_whitelist = (
 	"connection_link_sta"	=> "ieee80211_link_sta",
 	"ieee80211_ops"		=> "ieee80211_ops",
 	"cfg80211_ops"		=> "cfg80211_ops",
+	"net_device_ops"	=> "net_device_ops",
 );
 
 my %fixed_only_structs = (
@@ -456,6 +457,19 @@ my %field_ctype = (
 		"set_antenna"				=> "void *",
 		"get_antenna"				=> "void *",
 		"start_radar_detection"			=> "void *",
+	},
+	net_device_ops => {
+		"ndo_init"				=> "void *",
+		"ndo_uninit"				=> "void *",
+		"ndo_open"				=> "void *",
+		"ndo_stop"				=> "void *",
+		"ndo_start_xmit"			=> "void *",
+		"ndo_features_check"			=> "void *",
+		"ndo_set_rx_mode"			=> "void *",
+		"ndo_set_mac_address"			=> "void *",
+		"ndo_validate_addr"			=> "void *",
+		"ndo_do_ioctl"				=> "void *",
+		"ndo_eth_ioctl"				=> "void *",
 	},
 	device_driver => {
 		"name"					=> "const char *",

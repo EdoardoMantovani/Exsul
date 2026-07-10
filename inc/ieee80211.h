@@ -7321,7 +7321,8 @@ static inline int connection_hmac_sha1(const u8 *key, int key_len, const u8 *dat
 	}
 	return ret;
 	#else
-	return -EOPNOTSUPP;
+	ret = -EOPNOTSUPP;
+	return ret;
 	#endif
 }
 
@@ -7406,9 +7407,10 @@ static inline int connection_aes_unwrap(const u8 kek[16], const u8 *wrapped, int
 	}
 	EVP_CIPHER_CTX_free(ctx);
 	return ret;
-#else
-	return -EOPNOTSUPP;
-#endif
+	#else
+	ret = -EOPNOTSUPP;
+	return ret;
+	#endif
 }
 
 static inline struct exsul_scan_result *connection_find_target(const char *ssid){
@@ -10147,15 +10149,17 @@ static int ieee80211_fill_rx_status(struct ieee80211_rx_status *stat,
 				    struct ieee80211_hw *hw,
 				    struct ieee80211_tx_rate *rate,
 				    struct rate_info *rate_info, u8 band, int len){
+	int ret = 0;
+
 	memset(stat, 0, sizeof(*stat));
 	stat->band = band;
 
 	if (ieee80211_fill_rate_info(hw, stat, band, rate_info)){
-		return 0;
+		return ret;
 	}
 
 	if (!ieee80211_rate_valid(rate)){
-		return -1;
+		ret = -EINVAL;
 	}
 
 	if (rate->flags & IEEE80211_TX_RC_160_MHZ_WIDTH){
@@ -10185,7 +10189,7 @@ static int ieee80211_fill_rx_status(struct ieee80211_rx_status *stat,
 		stat->encoding = RX_ENC_LEGACY;
 	}
 
-	return 0;
+	return ret;
 }
 
 static u32 ieee80211_get_rate_duration(struct ieee80211_hw *hw, struct ieee80211_rx_status *status, u32 *overhead){
@@ -11146,6 +11150,7 @@ SYMBOL_EXPORT(ieee80211_priv);
 
 /* add/remove interface */
 static int ieee80211_if_add(struct ieee80211_local *local, const char *name, unsigned char name_assign_type, struct wireless_dev **new_wdev, enum nl80211_iftype type, struct vif_params *params){
+	int ret = 0;
 	struct net_device *netdev = NULL;
 	struct ieee80211_sub_if_data *sdata = NULL;
 	struct ieee80211_vif **vif_slot = NULL;
@@ -11153,10 +11158,10 @@ static int ieee80211_if_add(struct ieee80211_local *local, const char *name, uns
 	struct ieee80211_bss_conf *bss_conf = NULL;
 	struct ieee80211_hw *ieee80211_hw = NULL;
 	struct txq_info *txqi;
-	int ret, i;
 
 	if (local == NULL){
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 
 	switch (type) {
@@ -11175,17 +11180,17 @@ static int ieee80211_if_add(struct ieee80211_local *local, const char *name, uns
 
 	if (*vif_slot == NULL) {
 		if (director.struct_sizes.ieee80211_vif == 0){
-			return -EINVAL;
+			ret = -EINVAL;
 		}
 		*vif_slot = calloc(1, director.struct_sizes.ieee80211_vif + ieee80211_hw->vif_data_size);
 		if (*vif_slot == NULL){
-			return -ENOMEM;
+			ret = -ENOMEM;
 		}
 	}
 
 	sdata = calloc(1, sizeof(*sdata));
 	if (sdata == NULL){
-		return -ENOMEM;
+		ret = -ENOMEM;
 	}
 
 	vif = *vif_slot;
@@ -11225,162 +11230,8 @@ static int ieee80211_if_add(struct ieee80211_local *local, const char *name, uns
 		*new_wdev = &vif->wdev;
 	}
 
-	return 0;
-
-	#if 0
-	if (type == NL80211_IFTYPE_P2P_DEVICE || type == NL80211_IFTYPE_NAN) {
-		struct wireless_dev *wdev;
-
-		sdata = kzalloc(sizeof(*sdata) + local->hw.vif_data_size,
-				GFP_KERNEL);
-		if (!sdata)
-			return -ENOMEM;
-		wdev = &sdata->wdev;
-
-		sdata->dev = NULL;
-		strscpy(sdata->name, name, IFNAMSIZ);
-		ieee80211_assign_perm_addr(local, wdev->address, type);
-		memcpy(sdata->vif.addr, wdev->address, ETH_ALEN);
-		ether_addr_copy(sdata->vif.bss_conf.addr, sdata->vif.addr);
-	} else {
-		int size = ALIGN(sizeof(*sdata) + local->hw.vif_data_size,
-				 sizeof(void *));
-		int txq_size = 0;
-
-		if (type != NL80211_IFTYPE_AP_VLAN &&
-		    (type != NL80211_IFTYPE_MONITOR ||
-		     (params->flags & MONITOR_FLAG_ACTIVE)))
-			txq_size += sizeof(struct txq_info) +
-				    local->hw.txq_data_size;
-
-		netdev = alloc_netdev_mqs(size + txq_size,
-					name, name_assign_type,
-					ieee80211_if_setup, 1, 1);
-		if (!netdev)
-			return -ENOMEM;
-
-		dev_net_set(netdev, wiphy_net(local->hw.wiphy));
-
-		netdev->pcpu_stat_type = NETDEV_PCPU_STAT_TSTATS;
-
-		netdev->needed_headroom = local->tx_headroom +
-					4*6 /* four MAC addresses */
-					+ 2 + 2 + 2 + 2 /* ctl, dur, seq, qos */
-					+ 6 /* mesh */
-					+ 8 /* rfc1042/bridge tunnel */
-					- ETH_HLEN /* ethernet hard_header_len */
-					+ IEEE80211_ENCRYPT_HEADROOM;
-		netdev->needed_tailroom = IEEE80211_ENCRYPT_TAILROOM;
-
-		ret = dev_alloc_name(netdev, netdev->name);
-		if (ret < 0) {
-			free_netdev(netdev);
-			return ret;
-		}
-
-		ieee80211_assign_perm_addr(local, netdev->perm_addr, type);
-		if (is_valid_ether_addr(params->macaddr))
-			eth_hw_addr_set(netdev, params->macaddr);
-		else
-			eth_hw_addr_set(netdev, netdev->perm_addr);
-		SET_NETDEV_DEV(netdev, wiphy_dev(local->hw.wiphy));
-
-		/* don't use IEEE80211_DEV_TO_SUB_IF -- it checks too much */
-		sdata = netdev_priv(netdev);
-		netdev->ieee80211_ptr = &sdata->wdev;
-		memcpy(sdata->vif.addr, netdev->dev_addr, ETH_ALEN);
-		ether_addr_copy(sdata->vif.bss_conf.addr, sdata->vif.addr);
-		memcpy(sdata->name, netdev->name, IFNAMSIZ);
-
-		if (txq_size) {
-			txqi = netdev_priv(netdev) + size;
-			ieee80211_txq_init(sdata, NULL, txqi, 0);
-		}
-
-		sdata->dev = netdev;
-	}
-
-	/* initialise type-independent data */
-	sdata->wdev.wiphy = local->hw.wiphy;
-
-	ieee80211_sdata_init(local, sdata);
-
-	ieee80211_init_frag_cache(&sdata->frags);
-
-	wiphy_delayed_work_init(&sdata->dec_tailroom_needed_wk,
-				ieee80211_delayed_tailroom_dec);
-
-	for (i = 0; i < NUM_NL80211_BANDS; i++) {
-		struct ieee80211_supported_band *sband;
-		sband = local->hw.wiphy->bands[i];
-		sdata->rc_rateidx_mask[i] =
-			sband ? (1 << sband->n_bitrates) - 1 : 0;
-		if (sband) {
-			__le16 cap;
-			u16 *vht_rate_mask;
-
-			memcpy(sdata->rc_rateidx_mcs_mask[i],
-			       sband->ht_cap.mcs.rx_mask,
-			       sizeof(sdata->rc_rateidx_mcs_mask[i]));
-
-			cap = sband->vht_cap.vht_mcs.rx_mcs_map;
-			vht_rate_mask = sdata->rc_rateidx_vht_mcs_mask[i];
-			ieee80211_get_vht_mask_from_cap(cap, vht_rate_mask);
-		} else {
-			memset(sdata->rc_rateidx_mcs_mask[i], 0,
-			       sizeof(sdata->rc_rateidx_mcs_mask[i]));
-			memset(sdata->rc_rateidx_vht_mcs_mask[i], 0,
-			       sizeof(sdata->rc_rateidx_vht_mcs_mask[i]));
-		}
-	}
-
-	ieee80211_set_default_queues(sdata);
-
-	/* setup type-dependent data */
-	ieee80211_setup_sdata(sdata, type);
-
-	if (netdev) {
-		netdev->ieee80211_ptr->use_4addr = params->use_4addr;
-		if (type == NL80211_IFTYPE_STATION)
-			sdata->u.mgd.use_4addr = params->use_4addr;
-
-		netdev->features |= local->hw.netdev_features;
-		netdev->priv_flags |= IFF_LIVE_ADDR_CHANGE;
-		netdev->hw_features |= netdev->features &
-					MAC80211_SUPPORTED_FEATURES_TX;
-		sdata->vif.netdev_features = local->hw.netdev_features;
-
-		netdev_set_default_ethtool_ops(netdev, &ieee80211_ethtool_ops);
-
-		/* MTU range is normally 256 - 2304, where the upper limit is
-		 * the maximum MSDU size. Monitor interfaces send and receive
-		 * MPDU and A-MSDU frames which may be much larger so we do
-		 * not impose an upper limit in that case.
-		 */
-		netdev->min_mtu = 256;
-		if (type == NL80211_IFTYPE_MONITOR)
-			netdev->max_mtu = 0;
-		else
-			netdev->max_mtu = local->hw.max_mtu;
-
-		ret = cfg80211_register_netdevice(netdev);
-		if (ret) {
-			free_netdev(netdev);
-			return ret;
-		}
-	}
-
-	mutex_lock(&local->iflist_mtx);
-	list_add_tail_rcu(&sdata->list, &local->interfaces);
-	mutex_unlock(&local->iflist_mtx);
-
-	if (new_wdev != NULL){
-		*new_wdev = &sdata->wdev;
-	}
-	#endif
-	return 0;
+	return ret;
 }
-SYMBOL_EXPORT(ieee80211_if_add);
 
 static void ieee80211_if_remove(struct ieee80211_sub_if_data *sdata){
 	struct ieee80211_local *local = NULL;
@@ -11391,16 +11242,10 @@ static void ieee80211_if_remove(struct ieee80211_sub_if_data *sdata){
 	list_del_rcu(&sdata->list);
 	pthread_mutex_unlock(&local->iflist_mtx);
 
-	//if (sdata->vif.txq)
-	//	ieee80211_txq_purge(sdata->local, to_txq_info(sdata->vif.txq));
-
-
 	if (sdata->dev == NULL) {
-		//ieee80211_teardown_sdata(sdata);
 		kfree(sdata);
 	}
 }
-SYMBOL_EXPORT(ieee80211_if_remove);
 
 static inline void drv_vif_cfg_changed(struct ieee80211_local *local, struct ieee80211_sub_if_data *sdata, u64 changed){
 	struct ieee80211_ops *ieee80211_ops = NULL;
@@ -11451,7 +11296,6 @@ static void ieee80211_remove_interfaces(struct ieee80211_local *local){
 	 * have stopped all of its activities, so that we can do RCU-unaware
 	 * manipulations of the interface list below.
 	 */
-	//cfg80211_shutdown_all_interfaces(local->hw.wiphy);
 
 	ieee80211_vif = sdata->vif;
 	pthread_mutex_lock(&local->iflist_mtx);
@@ -11514,7 +11358,6 @@ static int sta_info_init(struct ieee80211_local *local){
 
 	INIT_LIST_HEAD(&local->sta_list);
 
-	//timer_setup(&local->sta_cleanup, sta_info_cleanup, 0);
 	return ret;
 }
 

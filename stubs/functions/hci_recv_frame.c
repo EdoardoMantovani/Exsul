@@ -40,7 +40,8 @@ int hci_recv_frame(struct hci_dev *hdev, struct sk_buff *skb){
 		break;
 	default:
 		kfree_skb(skb);
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 
 	/* Incoming skb */
@@ -52,5 +53,5 @@ int hci_recv_frame(struct hci_dev *hdev, struct sk_buff *skb){
 	skb_queue_tail(&hdev->rx_q, skb);
 	queue_work(hdev->workqueue, &hdev->rx_work);
 
-	return 0;
+	return ret;
 }

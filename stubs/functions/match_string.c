@@ -1,4 +1,5 @@
 int match_string(const char * const *array, size_t n, const char *string){
+	int ret = 0;
 	int index = 0;
 	const char *item = NULL;
 
@@ -11,5 +12,6 @@ int match_string(const char * const *array, size_t n, const char *string){
 			return index;
 		}
 	}
-	return -EINVAL;
+	ret = -EINVAL;
+	return ret;
 }

@@ -39,13 +39,6 @@ struct notifier_block {
 	int priority;
 };
 
-struct net_device_ops {
-	int (*ndo_init)(struct net_device *dev);
-	void (*ndo_uninit)(struct net_device *dev);
-	int (*ndo_open)(struct net_device *dev);
-	int (*ndo_stop)(struct net_device *dev);
-};
-
 struct sock;
 struct rfkill;
 struct device;

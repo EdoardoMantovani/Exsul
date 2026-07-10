@@ -10,7 +10,8 @@ int usb_submit_urb(struct urb *urb, int mem_flags){
 	}
 
 	if (atomic_load_explicit(&urb->reject, memory_order_acquire) != 0){
-		return -EPERM;
+		ret = -EPERM;
+		return ret;
 	}
 
 	pipe = urb->pipe;

@@ -622,6 +622,49 @@ static int call_netdevice_notifiers(unsigned long state, struct net_device *dev)
 	return ret;
 }
 
+/* netdevice_init: wrapper for invoking the 'ndo_init' callback in 'struct net_device_ops' */
+static int netdevice_init(struct net_device *dev){
+	int ret = 0;
+	struct net_device_ops *ops = NULL;
+	int (*ndo_init)(struct net_device *dev) = NULL;
+
+	if(dev == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	ops = dev->netdev_ops;
+	if(ops != NULL){
+		ndo_init = ops->ndo_init;
+	}
+	if(ndo_init != NULL){
+		ret = ndo_init(dev);
+	}
+	return ret;
+}
+
+/* netdevice_uninit: wrapper for invoking the 'ndo_uninit' callback in 'struct net_device_ops' */
+static int netdevice_uninit(struct net_device *dev){
+	int ret = 0;
+	struct net_device_ops *ops = NULL;
+	int (*ndo_uninit)(struct net_device *dev) = NULL;
+
+	if(dev == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	ops = dev->netdev_ops;
+	if(ops != NULL){
+		ndo_uninit = ops->ndo_uninit;
+	}
+	if(ndo_uninit != NULL){
+		ret = ndo_uninit(dev);
+	}
+	return ret;
+}
+
+/* netdevice_open: wrapper for invoking the 'ndo_open' callback in 'struct net_device_ops' */
 static int netdevice_open(struct net_device *dev){
 	int ret = 0;
 	struct net_device_ops *ops = NULL;
@@ -643,6 +686,69 @@ static int netdevice_open(struct net_device *dev){
 	if(ret == 0){
 		set_bit(__LINK_STATE_START, &dev->state);
 		call_netdevice_notifiers(NETDEV_UP, dev);
+	}
+	return ret;
+}
+
+/* netdevice_stop: wrapper for invoking the 'ndo_stop' callback in 'struct net_device_ops' */
+static int netdevice_stop(struct net_device *dev){
+	int ret = 0;
+	struct net_device_ops *ops = NULL;
+	int (*ndo_stop)(struct net_device *dev) = NULL;
+
+	if(dev == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	ops = dev->netdev_ops;
+	if(ops != NULL){
+		ndo_stop = ops->ndo_stop;
+	}
+	if(ndo_stop != NULL){
+		ret = ndo_stop(dev);
+	}
+	return ret;
+}
+
+/* netdevice_set_rx_mode: wrapper for invoking the 'ndo_set_rx_mode' callback in 'struct net_device_ops' */
+static int netdevice_set_rx_mode(struct net_device *dev){
+	int ret = 0;
+	struct net_device_ops *ops = NULL;
+	int (*ndo_set_rx_mode)(struct net_device *dev) = NULL;
+
+	if(dev == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	ops = dev->netdev_ops;
+	if(ops != NULL){
+		ndo_set_rx_mode = ops->ndo_set_rx_mode;
+	}
+	if(ndo_set_rx_mode != NULL){
+		ret = ndo_set_rx_mode(dev);
+	}
+	return ret;
+}
+
+/* netdevice_set_mac_address: wrapper for invoking the 'ndo_set_mac_address' callback in 'struct net_device_ops' */
+static int netdevice_set_mac_address(struct net_device *dev, void *mac_address){
+	int ret = 0;
+	struct net_device_ops *ops = NULL;
+	int (*ndo_set_mac_address)(struct net_device *dev, void *mac_address) = NULL;
+
+	if(dev == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	ops = dev->netdev_ops;
+	if(ops != NULL){
+		ndo_set_mac_address = ops->ndo_set_mac_address;
+	}
+	if(ndo_set_mac_address != NULL){
+		ret = ndo_set_mac_address(dev, mac_address);
 	}
 	return ret;
 }

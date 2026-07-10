@@ -440,6 +440,7 @@ static inline struct rhash_head *rht_ptr_exclusive(struct rhash_lock_head __rcu 
 }
 
 static inline int rhltable_insert_simple(struct rhltable *hlt, struct rhlist_head *node, const struct rhashtable_params params){
+	int ret = 0;
 	struct rhashtable *ht = NULL;
 	struct bucket_table *tbl = NULL;
 	struct rhash_lock_head **bucket = NULL;
@@ -449,13 +450,15 @@ static inline int rhltable_insert_simple(struct rhltable *hlt, struct rhlist_hea
 	unsigned int hash = 0;
 
 	if (hlt == NULL || node == NULL){
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 
 	ht = &hlt->ht;
 	tbl = rcu_dereference_protected(ht->tbl, 1);
 	if (tbl == NULL){
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 
 	object = (char *)node - params.head_offset;
@@ -463,7 +466,8 @@ static inline int rhltable_insert_simple(struct rhltable *hlt, struct rhlist_hea
 	hash = rht_key_hashfn(ht, tbl, key, params);
 	bucket = rht_bucket_insert(ht, tbl, hash);
 	if (bucket == NULL){
-		return -ENOMEM;
+		ret = -ENOMEM;
+		return ret;
 	}
 
 	pthread_mutex_lock(&director.rhashtable_lock);
@@ -474,7 +478,7 @@ static inline int rhltable_insert_simple(struct rhltable *hlt, struct rhlist_hea
 	atomic_fetch_add_explicit(&ht->nelems, 1, memory_order_relaxed);
 	pthread_mutex_unlock(&director.rhashtable_lock);
 
-	return 0;
+	return ret;
 }
 
 

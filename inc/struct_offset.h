@@ -12,7 +12,7 @@ struct runtime_struct_layout {
 
 struct runtime_struct {
 	int compilation_time_generated_structs;
-	struct runtime_struct_layout structs[28 + 1];
+	struct runtime_struct_layout structs[29 + 1];
 };
 
 OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
@@ -1435,7 +1435,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[17] = {
 				.struct_size = 0,
 				.struct_name = "net_device",
-				.struct_field_num = 33,
+				.struct_field_num = 25,
 				.fields = {
 					[0] = {
 						.field_name = "close_list",
@@ -1458,120 +1458,119 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[5] = {
-						.field_name = "features",
-						.field_offset = 0,
-					},
-					[6] = {
 						.field_name = "group",
 						.field_offset = 0,
 					},
-					[7] = {
+					[6] = {
 						.field_name = "gso_max_segs",
 						.field_offset = 0,
 					},
-					[8] = {
+					[7] = {
 						.field_name = "gso_max_size",
 						.field_offset = 0,
 					},
-					[9] = {
-						.field_name = "hw_features",
-						.field_offset = 0,
-					},
-					[10] = {
+					[8] = {
 						.field_name = "ieee80211_ptr",
 						.field_offset = 0,
 					},
-					[11] = {
-						.field_name = "max_mtu",
-						.field_offset = 0,
-					},
-					[12] = {
+					[9] = {
 						.field_name = "mc",
 						.field_offset = 0,
 					},
-					[13] = {
-						.field_name = "min_mtu",
-						.field_offset = 0,
-					},
-					[14] = {
+					[10] = {
 						.field_name = "name",
 						.field_offset = 0,
 					},
-					[15] = {
+					[11] = {
 						.field_name = "name_assign_type",
 						.field_offset = 0,
 					},
-					[16] = {
-						.field_name = "needed_headroom",
-						.field_offset = 0,
-					},
-					[17] = {
-						.field_name = "needed_tailroom",
-						.field_offset = 0,
-					},
-					[18] = {
+					[12] = {
 						.field_name = "net_notifier_list",
 						.field_offset = 0,
 					},
-					[19] = {
+					[13] = {
 						.field_name = "netdev_ops",
 						.field_offset = 0,
 					},
-					[20] = {
+					[14] = {
 						.field_name = "num_tx_queues",
 						.field_offset = 0,
 					},
-					[21] = {
-						.field_name = "pcpu_stat_type",
-						.field_offset = 0,
-					},
-					[22] = {
-						.field_name = "perm_addr",
-						.field_offset = 0,
-					},
-					[23] = {
+					[15] = {
 						.field_name = "priv_flags",
 						.field_offset = 0,
 					},
-					[24] = {
+					[16] = {
 						.field_name = "priv_len",
 						.field_offset = 0,
 					},
-					[25] = {
+					[17] = {
 						.field_name = "ptype_all",
 						.field_offset = 0,
 					},
-					[26] = {
+					[18] = {
 						.field_name = "ptype_specific",
 						.field_offset = 0,
 					},
-					[27] = {
+					[19] = {
 						.field_name = "real_num_tx_queues",
 						.field_offset = 0,
 					},
-					[28] = {
+					[20] = {
 						.field_name = "reg_state",
 						.field_offset = 0,
 					},
-					[29] = {
+					[21] = {
 						.field_name = "state",
 						.field_offset = 0,
 					},
-					[30] = {
+					[22] = {
 						.field_name = "tx_queue_len",
 						.field_offset = 0,
 					},
-					[31] = {
+					[23] = {
 						.field_name = "uc",
 						.field_offset = 0,
 					},
-					[32] = {
+					[24] = {
 						.field_name = "unreg_list",
 						.field_offset = 0,
 					},
 				},
 			},
 			[18] = {
+				.struct_size = 0,
+				.struct_name = "net_device_ops",
+				.struct_field_num = 6,
+				.fields = {
+					[0] = {
+						.field_name = "ndo_init",
+						.field_offset = 0,
+					},
+					[1] = {
+						.field_name = "ndo_open",
+						.field_offset = 0,
+					},
+					[2] = {
+						.field_name = "ndo_set_mac_address",
+						.field_offset = 0,
+					},
+					[3] = {
+						.field_name = "ndo_set_rx_mode",
+						.field_offset = 0,
+					},
+					[4] = {
+						.field_name = "ndo_stop",
+						.field_offset = 0,
+					},
+					[5] = {
+						.field_name = "ndo_uninit",
+						.field_offset = 0,
+					},
+				},
+			},
+			[19] = {
 				.struct_size = 0,
 				.struct_name = "rate_info",
 				.struct_field_num = 14,
@@ -1634,7 +1633,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[19] = {
+			[20] = {
 				.struct_size = 0,
 				.struct_name = "sk_buff",
 				.struct_field_num = 55,
@@ -1861,7 +1860,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[20] = {
+			[21] = {
 				.struct_size = 0,
 				.struct_name = "sk_buff_head",
 				.struct_field_num = 3,
@@ -1880,7 +1879,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[21] = {
+			[22] = {
 				.struct_size = 0,
 				.struct_name = "skb_shared_info",
 				.struct_field_num = 3,
@@ -1899,7 +1898,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[22] = {
+			[23] = {
 				.struct_size = 0,
 				.struct_name = "sock",
 				.struct_field_num = 2,
@@ -1914,7 +1913,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[23] = {
+			[24] = {
 				.struct_size = 0,
 				.struct_name = "urb",
 				.struct_field_num = 17,
@@ -1989,7 +1988,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[24] = {
+			[25] = {
 				.struct_size = 0,
 				.struct_name = "usb_device",
 				.struct_field_num = 6,
@@ -2020,7 +2019,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[25] = {
+			[26] = {
 				.struct_size = 0,
 				.struct_name = "usb_driver",
 				.struct_field_num = 2,
@@ -2035,7 +2034,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[26] = {
+			[27] = {
 				.struct_size = 0,
 				.struct_name = "usb_interface",
 				.struct_field_num = 4,
@@ -2058,7 +2057,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[27] = {
+			[28] = {
 				.struct_size = 0,
 				.struct_name = "wiphy",
 				.struct_field_num = 35,

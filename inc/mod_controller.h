@@ -149,6 +149,7 @@ struct module_controller {
 	/* track every memory region mapped in the actual memory, it doesn't matter much the original module they belongs to */
 	struct allocation_list *module_allocation_list;
 
+	/* kernel based structs */
 	struct wiphy *wiphy;
 	struct wireless_dev *wdev;
 	struct net_device *net_device;

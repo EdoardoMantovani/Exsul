@@ -400,6 +400,7 @@ enum {
 
 /* values associated with 'ieee80211_ops' callback invocations */
 enum fast_run_ops {
+	/* ieee80211 callbacks code */
 	IEEE80211_START,
 	IEEE80211_STOP,
 	IEEE80211_ADD_INTERFACE,
@@ -411,6 +412,10 @@ enum fast_run_ops {
 	IEEE80211_START_AP,
 	IEEE80211_STOP_AP,
 	IEEE80211_MONITOR,
+
+	/* cfg80211 callbacks enum */
+	NDO_INIT,
+	NDO_OPEN,
 };
 
 /* ktime_t based interfaces */

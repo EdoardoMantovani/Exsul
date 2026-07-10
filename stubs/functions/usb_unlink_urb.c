@@ -3,13 +3,16 @@ int usb_unlink_urb(struct urb *urb){
 	struct usb_device *udev = NULL;
 
 	if (urb == NULL){
-		return -EINVAL;
+		ret = -EINVAL;
+		return ret;
 	}
 	if (urb->dev == NULL){
-		return -ENODEV;
+		ret = -ENODEV;
+		return ret;
 	}
 	if (urb->ep == NULL){
-		return -EIDRM;
+		ret = -EIDRM;
+		return ret;
 	}
 
 	udev = urb->dev;

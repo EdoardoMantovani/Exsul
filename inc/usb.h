@@ -384,7 +384,7 @@ static const struct usb_host_endpoint *usb_find_endpoint(struct usb_interface *i
 	return NULL;
 }
 
-/* model the primitives for locking during usb i/o phases */
+/* model the primitives for locking during usb I/O phases */
 static inline void usb_lock(void) {
 	pthread_mutex_lock(&director.usb_io_lock);
 	director.usb_io_depth++;
@@ -398,7 +398,7 @@ static inline void usb_unlock(void) {
 	pthread_mutex_unlock(&director.usb_io_lock);
 }
 
-/* main libusb callback used as a thin layer between the userspace and the kernelspace */
+/* libusb_urb_callback: main libusb callback used as a thin layer between the userspace and the kernelspace */
 static void libusb_urb_callback(struct libusb_transfer *transfer){
 	struct urb *urb = NULL;
 	usb_complete_t usb_completion_cb = NULL;
@@ -452,9 +452,8 @@ static void libusb_urb_callback(struct libusb_transfer *transfer){
 	usb_free_urb(urb);
 }
 
+/* libusb_thread: handle async events */
 static void *libusb_thread(void *unused){
-	/* USB completion callbacks run driver code that contains GS-relative
-	 * per-CPU accesses; set up a per-CPU area for this thread too. */
 	setup_percpu();
 	while (!atomic_load_explicit(&director.libusb_thread_stop, memory_order_acquire)){
 		libusb_handle_events(NULL);
