@@ -99,8 +99,7 @@
 
 #include <libusb-1.0/libusb.h>
 
-typedef off_t	loff_t;
-
+typedef off_t loff_t;
 #ifndef __cplusplus
 #define __struct_group_tag(TAG) TAG
 #else
@@ -586,8 +585,6 @@ struct va_format {
 
 typedef struct {
 	void *cache_ptr;
-	/* padding, need to be adjusted */
-	//char  _pad[0x70 - sizeof(void *)];
 	char _pad[128];
 } _kmalloc_cache_row_t;
 
@@ -610,7 +607,6 @@ struct hlist_node {
 };
 
 /* implement mutex too as shown in the kernel headers */
-
 struct optimistic_spin_queue {
 	/*
 	 * Stores an encoded value of the CPU # of the tail node in the queue.
@@ -672,9 +668,9 @@ struct kobject {
 	unsigned int uevent_suppress:1;
 
 	/* 'CONFIG_DEBUG_KOBJECT_RELEASE' usually isn't enabled in most kernels... */
-#ifdef CONFIG_DEBUG_KOBJECT_RELEASE
+	#ifdef CONFIG_DEBUG_KOBJECT_RELEASE
 	struct delayed_work	release;
-#endif
+	#endif
 };
 
 /* use this trick for bypassing the 'struct device' not implemented limitation, should work for every kernel after 5.4 */
@@ -707,9 +703,7 @@ struct usb_dev_tuple {
 	bool is_used;
 };
 
-/*
- * A single wait-queue entry structure:
- */
+/* a single wait-queue entry structure: */
 struct wait_queue_entry {
 	unsigned int		flags;
 	void			*private;
@@ -760,8 +754,7 @@ struct rb_node {
 	unsigned long  __rb_parent_color;
 	struct rb_node *rb_right;
 	struct rb_node *rb_left;
-} __attribute__((aligned(sizeof(long))));
-/* The alignment might seem pointless, but allegedly CRIS needs it */
+} __attribute__((aligned(sizeof(long)))); /* The alignment might seem pointless, but allegedly CRIS needs it */
 
 struct rb_root {
 	struct rb_node *rb_node;
@@ -782,7 +775,7 @@ struct rb_root_cached {
 	struct rb_node *rb_leftmost;
 };
 
-/**
+/*
  * struct callback_head - callback structure for use with RCU and task_work
  * @next: next update requests in a list
  * @func: actual update function to call after the grace period.
@@ -834,7 +827,7 @@ struct workqueue_struct {
 	pthread_t thread;
 };
 
-/**
+/*
  * struct wakeup_source - Representation of wakeup sources
  *
  * @name: Name of the wakeup source
@@ -946,15 +939,15 @@ struct load_info {
 };
 
 struct kernel_symbol {
-#ifdef CONFIG_HAVE_ARCH_PREL32_RELOCATIONS
+	#ifdef CONFIG_HAVE_ARCH_PREL32_RELOCATIONS
 	int value_offset;
 	int name_offset;
 	int namespace_offset;
-#else
+	#else
 	unsigned long value;
 	const char *name;
 	const char *namespace;
-#endif
+	#endif
 };
 
 struct kernel_param {
@@ -1079,7 +1072,6 @@ struct device_driver {
 
 struct module_controller;
 extern struct module_controller director;
-
 #include <prototypes.h>
 
 /* defines pthread functions for Windows below */
@@ -1182,7 +1174,8 @@ static inline int getrandom(void *buf, int len, int unused) {
 
 static inline void usleep(unsigned long usec) {
 	DWORD ms = 0;
-	ms       = (DWORD)((usec + 999) / 1000);
+
+	ms = (DWORD)((usec + 999) / 1000);
 	Sleep(ms);
 }
 

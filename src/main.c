@@ -85,7 +85,7 @@ void *get_ieee80211_priv_data(void){
 	return ieee80211_priv(hw);
 }
 
-/* not really on topic with this file, but for now mantain it here */
+/* skb_get_data: API function for the standalone ELF which permits to get the 'data' field fo the 'skb', not possible from the tcc scripting environment */
 void *skb_get_data(struct sk_buff *skb){
 	if(skb == NULL){
 		return NULL;
@@ -425,12 +425,20 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
         return ret;
 }
 
-/* usb_disk_modeswitch: under Windows and other OS, 'usb_modeswitch' isn't always available,
+/* usb_disk_modeswitch: under Windows and other OSes, 'usb_modeswitch' isn't always available,
  * in this case, invoke the hardcoded minimal implementation of modeswitch */
 static int usb_disk_modeswitch(struct module_controller *controller){
 	int ret = 0;
 	int transferred = 0;
 	const struct usb_device_id *id = NULL;
+	libusb_device *dev = NULL;
+	struct libusb_config_descriptor *cfg = NULL;
+	const struct libusb_interface_descriptor *alt = NULL;
+	const struct libusb_endpoint_descriptor *ep = NULL;
+	u8 intf_num = 0;
+	u8 bulk_in = 0;
+	u8 bulk_out = 0;
+	u8 csw[13] = {0};
 	const u8 eject_cmd[] = {
 		0x55, 0x53, 0x42, 0x43, 0x12, 0x34, 0x56, 0x78,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x1b,
@@ -438,11 +446,21 @@ static int usb_disk_modeswitch(struct module_controller *controller){
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 	};
 	const struct usb_device_id usb_disk_ids[] = {
+		/* Realtek under Windows */
 		{
 			.idVendor = 0x0bda,
 			.idProduct = 0x1a2b
 		},
-		{}
+		/* aic8800, OS independent */
+		{
+			.idVendor = 0xa69c,
+			.idProduct = 0x5721,
+		},
+		{
+			.idVendor = 0xa69c,
+			.idProduct = 0x5725,
+		},
+		{},
 	};
 
 	for(id = usb_disk_ids; id->idVendor && id->idProduct; id++){
@@ -456,20 +474,78 @@ static int usb_disk_modeswitch(struct module_controller *controller){
 		return ret;
 	}
 
-	ret = libusb_claim_interface(controller->usb_dev, 0);
+	dev = libusb_get_device(controller->usb_dev);
+	if(dev == NULL){
+		ret = -ENODEV;
+		goto out_close;
+	}
+
+	ret = libusb_get_active_config_descriptor(dev, &cfg);
+	if(ret < 0){
+		ret = libusb_get_config_descriptor(dev, 0, &cfg);
+	}
+	if(ret < 0 || cfg == NULL){
+		ret = -EIO;
+		goto out_close;
+	}
+
+	for(u8 i = 0; i < cfg->bNumInterfaces && bulk_out == 0; i++){
+		for(int j = 0; j < cfg->interface[i].num_altsetting && bulk_out == 0; j++){
+			alt = &cfg->interface[i].altsetting[j];
+			if(alt->bInterfaceClass != LIBUSB_CLASS_MASS_STORAGE){
+				continue;
+			}
+			intf_num = alt->bInterfaceNumber;
+			for(u8 k = 0; k < alt->bNumEndpoints; k++){
+				ep = &alt->endpoint[k];
+				if((ep->bmAttributes & LIBUSB_TRANSFER_TYPE_MASK) != LIBUSB_TRANSFER_TYPE_BULK){
+					continue;
+				}
+				if((ep->bEndpointAddress & LIBUSB_ENDPOINT_DIR_MASK) == LIBUSB_ENDPOINT_IN){
+					bulk_in = ep->bEndpointAddress;
+				}else{
+					bulk_out = ep->bEndpointAddress;
+				}
+			}
+		}
+	}
+
+	if(bulk_out == 0){
+		ret = -ENODEV;
+		goto out_free_cfg;
+	}
+
+	#ifndef _WIN64
+	libusb_set_auto_detach_kernel_driver(controller->usb_dev, 1);
+	if(libusb_kernel_driver_active(controller->usb_dev, intf_num) == 1){
+		libusb_detach_kernel_driver(controller->usb_dev, intf_num);
+	}
+	#endif
+
+	ret = libusb_claim_interface(controller->usb_dev, intf_num);
 	if(ret == 0){
 		#ifdef ENABLE_DBG_PRINT
-		printf("[*] detected \'DISK\' device, sending the eject command!\n");
+		printf("[*] detected DISK device on interface %u (bulk out: 0x%02x, bulk in: 0x%02x), sending the eject command!\n", intf_num, bulk_out, bulk_in);
 		#endif
-		ret = libusb_bulk_transfer(controller->usb_dev, 0x02, (u8 *)eject_cmd, sizeof(eject_cmd), &transferred, 5000);
-		libusb_release_interface(controller->usb_dev, 0);
+		ret = libusb_bulk_transfer(controller->usb_dev, bulk_out, (u8 *)eject_cmd, sizeof(eject_cmd), &transferred, 5000);
+		if(ret == 0 && transferred == sizeof(eject_cmd) && bulk_in != 0){
+			int csw_transferred = 0;
+			libusb_bulk_transfer(controller->usb_dev, bulk_in, csw, sizeof(csw), &csw_transferred, 1000);
+		}
+		libusb_release_interface(controller->usb_dev, intf_num);
 	}
+
+	out_free_cfg:
+	if(cfg != NULL){
+		libusb_free_config_descriptor(cfg);
+	}
+	out_close:
 	libusb_close(controller->usb_dev);
 	controller->usb_dev = NULL;
 
 	if(ret < 0 || transferred != sizeof(eject_cmd)){
 		#ifdef ENABLE_DBG_PRINT
-		printf("[!] failed to eject the \'DISK\'!\n");
+		printf("[!] failed to eject the DISK: ret=%d transferred=%d/%d\n", ret, transferred, (int)sizeof(eject_cmd));
 		#endif
 		ret = -EIO;
 		return ret;
@@ -529,7 +605,6 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 
 		*intf_out = usb_intf;
 		*matched_id_out = p;
-
 		return ret;
 	}
 
@@ -828,6 +903,7 @@ int dwarf_loader_parser(unsigned char *struct_to_search, unsigned char *field_to
 	return ret;
 }
 
+/* parse_module_offset_table: fill every field of 'runtime_generated_structs' by doing the DWARF research lookup */
 int parse_module_offset_table(void){
 	int ret = 0;
 	u8 counter = 0;
@@ -859,6 +935,7 @@ int parse_module_offset_table(void){
 				current_struct_fields[k].field_name,
 				&current_struct_fields[k].field_offset,
 				&runtime_struct_layout->struct_size);
+			#ifdef ENABLE_DBG_PRINT
 			if(ret > 0 && director.global_conf.show_struct_offset == true){
 				printf("  - %s->%s offset: %d original struct size: %d\n",
 					runtime_struct_layout->struct_name,
@@ -867,6 +944,7 @@ int parse_module_offset_table(void){
 					runtime_struct_layout->struct_size
 				);
 			}
+			#endif
 		}
 	}
 
@@ -875,6 +953,7 @@ int parse_module_offset_table(void){
 }
 
 #ifdef ENABLE_DBG_PRINT
+/* mem_type_to_string: given the module section index, return the respective string name, used only for debugging purposes */
 unsigned char *mem_type_to_string(enum mod_mem_type type){
 	switch(type){
 		case MOD_TEXT:
@@ -949,46 +1028,55 @@ static int elf_validity_cache_copy(struct load_info *info, int flags) {
 	unsigned int info_idx	   = 0;
 	unsigned int num_sym_secs  = 0;
 	unsigned int sym_idx	   = 0;
-	Elf(Shdr) *shdr            = NULL;
-        Elf(Shdr) *strhdr          = NULL;
+	Elf(Shdr) *shdr = NULL;
+        Elf(Shdr) *strhdr = NULL;
 
 	if (info->hdr->e_shentsize != sizeof(Elf(Shdr))) {
-		printf("Invalid ELF section header size\n");
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] invalid ELF section header size\n");
+		#endif
 		goto no_exec;
 	}
 
 	info->sechdrs = (void *)info->hdr + info->hdr->e_shoff;
 
-	if (info->hdr->e_shstrndx == SHN_UNDEF ||
-	    info->hdr->e_shstrndx >= info->hdr->e_shnum) {
-		printf("Invalid ELF section name index: %d || e_shstrndx (%d) "
-		       ">= e_shnum (%d)\n",
+	if (info->hdr->e_shstrndx == SHN_UNDEF || info->hdr->e_shstrndx >= info->hdr->e_shnum) {
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] invalid ELF section name index: %d || e_shstrndx (%d) >= e_shnum (%d)\n",
 		       info->hdr->e_shstrndx, info->hdr->e_shstrndx,
 		       info->hdr->e_shnum);
+		#endif
 		goto no_exec;
 	}
 
 	strhdr = &info->sechdrs[info->hdr->e_shstrndx];
 
-	if (strhdr->sh_offset == 0x00) {
-		printf("sh offset of string header points to 0!\n");
+	if (strhdr->sh_offset == 0) {
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] sh offset of string header points to 0!\n");
+		#endif
 		goto no_exec;
 	}
 
 	info->secstrings = (void *)info->hdr + strhdr->sh_offset;
 
 	if (strhdr->sh_size == 0) {
-		printf("empty section name table\n");
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] empty section name table\n");
+		#endif
 		goto no_exec;
 	}
 	if (info->secstrings[strhdr->sh_size - 1] != '\0') {
-		printf("ELF Spec violation: section name table isn't null terminated\n");
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] ELF Spec violation: section name table isn't null terminated\n");
+		#endif
 		goto no_exec;
 	}
 
-	if (info->sechdrs[0].sh_type != SHT_NULL ||
-	    info->sechdrs[0].sh_size != 0 || info->sechdrs[0].sh_addr != 0) {
-		printf("ELF Spec violation: section 0 type(%d)!=SH_NULL or non-zero len or addr\n", info->sechdrs[0].sh_type);
+	if (info->sechdrs[0].sh_type != SHT_NULL || info->sechdrs[0].sh_size != 0 || info->sechdrs[0].sh_addr != 0) {
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] ELF Spec violation: section 0 type(%d)!=SH_NULL or non-zero len or addr\n", info->sechdrs[0].sh_type);
+		#endif
 		goto no_exec;
 	}
 
@@ -1001,11 +1089,12 @@ static int elf_validity_cache_copy(struct load_info *info, int flags) {
 			continue;
 		case SHT_SYMTAB:
 
-			if (shdr->sh_link == SHN_UNDEF ||
-			    shdr->sh_link >= info->hdr->e_shnum) {
-				printf("Invalid ELF sh_link!=SHN_UNDEF(%d) or (sh_link(%d) >= hdr->e_shnum(%d)\n",
+			if (shdr->sh_link == SHN_UNDEF || shdr->sh_link >= info->hdr->e_shnum) {
+				#ifdef ENABLE_DBG_PRINT
+				printf("[!] invalid ELF sh_link!=SHN_UNDEF(%d) or (sh_link(%d) >= hdr->e_shnum(%d)\n",
 				       shdr->sh_link, shdr->sh_link,
 				       info->hdr->e_shnum);
+				#endif
 				goto no_exec;
 			}
 
@@ -1016,20 +1105,20 @@ static int elf_validity_cache_copy(struct load_info *info, int flags) {
 			if (strcmp(info->secstrings + shdr->sh_name, ".gnu.linkonce.this_module") == 0) {
 				num_mod_secs++;
 				mod_idx = i;
-			#ifdef ENABLE_DBG_PRINT
-				printf("detected .gnu.linkonce.this_module\n");
+				#ifdef ENABLE_DBG_PRINT
+				printf("[!] detected .gnu.linkonce.this_module\n");
 				#endif
 			} else if (strcmp(info->secstrings + shdr->sh_name, ".modinfo") == 0) {
 				num_info_secs++;
 				info_idx = i;
 				#ifdef ENABLE_DBG_PRINT
-				printf("detected .modinfo\n");
+				printf("[!] detected .modinfo\n");
 				#endif
 			}
 			if (shdr->sh_flags & SHF_ALLOC) {
 				if (shdr->sh_name >= strhdr->sh_size) {
 					#ifdef ENABLE_DBG_PRINT
-					printf("Invalid ELF section name in module (section %u type %u)\n", i, shdr->sh_type);
+					printf("[!] invalid ELF section name in module (section %u type %u)\n", i, shdr->sh_type);
 					#endif
 					ret = -ENOEXEC;
 					return ret;
@@ -1041,50 +1130,39 @@ static int elf_validity_cache_copy(struct load_info *info, int flags) {
 
 	if (num_info_secs > 1) {
 		#ifdef ENABLE_DBG_PRINT
-		printf("Only one .modinfo section must exist.\n");
+		printf("[!] only one .modinfo section must exist.\n");
 		#endif
 		goto no_exec;
 	} else if (num_info_secs == 1) {
 		/* Try to find a name early so we can log errors with a module
 		 * name */
 		info->index.info = info_idx;
-		info->name	 = get_modinfo(info, "name");
+		info->name = get_modinfo(info, "name");
 	}
 
 	info->index.sym = sym_idx;
 	shdr		= &info->sechdrs[sym_idx];
 	info->index.str = shdr->sh_link;
-	info->strtab	= (unsigned char *)info->hdr +
-		       info->sechdrs[info->index.str].sh_offset;
+	info->strtab	= (unsigned char *)info->hdr + info->sechdrs[info->index.str].sh_offset;
 
 	if (num_mod_secs != 1) {
 		#ifdef ENABLE_DBG_PRINT
-		printf("module %s: Only one .gnu.linkonce.this_module section "
-		       "must exist.\n",
-		       info->name
-			   ?: "(missing .modinfo section or name field)");
+		printf("[!] module %s: Only one .gnu.linkonce.this_module section must exist.\n", info->name ?: "(missing .modinfo section or name field)");
 		#endif
 		goto no_exec;
 	}
 
 	shdr = &info->sechdrs[mod_idx];
-
 	if (shdr->sh_type == SHT_NOBITS) {
 		#ifdef ENABLE_DBG_PRINT
-		printf("module %s: .gnu.linkonce.this_module section must have "
-		       "a size set\n",
-		       info->name
-			   ?: "(missing .modinfo section or name field)");
+		printf("[!] module %s: .gnu.linkonce.this_module section must have a size set\n", info->name ?: "(missing .modinfo section or name field)");
 		#endif
 		goto no_exec;
 	}
 
 	if (!(shdr->sh_flags & SHF_ALLOC)) {
 		#ifdef ENABLE_DBG_PRINT
-		printf("module %s: .gnu.linkonce.this_module must occupy "
-		       "memory during process execution\n",
-		       info->name
-			   ?: "(missing .modinfo section or name field)");
+		printf("[!] module %s: .gnu.linkonce.this_module must occupy memory during process execution\n", info->name ?: "(missing .modinfo section or name field)");
 		#endif
 		goto no_exec;
 	}
@@ -1105,8 +1183,7 @@ static int elf_validity_cache_copy(struct load_info *info, int flags) {
 	info->index.mod	 = mod_idx;
 	info->mod	 = (void *)info->hdr + shdr->sh_offset;
 	info->index.vers = 0;
-
-	return 0;
+	return ret;
 
 	no_exec:
 	ret = -ENOEXEC;
@@ -1115,11 +1192,11 @@ static int elf_validity_cache_copy(struct load_info *info, int flags) {
 
 static int rewrite_section_headers(struct load_info *info, int flags) {
 	int ret = 0;
-	Elf(Shdr) *shdr		 = NULL;
+	Elf(Shdr) *shdr	= NULL;
 
 	info->sechdrs[0].sh_addr = 0;
-	for (unsigned int i = 1; i < info->hdr->e_shnum; i++) {
-		shdr	      = &info->sechdrs[i];
+	for (int i = 1; i < info->hdr->e_shnum; i++) {
+		shdr = &info->sechdrs[i];
 		shdr->sh_addr = (size_t)info->hdr + shdr->sh_offset;
 	}
 
@@ -1289,8 +1366,7 @@ static int module_memory_alloc(struct module *mod, enum mod_mem_type type) {
 	if(type == MOD_TEXT || type == MOD_INIT_TEXT){
 		mem_flags |= PROT_EXEC;
 	}
-	ptr = mmap(NULL, size, mem_flags,
-		   MAP_PRIVATE | MAP_ANON | MAP_32BIT, -1, 0x00);
+	ptr = mmap(NULL, size, mem_flags, MAP_PRIVATE | MAP_ANON | MAP_32BIT, -1, 0x00);
 
 	if (ptr == MAP_FAILED) {
 		ret = -ENOMEM;
@@ -1300,7 +1376,7 @@ static int module_memory_alloc(struct module *mod, enum mod_mem_type type) {
 	memset(ptr, 0, size);
 	mod->mem[type].base = ptr;
 
-	return 0;
+	return ret;
 }
 
 static void module_memory_free(struct module *mod, enum mod_mem_type type, bool unload_codetags) {
@@ -1354,7 +1430,7 @@ static int move_module(struct module *mod, struct load_info *info) {
 		#endif
 	}
 
-	return 0;
+	return ret;
 	out_enomem:
 	for (t--; t >= 0; t--) {
 		module_memory_free(mod, t, true);
@@ -1364,7 +1440,7 @@ static int move_module(struct module *mod, struct load_info *info) {
 
 static bool is_core_symbol(const Elf(Sym) * src, const Elf(Shdr) * sechdrs, unsigned int shnum, unsigned int pcpundx) {
 	enum mod_mem_type type = 0;
-	const Elf(Shdr) * sec = NULL;
+	const Elf(Shdr) *sec = NULL;
 
 	if (src->st_shndx == SHN_UNDEF || src->st_shndx >= shnum || !src->st_name) {
 		return false;
@@ -1477,6 +1553,7 @@ static struct module *layout_and_allocate(struct load_info *info, int flags) {
 
 static int percpu_modalloc(struct module *mod, struct load_info *info) {
 	int ret = 0;
+
 	/* fix: ignore this function */
 	return ret;
 }
@@ -1570,8 +1647,7 @@ static bool symbol_uses_plt32(struct load_info *info, unsigned int symbol_index)
 		relocations = (Elf(Rela) *)(uintptr_t)section->sh_addr;
 		relocation_count = section->sh_size / sizeof(*relocations);
 		for (unsigned int j = 0; j < relocation_count; j++) {
-			if(ELF64_R_SYM(relocations[j].r_info) == symbol_index &&
-			   ELF64_R_TYPE(relocations[j].r_info) == R_X86_64_PLT32){
+			if(ELF64_R_SYM(relocations[j].r_info) == symbol_index && ELF64_R_TYPE(relocations[j].r_info) == R_X86_64_PLT32){
 				return true;
 			}
 		}
@@ -2407,7 +2483,7 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	return ret;
 }
 
-/* internal function used for initialize a workqueue */
+/* workqueue_init: internal function used for initialize a given workqueue */
 int workqueue_init(struct workqueue_struct *wq, const char *name) {
 	int ret = 0;
 	pthread_condattr_t cattr = {};
@@ -2430,6 +2506,7 @@ int workqueue_init(struct workqueue_struct *wq, const char *name) {
 	return ret;
 }
 
+/* initialize_director: allocate and fill the fields for the main global context */
 int initialize_director(struct module_controller *director, struct load_info **info) {
 	int ret = 0;
 
@@ -2488,7 +2565,7 @@ int initialize_director(struct module_controller *director, struct load_info **i
 	return ret;
 }
 
-/* clean everything allocated in the main controller */
+/* finalize_director: clean everything allocated in the main controller */
 void finalize_director(void){
 	if(director.info != NULL){
 		free(director.info);
@@ -2516,6 +2593,7 @@ void finalize_director(void){
 	}
 }
 
+/* collect_sizes: called at once during bootup for assigning the size of the struct adopted by the loaded module into the main global context */
 int collect_sizes(struct module_controller *director){
 	int ret = 0;
 	u16 current_struct_size = 0;
@@ -2623,7 +2701,9 @@ int collect_sizes(struct module_controller *director){
         return ret;
 }
 
-/* fast api: a very minimal and direct way for executing an immediate action (load a kernel driver, executing a function..) */
+/* FASTAPI: a very minimal and direct way for executing an immediate action (load a kernel driver, executing a function..) */
+
+/* fast_drv_load: load directly a .ko module into memory and initialize it */
 int fast_drv_load(struct module_controller *director, char *module_name) {
 	int ret = 0;
 	struct load_info *load_info = NULL;
@@ -2647,14 +2727,12 @@ int fast_drv_load(struct module_controller *director, char *module_name) {
 
 	/* before quitting, collect the struct sizes now for getting a fast access later */
 	ret = collect_sizes(director);
-
 	/* now call the main driver loading function */
 	ret = module_init(module_name, NULL, load_info);
-
 	return ret;
 }
 
-/* get the symbol pointer and it's size */
+/* fast_get_symbol: get the symbol pointer and it's size */
 int fast_get_symbol(unsigned char *sym_name, void **sym_addr){
 	int ret = 0;
 	unsigned char *current_function_name = NULL;
@@ -2675,7 +2753,7 @@ int fast_get_symbol(unsigned char *sym_name, void **sym_addr){
 	return ret;
 }
 
-/* do the opposite of the function above: given a function pointer, retrieve it's name */
+/* fast_get_name: do the opposite of the function above: given a function pointer, retrieve it's name */
 int fast_get_name(void *sym_addr, unsigned char **sym_name){
 	int ret = 0;
 
@@ -2694,7 +2772,7 @@ int fast_get_name(void *sym_addr, unsigned char **sym_name){
 	return ret;
 }
 
-/* similar to 'fast_get_name' but search the symbol inside a range (function_ptr + function_size) */
+/* fast_get_name_in_range: similar to 'fast_get_name' but search the symbol inside a range (function_ptr + function_size) */
 int fast_get_name_in_range(void *sym_addr, unsigned char **sym_name){
 	int ret = 0;
 	*sym_name = NULL;
@@ -2712,7 +2790,7 @@ int fast_get_name_in_range(void *sym_addr, unsigned char **sym_name){
 	return ret;
 }
 
-/* used in the standalone ELF dump, permits to invoke cfg80211 (and callbacks from 'net_device_ops') callbacks in a simpler way */
+/* fast_run_cfg80211_cb: used in the standalone ELF dump, permits to invoke cfg80211 (and callbacks from 'net_device_ops') callbacks in a simpler way */
 int fast_run_cfg80211_cb(enum fast_run_ops current_ops) {
 	int ret = 0;
 	struct net_device *net_device = NULL;
@@ -2734,7 +2812,7 @@ int fast_run_cfg80211_cb(enum fast_run_ops current_ops) {
 	return ret;
 }
 
-/* used in the standalone ELF dump, permits to invoke ieee80211 callbacks in a simpler way */
+/* fast_run_ieee80211_cb: used in the standalone ELF dump, permits to invoke ieee80211 callbacks in a simpler way */
 int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 	int ret = 0;
 	struct ieee80211_ops *ops = NULL;
@@ -2934,7 +3012,7 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 	return ret;
 }
 
-/* used inside the tcc scripts for the standalone.elf for initializing the driver, calls 'start', 'add_interface' and so on.. */
+/* elf_initialize_driver: used inside the tcc scripts for the standalone.elf for initializing the driver, calls 'start', 'add_interface' and so on.. */
 void elf_initialize_driver(void){
 	/* decide if use 'ieee80211_ops' or 'cfg80211_ops' */
 	if(director.ieee80211_ops != NULL){
@@ -2960,7 +3038,7 @@ struct so_context {
 	unsigned char **sym_name;
 };
 
-/* callback used for walking through the loaded libraries */
+/* walk_shared_libraries: callback used for walking through the loaded libraries */
 int walk_shared_libraries(struct dl_phdr_info *info, size_t info_size, void *data) {
         int ret = 0;
 	uintptr_t min = 0;
@@ -3062,7 +3140,7 @@ int walk_shared_libraries(struct dl_phdr_info *info, size_t info_size, void *dat
 	return ret;
 }
 
-/* search the name of a symbol by walking in the shared objects, used mainly for the backtrace subsystem */
+/* fast_get_name_in_so: search the name of a symbol by walking in the shared objects, used mainly for the backtrace subsystem */
 int fast_get_name_in_so(void *sym_addr, unsigned char **sym_name){
 	int ret = 0;
 	struct so_context shared_object_context = {
@@ -3075,6 +3153,7 @@ int fast_get_name_in_so(void *sym_addr, unsigned char **sym_name){
 }
 #endif
 
+/* fast_execute_function: given a function name, search it inside the loaded modules in memory and execute it */
 int fast_execute_function(unsigned char *function_name){
 	int ret = 0;
 	u8 found = false;

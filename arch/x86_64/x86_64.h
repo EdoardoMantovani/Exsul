@@ -2672,5 +2672,9 @@ void unwind_backtrace(void){
 	} while (unw_step(&cursor) > 0);
 	end:
 }
+#else
+void unwind_backtrace(void){
+	/* not implemented for now */
+}
 #endif /* ENABLE_UNWIND_DEBUGGING */
 #endif /* __x86_64__ */

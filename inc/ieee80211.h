@@ -7311,10 +7311,10 @@ static inline void connection_put_be64(u8 *buf, u64 value){
 }
 
 static inline int connection_hmac_sha1(const u8 *key, int key_len, const u8 *data, int data_len, u8 out[20]){
-	#ifdef __linux__
 	int ret = 0;
 	unsigned int out_len = 0;
 
+	#ifdef __linux__
 	if (HMAC(EVP_sha1(), key, key_len, data, data_len, out, &out_len) == NULL || out_len != 20){
 		ret = -EINVAL;
 		return ret;
@@ -7408,6 +7408,7 @@ static inline int connection_aes_unwrap(const u8 kek[16], const u8 *wrapped, int
 	EVP_CIPHER_CTX_free(ctx);
 	return ret;
 	#else
+	int ret = 0;
 	ret = -EOPNOTSUPP;
 	return ret;
 	#endif
