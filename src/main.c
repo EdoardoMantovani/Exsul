@@ -2808,7 +2808,6 @@ int fast_run_cfg80211_cb(enum fast_run_ops current_ops) {
 	if(current_ops == NDO_OPEN){
 		ret = netdevice_open(net_device);
 	}
-
 	return ret;
 }
 
@@ -2975,7 +2974,6 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 			goto ieee80211_vif_not_initialized;
 		}
 	}
-
 	if(current_op == IEEE80211_MONITOR){
 		add_interface = ops->add_interface;
 		if(add_interface != NULL){
@@ -3003,9 +3001,7 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 			ret = add_interface(local->ieee80211_hw, local->ieee80211_mon_vif);
 		}
 	}
-
 	return ret;
-
 	ieee80211_vif_not_initialized:
 	printf("[!] ieee80211_vif is not initialized!\n");
 	ret = -EINVAL;
@@ -3206,6 +3202,7 @@ static int drv_parse_line(char *line, char **drv_arg, int max_args) {
 	return ret;
 }
 
+/* drv_execute_cmd: given the callback name, get the associated function pointer from a callback table and invoke it */
 static int drv_execute_cmd(struct module_controller *director, char *argv[], struct cmd_table_entry *dispatch_cmd_table) {
 	int ret      = 0;
 	int num_args = -1;
@@ -3246,6 +3243,7 @@ static int drv_execute_cmd(struct module_controller *director, char *argv[], str
  */
 int drv_cmd_exit(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
+
 	finalize_director();
 	exit(ret);
 }
@@ -3256,7 +3254,7 @@ int drv_cmd_reset(struct module_controller *director, char *argv[], int num_args
 	return ret;
 }
 
-/* given a .ko name, load it into memory, this permits to load muultiple kernel modules into the process memory without executing them */
+/* drv_cmd_load: given a .ko name, load it into memory, this permits to load muultiple kernel modules into the process memory without executing them */
 int drv_cmd_load(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
 	unsigned char *module_name = NULL;
@@ -3286,7 +3284,7 @@ int drv_cmd_load(struct module_controller *director, char *argv[], int num_args)
 	return ret;
 }
 
-/* the opposite of 'load', given a kernel module name, unload it from the system */
+/* drv_cmd_unload: the opposite of 'load', given a kernel module name, unload it from the system */
 int drv_cmd_unload(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
 	unsigned char *module_name = NULL;
@@ -3344,6 +3342,7 @@ static int drv_resolve_driver_init(struct module_controller *director, unsigned 
 	return ret;
 }
 
+/* drv_resolve_kernel_object_init: retrieve the 'init' callback for starting the kernel object loaded in memory */
 static int drv_resolve_kernel_object_init(struct module_controller *controller, unsigned char **resolved_name){
 	int ret = 0;
 	struct module *mod = NULL;
@@ -3649,6 +3648,8 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
         int ret = 0;
 	int intf_type = 0;
 	bool enable = false;
+	u32 cfg80211_scan_channels = 0;
+	size_t cfg80211_scan_req_size = 0;
 	struct wiphy *wiphy = NULL;
 	void *new_mac_address = NULL;
 	struct net_device *net_device = NULL;
@@ -3668,8 +3669,6 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	struct ieee80211_vif *ieee80211_mon_vif = NULL;
 	struct cfg80211_ap_settings *ap_settings = NULL;
 	struct cfg80211_scan_request *cfg80211_scan_req = NULL;
-	u32 cfg80211_scan_channels = 0;
-	size_t cfg80211_scan_req_size = 0;
 	/* callbacks prototypes for mac80211 */
 	int (*start)(struct ieee80211_hw *hw) = NULL;
 	void (*stop)(struct ieee80211_hw *hw, bool suspend) = NULL;
