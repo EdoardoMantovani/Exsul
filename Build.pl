@@ -11,6 +11,7 @@ use Cwd qw(getcwd);
 use File::Copy qw(move);
 use List::Util qw(uniq);
 use File::Path qw(make_path);
+use Term::ANSIColor qw(color);
 use File::Temp qw(tempfile tempdir);
 use File::Basename qw(dirname basename);
 
@@ -983,7 +984,7 @@ if($clean){
 	`$rm -f crashreport*`;
 	`$rm -f sigabort_crash*`;
 	`$rm -f offsets.conf`;
-	`$rm *.elf`;
+	`$rm *.elf 2>/dev/null`;
 
 	if($offset_generation_file){
 		`$rm $offset_generation_file 2>/dev/null`;
@@ -1506,6 +1507,16 @@ sub merge_rewritten_function_stubs {
 
 	close($out) or die $!;
 }
+
+# print logo
+print(color("green"));
+print("███████╗██╗  ██╗███████╗██╗   ██╗██╗     
+██╔════╝╚██╗██╔╝██╔════╝██║   ██║██║     
+█████╗   ╚███╔╝ ███████╗██║   ██║██║     
+██╔══╝   ██╔██╗ ╚════██║██║   ██║██║     
+███████╗██╔╝ ██╗███████║╚██████╔╝███████╗
+╚══════╝╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚══════╝\n");
+print(color("reset"));
 
 # create the build directory
 `$mkdir build 2>/dev/null`;
