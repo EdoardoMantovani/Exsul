@@ -2,7 +2,7 @@
 
 # Made by Edoardo Mantovani, 2026
 # Rewritten with safer local alias inference and guarded field replacement.
-# version 1.7.0 (07 Jul 2026)
+# version 1.8.0 (12 Jul 2026)
 
 use strict;
 use warnings;
@@ -983,7 +983,7 @@ if($clean){
 	`$rm -f crashreport*`;
 	`$rm -f sigabort_crash*`;
 	`$rm -f offsets.conf`;
-	`$rm -f dumped_driver.elf`;
+	`$rm *.elf`;
 
 	if($offset_generation_file){
 		`$rm $offset_generation_file 2>/dev/null`;

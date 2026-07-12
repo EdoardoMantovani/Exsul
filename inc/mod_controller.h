@@ -48,7 +48,7 @@ struct exsul_scan_result {
 #define MAX_TCC_RUNTIME_CONTEXTS 4
 
 struct module_controller {
-        char module_name[16];
+        char module_name[32];
 	/* current module major, minor and patch version */
 	u8 kernel_major_version;
 	u8 kernel_minor_version;

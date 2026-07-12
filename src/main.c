@@ -2204,6 +2204,7 @@ static int do_init_module(struct module *mod) {
 	return ret;
 }
 
+/* call_final_function: lookup the function name and invoke it if found */
 static int call_final_function(struct module *mod, struct load_info *info, unsigned char *function_name) {
 	int ret = 0;
 	unsigned int n = 0;
@@ -2266,7 +2267,7 @@ static int call_final_function(struct module *mod, struct load_info *info, unsig
 	return ret;
 }
 
-/* update the kernel version by converting the vermagic string, it will be useful later for setting the function arguments */
+/* update_kernel_version: update the kernel version by converting the vermagic string, it will be useful later for setting the function arguments */
 void update_kernel_version(unsigned char *vermagic){
 	char *separate_version = NULL;
 	unsigned char kernel_version_string_part[32] = {0};
@@ -2297,7 +2298,19 @@ void update_kernel_version(unsigned char *vermagic){
 	end:
 }
 
-/* main entry point of the kernel "module_init" function, permits to load entirely a kernel module, in our case instead, it will load it only in memory and wait for the function to run */
+/* save_kernel_module_name: save the currently loaded kernel module name */
+void save_kernel_module_name(unsigned char *name){
+	if(name == NULL || name[0] == 0){
+		goto end;
+	}
+	memset(director.module_name, 0, sizeof(director.module_name));
+	snprintf(director.module_name, sizeof(director.module_name), "%s_%hhu.%hhu.%hhu.elf", name, director.kernel_major_version, director.kernel_minor_version, director.kernel_patch);
+
+	end:
+}
+
+/* module_init: main entry point of the kernel "module_init" function, permits to load entirely a kernel module,
+ * in our case instead, it will load it only in memory and wait for the function to run */
 int module_init(unsigned char *file_name, unsigned char *function_name, struct load_info *info) {
 	int ret = 0;
 	int fd = 0;
@@ -2401,6 +2414,9 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 
 	/* save the kernel version values for later use */
 	update_kernel_version(get_modinfo(info, "vermagic"));
+	/* save the module name for later use */
+	save_kernel_module_name(get_modinfo(info, "name"));
+
 	mod = layout_and_allocate(info, 0);
 	if (mod == NULL) {
 		#ifdef ENABLE_DBG_PRINT
@@ -2793,7 +2809,22 @@ int fast_get_name_in_range(void *sym_addr, unsigned char **sym_name){
 /* fast_run_cfg80211_cb: used in the standalone ELF dump, permits to invoke cfg80211 (and callbacks from 'net_device_ops') callbacks in a simpler way */
 int fast_run_cfg80211_cb(enum fast_run_ops current_ops) {
 	int ret = 0;
+	struct wiphy *wiphy = NULL;
+	struct wireless_dev *wdev = NULL;
 	struct net_device *net_device = NULL;
+	struct cfg80211_ops *cfg80211_ops = NULL;
+	void (*abort_scan)(struct wiphy *wiphy, struct wireless_dev *wdev) = NULL;
+	int (*scan)(struct wiphy *wiphy, struct cfg80211_scan_request *request) = NULL;
+	int (*del_virtual_intf)(struct wiphy *wiphy, struct wireless_dev *wdev) = NULL;
+	int (*testmode_cmd)(struct wiphy *wiphy, struct wireless_dev *wdev, void *data, int len) = NULL;
+	int (*cfg80211_stop_ap)(struct wiphy *wiphy, struct net_device *dev, unsigned int link_id) = NULL;
+	int (*auth)(struct wiphy *wiphy, struct net_device *dev, struct cfg80211_auth_request *req) = NULL;
+	int (*assoc)(struct wiphy *wiphy, struct net_device *dev, struct cfg80211_assoc_request *req) = NULL;
+	int (*deauth)(struct wiphy *wiphy, struct net_device *dev, struct cfg80211_deauth_request *req) = NULL;
+	int (*cfg80211_start_ap)(struct wiphy *wiphy, struct net_device *dev, struct cfg80211_ap_settings *settings) = NULL;
+	int (*testmode_dump)(struct wiphy *wiphy, struct sk_buff *skb, struct netlink_callback *cb, void *data, int len) = NULL;
+	int (*change_virtual_intf)(struct wiphy *wiphy, struct net_device *dev, enum nl80211_iftype type, struct vif_params *params) = NULL;
+	struct wireless_dev *(*add_virtual_intf)(struct wiphy *wiphy, const char *name, unsigned char name_assign_type, enum nl80211_iftype type, struct vif_params *params) = NULL;
 
 	net_device = director.net_device;
 	if(net_device == NULL){
@@ -2805,8 +2836,80 @@ int fast_run_cfg80211_cb(enum fast_run_ops current_ops) {
 	if(current_ops == NDO_INIT){
 		ret = netdevice_init(net_device);
 	}
+	if(current_ops == NDO_UNINIT){
+		ret = netdevice_uninit(net_device);
+	}
 	if(current_ops == NDO_OPEN){
 		ret = netdevice_open(net_device);
+	}
+	if(current_ops == NDO_STOP){
+		ret = netdevice_stop(net_device);
+	}
+	if(current_ops == NDO_SET_RX_MODE){
+		ret = netdevice_set_rx_mode(net_device);
+	}
+
+	/* if the cfg80211 callbacks are required, check if 'cfg80211_ops' is valid */
+	cfg80211_ops = director.cfg80211_ops;
+	if(cfg80211_ops == NULL){
+		printf("[!] cfg80211_ops is NULL!\n");
+		ret = -EINVAL;
+		return ret;
+	}
+	wiphy = director.wiphy;
+	if(wiphy == NULL){
+		printf("[!] wiphy is NULL!\n");
+		ret = -EINVAL;
+		return ret;
+	}
+	wdev = director.wdev;
+	if(wdev == NULL){
+		printf("[!] wdev is NULL!\n");
+		ret = -EINVAL;
+		return ret;
+	}
+
+	if(current_ops == CFG80211_SCAN){
+
+	}
+	if(current_ops == CFG80211_ABORT_SCAN){
+
+	}
+	if(current_ops == CFG80211_ADD_INTERFACE){
+
+	}
+	if(current_ops == CFG80211_CHANGE_INTERFACE){
+
+	}
+	if(current_ops == CFG80211_DELETE_INTERFACE){
+
+	}
+	if(current_ops == CFG80211_START_AP){
+
+	}
+	if(current_ops == CFG80211_STOP_AP){
+
+	}
+	if(current_ops == CFG80211_AUTH){
+
+	}
+	if(current_ops == CFG80211_ASSOC){
+
+	}
+	if(current_ops == CFG80211_DEAUTH){
+
+	}
+	if(current_ops == CFG80211_DISASSOC){
+
+	}
+	if(current_ops == CFG80211_CONNECT){
+
+	}
+	if(current_ops == CFG80211_GET_TX_POWER){
+
+	}
+	if(current_ops == CFG80211_SET_TX_POWER){
+
 	}
 	return ret;
 }
@@ -3025,6 +3128,8 @@ void elf_initialize_driver(void){
 	}else{
 		/* invoke the 'ndo_open' callback */
 		fast_run_cfg80211_cb(NDO_OPEN);
+		/* invoke the 'scan' callback */
+		fast_run_cfg80211_cb(CFG80211_SCAN);
 	}
 }
 
@@ -3407,8 +3512,7 @@ int drv_cmd_start(struct module_controller *director, char *argv[], int num_args
 		return ret;
 	}
 
-	if((director->ieee80211_ops == NULL || director->ieee80211_local == NULL) &&
-	   (director->cfg80211_ops == NULL || director->wiphy == NULL)){
+	if((director->ieee80211_ops == NULL || director->ieee80211_local == NULL) && (director->cfg80211_ops == NULL || director->wiphy == NULL)){
 		#ifdef ENABLE_DBG_PRINT
 		printf("[!] driver initialized without registering wireless operations\n");
 		#endif
@@ -4862,7 +4966,7 @@ int elf_generator_handler(void){
 	/* save the symbol for the generated ELF */
 	drv_resolve_kernel_object_init(&director, NULL);
 
-	elf_dump_fd = open("dumped_driver.elf", O_RDWR | O_CREAT | O_TRUNC, 0777);
+	elf_dump_fd = open(director.module_name, O_RDWR | O_CREAT | O_TRUNC, 0777);
 	if(elf_dump_fd < 0){
 		ret = -EIO;
 		return ret;
