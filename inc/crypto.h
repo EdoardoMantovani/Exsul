@@ -203,7 +203,7 @@ struct crypto_type {
 	unsigned int algsize;
 };
 
-/**
+/*
  * struct crypto_alg - definition of a cryptograpic cipher algorithm
  * @cra_flags: Flags describing this transformation. See include/linux/crypto.h
  *	       CRYPTO_ALG_* flags for the flags which go in here. Those are
@@ -307,17 +307,11 @@ struct crypto_alg {
  */
 struct crypto_tfm {
 	refcount_t refcnt;
-
 	u32 crt_flags;
-
 	int node;
-
 	struct crypto_tfm *fb;
-
 	void (*exit)(struct crypto_tfm *tfm);
-
 	struct crypto_alg *__crt_alg;
-
 	void *__crt_ctx[];
 };
 
@@ -345,7 +339,7 @@ struct shash_desc {
 	void *__ctx[];
 };
 
-/**
+/*
  * struct shash_alg - synchronous message digest definition
  * @init: see struct ahash_alg
  * @update: see struct ahash_alg
@@ -412,7 +406,7 @@ struct crypto_spawn {
 };
 
 /*
- * A helper struct for waiting for completion of async crypto ops
+ * An helper struct for waiting for completion of async crypto ops
  */
 struct crypto_wait {
 	struct completion completion;
@@ -453,7 +447,7 @@ struct crypto_larval {
 	bool test_started;
 };
 
-/**
+/*
  * struct aead_alg - AEAD cipher definition
  * @maxauthsize: Set the maximum authentication tag size supported by the
  *		 transformation. A transformation may support smaller tag sizes.
@@ -563,7 +557,7 @@ static inline void crypto_free_aead(struct crypto_aead *tfm){
 	crypto_destroy_tfm(tfm, crypto_aead_tfm(tfm));
 }
 
-/**
+/*
  * crypto_free_shash() - zeroize and free the message digest handle
  * @tfm: cipher handle to be freed
  *
@@ -641,7 +635,7 @@ static inline struct shash_alg *crypto_shash_alg(struct crypto_shash *tfm){
 	return __crypto_shash_alg(crypto_shash_tfm(tfm)->__crt_alg);
 }
 
-/**
+/*
  * crypto_shash_descsize() - obtain the operational state size
  * @tfm: cipher handle
  *
@@ -660,7 +654,7 @@ static inline unsigned int crypto_shash_descsize(struct crypto_shash *tfm){
 	return crypto_shash_alg(tfm)->descsize;
 }
 
-/**
+/*
  * crypto_shash_digestsize() - obtain message digest size
  * @tfm: cipher handle
  *
@@ -814,7 +808,7 @@ static struct crypto_aead *aead_key_setup_encrypt(const char *alg, const u8 key[
 
 	return tfm;
 
-free_aead:
+	free_aead:
 	crypto_free_aead(tfm);
 	return ERR_PTR(ret);
 }

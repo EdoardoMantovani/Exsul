@@ -45,7 +45,7 @@
 #define usb_put_urb		usb_free_urb
 
 enum usb_interface_condition {
-	USB_INTERFACE_UNBOUND = 0,
+	USB_INTERFACE_UNBOUND,
 	USB_INTERFACE_BINDING,
 	USB_INTERFACE_BOUND,
 	USB_INTERFACE_UNBINDING,
@@ -88,7 +88,7 @@ struct usb_eusb2_isoc_ep_comp_descriptor {
 	__le32	dwBytesPerInterval;
 } __attribute__ ((packed));
 
-/**
+/*
  * struct usb_host_endpoint - host-side endpoint descriptor and queue
  * @desc: descriptor for this endpoint, wMaxPacketSize in native byteorder
  * @ss_ep_comp: SuperSpeed companion descriptor for this endpoint
@@ -114,10 +114,10 @@ struct usb_host_endpoint {
 	void					*hcpriv;
 	struct ep_device			*ep_dev;	/* For sysfs info */
 
-	unsigned char				*extra;   /* Extra descriptors */
-	int					extralen;
-	int					enabled;
-	int					streams;
+	unsigned char *extra;   /* Extra descriptors */
+	int extralen;
+	int enabled;
+	int streams;
 };
 
 struct usb_iso_packet_descriptor {
@@ -142,7 +142,7 @@ struct usb_host_interface {
 	char *string;		/* iInterface string, if present */
 };
 
-/**
+/*
  * struct usb_interface_cache - long-term representation of a device interface
  * @num_altsetting: number of altsettings defined.
  * @ref: reference counter.
@@ -160,27 +160,22 @@ struct usb_interface_cache {
 	unsigned num_altsetting;	/* number of alternate settings */
 	struct kref ref;		/* reference counter */
 
-	/* variable-length array of alternate settings for this interface,
-	 * stored in no particular order */
+	/* variable-length array of alternate settings for this interface, stored in no particular order */
 	struct usb_host_interface altsetting[];
 };
 
 struct usb_interface {
-	/* array of alternate settings for this interface,
-	 * stored in no particular order */
+	/* array of alternate settings for this interface, stored in no particular order */
 	struct usb_host_interface *altsetting;
 
-	struct usb_host_interface *cur_altsetting;	/* the currently
-					 * active alternate setting */
+	struct usb_host_interface *cur_altsetting;	/* the currently active alternate setting */
 	unsigned num_altsetting;	/* number of alternate settings */
 
-	/* If there is an interface association descriptor then it will list
-	 * the associated interfaces */
+	/* If there is an interface association descriptor then it will list the associated interfaces */
 	struct usb_interface_assoc_descriptor *intf_assoc;
 
-	int minor;			/* minor number this interface is
-					 * bound to */
-	enum usb_interface_condition condition;		/* state of binding */
+	int minor;			/* minor number this interface is bound to */
+	enum usb_interface_condition condition;	/* state of binding */
 	unsigned sysfs_files_created:1;	/* the sysfs attributes exist */
 	unsigned ep_devs_created:1;	/* endpoint "devices" exist */
 	unsigned unregistering:1;	/* unregistration is in progress */
@@ -212,7 +207,7 @@ struct urb {
 	/* ... */
 };
 
-/**
+/*
  * struct usb_host_config - representation of a device's configuration
  * @desc: the device's configuration descriptor.
  * @string: pointer to the cached version of the iConfiguration string, if
@@ -253,19 +248,15 @@ struct urb {
  */
 struct usb_host_config {
 	struct usb_config_descriptor	desc;
-
 	char *string;		/* iConfiguration string, if present */
 
-	/* List of any Interface Association Descriptors in this
-	 * configuration. */
+	/* List of any Interface Association Descriptors in this configuration. */
 	struct usb_interface_assoc_descriptor *intf_assoc[USB_MAXIADS];
 
-	/* the interfaces associated with this configuration,
-	 * stored in no particular order */
+	/* the interfaces associated with this configuration, stored in no particular order */
 	struct usb_interface *interface[USB_MAXINTERFACES];
 
-	/* Interface information available even when this is not the
-	 * active configuration */
+	/* Interface information available even when this is not the active configuration */
 	struct usb_interface_cache *intf_cache[USB_MAXINTERFACES];
 
 	unsigned char *extra;   /* Extra descriptors */
@@ -278,12 +269,15 @@ struct usbdrv_wrap {
 	int for_devices;
 };
 
+/* 'usb_driver' is one of the core's struct of the usb subsystem in the Linux kernel,
+ * due to the fact that the first 2 function callbacks offset never change,
+ * mantain a simplified version of this struct and ignore the other possible callbacks.
+ */
 struct usb_driver {
 	const char *name;
 	int (LINUX_ABI *probe) (struct usb_interface *intf, const struct usb_device_id *id);
 	void (LINUX_ABI *disconnect) (struct usb_interface *intf);
 };
-
 typedef void (LINUX_ABI *usb_complete_t)(struct urb *);
 
 static int usb_anchor_check_wakeup(struct usb_anchor *anchor){
@@ -300,10 +294,37 @@ static unsigned char convert_usb_pipe_to_ep(unsigned int pipe){
 	return epaddr;
 }
 
+/* usb_pipe_endpoint: given he usb pipe, retuns the endpoint */
 static inline struct usb_host_endpoint *usb_pipe_endpoint(struct usb_device *dev, unsigned int pipe){
 	struct usb_host_endpoint **eps = NULL;
+
 	eps = usb_pipein(pipe) ? dev->ep_in : dev->ep_out;
 	return eps[usb_pipeendpoint(pipe)];
+}
+
+/* check_usb_presence: control if the usb dongle associated with the loaded kernel driver is still attached to the host system */
+static int check_usb_presence(void){
+	int ret = 0;
+	bool have_usb_id = false;
+	struct usb_device_id *id = NULL;
+	libusb_device_handle *check_usb_handler = NULL;
+
+	id = director.usb_device_id;
+	if(id != NULL && id->idVendor != 0 && id->idProduct != 0){
+		check_usb_handler = libusb_open_device_with_vid_pid(director.usb_ctx, id->idVendor, id->idProduct);
+		if(check_usb_handler == NULL){
+			ret = -ENODEV;
+			return ret;
+		}
+		libusb_close(check_usb_handler);
+		return ret;
+	}
+
+	if(have_usb_id == true){
+		/* the device is disconnected from the host system! */
+		ret = -ENODEV;
+	}
+	return ret;
 }
 
 static bool match_endpoint(struct usb_endpoint_descriptor *epd,
@@ -347,9 +368,12 @@ static bool match_endpoint(struct usb_endpoint_descriptor *epd,
 	return (!bulk_in || *bulk_in) && (!bulk_out || *bulk_out) && (!int_in || *int_in) && (!int_out || *int_out);
 }
 
+/* urb_destroy: from the kref object, destroy the associated urb transfer by freeing its data */
 static void urb_destroy(struct kref *kref){
 	struct urb *urb = NULL;
-	void *__mptr = (void *)(kref);
+	void *__mptr = NULL;
+
+	__mptr = (void *)(kref);
 	/* for avoiding problems, unroll the 'container_of' macro */
 	urb = ((struct urb *)(__mptr - 0));
 
@@ -360,7 +384,7 @@ static void urb_destroy(struct kref *kref){
 	kfree(urb);
 }
 
-/**
+/*
  * usb_find_endpoint() - Given an endpoint address, search for the endpoint's
  * usb_host_endpoint structure in an interface's current altsetting.
  * @intf: the interface whose current altsetting should be searched
@@ -384,12 +408,13 @@ static const struct usb_host_endpoint *usb_find_endpoint(struct usb_interface *i
 	return NULL;
 }
 
-/* model the primitives for locking during usb I/O phases */
+/* usb_lock: lock the usb mutex */
 static inline void usb_lock(void) {
 	pthread_mutex_lock(&director.usb_io_lock);
 	director.usb_io_depth++;
 }
 
+/* usb_unlock: unlock the usb mutex */
 static inline void usb_unlock(void) {
 	director.usb_io_depth--;
 	if (director.usb_io_depth == 0){
@@ -398,13 +423,170 @@ static inline void usb_unlock(void) {
 	pthread_mutex_unlock(&director.usb_io_lock);
 }
 
+/* usb_libusb_context: get the libusb context */
+static inline libusb_context *usb_libusb_context(void){
+	return director.usb_ctx;
+}
+
+/* usb_transfer_pool_init: initialize the usb urb pool, uses for now the number defined in 'USB_TRANSFER_PREALLOC' */
+static void usb_transfer_pool_init(void){
+	struct libusb_transfer *transfer = NULL;
+
+	pthread_mutex_init(&director.usb_transfer_pool_lock, NULL);
+	memset(director.usb_transfer_pool, 0, sizeof(director.usb_transfer_pool));
+	director.usb_transfer_pool_count = 0;
+	atomic_store_explicit(&director.usb_pending_transfers, 0, memory_order_relaxed);
+	atomic_store_explicit(&director.usb_peak_pending_transfers, 0, memory_order_relaxed);
+
+	for (int i = 0; i < USB_TRANSFER_PREALLOC; i++){
+		transfer = libusb_alloc_transfer(0);
+		if (transfer == NULL){
+			break;
+		}
+		director.usb_transfer_pool[director.usb_transfer_pool_count++] = transfer;
+	}
+}
+
+/* usb_transfer_pool_flush: for every usb urb present in the queue, de-initialize it */
+static void usb_transfer_pool_flush(void){
+	struct libusb_transfer *transfer = NULL;
+
+	pthread_mutex_lock(&director.usb_transfer_pool_lock);
+	while (director.usb_transfer_pool_count > 0){
+		director.usb_transfer_pool_count--;
+		transfer = director.usb_transfer_pool[director.usb_transfer_pool_count];
+		director.usb_transfer_pool[director.usb_transfer_pool_count] = NULL;
+		libusb_free_transfer(transfer);
+	}
+	pthread_mutex_unlock(&director.usb_transfer_pool_lock);
+}
+
+/* usb_transfer_get: get the current urb transfer from the transfer pool */
+static struct libusb_transfer *usb_transfer_get(void){
+	struct libusb_transfer *transfer = NULL;
+
+	pthread_mutex_lock(&director.usb_transfer_pool_lock);
+	if (director.usb_transfer_pool_count > 0){
+		director.usb_transfer_pool_count--;
+		transfer = director.usb_transfer_pool[director.usb_transfer_pool_count];
+		director.usb_transfer_pool[director.usb_transfer_pool_count] = NULL;
+	}
+	pthread_mutex_unlock(&director.usb_transfer_pool_lock);
+
+	if (transfer == NULL){
+		transfer = libusb_alloc_transfer(0);
+	}
+	return transfer;
+}
+
+/* usb_transfer_put: delete an urb transfer from the transfer pool */
+static void usb_transfer_put(struct libusb_transfer *transfer){
+	if (transfer == NULL){
+		goto end;
+	}
+
+	transfer->user_data = NULL;
+	transfer->callback = NULL;
+	transfer->buffer = NULL;
+	transfer->length = 0;
+	transfer->actual_length = 0;
+
+	pthread_mutex_lock(&director.usb_transfer_pool_lock);
+	if (director.usb_transfer_pool_count < USB_TRANSFER_POOL_SIZE){
+		director.usb_transfer_pool[director.usb_transfer_pool_count++] = transfer;
+		transfer = NULL;
+	}
+	pthread_mutex_unlock(&director.usb_transfer_pool_lock);
+
+	if (transfer != NULL){
+		libusb_free_transfer(transfer);
+	}
+	end:
+}
+
+static inline void usb_transfer_note_submit(void){
+	unsigned int peak = 0;
+	unsigned int pending = 0;
+
+	pending = atomic_fetch_add_explicit(&director.usb_pending_transfers, 1, memory_order_relaxed) + 1;
+	peak = atomic_load_explicit(&director.usb_peak_pending_transfers, memory_order_relaxed);
+	while (pending > peak &&
+	       !atomic_compare_exchange_weak_explicit(&director.usb_peak_pending_transfers,
+						       &peak,
+						       pending,
+						       memory_order_relaxed,
+						       memory_order_relaxed)){
+		/* wait */
+	}
+}
+
+static inline void usb_transfer_note_complete(void){
+	atomic_fetch_sub_explicit(&director.usb_pending_transfers, 1, memory_order_relaxed);
+}
+
+static int usb_runtime_init(void){
+	int ret = 0;
+
+	director.usb_ctx = NULL;
+	ret = libusb_init(&director.usb_ctx);
+	if (ret != LIBUSB_SUCCESS){
+		director.usb_ctx = NULL;
+		return -EIO;
+	}
+
+	usb_transfer_pool_init();
+	return ret;
+}
+
+static void usb_runtime_exit(void){
+	if (director.usb_ctx == NULL){
+		goto end;
+	}
+	usb_transfer_pool_flush();
+	libusb_exit(director.usb_ctx);
+	director.usb_ctx = NULL;
+	end:
+}
+
+static inline int usb_handle_events_timeout(struct timeval *tv){
+	int ret = 0;
+
+	ret = libusb_handle_events_timeout(usb_libusb_context(), tv);
+	if (ret == LIBUSB_ERROR_INTERRUPTED || ret == LIBUSB_ERROR_TIMEOUT){
+		return 0;
+	}
+	return ret;
+}
+
+/* usb_drain_events: for every urb, */
+static void usb_drain_events(void){
+	int ret = 0;
+	struct timeval tv = {0, 0};
+
+	for (int i = 0; i < USB_EVENT_DRAIN_BURST; i++){
+		ret = usb_handle_events_timeout(&tv);
+		if (ret != 0){
+			break;
+		}
+	}
+}
+
 /* libusb_urb_callback: main libusb callback used as a thin layer between the userspace and the kernelspace */
 static void libusb_urb_callback(struct libusb_transfer *transfer){
 	struct urb *urb = NULL;
 	usb_complete_t usb_completion_cb = NULL;
 
+	if (transfer == NULL){
+		goto end;
+	}
+
 	/* get the urb pointer from the 'transfer' data */
 	urb = (struct urb *)transfer->user_data;
+	if (urb == NULL){
+		usb_transfer_note_complete();
+		usb_transfer_put(transfer);
+		goto end;
+	}
 
 	/* convert the libusb error into the equivalent Linux kernel error */
 	switch (transfer->status) {
@@ -447,16 +629,26 @@ static void libusb_urb_callback(struct libusb_transfer *transfer){
 		usb_completion_cb(urb);
 	}
 
-	libusb_free_transfer(transfer);
+	usb_transfer_note_complete();
+	usb_transfer_put(transfer);
 	/* Drop the reference acquired by usb_submit_urb(). */
 	usb_free_urb(urb);
+
+	end:
 }
 
 /* libusb_thread: handle async events */
 static void *libusb_thread(void *unused){
+	int ret = 0;
+	struct timeval tv = {0, USB_EVENT_WAIT_USEC};
+
 	setup_percpu();
 	while (!atomic_load_explicit(&director.libusb_thread_stop, memory_order_acquire)){
-		libusb_handle_events(NULL);
+		ret = usb_handle_events_timeout(&tv);
+		if (ret != 0 && ret != LIBUSB_ERROR_NO_DEVICE){
+			continue;
+		}
+		usb_drain_events();
 	}
 	return NULL;
 }

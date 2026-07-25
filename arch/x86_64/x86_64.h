@@ -565,13 +565,20 @@ void *x86_64_make_trampoline(void *target_stub, bool abi_bridge, bool return_thu
 			TRAMP_REGION_SIZE,
 			PROT_READ | PROT_WRITE | PROT_EXEC,
 			MAP_PRIVATE | MAP_ANON | MAP_32BIT,
-			-1,
-			0);
+			-1, 0);
 	}
 
 	if (director.trampoline_area == MAP_FAILED) {
 		director.trampoline_area = NULL;
 		return NULL;
+	}
+	if(director.trampoline_used == 0){
+		director.module_allocation_list = new_allocation(ALLOCATION_TYPE_MMAP,
+			director.trampoline_area,
+			TRAMP_REGION_SIZE,
+			PROT_READ | PROT_WRITE | PROT_EXEC,
+			PT_LOAD,
+			director.module_allocation_list);
 	}
 
 	if (director.trampoline_used + trampoline_size > TRAMP_REGION_SIZE){

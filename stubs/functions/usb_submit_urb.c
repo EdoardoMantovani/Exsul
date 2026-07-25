@@ -13,10 +13,18 @@ int usb_submit_urb(struct urb *urb, int mem_flags){
 		ret = -EPERM;
 		return ret;
 	}
+	if (director.usb_dev == NULL){
+		ret = -ENODEV;
+		return ret;
+	}
+	if (urb->hcpriv != NULL){
+		ret = -EBUSY;
+		return ret;
+	}
 
 	pipe = urb->pipe;
 	ep   = convert_usb_pipe_to_ep(pipe);
-	transfer = libusb_alloc_transfer(0);
+	transfer = usb_transfer_get();
 	if (transfer == NULL){
 		printf("[!] failed to alloc usb transfer\n");
 		ret = -ENOMEM;
@@ -29,7 +37,7 @@ int usb_submit_urb(struct urb *urb, int mem_flags){
 		libusb_fill_interrupt_transfer(transfer, director.usb_dev, ep, (u8 *)urb->transfer_buffer, urb->transfer_buffer_length, libusb_urb_callback, urb, 0);
 	}else{
 		printf("[!] failed to find usb pipe\n");
-		libusb_free_transfer(transfer);
+		usb_transfer_put(transfer);
 		ret = -EINVAL;
 		return ret;
 	}
@@ -47,9 +55,10 @@ int usb_submit_urb(struct urb *urb, int mem_flags){
 		/* if the transfer fails, decrease the urb 'use_count' field by 1 */
 		atomic_fetch_sub_explicit(&urb->use_count, 1, memory_order_relaxed);
 		usb_free_urb(urb);
-		libusb_free_transfer(transfer);
+		usb_transfer_put(transfer);
 		ret = -EIO;
 		return ret;
 	}
+	usb_transfer_note_submit();
 	return ret;
 }

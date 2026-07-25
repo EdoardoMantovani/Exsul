@@ -947,101 +947,105 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[9] = {
 				.struct_size = 0,
 				.struct_name = "ieee80211_hw",
-				.struct_field_num = 24,
+				.struct_field_num = 25,
 				.fields = {
 					[0] = {
 						.field_name = "conf",
 						.field_offset = 0,
 					},
 					[1] = {
-						.field_name = "flags",
+						.field_name = "extra_tx_headroom",
 						.field_offset = 0,
 					},
 					[2] = {
-						.field_name = "max_listen_interval",
+						.field_name = "flags",
 						.field_offset = 0,
 					},
 					[3] = {
-						.field_name = "max_mtu",
+						.field_name = "max_listen_interval",
 						.field_offset = 0,
 					},
 					[4] = {
-						.field_name = "max_nan_de_entries",
+						.field_name = "max_mtu",
 						.field_offset = 0,
 					},
 					[5] = {
-						.field_name = "max_rates",
+						.field_name = "max_nan_de_entries",
 						.field_offset = 0,
 					},
 					[6] = {
-						.field_name = "max_report_rates",
+						.field_name = "max_rates",
 						.field_offset = 0,
 					},
 					[7] = {
-						.field_name = "max_rx_aggregation_subframes",
+						.field_name = "max_report_rates",
 						.field_offset = 0,
 					},
 					[8] = {
-						.field_name = "max_signal",
+						.field_name = "max_rx_aggregation_subframes",
 						.field_offset = 0,
 					},
 					[9] = {
-						.field_name = "max_tx_aggregation_subframes",
+						.field_name = "max_signal",
 						.field_offset = 0,
 					},
 					[10] = {
-						.field_name = "netdev_features",
+						.field_name = "max_tx_aggregation_subframes",
 						.field_offset = 0,
 					},
 					[11] = {
-						.field_name = "offchannel_tx_hw_queue",
+						.field_name = "netdev_features",
 						.field_offset = 0,
 					},
 					[12] = {
-						.field_name = "priv",
+						.field_name = "offchannel_tx_hw_queue",
 						.field_offset = 0,
 					},
 					[13] = {
-						.field_name = "queues",
+						.field_name = "priv",
 						.field_offset = 0,
 					},
 					[14] = {
-						.field_name = "radiotap_mcs_details",
+						.field_name = "queues",
 						.field_offset = 0,
 					},
 					[15] = {
-						.field_name = "radiotap_vht_details",
+						.field_name = "radiotap_mcs_details",
 						.field_offset = 0,
 					},
 					[16] = {
-						.field_name = "rate_control_algorithm",
+						.field_name = "radiotap_vht_details",
 						.field_offset = 0,
 					},
 					[17] = {
-						.field_name = "tx_sk_pacing_shift",
+						.field_name = "rate_control_algorithm",
 						.field_offset = 0,
 					},
 					[18] = {
-						.field_name = "txq_data_size",
+						.field_name = "tx_sk_pacing_shift",
 						.field_offset = 0,
 					},
 					[19] = {
-						.field_name = "uapsd_max_sp_len",
+						.field_name = "txq_data_size",
 						.field_offset = 0,
 					},
 					[20] = {
-						.field_name = "uapsd_queues",
+						.field_name = "uapsd_max_sp_len",
 						.field_offset = 0,
 					},
 					[21] = {
-						.field_name = "vif_data_size",
+						.field_name = "uapsd_queues",
 						.field_offset = 0,
 					},
 					[22] = {
-						.field_name = "weight_multiplier",
+						.field_name = "vif_data_size",
 						.field_offset = 0,
 					},
 					[23] = {
+						.field_name = "weight_multiplier",
+						.field_offset = 0,
+					},
+					[24] = {
 						.field_name = "wiphy",
 						.field_offset = 0,
 					},
@@ -1636,7 +1640,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[20] = {
 				.struct_size = 0,
 				.struct_name = "sk_buff",
-				.struct_field_num = 55,
+				.struct_field_num = 54,
 				.fields = {
 					[0] = {
 						.field_name = "_skb_refdst",
@@ -1791,70 +1795,66 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[38] = {
-						.field_name = "prev",
-						.field_offset = 0,
-					},
-					[39] = {
 						.field_name = "priority",
 						.field_offset = 0,
 					},
-					[40] = {
+					[39] = {
 						.field_name = "protocol",
 						.field_offset = 0,
 					},
-					[41] = {
+					[40] = {
 						.field_name = "queue_mapping",
 						.field_offset = 0,
 					},
-					[42] = {
+					[41] = {
 						.field_name = "reserved_tailroom",
 						.field_offset = 0,
 					},
-					[43] = {
+					[42] = {
 						.field_name = "sk",
 						.field_offset = 0,
 					},
-					[44] = {
+					[43] = {
 						.field_name = "slow_gro",
 						.field_offset = 0,
 					},
-					[45] = {
+					[44] = {
 						.field_name = "tail",
 						.field_offset = 0,
 					},
-					[46] = {
+					[45] = {
 						.field_name = "transport_header",
 						.field_offset = 0,
 					},
-					[47] = {
+					[46] = {
 						.field_name = "truesize",
 						.field_offset = 0,
 					},
-					[48] = {
+					[47] = {
 						.field_name = "tstamp",
 						.field_offset = 0,
 					},
-					[49] = {
+					[48] = {
 						.field_name = "tstamp_type",
 						.field_offset = 0,
 					},
-					[50] = {
+					[49] = {
 						.field_name = "unreadable",
 						.field_offset = 0,
 					},
-					[51] = {
+					[50] = {
 						.field_name = "users",
 						.field_offset = 0,
 					},
-					[52] = {
+					[51] = {
 						.field_name = "wifi_acked",
 						.field_offset = 0,
 					},
-					[53] = {
+					[52] = {
 						.field_name = "wifi_acked_valid",
 						.field_offset = 0,
 					},
-					[54] = {
+					[53] = {
 						.field_name = "x",
 						.field_offset = 0,
 					},

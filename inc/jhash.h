@@ -41,8 +41,7 @@
  *
  * Returns the hash value of the key. The result depends on endianness.
  */
-static inline u32 jhash(const void *key, u32 length, u32 initval)
-{
+static inline u32 jhash(const void *key, u32 length, u32 initval){
 	u32 a, b, c;
 	const u8 *k = key;
 
@@ -88,8 +87,7 @@ static inline u32 jhash(const void *key, u32 length, u32 initval)
  *
  * Returns the hash value of the key.
  */
-static inline u32 jhash2(const u32 *k, u32 length, u32 initval)
-{
+static inline u32 jhash2(const u32 *k, u32 length, u32 initval){
 	u32 a, b, c;
 
 	/* Set up the internal state */

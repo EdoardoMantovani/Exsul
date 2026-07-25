@@ -257,6 +257,9 @@ typedef _Atomic(unsigned int) atomic_uint;
 /* path for the firmware files, this will be used mainly in Linux, for Windows expect a local folder */
 #define DEFAULT_FW_PATH			"/lib/firmware/"
 
+/* default file name for the dumped pcap file */
+#define PCAP_DUMP_DEFAULT_NAME		"exsul_rx_dump.pcap"
+
 /* magic number used for identifying the header of crash dump */
 #define DUMP_MAGIC			"DCCCCB"
 
@@ -442,7 +445,7 @@ enum tk_offsets {
 	TK_OFFS_MAX,
 };
 
-/**
+/*
  * enum probe_type - device driver probe type to try
  *	Device drivers may opt in for special handling of their
  *	respective probe routines. This tells the core what to
@@ -561,7 +564,7 @@ enum {
 	KERNEL_PARAM_OPS_FL_NOARG = (1 << 0)
 };
 
-/**
+/*
  * enum irqreturn - irqreturn type values
  * @IRQ_NONE:		interrupt was not from this device or was not handled
  * @IRQ_HANDLED:	interrupt was handled by this device
@@ -1542,7 +1545,7 @@ static int timer_delete (void *__timerid){
 }
 #endif
 
-/**
+/*
  * refcount_set - set a refcount's value
  * @r: the refcount
  * @n: value to which the refcount will be set
@@ -1551,7 +1554,7 @@ static inline void refcount_set(refcount_t *r, int n){
 	atomic_store(&r->refs, n);
 }
 
-/**
+/*
  * refcount_read - get a refcount's value
  * @r: the refcount
  *
@@ -1561,7 +1564,7 @@ static inline unsigned int refcount_read(const refcount_t *r){
 	return atomic_load(&r->refs);
 }
 
-/**
+/*
  * INIT_LIST_HEAD - Initialize a list_head structure
  * @list: list_head structure to be initialized.
  *
@@ -1573,7 +1576,7 @@ static inline void INIT_LIST_HEAD(struct list_head *list){
 	WRITE_ONCE(list->prev, list);
 }
 
-/**
+/*
  * list_is_first -- tests whether @list is the first entry in list @head
  * @list: the entry to test
  * @head: the head of the list
@@ -1582,7 +1585,7 @@ static inline int list_is_first(const struct list_head *list, const struct list_
 	return list->prev == head;
 }
 
-/**
+/*
  * list_is_last - tests whether @list is the last entry in list @head
  * @list: the entry to test
  * @head: the head of the list
@@ -1591,7 +1594,7 @@ static inline int list_is_last(const struct list_head *list, const struct list_h
 	return list->next == head;
 }
 
-/**
+/*
  * list_is_head - tests whether @list is the list @head
  * @list: the entry to test
  * @head: the head of the list
@@ -1600,7 +1603,7 @@ static inline int list_is_head(const struct list_head *list, const struct list_h
 	return list == head;
 }
 
-/**
+/*
  * list_empty - tests whether a list is empty
  * @head: the list to test.
  */
@@ -1608,7 +1611,7 @@ static inline int list_empty(const struct list_head *head){
 	return READ_ONCE(head->next) == head;
 }
 
-/**
+/*
  * list_cut_before - cut a list into two, before given entry
  * @list: a new list to add all removed entries
  * @head: a list with entries
@@ -1646,7 +1649,7 @@ static inline void __list_splice(const struct list_head *list, struct list_head 
 	next->prev = last;
 }
 
-/**
+/*
  * list_splice_init - join two lists and reinitialise the emptied list.
  * @list: the new list to add.
  * @head: the place to add it in the first list.
@@ -1723,7 +1726,7 @@ static inline void __list_add(struct list_head *new, struct list_head *prev, str
 	WRITE_ONCE(prev->next, new);
 }
 
-/**
+/*
  * list_add - add a new entry
  * @new: new entry to be added
  * @head: list head to add it after
@@ -1735,7 +1738,7 @@ static inline void list_add(struct list_head *new, struct list_head *head){
 	__list_add(new, head, head->next);
 }
 
-/**
+/*
  * list_add_tail - add a new entry
  * @new: new entry to be added
  * @head: list head to add it before
@@ -1779,7 +1782,7 @@ static inline void __list_del_entry(struct list_head *entry){
 	__list_del(entry->prev, entry->next);
 }
 
-/**
+/*
  * list_del - deletes entry from list.
  * @entry: the element to delete from the list.
  * Note: list_empty() on entry does not return true after this, the entry is
@@ -1791,7 +1794,7 @@ static inline void list_del(struct list_head *entry){
 	entry->prev = (void *)0x122;
 }
 
-/**
+/*
  * list_del_init - deletes entry from list and reinitialize it.
  * @entry: the element to delete from the list.
  */
@@ -1800,7 +1803,7 @@ static inline void list_del_init(struct list_head *entry){
 	INIT_LIST_HEAD(entry);
 }
 
-/**
+/*
  * list_move - delete from one list and add as another's head
  * @list: the entry to move
  * @head: the head that will precede our entry
@@ -1810,7 +1813,7 @@ static inline void list_move(struct list_head *list, struct list_head *head){
 	list_add(list, head);
 }
 
-/**
+/*
  * list_replace - replace old entry by new one
  * @old : the element to be replaced
  * @new : the new element to insert
@@ -1836,11 +1839,10 @@ static inline void __list_add_rcu(struct list_head *new, struct list_head *prev,
 	}
 	new->next = next;
 	new->prev = prev;
-//	rcu_assign_pointer(list_next_rcu(prev), new);
 	next->prev = new;
 }
 
-/**
+/*
  * list_del_rcu - deletes entry from list without re-initialization
  * @entry: the element to delete from the list.
  *
@@ -1869,7 +1871,7 @@ static inline void list_del_rcu(struct list_head *entry){
 	entry->prev = LIST_POISON2;
 }
 
-/**
+/*
  * list_add_rcu - add a new entry to rcu-protected list
  * @new: new entry to be added
  * @head: list head to add it after
@@ -1889,7 +1891,7 @@ static inline void list_add_rcu(struct list_head *new, struct list_head *head){
 	__list_add_rcu(new, head, head->next);
 }
 
-/**
+/*
  * list_add_tail_rcu - add a new entry to rcu-protected list
  * @new: new entry to be added
  * @head: list head to add it before
@@ -1963,7 +1965,7 @@ static inline bool refcount_dec_and_test(refcount_t *r){
 	return __refcount_dec_and_test(r, NULL);
 }
 
-/**
+/*
  * kref_init - initialize object.
  * @kref: object in question.
  */
@@ -1979,7 +1981,7 @@ static inline void kref_get(struct kref *kref){
 	refcount_inc(&kref->refcount);
 }
 
-/**
+/*
  * kref_put - Decrement refcount for object
  * @kref: Object
  * @release: Pointer to the function that will clean up the object when the
@@ -2003,7 +2005,7 @@ static inline int kref_put(struct kref *kref, void (*release)(struct kref *kref)
 	return ret;
 }
 
-/**
+/*
  * ERR_PTR - Create an error pointer.
  * @error: A negative error code.
  *
@@ -2020,7 +2022,7 @@ static inline long PTR_ERR(const void *ptr){
 	return (long)(intptr_t)ptr;
 }
 
-/**
+/*
  * ERR_CAST - Explicitly cast an error-valued pointer to another pointer type
  * @ptr: The pointer to cast.
  *
@@ -2032,7 +2034,7 @@ static inline void *ERR_CAST(const void *ptr){
 	return (void *) ptr;
 }
 
-/**
+/*
  * IS_ERR - Detect an error pointer.
  * @ptr: The pointer to check.
  * Return: true if @ptr is an error pointer, false otherwise.
@@ -2064,7 +2066,6 @@ static inline bool IS_ERR(__force const void *ptr){
  * are left undone as of now. Nor did I check for loops involving parent
  * pointers.
  */
-
 static inline void rb_set_black(struct rb_node *rb){
 	rb->__rb_parent_color += RB_BLACK;
 }
@@ -2262,10 +2263,8 @@ static void __kobject_del(struct kobject *kobj){
 	kobj->parent = NULL;
 }
 
-/*
- * kobject_cleanup - free kobject resources.
- * @kobj: object to cleanup
- */
+/* kobject_cleanup - free kobject resources.
+ * @kobj: object to cleanup */
 static void kobject_cleanup(struct kobject *kobj){
 	struct kobject *rb_parent = kobj->parent;
 	const struct kobj_type *t = kobj->ktype;
@@ -2296,6 +2295,7 @@ static void kobject_release(struct kref *kref){
 	kobject_cleanup(kobj);
 }
 
+/* mutex helpers */
 static inline void mutex_init(struct mutex *lock, const char *name, void *key){
 	mutex_init_generic(lock);
 }
@@ -2305,6 +2305,7 @@ static void __mutex_init_generic(struct mutex *lock){
 	INIT_LIST_HEAD(&lock->wait_list);
 }
 
+/* spinlock helpers */
 static inline int spin_lock_init(pthread_mutex_t *lock){
 	pthread_mutex_init(lock, NULL);
 }
@@ -2317,6 +2318,7 @@ static inline int spin_unlock(pthread_mutex_t *lock){
 	pthread_mutex_unlock(lock);
 }
 
+/* wq helpers */
 static inline struct timespec wq_now(struct workqueue_struct *wq){
         struct timespec now = {};
         clock_gettime(wq->clock_id, &now);
@@ -2396,10 +2398,7 @@ static int try_consume_completion(struct completion *x){
 	return ret;
 }
 
-/*
- * prng for emulating the 'get_random_uxx' function
- * taken from 'https://www.pcg-random.org/download.html'
-*/
+/* pcg32_random_r: prng for emulating the 'get_random_uxx' function taken from 'https://www.pcg-random.org/download.html' */
 static u32 pcg32_random_r(void *arg){
 	u32 rot = 0;
 	u32 xorshifted = 0;
@@ -2416,6 +2415,7 @@ static u32 pcg32_random_r(void *arg){
 	return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
 }
 
+/* read_uleb128: used for decoding the DWARF information of a loaded kernel module */
 static u64 read_uleb128(u8 *p, int len){
 	int counter = 0;
 	u8 b = 0;
@@ -2448,5 +2448,6 @@ static u64 read_uleb128(u8 *p, int len){
 #include <hci.h>
 #include <crypto.h>
 #include <ieee80211.h>
+#include <pcap.h>
 
 #endif

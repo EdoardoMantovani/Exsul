@@ -10,7 +10,6 @@
  * can unconditionally dereference the pointer(s).
  */
 #define small_const_nbits(nbits)	(__builtin_constant_p(nbits) && (nbits) <= BITS_PER_LONG && (nbits) > 0)
-
 #define for_each_set_bit(bit, addr, size) for ((bit) = 0; (bit) = find_next_bit((addr), (size), (bit)), (bit) < (size); (bit)++)
 
 static inline bool bitmap_intersects(unsigned long *src1, unsigned long *src2, unsigned int nbits){
@@ -47,7 +46,7 @@ static inline int linkmode_subset(unsigned long *src1, unsigned long *src2){
 	return bitmap_subset(src1, src2, __ETHTOOL_LINK_MODE_MASK_NBITS);
 }
 
-/**
+/*
  * find_next_bit - find the next set bit in a memory region
  * @addr: The address to base the search on
  * @size: The bitmap size in bits

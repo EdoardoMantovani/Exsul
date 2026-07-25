@@ -1,10 +1,10 @@
 void ieee80211_rx_list(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, struct sk_buff *skb, struct list_head *list){
 	struct wiphy *wiphy = NULL;
+	struct ieee80211_hdr *hdr = NULL;
 	struct ieee80211_rate *rate = NULL;
 	struct ieee80211_local *local = NULL;
-	struct ieee80211_supported_band *sband = NULL;
 	struct ieee80211_rx_status *status = NULL;
-	struct ieee80211_hdr *hdr = NULL;
+	struct ieee80211_supported_band *sband = NULL;
 
 	if (skb == NULL || IS_ERR(skb)){
 		goto end;
@@ -23,8 +23,13 @@ void ieee80211_rx_list(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, st
 	if (local == NULL || local->wiphy == NULL){
 		goto drop;
 	}
-	scan_cache_observe_rx_status(local, skb);
-	connection_rx_observe(local, skb);
+	/* add an atomic gate for veryfing if the scan is still ongoing */
+	if (atomic_load(&director.scan_in_progress) == true){
+		scan_cache_observe_rx_status(local, skb);
+	}
+	if (director.connection_fsm != NULL){
+		connection_rx_observe(local, skb);
+	}
 	if (status->band >= NUM_NL80211_BANDS){
 		goto drop;
 	}

@@ -19,7 +19,7 @@
 /* empty macro used for indicating to Build.pl to add a specific symbol to the cb_table */
 #define SYMBOL_EXPORT(sym)
 
-/**
+/*
  * DECLARE_FLEX_ARRAY() - Declare a flexible array usable in a union
  *
  * @TYPE: The type of each flexible array element
@@ -80,7 +80,7 @@
 /* The "volatile" is due to gcc bugs */
 # define barrier()		__asm__ __volatile__("": : :"memory")
 
-/**
+/*
  * sizeof_field() - Report the size of a struct field in bytes
  *
  * @TYPE: The structure containing the field of interest
@@ -88,7 +88,7 @@
  */
 #define sizeof_field(TYPE, MEMBER) sizeof((((TYPE *)0)->MEMBER))
 
-/**
+/*
  * offsetofend() - Report the offset of a struct field within the struct
  *
  * @TYPE: The type of the structure
@@ -96,7 +96,7 @@
  */
 #define offsetofend(TYPE, MEMBER) (offsetof(TYPE, MEMBER) + sizeof_field(TYPE, MEMBER))
 
-/**
+/*
  * min_t - return minimum of two values, using the specified type
  * @type: data type to use
  * @x: first value
@@ -104,7 +104,7 @@
  */
 #define min_t(type, x, y) __cmp_once(min, type, x, y)
 
-/**
+/*
  * max_t - return maximum of two values, using the specified type
  * @type: data type to use
  * @x: first value
@@ -112,13 +112,13 @@
  */
 #define max_t(type, x, y) __cmp_once(max, type, x, y)
 
-/**
+/*
  * LIST_HEAD_INIT - initialize a &struct list_head's links to point to itself
  * @name: name of the list_head
  */
 #define LIST_HEAD_INIT(name) { &(name), &(name) }
 
-/**
+/*
  * LIST_HEAD - definition of a &struct list_head with initialization values
  * @name: name of the list_head
  */
@@ -293,7 +293,7 @@ container_of(callback_timer, typeof(*var), timer_fieldname)
 #define le64_to_cpu __le64_to_cpu
 #endif
 
-/**
+/*
  * do_div - returns 2 values: calculate remainder and update new dividend
  * @n: uint64_t dividend (will be updated)
  * @base: uint32_t divisor
@@ -345,7 +345,7 @@ do {									      \
 		WRITE_ONCE((p), (typeof(p))(uintptr_t)NULL);		      \
 } while (0)
 
-/**
+/*
  * rcu_dereference_all() - fetch RCU-all-protected pointer for dereferencing
  * @p: The pointer to read, prior to dereferencing
  *
@@ -353,7 +353,7 @@ do {									      \
  */
 #define rcu_dereference_all(p) rcu_dereference_all_check(p, 0)
 
-/**
+/*
  * rcu_access_pointer() - fetch RCU pointer with no dereferencing
  * @p: The pointer to read
  *
@@ -425,7 +425,7 @@ do {									\
                 (type *)((char *)__mptr - offsetof(type, member));             \
         })
 
-/**
+/*
  * container_of_const - cast a member of a structure out to the containing
  *			structure and preserve the const-ness of the pointer
  * @ptr:		the pointer to the member
@@ -476,7 +476,7 @@ do {									\
 	1; \
 })
 
-/**
+/*
  * time_after - returns true if the time a is after time b.
  * @a: first comparable as unsigned long
  * @b: second comparable as unsigned long
@@ -491,7 +491,7 @@ do {									\
 	(typecheck(unsigned long, a) && \
 	 typecheck(unsigned long, b) && \
 	 ((long)((b) - (a)) < 0))
-/**
+/*
  * time_before - returns true if the time a is before time b.
  * @a: first comparable as unsigned long
  * @b: second comparable as unsigned long
@@ -691,7 +691,7 @@ out:										\
 #define ELF64_ST_BIND(x)        ELF_ST_BIND(x)
 #define ELF64_ST_TYPE(x)        ELF_ST_TYPE(x)
 
-/**
+/*
  * list_entry - get the struct for this entry
  * @ptr:	the &struct list_head pointer.
  * @type:	the type of the struct this is embedded in.
@@ -700,7 +700,7 @@ out:										\
 #define list_entry(ptr, type, member) \
 	container_of(ptr, type, member)
 
-/**
+/*
  * list_entry_rcu - get the struct for this entry
  * @ptr:        the &struct list_head pointer.
  * @type:       the type of the struct this is embedded in.
@@ -712,7 +712,7 @@ out:										\
 #define list_entry_rcu(ptr, type, member) \
 	container_of(READ_ONCE(ptr), type, member)
 
-/**
+/*
  * list_first_entry - get the first element from a list
  * @ptr:	the list head to take the element from.
  * @type:	the type of the struct this is embedded in.
@@ -723,7 +723,7 @@ out:										\
 #define list_first_entry(ptr, type, member) \
 	list_entry((ptr)->next, type, member)
 
-/**
+/*
  * list_last_entry - get the last element from a list
  * @ptr:	the list head to take the element from.
  * @type:	the type of the struct this is embedded in.
@@ -734,7 +734,7 @@ out:										\
 #define list_last_entry(ptr, type, member) \
 	list_entry((ptr)->prev, type, member)
 
-/**
+/*
  * list_first_entry_or_null - get the first element from a list
  * @ptr:	the list head to take the element from.
  * @type:	the type of the struct this is embedded in.
@@ -748,7 +748,7 @@ out:										\
 	pos__ != head__ ? list_entry(pos__, type, member) : NULL; \
 })
 
-/**
+/*
  * list_last_entry_or_null - get the last element from a list
  * @ptr:	the list head to take the element from.
  * @type:	the type of the struct this is embedded in.
@@ -762,7 +762,7 @@ out:										\
 	pos__ != head__ ? list_entry(pos__, type, member) : NULL; \
 })
 
-/**
+/*
  * list_next_entry - get the next element in list
  * @pos:	the type * to cursor
  * @member:	the name of the list_head within the struct.
@@ -770,7 +770,7 @@ out:										\
 #define list_next_entry(pos, member) \
 	list_entry((pos)->member.next, typeof(*(pos)), member)
 
-/**
+/*
  * list_next_entry_circular - get the next element in list
  * @pos:	the type * to cursor.
  * @head:	the list head to take the element from.
@@ -783,7 +783,7 @@ out:										\
 	(list_is_last(&(pos)->member, head) ? \
 	list_first_entry(head, typeof(*(pos)), member) : list_next_entry(pos, member))
 
-/**
+/*
  * list_prev_entry - get the prev element in list
  * @pos:	the type * to cursor
  * @member:	the name of the list_head within the struct.
@@ -791,7 +791,7 @@ out:										\
 #define list_prev_entry(pos, member) \
 	list_entry((pos)->member.prev, typeof(*(pos)), member)
 
-/**
+/*
  * list_prev_entry_circular - get the prev element in list
  * @pos:	the type * to cursor.
  * @head:	the list head to take the element from.
@@ -804,7 +804,7 @@ out:										\
 	(list_is_first(&(pos)->member, head) ? \
 	list_last_entry(head, typeof(*(pos)), member) : list_prev_entry(pos, member))
 
-/**
+/*
  * list_entry_is_head - test if the entry points to the head of the list
  * @pos:	the type * to cursor
  * @head:	the head for your list.
@@ -813,7 +813,7 @@ out:										\
 #define list_entry_is_head(pos, head, member)				\
 	list_is_head(&pos->member, (head))
 
-/**
+/*
  * list_for_each	-	iterate over a list
  * @pos:	the &struct list_head to use as a loop cursor.
  * @head:	the head for your list.
@@ -821,7 +821,7 @@ out:										\
 #define list_for_each(pos, head) \
 	for (pos = (head)->next; !list_is_head(pos, (head)); pos = pos->next)
 
-/**
+/*
  * list_for_each_continue - continue iteration over a list
  * @pos:	the &struct list_head to use as a loop cursor.
  * @head:	the head for your list.
@@ -831,7 +831,7 @@ out:										\
 #define list_for_each_continue(pos, head) \
 	for (pos = pos->next; !list_is_head(pos, (head)); pos = pos->next)
 
-/**
+/*
  * list_for_each_prev	-	iterate over a list backwards
  * @pos:	the &struct list_head to use as a loop cursor.
  * @head:	the head for your list.
@@ -839,7 +839,7 @@ out:										\
 #define list_for_each_prev(pos, head) \
 	for (pos = (head)->prev; !list_is_head(pos, (head)); pos = pos->prev)
 
-/**
+/*
  * list_for_each_safe - iterate over a list safe against removal of list entry
  * @pos:	the &struct list_head to use as a loop cursor.
  * @n:		another &struct list_head to use as temporary storage
@@ -850,7 +850,7 @@ out:										\
 	     !list_is_head(pos, (head)); \
 	     pos = n, n = pos->next)
 
-/**
+/*
  * list_for_each_prev_safe - iterate over a list backwards safe against removal of list entry
  * @pos:	the &struct list_head to use as a loop cursor.
  * @n:		another &struct list_head to use as temporary storage
@@ -861,7 +861,7 @@ out:										\
 	     !list_is_head(pos, (head)); \
 	     pos = n, n = pos->prev)
 
-/**
+/*
  * list_for_each_entry	-	iterate over list of given type
  * @pos:	the type * to use as a loop cursor.
  * @head:	the head for your list.
@@ -872,7 +872,7 @@ out:										\
 	     !list_entry_is_head(pos, head, member);			\
 	     pos = list_next_entry(pos, member))
 
-/**
+/*
  * list_for_each_entry_safe - iterate over list of given type safe against removal of list entry
  * @pos:	the type * to use as a loop cursor.
  * @n:		another type * to use as temporary storage
@@ -885,7 +885,7 @@ out:										\
 	     !list_entry_is_head(pos, head, member); 			\
 	     pos = n, n = list_next_entry(n, member))
 
-/**
+/*
  * list_for_each_entry_rcu	-	iterate over rcu list of given type
  * @pos:	the type * to use as a loop cursor.
  * @head:	the head for your list.
@@ -916,7 +916,7 @@ out:										\
 #define rht_entry(tpos, pos, member) \
 	({ tpos = container_of(pos, typeof(*tpos), member); 1; })
 
-/**
+/*
  * rhl_for_each_rcu - iterate over rcu hash table list
  * @pos:	the &struct rlist_head to use as a loop cursor.
  * @list:	the head of the list
@@ -927,7 +927,7 @@ out:										\
 #define rhl_for_each_rcu(pos, list)					\
 	for (pos = list; pos; pos = rcu_dereference_all(pos->next))
 
-/**
+/*
  * rhl_for_each_entry_rcu - iterate over rcu hash table list of given type
  * @tpos:	the type * to use as a loop cursor.
  * @pos:	the &struct rlist_head to use as a loop cursor.
@@ -995,7 +995,7 @@ out:										\
 	((typeof(*p) __force __kernel *)(p)); \
 })
 
-/**
+/*
  * RCU_INIT_POINTER() - initialize an RCU protected pointer
  * @p: The pointer to be initialized.
  * @v: The value to initialized the pointer to.
@@ -1097,7 +1097,7 @@ out:										\
 #define _X				0x40	/* hex digit */
 #define _SP				0x80	/* hard space (0x20) */
 
-/**
+/*
  * roundup_pow_of_two - round the given value up to nearest power of two
  * @n: parameter
  *
@@ -1114,7 +1114,7 @@ out:										\
 	__roundup_pow_of_two(n)			\
  )
 
-/**
+/*
  * rounddown_pow_of_two - round the given value down to nearest power of two
  * @n: parameter
  *
@@ -1168,7 +1168,7 @@ out:										\
 /* Nanosecond scalar representation for kernel time values */
 typedef s64	ktime_t;
 
-/**
+/*
  * The type used for indexing onto a disc or disc partition.
  *
  * Linux always considers sectors to be 512 bytes long independently
@@ -1277,7 +1277,7 @@ static inline void clear_bit(int nr, volatile unsigned long addr) {
 	addr &= ~(1 << nr);
 }
 
-/**
+/*
  * change_bit - Toggle a bit in memory
  */
 static inline void change_bit(int nr, unsigned long *addr){
@@ -1290,7 +1290,7 @@ static inline int test_and_set_bit(int nr, volatile unsigned long addr) {
 	return rc;
 }
 
-/**
+/*
  * test_and_clear_bit - Clear a bit and return its old value
  */
 static inline int test_and_clear_bit(int nr, unsigned long *addr){
@@ -1301,7 +1301,7 @@ static inline int test_and_clear_bit(int nr, unsigned long *addr){
 	return (old & mask) != 0;
 }
 
-/**
+/*
  * test_and_change_bit - Toggle a bit and return its old value
  */
 static inline int test_and_change_bit(int nr, unsigned long *addr){
@@ -1399,7 +1399,7 @@ static inline unsigned int fls_long(unsigned long l){
 	return fls64(l);
 }
 
-/**
+/*
  * __roundup_pow_of_two() - round up to nearest power of two
  * @n: value to round up
  */
@@ -1407,7 +1407,7 @@ static inline const unsigned long __roundup_pow_of_two(unsigned long n){
 	return 1UL << fls_long(n - 1);
 }
 
-/**
+/*
  * __rounddown_pow_of_two() - round down to nearest power of two
  * @n: value to round down
  */
@@ -1415,7 +1415,7 @@ static inline const unsigned long __rounddown_pow_of_two(unsigned long n){
 	return 1UL << (fls_long(n) - 1);
 }
 
-/**
+/*
  * generic___set_bit - Set a bit in memory
  * @nr: the bit to set
  * @addr: the address to start counting from
@@ -1438,7 +1438,7 @@ static inline void generic___clear_bit(unsigned long nr, volatile unsigned long 
 	*p &= ~mask;
 }
 
-/**
+/*
  * generic___change_bit - Toggle a bit in memory
  * @nr: the bit to change
  * @addr: the address to start counting from
@@ -1454,7 +1454,7 @@ static inline void generic___change_bit(unsigned long nr, volatile unsigned long
 	*p ^= mask;
 }
 
-/**
+/*
  * generic___test_and_set_bit - Set a bit and return its old value
  * @nr: Bit to set
  * @addr: Address to count from
@@ -1472,7 +1472,7 @@ static inline bool generic___test_and_set_bit(unsigned long nr, volatile unsigne
 	return (old & mask) != 0;
 }
 
-/**
+/*
  * generic___test_and_clear_bit - Clear a bit and return its old value
  * @nr: Bit to clear
  * @addr: Address to count from
@@ -1500,7 +1500,7 @@ static inline bool generic___test_and_change_bit(unsigned long nr, volatile unsi
 	return (old & mask) != 0;
 }
 
-/**
+/*
  * generic_test_bit - Determine whether a bit is set
  * @nr: bit number to test
  * @addr: Address to start counting from
@@ -1514,7 +1514,7 @@ static inline bool generic_test_bit(unsigned long nr, const volatile unsigned lo
 	return 1UL & (addr[BIT_WORD(nr)] >> (nr & (BITS_PER_LONG-1)));
 }
 
-/**
+/*
  * ror32 - rotate a 32-bit value right
  * @word: value to rotate
  * @shift: bits to roll
@@ -1523,7 +1523,7 @@ static inline __u32 ror32(__u32 word, unsigned int shift){
 	return (word >> (shift & 31)) | (word << ((-shift) & 31));
 }
 
-/**
+/*
  * rol32 - rotate a 32-bit value left
  * @word: value to rotate
  * @shift: bits to roll
@@ -1655,7 +1655,7 @@ static inline unsigned int __ffs(unsigned long word){
 	return num;
 }
 
-/**
+/*
  * fns - find N'th set bit in a word
  * @word: The word to search
  * @n: Bit to find
@@ -1746,7 +1746,7 @@ static ssize_t exsul_sized_strscpy(char *dest, const char *src, size_t count){
 	return ret;
 }
 
-/**
+/*
  * is_power_of_2() - check if a value is a power of two
  * @n: the value to check
  *

@@ -60,7 +60,7 @@ typedef unsigned char *sk_buff_data_t;
 #define alloc_skb(size, priority)	__alloc_skb(size, priority, 0, 0)
 #define dev_alloc_skb(length)		__netdev_alloc_skb(NULL, length, GFP_ATOMIC)
 
-/**
+/*
  * typedef netmem_ref - a nonexistent type marking a reference to generic
  * network memory.
  *
@@ -82,19 +82,22 @@ typedef unsigned long __bitwise netmem_ref;
 /* ignore 'CHECK_SKB_FIELD' */
 #define CHECK_SKB_FIELD(x)
 
+#define skb_list_next(SKB) (((struct sk_buff_list *)(SKB))->next)
+#define skb_list_prev(SKB) (((struct sk_buff_list *)(SKB))->prev)
+
 #define skb_queue_walk(queue, skb) \
-		for (skb = (queue)->next;					\
+		for (skb = skb_list_next(queue);				\
 		     skb != (struct sk_buff *)(queue);				\
-		     skb = skb->next)
+		     skb = skb_list_next(skb))
 
 #define skb_queue_walk_safe(queue, skb, tmp)					\
-		for (skb = (queue)->next, tmp = skb->next;			\
+		for (skb = skb_list_next(queue), tmp = skb_list_next(skb);	\
 		     skb != (struct sk_buff *)(queue);				\
-		     skb = tmp, tmp = skb->next)
+		     skb = tmp, tmp = skb_list_next(skb))
 
 #define skb_queue_walk_from(queue, skb)						\
 		for (; skb != (struct sk_buff *)(queue);			\
-		     skb = skb->next)
+		     skb = skb_list_next(skb))
 
 #define skb_rbtree_walk(skb, root)						\
 		for (skb = skb_rb_first(root); skb != NULL;			\
@@ -109,24 +112,24 @@ typedef unsigned long __bitwise netmem_ref;
 		     skb = tmp)
 
 #define skb_queue_walk_from_safe(queue, skb, tmp)				\
-		for (tmp = skb->next;						\
+		for (tmp = skb_list_next(skb);					\
 		     skb != (struct sk_buff *)(queue);				\
-		     skb = tmp, tmp = skb->next)
+		     skb = tmp, tmp = skb_list_next(skb))
 
 #define skb_queue_reverse_walk(queue, skb) \
-		for (skb = (queue)->prev;					\
+		for (skb = skb_list_prev(queue);				\
 		     skb != (struct sk_buff *)(queue);				\
-		     skb = skb->prev)
+		     skb = skb_list_prev(skb))
 
 #define skb_queue_reverse_walk_safe(queue, skb, tmp)				\
-		for (skb = (queue)->prev, tmp = skb->prev;			\
+		for (skb = skb_list_prev(queue), tmp = skb_list_prev(skb);	\
 		     skb != (struct sk_buff *)(queue);				\
-		     skb = tmp, tmp = skb->prev)
+		     skb = tmp, tmp = skb_list_prev(skb))
 
 #define skb_queue_reverse_walk_from_safe(queue, skb, tmp)			\
-		for (tmp = skb->prev;						\
+		for (tmp = skb_list_prev(skb);					\
 		     skb != (struct sk_buff *)(queue);				\
-		     skb = tmp, tmp = skb->prev)
+		     skb = tmp, tmp = skb_list_prev(skb))
 
 enum {
 	SKB_FCLONE_UNAVAILABLE,	/* skb has no fclone (from head_cache) */
@@ -1146,7 +1149,7 @@ static inline void skb_frag_list_init(struct sk_buff *skb){
 static void skb_clone_fraglist(struct sk_buff *skb){
 	struct sk_buff *list = NULL;
 
-	for (list = skb_shinfo(skb)->frag_list; list; list = list->next){
+	for (list = skb_shinfo(skb)->frag_list; list; list = skb_list_next(list)){
 		skb_get(list);
 	}
 }
@@ -1214,8 +1217,9 @@ static void skb_free_head(struct sk_buff *skb){
  *	reference is therefore volatile. Use with caution.
  */
 static inline struct sk_buff *skb_peek_next(struct sk_buff *skb, const struct sk_buff_head *list_){
-	struct sk_buff *next = skb->next;
+	struct sk_buff *next = NULL;
 
+	next = skb_list_next(skb);
 	if (next == (struct sk_buff *)list_){
 		next = NULL;
 	}
@@ -1668,7 +1672,8 @@ static void __copy_skb_header(struct sk_buff *new, const struct sk_buff *old){
 static struct sk_buff *__skb_clone(struct sk_buff *n, struct sk_buff *skb){
 	#define C(x) n->x = skb->x
 
-	n->next = n->prev = NULL;
+	skb_list_next(n) = NULL;
+	skb_list_prev(n) = NULL;
 	n->sk = NULL;
 	__copy_skb_header(n, skb);
 
@@ -1726,13 +1731,13 @@ static inline struct udphdr *udp_hdr(const struct sk_buff *skb){
 }
 
 static inline void __skb_queue_splice(const struct sk_buff_head *list, struct sk_buff *prev, struct sk_buff *next){
-	struct sk_buff *first = list->next;
-	struct sk_buff *last = list->prev;
+	struct sk_buff *first = skb_list_next(list);
+	struct sk_buff *last = skb_list_prev(list);
 
-	WRITE_ONCE(first->prev, prev);
-	WRITE_ONCE(prev->next, first);
-	WRITE_ONCE(last->next, next);
-	WRITE_ONCE(next->prev, last);
+	WRITE_ONCE(skb_list_prev(first), prev);
+	WRITE_ONCE(skb_list_next(prev), first);
+	WRITE_ONCE(skb_list_next(last), next);
+	WRITE_ONCE(skb_list_prev(next), last);
 }
 
 /**
@@ -1744,7 +1749,7 @@ static inline void __skb_queue_splice(const struct sk_buff_head *list, struct sk
  */
 static inline void skb_queue_splice_init(struct sk_buff_head *list, struct sk_buff_head *head){
 	if (!skb_queue_empty(list)) {
-		__skb_queue_splice(list, (struct sk_buff *) head, head->next);
+		__skb_queue_splice(list, (struct sk_buff *) head, skb_list_next(head));
 		head->qlen += list->qlen;
 		__skb_queue_head_init(list);
 	}
@@ -1757,7 +1762,7 @@ static inline void skb_queue_splice_init(struct sk_buff_head *list, struct sk_bu
  */
 static inline void skb_queue_splice_tail(const struct sk_buff_head *list, struct sk_buff_head *head){
 	if (!skb_queue_empty(list)) {
-		__skb_queue_splice(list, head->prev, (struct sk_buff *) head);
+		__skb_queue_splice(list, skb_list_prev(head), (struct sk_buff *) head);
 		head->qlen += list->qlen;
 	}
 }

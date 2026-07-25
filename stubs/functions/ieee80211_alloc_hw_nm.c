@@ -112,7 +112,7 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, struct ieee8021
 	local->ieee80211_hw = hw;
 
 	hw->wiphy = wiphy;
-	hw->priv = (char *)local + ALIGN(sizeof(*local), 32); /** 'NETDEV_ALIGN' = 32 */
+	hw->priv = (char *)local + ALIGN(sizeof(*local), 32); /* 'NETDEV_ALIGN' = 32 */
 
 	local->ieee80211_ops = ieee80211_ops;
 	local->emulate_chanctx = emulate_chanctx;

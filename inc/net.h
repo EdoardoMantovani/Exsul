@@ -20,19 +20,18 @@
 #define NETDEV_HW_ADDR_T_MULTICAST	4
 
 /* for setting kernel sock attribute on TCP connection setup */
-#define GSO_MAX_SEGS			65535u
-#define GSO_LEGACY_MAX_SIZE		65536u
+#define GSO_MAX_SEGS		65535u
+#define GSO_LEGACY_MAX_SIZE	65536u
 
 /* TCP minimal MSS is 8 (TCP_MIN_GSO_SIZE),
  * and shinfo->gso_segs is a 16bit field.
  */
-#define GSO_MAX_SIZE			(8 * GSO_MAX_SEGS)
-#define TSO_LEGACY_MAX_SIZE		65536
-
+#define GSO_MAX_SIZE		(8 * GSO_MAX_SEGS)
+#define TSO_LEGACY_MAX_SIZE	65536
 
 /* copy'n'paste compression ;) */
-#define __NETIF_F_BIT(bit)		((netdev_features_t)1 << (bit))
-#define __NETIF_F(name)			__NETIF_F_BIT(NETIF_F_##name##_BIT)
+#define __NETIF_F_BIT(bit)	((netdev_features_t)1 << (bit))
+#define __NETIF_F(name)		__NETIF_F_BIT(NETIF_F_##name##_BIT)
 
 #define NETIF_F_FCOE_CRC	__NETIF_F(FCOE_CRC)
 #define NETIF_F_FRAGLIST	__NETIF_F(FRAGLIST)
@@ -143,7 +142,7 @@ enum {
 	NETIF_F_GRO_BIT,		/* Generic receive offload */
 	NETIF_F_LRO_BIT,		/* large receive offload */
 
-	/**/NETIF_F_GSO_SHIFT,		/* keep the order of SKB_GSO_* bits */
+	NETIF_F_GSO_SHIFT,		/* keep the order of SKB_GSO_* bits */
 	NETIF_F_TSO_BIT			/* ... TCPv4 segmentation */
 		= NETIF_F_GSO_SHIFT,
 	NETIF_F_GSO_ROBUST_BIT,		/* ... ->SKB_GSO_DODGY */
@@ -168,9 +167,8 @@ enum {
 	NETIF_F_GSO_UDP_L4_BIT,		/* ... UDP payload GSO (not UFO) */
 	NETIF_F_GSO_FRAGLIST_BIT,		/* ... Fraglist GSO */
 	NETIF_F_GSO_ACCECN_BIT,		/* TCP AccECN w/ TSO (no clear CWR) */
-	/**/NETIF_F_GSO_LAST =		/* last bit, see GSO_MASK */
+	NETIF_F_GSO_LAST =		/* last bit, see GSO_MASK */
 		NETIF_F_GSO_ACCECN_BIT,
-
 	NETIF_F_FCOE_CRC_BIT,		/* FCoE CRC32 */
 	NETIF_F_SCTP_CRC_BIT,		/* SCTP checksum offload */
 	NETIF_F_NTUPLE_BIT,		/* N-tuple filters supported */

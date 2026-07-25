@@ -5,7 +5,7 @@
 
 #define rhltable_init		rhltable_init_noprof
 
-/**
+/*
  * rht_for_each_rcu_from - iterate over rcu hash chain from given head
  * @pos:	the &struct rhash_head to use as a loop cursor.
  * @head:	the &struct rhash_head to start from
@@ -22,7 +22,7 @@
 	     !rht_is_a_nulls(pos);					\
 	     pos = rcu_dereference_all(pos->next))
 
-/**
+/*
  * rht_for_each_rcu - iterate over rcu hash chain
  * @pos:	the &struct rhash_head to use as a loop cursor.
  * @tbl:	the &struct bucket_table
@@ -38,7 +38,7 @@
 	     !rht_is_a_nulls(pos);				\
 	     pos = rcu_dereference_all(pos->next))
 
-/**
+/*
  * rht_for_each_entry_rcu_from - iterated over rcu hash chain from given head
  * @tpos:	the type * to use as a loop cursor.
  * @pos:	the &struct rhash_head to use as a loop cursor.
@@ -57,7 +57,7 @@
 	     (!rht_is_a_nulls(pos)) && rht_entry(tpos, pos, member);	    \
 	     pos = rht_dereference_bucket_rcu(pos->next, tbl, hash))
 
-/**
+/*
  * rht_for_each_entry_rcu - iterate over rcu hash chain of given type
  * @tpos:	the type * to use as a loop cursor.
  * @pos:	the &struct rhash_head to use as a loop cursor.
@@ -74,7 +74,7 @@
 				    rht_ptr_rcu(rht_bucket(tbl, hash)),	   \
 				    tbl, hash, member)
 
-/**
+/*
  * rcu_dereference_all_check() - rcu_dereference_all with debug checking
  * @p: The pointer to read, prior to dereferencing
  * @c: The conditions under which the dereference will take place
@@ -122,7 +122,7 @@ struct rhlist_head {
  */
 struct rhash_lock_head {};
 
-/**
+/*
  * struct bucket_table - Table of hash buckets
  * @size: Number of hash buckets
  * @nest: Number of bits of first-level nested table.
@@ -145,7 +145,7 @@ struct bucket_table {
 	struct rhash_lock_head __rcu *buckets[];
 };
 
-/**
+/*
  * struct rhashtable_compare_arg - Key for the function rhashtable_compare
  * @ht: Hash table
  * @key: Key to compare against
@@ -159,7 +159,7 @@ typedef u32 (*rht_hashfn_t)(void *data, u32 len, u32 seed);
 typedef u32 (*rht_obj_hashfn_t)(void *data, u32 len, u32 seed);
 typedef int (*rht_obj_cmpfn_t)(struct rhashtable_compare_arg *arg, void *obj);
 
-/**
+/*
  * struct rhashtable_params - Hash table construction parameters
  * @nelem_hint: Hint on number of elements, should be 75% of desired size
  * @key_len: Length of key
@@ -185,7 +185,7 @@ struct rhashtable_params {
 	rht_obj_cmpfn_t		obj_cmpfn;
 };
 
-/**
+/*
  * struct rhashtable - Hash table handle
  * @tbl: Bucket table
  * @key_len: Key length for hashfn
@@ -207,12 +207,12 @@ struct rhashtable {
 	struct mutex                    mutex;
 	u32				lock;
 	atomic_int			nelems;
-#ifdef CONFIG_MEM_ALLOC_PROFILING
+	#ifdef CONFIG_MEM_ALLOC_PROFILING
 	struct alloc_tag		*alloc_tag;
-#endif
+	#endif
 };
 
-/**
+/*
  * struct rhltable - Hash table with duplicate objects in a list
  * @ht: Underlying rhtable
  */
@@ -225,9 +225,7 @@ union nested_table {
 	struct rhash_lock_head __rcu *bucket;
 };
 
-/*
- * declare the prototype of 'rht_bucket_nested_insert' before everything else
- */
+/* declare the prototype of 'rht_bucket_nested_insert' before everything else */
 static struct rhash_lock_head __rcu **rht_bucket_nested_insert(struct rhashtable *ht, struct bucket_table *tbl, unsigned int hash);
 
 static inline bool rht_is_a_nulls(struct rhash_head *ptr){
@@ -267,7 +265,6 @@ static inline union nested_table *nested_table_top(struct bucket_table *tbl){
 	 */
 	return (void *)rcu_dereference_protected(tbl->buckets[0], 1);
 }
-
 
 static inline struct rhash_head *__rht_ptr(struct rhash_lock_head *p, struct rhash_lock_head __rcu *const *bkt, enum rht_lookup_freq freq){
 	unsigned long p_val = (unsigned long)p & ~BIT(0);
@@ -338,7 +335,8 @@ static inline struct rhash_head *__rhashtable_lookup(struct rhashtable *ht, cons
 	struct rhash_head *he = NULL;
 
 	tbl = rht_dereference_rcu(ht->tbl, ht);
-restart:
+
+	restart:
 	hash = rht_key_hashfn(ht, tbl, key, params);
 	bkt = rht_bucket(tbl, hash);
 	do {
@@ -358,11 +356,10 @@ restart:
 	if (unlikely(tbl)){
 		goto restart;
 	}
-
 	return NULL;
 }
 
-/**
+/*
  * rhashtable_lookup - search hash table
  * @ht:		hash table
  * @key:	the pointer to the key
@@ -387,7 +384,7 @@ static inline void *rhashtable_lookup_likely(struct rhashtable *ht, const void *
 	return likely(he) ? rht_obj(ht, he) : NULL;
 }
 
-/**
+/*
  * rhltable_lookup - search hash list table
  * @hlt:	hash table
  * @key:	the pointer to the key
@@ -411,7 +408,7 @@ static inline struct rhlist_head *rhltable_lookup_likely(struct rhltable *hlt, v
 	return likely(he) ? container_of(he, struct rhlist_head, rhead) : NULL;
 }
 
-/**
+/*
  * rhashtable_lookup_fast - search hash table, without RCU read lock
  * @ht:		hash table
  * @key:	the pointer to the key
@@ -441,13 +438,13 @@ static inline struct rhash_head *rht_ptr_exclusive(struct rhash_lock_head __rcu 
 
 static inline int rhltable_insert_simple(struct rhltable *hlt, struct rhlist_head *node, const struct rhashtable_params params){
 	int ret = 0;
+	unsigned int hash = 0;
+	void *key = NULL;
+	void *object = NULL;
 	struct rhashtable *ht = NULL;
+	struct rhash_head *old = NULL;
 	struct bucket_table *tbl = NULL;
 	struct rhash_lock_head **bucket = NULL;
-	struct rhash_head *old = NULL;
-	void *object = NULL;
-	void *key = NULL;
-	unsigned int hash = 0;
 
 	if (hlt == NULL || node == NULL){
 		ret = -EINVAL;
@@ -477,17 +474,15 @@ static inline int rhltable_insert_simple(struct rhltable *hlt, struct rhlist_hea
 	rcu_assign_pointer(*bucket, (struct rhash_lock_head *)&node->rhead);
 	atomic_fetch_add_explicit(&ht->nelems, 1, memory_order_relaxed);
 	pthread_mutex_unlock(&director.rhashtable_lock);
-
 	return ret;
 }
-
 
 static void rhashtable_free_one(struct rhashtable *ht, struct rhash_head *obj, void (*free_fn)(void *ptr, void *arg), void *arg){
 	struct rhlist_head *list = NULL;
 
 	if (!ht->rhlist) {
 		free_fn(rht_obj(ht, obj), arg);
-		return;
+		goto end;
 	}
 
 	list = container_of(obj, struct rhlist_head, rhead);
@@ -496,6 +491,7 @@ static void rhashtable_free_one(struct rhashtable *ht, struct rhash_head *obj, v
 		list = rht_dereference(list->next, ht);
 		free_fn(rht_obj(ht, obj), arg);
 	} while (list);
+	end:
 }
 
 static void nested_table_free(union nested_table *ntbl, unsigned int size){
@@ -504,7 +500,7 @@ static void nested_table_free(union nested_table *ntbl, unsigned int size){
 
 	ntbl = rcu_dereference_protected(ntbl->table, 1);
 	if (ntbl == NULL){
-		return;
+		goto end;
 	}
 	if (size > len) {
 		size >>= shift;
@@ -514,6 +510,7 @@ static void nested_table_free(union nested_table *ntbl, unsigned int size){
 	}
 
 	kfree(ntbl);
+	end:
 }
 
 static void nested_bucket_table_free(const struct bucket_table *tbl){
@@ -522,7 +519,6 @@ static void nested_bucket_table_free(const struct bucket_table *tbl){
 	union nested_table *ntbl = NULL;
 
 	ntbl = nested_table_top(tbl);
-
 	for (int i = 0; i < len; i++){
 		nested_table_free(ntbl + i, size);
 	}
@@ -537,7 +533,7 @@ static void bucket_table_free(const struct bucket_table *tbl){
 	kvfree(tbl);
 }
 
-/**
+/*
  * rhltable_free_and_destroy - free elements and destroy hash list table
  * @hlt:	the hash list table to destroy
  * @free_fn:	callback to release resources of element
@@ -561,11 +557,9 @@ static size_t rounded_hashtable_size(const struct rhashtable_params *params){
 	size_t retsize = 0;
 
 	if (params->nelem_hint){
-		retsize = max(roundup_pow_of_two(params->nelem_hint * 4 / 3),
-			      (unsigned long)params->min_size);
+		retsize = max(roundup_pow_of_two(params->nelem_hint * 4 / 3), (unsigned long)params->min_size);
 	}else{
-		retsize = max(HASH_DEFAULT_SIZE,
-			      (unsigned long)params->min_size);
+		retsize = max(HASH_DEFAULT_SIZE, (unsigned long)params->min_size);
 	}
 	return retsize;
 }
@@ -575,23 +569,17 @@ static struct bucket_table *bucket_table_alloc(struct rhashtable *ht, int nbucke
 	struct bucket_table *tbl = NULL;
 
 	tbl = calloc(1, sizeof(struct bucket_table) + (sizeof(struct rhash_lock_head *) * nbuckets));
-
 	size = nbuckets;
 
 	if (tbl == NULL){
 		return NULL;
 	}
-
 	tbl->size = size;
-
 	INIT_LIST_HEAD(&tbl->walkers);
-
 	tbl->hash_rnd = get_random_u32();
-
 	for (int i = 0; i < nbuckets; i++){
 		INIT_RHT_NULLS_HEAD(tbl->buckets[i]);
 	}
-
 	return tbl;
 }
 
@@ -603,13 +591,11 @@ static union nested_table *nested_table_alloc(struct rhashtable *ht, union neste
 		return ntbl;
 	}
 	ntbl = malloc(PAGE_SIZE);
-
 	if (ntbl && leaf) {
 		for (int i = 0; i < PAGE_SIZE / sizeof(ntbl[0]); i++){
 			INIT_RHT_NULLS_HEAD(ntbl[i].bucket);
 		}
 	}
-
 	/* for simplicity, swap 'cmpxchg' with '__sync_val_compare_and_swap' which seems to be a gcc builtin */
 	if (__sync_val_compare_and_swap((union nested_table **)prev, NULL, ntbl)== NULL){
 		return ntbl;
@@ -635,7 +621,6 @@ static struct rhash_lock_head __rcu **rht_bucket_nested_insert(struct rhashtable
 		hash >>= shift;
 		ntbl = nested_table_alloc(ht, &ntbl[index].table, size <= (1 << shift));
 	}
-
 	if (ntbl == NULL){
 		return NULL;
 	}

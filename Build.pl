@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 
 # Made by Edoardo Mantovani, 2026
-# Rewritten with safer local alias inference and guarded field replacement.
-# version 1.8.0 (12 Jul 2026)
+# Exsul build script
+# version 2.0.0 (25 Jul 2026)
 
 use strict;
 use warnings;
@@ -31,12 +31,12 @@ my $sort    = `which sort`;
 my $mkdir   = `which mkdir`;
 my $readelf = `which readelf`;
 
-my $arch    = "./arch";
+my $arch    = "arch";
 my $source  = "src";
 my $include = "inc";
 my $stubs   = "stubs";
 my $build   = "build";
-my $bin     = "./bin";
+my $bin     = "bin";
 
 my $final_program = "exsul";
 
@@ -83,12 +83,15 @@ my $windows_support = undef;
 my $windows_static = undef;
 my $verbose = undef;
 my $dbg = undef;
+my $strip = undef;
 my $enable_exported_symbols_tracing = undef;
 my $clean = undef;
 my $help = undef;
 my @windows_runtime_dlls = ();
 
+my $exsul_sz = 0;
 my $modified = 0;
+my $exsul_f_sz = 0;
 my $process_step = 0;
 my $struct_field_counter = 0;
 my $struct_name_counter = 0;
@@ -112,7 +115,7 @@ my @gcc_params = (
 	"-DTCC_SCRIPTING",
 	"-DCONFIG_PM",
 	"-DENABLE_UNWIND_DEBUGGING",
-	"-O2",
+	"-O3",
 	"-w",
 	"-funwind-tables",
 	"-fasynchronous-unwind-tables",
@@ -123,6 +126,7 @@ my @gcc_params = (
 	"-mno-avx512f",
 );
 my @gcc_stub_params = (
+	"-O3",
 	"-fno-builtin",
 	"-mno-sse",
 	"-mno-mmx",
@@ -181,12 +185,10 @@ my %struct_whitelist = (
 	"cfg80211_ops"		=> "cfg80211_ops",
 	"net_device_ops"	=> "net_device_ops",
 );
-
 my %fixed_only_structs = (
 	"ieee80211_sta"      => 1,
 	"ieee80211_link_sta" => 1,
 );
-
 my %field_ctype = (
 	file => {
 		"f_flags"				=> "unsigned int",
@@ -823,7 +825,6 @@ my %field_ctype = (
 		"rx_nss"				=> "u8",
 	},
 );
-
 my %inline_array_field = (
 	module => {
 		"mem"				=> 1,
@@ -900,22 +901,23 @@ GetOptions(
 	"windows"         => \$windows_static,
 	"verbose"	  => \$verbose,
 	"dbg"		  => \$dbg,
+	"strip"		  => \$strip,
 	"trace"		  => \$enable_exported_symbols_tracing,
 	"clean"           => \$clean,
 	"help"            => \$help,
 );
 
 if($help){
-	# still to decide the project name
-	print("Build script for \n");
+	print("Build script for Exsul\n");
 	print("Made by Edoardo Mantovani, 2026\n");
-	print("options:\n");
-	print("--compiler=[gcc|clang|tcc] (only working for now: gcc)\n");
+	print("-> options:\n");
+	print("--compiler=[gcc|clang]\n");
 	print("--enable-fw: enable static firmware embedding in the main application, this permits to not use the Linux standard path for loading a firmware\n");
 	print("--generate_offset -> generate a special json file which can be used for creating the offset backup plan\n");
 	print("--windows -> enable windows compilation and require static Windows libraries for a single executable\n");
 	print("--verbose -> show compilation command line\n");
 	print("--dbg -> enable debugging strings in Exsul\n");
+	print("--strip -> strip the final executable\n");
 	print("--trace -> trace every exported function, used mainly for debugging!\n");
 	print("--clean -> clear every compilation file\n");
 	print("--help -> display this help text\n");
@@ -1220,7 +1222,9 @@ sub collect_used_fields {
 				my ($var, $field) = ($1, $2);
 				my $st = $local_alias{$var};
 				next if !defined $st;
-				print("[*] $src:$st->$field\n");
+				if($verbose){
+					print("[*] $src:$st->$field\n");
+				}
 				$used{$st}{$field} = 1;
 			}
 
@@ -1534,7 +1538,7 @@ $proto_header = "$include/$proto_gen";
 	print $early_fh "* Unauthorized copying of this file, via any medium is strictly prohibited\n";
 	print $early_fh "* Proprietary and confidential\n";
 	print $early_fh "*/\n\n";
-	print $early_fh "/** automatically generated file, don't edit! **/\n\n";
+	print $early_fh "/* automatically generated file, don't edit! */\n\n";
 	foreach(`$find $stubs/$functions/ -name "*.c" | $sort`){
 		my $cs = $_; chomp($cs);
 		my $p = `$grep -oP '$function_proto_regex' $cs`;
@@ -1585,6 +1589,7 @@ foreach(`$find $virtual_compilation_folder -type f`){
 %struct_set = map { $_ => 1 } values %struct_whitelist;
 $struct_set{"sk_buff_head"}    = 1;
 
+print("[*] starting to modify the struct fields!\n");
 # first pass: gather field usage using local alias inference
 %used_fields_by_struct = collect_used_fields(@sources);
 $total_struct_number = scalar(keys %used_fields_by_struct);
@@ -1683,19 +1688,19 @@ $sym_total_entries = 4096;
 $cb_header = "$include/$cb_table";
 open(FH, '>', $cb_header) or die $!;
 print FH "/* Copyright (C) Edoardo Mantovani - All Rights Reserved\n";
-print FH "* Unauthorized copying of this file, via any medium is strictly prohibited\n";
-print FH "* Proprietary and confidential\n";
-print FH "*/\n\n";
-print FH "/** automatically generated file, don't edit! **/\n\n";
+print FH " * Unauthorized copying of this file, via any medium is strictly prohibited\n";
+print FH " * Proprietary and confidential\n";
+print FH " */\n\n";
+print FH "/* automatically generated file, don't edit! */\n\n";
 print FH "struct internal_cb_table sym_table[$sym_total_entries] = {\n";
 
 $proto_header = "$include/$proto_gen";
 open(PROTO, '>', $proto_header) or die $!;
 print PROTO "/* Copyright (C) Edoardo Mantovani - All Rights Reserved\n";
-print PROTO "* Unauthorized copying of this file, via any medium is strictly prohibited\n";
-print PROTO "* Proprietary and confidential\n";
-print PROTO "*/\n\n";
-print PROTO "/** automatically generated file, don't edit! **/\n\n";
+print PROTO " * Unauthorized copying of this file, via any medium is strictly prohibited\n";
+print PROTO " * Proprietary and confidential\n";
+print PROTO " */\n\n";
+print PROTO "/* automatically generated file, don't edit! */\n\n";
 
 $find_command_arg = q{-name "*.c"};
 foreach(`$find $stubs/$functions/ $find_command_arg`){
@@ -1776,7 +1781,7 @@ if($enable_fast_compilation){
 	}
 }
 print("[*] compiling main.c...\n");
-system("$compiler @gcc_params -c -I./$virtual_compilation_folder/$arch -I./$virtual_compilation_folder/$include $virtual_compilation_folder/$source/$main -o $bin/$final_program $final_obj_line");
+system("$compiler @gcc_params -c -I./$virtual_compilation_folder/$arch -I./$virtual_compilation_folder/$include $virtual_compilation_folder/$source/$main -o $bin/$final_program");
 # now reads the defined symbols under /bin/exsul
 close(FH);
 my $d = q{-i '$ d'};
@@ -1827,6 +1832,18 @@ if($windows_support){
 	}
 }
 print("[*] compilation finished, output build available under ./bin!\n");
+# if the 'strip' option is enabled, provide to strip the final executable by automatically choosing the 'strip' executable at runtime
+if($strip){
+	$exsul_sz = -s "$bin/$final_program";
+	if($windows_support){
+		$strip = "x86_64-w64-mingw32-strip";
+	}else{
+		$strip = "strip";
+	}
+	`$strip $bin/$final_program`;
+	$exsul_f_sz = -s "$bin/$final_program";
+	print("[*] stripped $bin/$final_program, final size: $exsul_f_sz bytes, deleted " . ($exsul_sz - $exsul_f_sz) . " bytes \n");
+}
 undef(@struct_fields);
 undef(@gcc_params);
 undef(@gcc_final_params);

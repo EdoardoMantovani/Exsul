@@ -31,7 +31,7 @@ static inline void tasklet_schedule(struct tasklet_struct *t){
 	}
 }
 
-/**
+/*
  * worker_thread - the worker thread function
  * @__worker: self
  *
@@ -140,6 +140,7 @@ static inline bool wq_entry_is_linked(const struct wait_queue_entry *wq_entry){
 static void *kthread_trampoline(void *arg){
 	int ret = 0;
 	struct task_struct *current_thread = NULL;
+
 	setup_percpu();
 	current_thread = (struct task_struct *)arg;
 	tls_current = current_thread;

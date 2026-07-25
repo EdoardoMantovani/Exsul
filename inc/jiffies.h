@@ -1,6 +1,6 @@
 /* contains the main code used for calculating/emulating jiffies */
 
-/**
+/*
  * time_is_after_jiffies - return true if a is after jiffies
  * @a: time (unsigned long) to compare to jiffies
  *

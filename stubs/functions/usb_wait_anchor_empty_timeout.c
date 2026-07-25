@@ -33,6 +33,6 @@ int usb_wait_anchor_empty_timeout(struct usb_anchor *anchor, unsigned int timeou
 			return ret;
 		}
 
-		libusb_handle_events_timeout(NULL, &tv);
+		libusb_handle_events_timeout(usb_libusb_context(), &tv);
 	}
 }

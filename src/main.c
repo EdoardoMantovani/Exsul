@@ -464,7 +464,7 @@ static int usb_disk_modeswitch(struct module_controller *controller){
 	};
 
 	for(id = usb_disk_ids; id->idVendor && id->idProduct; id++){
-		controller->usb_dev = libusb_open_device_with_vid_pid(NULL, id->idVendor, id->idProduct);
+		controller->usb_dev = libusb_open_device_with_vid_pid(usb_libusb_context(), id->idVendor, id->idProduct);
 		if(controller->usb_dev != NULL){
 			break;
 		}
@@ -565,7 +565,7 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 	struct usb_interface *usb_intf = NULL;
 
 	for (struct usb_device_id *p = id_table; p != NULL && p->idVendor && p->idProduct; p++) {
-		director.usb_dev = libusb_open_device_with_vid_pid(NULL, p->idVendor, p->idProduct);
+		director.usb_dev = libusb_open_device_with_vid_pid(usb_libusb_context(), p->idVendor, p->idProduct);
 		if (director.usb_dev == NULL){
 			continue;
 		}
@@ -605,6 +605,7 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 
 		*intf_out = usb_intf;
 		*matched_id_out = p;
+		director.usb_device_id = p;
 		return ret;
 	}
 
@@ -776,9 +777,9 @@ int dwarf_detect_struct(Dwarf_Debug dbg, Dwarf_Die die, unsigned char *struct_to
 				ret = dwarf_formudata(size_attr, &struct_size, &err);
 				dwarf_dealloc(dbg, size_attr, DW_DLA_ATTR);
 				if(ret == DW_DLV_OK){
-				#ifdef ENABLE_DWARF_DBG_PRINT
+					#ifdef ENABLE_DWARF_DBG_PRINT
 					printf("[*] struct %s size: %d\n", die_name, struct_size);
-				#endif
+					#endif
 					*out_size = struct_size;
 				}
 			}
@@ -1229,7 +1230,7 @@ int module_enforce_rwx_sections(Elf(Ehdr) * hdr, Elf(Shdr) * sechdrs, char *secs
 		if ((sechdrs[i].sh_flags & shf_wx) == shf_wx) {
 			#ifdef ENABLE_DBG_PRINT
 			printf("[*] %s: section %s (index %d) has invalid WRITE|EXEC flags\n",
-			       mod->name, secstrings + sechdrs[i].sh_name, i);
+				mod->name, secstrings + sechdrs[i].sh_name, i);
 			#endif
 			ret = -ENOEXEC;
 			return ret;
@@ -1821,9 +1822,9 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 				secbase = info->sechdrs[sym[i].st_shndx].sh_addr;
 			}
 			sym[i].st_value += secbase;
-				if(ELF64_ST_TYPE(sym[i].st_info) == STT_FUNC && strcmp(name, "init_module") == 0 && sym[i].st_value != 0){
-					director.init_cb = (int (LINUX_ABI *)(void))(uintptr_t)sym[i].st_value;
-				}
+			if(ELF64_ST_TYPE(sym[i].st_info) == STT_FUNC && strcmp(name, "init_module") == 0 && sym[i].st_value != 0){
+				director.init_cb = (int (LINUX_ABI *)(void))(uintptr_t)sym[i].st_value;
+			}
                         /*
                          * if we have a function which is defined inside this module, add it to the internal symbol table, this will permit
                          * to resolve the relocations when we will have multi-modules dependencies
@@ -2142,7 +2143,7 @@ static int complete_formation(struct module *mod, struct load_info *info) {
 	return ret;
 
 	out_strict_rwx:
-	/** do nothing **/
+	/* do nothing */
 	out:
 	return ret;
 }
@@ -2331,7 +2332,6 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	}
 
 	fd = open(file_name, O_RDONLY);
-
 	if(fd < 0){
 		ret = -EINVAL;
 		#ifdef ENABLE_DBG_PRINT
@@ -2342,7 +2342,6 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 
 	fstat(fd, &file_stats);
 	file_size = file_stats.st_size;
-
 	if(file_size == 0){
 		#ifdef ENABLE_DBG_PRINT
 		printf("[!] file %s is empty!\n", file_name);
@@ -2351,13 +2350,8 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		return ret;
 	}
 
-	tmp_mapped_file = (unsigned char *)mmap(
-	    NULL, file_size, PROT_READ, MAP_FILE | MAP_SHARED, fd, 0x00);
-
-	mapped_file = (unsigned char *)mmap(
-	    NULL, file_size, PROT_READ | PROT_WRITE,
-	    MAP_ANON | MAP_PRIVATE, -1, 0x00);
-
+	tmp_mapped_file = (unsigned char *)mmap(NULL, file_size, PROT_READ, MAP_FILE | MAP_SHARED, fd, 0);
+	mapped_file = (unsigned char *)mmap(NULL, file_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
 	if(tmp_mapped_file == MAP_FAILED || mapped_file == MAP_FAILED){
 		#ifdef ENABLE_DBG_PRINT
 		printf("[!] error during mmap! aborting...\n");
@@ -2375,7 +2369,6 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 
 	/* track the size of the *entire* module loaded in memory */
 	director.total_memory_used += file_size;
-
 	memset(mapped_file, 0x00, file_size);
 	memcpy(mapped_file, tmp_mapped_file, file_size);
 	munmap(tmp_mapped_file, file_size);
@@ -2401,7 +2394,6 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 
 	skip_dwarf:
 	close(fd);
-
 	info->hdr = (Elf(Ehdr) *)mapped_file;
 	info->len = file_size;
 	elf_validity_cache_copy(info, 0);
@@ -2425,7 +2417,6 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		ret = -EINVAL;
 		return ret;
 	}
-
 	module_allocated = true;
 	ret  = percpu_modalloc(mod, info);
 	if (ret) {
@@ -2435,7 +2426,6 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		ret = -EINVAL;
 		return ret;
 	}
-
 	ret = find_module_sections(mod, info);
 	if (ret) {
 		#ifdef ENABLE_DBG_PRINT
@@ -2444,7 +2434,6 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		ret = -EINVAL;
 		return ret;
 	}
-
 	ret = simplify_symbols(mod, info);
 	if (ret < 0 && director.global_conf.strict_missing_syms == true) {
 		#ifdef ENABLE_DBG_PRINT
@@ -2453,7 +2442,6 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		ret = -EINVAL;
 		return ret;
 	}
-
 	ret = apply_relocations(mod, info);
 	if (ret < 0) {
 		#ifdef ENABLE_DBG_PRINT
@@ -2462,7 +2450,6 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		ret = -EINVAL;
 		return ret;
 	}
-
 	ret = post_relocation(mod, info);
 	if (ret < 0) {
 		#ifdef ENABLE_DBG_PRINT
@@ -2471,7 +2458,6 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		ret = -EINVAL;
 		return ret;
 	}
-
 	ret = complete_formation(mod, info);
 	if (ret) {
 		#ifdef ENABLE_DBG_PRINT
@@ -2480,7 +2466,6 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		ret = -EINVAL;
 		return ret;
 	}
-
 	ret = do_init_module(mod);
 	if (ret) {
 		#ifdef ENABLE_DBG_PRINT
@@ -2489,7 +2474,6 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		ret = -EINVAL;
 		return ret;
 	}
-
 	free(director.info);
 	director.info = NULL;
 	director.loaded_lkm_num++;
@@ -2554,6 +2538,7 @@ int initialize_director(struct module_controller *director, struct load_info **i
 	}
 
 	/* initialize usb i/o mutex */
+	pthread_mutex_init(&director->urb_anchor_mutex, NULL);
 	pthread_mutex_init(&director->usb_io_lock, NULL);
 	pthread_cond_init(&director->usb_io_idle, NULL);
 	director->usb_io_depth = 0;
@@ -2593,11 +2578,12 @@ void finalize_director(void){
 	/* Stop the libusb event thread BEFORE freeing USB resources it accesses;
 	 * otherwise Thread 3 races on the freed usb_device_ptr block. */
 	atomic_store_explicit(&director.libusb_thread_stop, true, memory_order_release);
-	libusb_interrupt_event_handler(NULL);
+	libusb_interrupt_event_handler(usb_libusb_context());
 	if (director.libusb_event_thread != 0) {
 		pthread_join(director.libusb_event_thread, NULL);
 		director.libusb_event_thread = 0;
 	}
+	usb_runtime_exit();
 
 	if(director.usb_device_ptr != NULL){
 		free(director.usb_device_ptr);
@@ -3008,10 +2994,7 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 		ret = ret = handle_ieee80211_config(local->ieee80211_hw, ops);
 	}
 	if(current_op == IEEE80211_CONFIGURE_FILTER){
-		configure_filter = ops->configure_filter;
-		if(configure_filter != NULL){
-			configure_filter(local->ieee80211_hw, 0, &ret, 0);
-		}
+		ret = ieee80211_configure_rx_dump_filter(local, true);
 	}
 	if(current_op == IEEE80211_HW_SCAN){
 		hw_scan = ops->hw_scan;
@@ -3112,7 +3095,9 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 }
 
 /* elf_initialize_driver: used inside the tcc scripts for the standalone.elf for initializing the driver, calls 'start', 'add_interface' and so on.. */
-void elf_initialize_driver(void){
+int elf_initialize_driver(void){
+	int ret = 0;
+
 	/* decide if use 'ieee80211_ops' or 'cfg80211_ops' */
 	if(director.ieee80211_ops != NULL){
 		/* Start hardware before invoking callbacks which access channel state. */
@@ -3131,6 +3116,14 @@ void elf_initialize_driver(void){
 		/* invoke the 'scan' callback */
 		fast_run_cfg80211_cb(CFG80211_SCAN);
 	}
+	return ret;
+}
+
+/* run_wifi_scan_thread: start the Wi-Fi scan thread */
+int run_wifi_scan_thread(void){
+	int ret = 0;
+
+	return ret;
 }
 
 #ifdef __linux__
@@ -3447,69 +3440,41 @@ static int drv_resolve_driver_init(struct module_controller *director, unsigned 
 	return ret;
 }
 
-/* drv_resolve_kernel_object_init: retrieve the 'init' callback for starting the kernel object loaded in memory */
-static int drv_resolve_kernel_object_init(struct module_controller *controller, unsigned char **resolved_name){
+/* drv_cmd_start: invoke the resolved kernel module init function and chain with the cfg80211/mac80211 callback invocation.
+ * mac80211/cfg80211 callbacks are intentionally left to explicit ops commands,
+ * since some USB drivers need a staged init before ops->start is safe.
+ */
+int drv_cmd_start(struct module_controller *director, char *argv[], int num_args) {
 	int ret = 0;
-	struct module *mod = NULL;
 
-	if(controller == NULL){
+	if(director->init_cb == NULL){
 		ret = -EINVAL;
 		return ret;
 	}
 
-	if(resolved_name != NULL){
-		*resolved_name = NULL;
-	}
-
-	mod = controller->mod;
-	if(mod != NULL && mod->init != NULL){
-		controller->init_cb = (int (LINUX_ABI *)(void))mod->init;
-		controller->driver_init_function = controller->init_cb;
-		if(resolved_name != NULL){
-			*resolved_name = (unsigned char *)"struct module.init";
-		}
-		return ret;
-	}
-
-	if(controller->init_cb != NULL){
-		controller->driver_init_function = controller->init_cb;
-		if(resolved_name != NULL){
-			*resolved_name = (unsigned char *)"init_module";
-		}
-		return ret;
-	}
-
-	ret = drv_resolve_driver_init(controller, resolved_name);
-	if(ret == 0){
-		return ret;
-	}
-
-	ret = -ENOENT;
-	return ret;
-}
-
-/* drv_cmd_start: fully initialize the Wi-Fi/Bluetooth interface without the need of invoking 'ops' command  */
-int drv_cmd_start(struct module_controller *director, char *argv[], int num_args) {
-	int ret = 0;
-	unsigned char *driver_init_name = NULL;
-
-	ret = drv_resolve_kernel_object_init(director, &driver_init_name);
+	ret = director->init_cb();
 	if(ret < 0){
 		#ifdef ENABLE_DBG_PRINT
-		printf("[!] driver init function not found!\n");
+		printf("[!] failed to call the 'init_cb'!\n");
 		#endif
-		ret = -ENOENT;
 		return ret;
 	}
-
-	ret = director->driver_init_function();
-	#ifdef ENABLE_DBG_PRINT
-	if(driver_init_name != NULL){
-		printf("[*] %s returned %d\n", driver_init_name, ret);
-	}
-	#endif
+	/*
+	 * this is due to a limitation present in many usb Wi-Fi dongle: usually they follows the multi-state usb schema, this means that they will detach
+	 * and re-attach to the host system with the same or a different usb vid/pid pair, for avoiding any problem, add a tweak here where it is checked
+	 * if the usb device is connected to the host system or not, if not, invoke again the 'probe' function of the kernel driver loaded in memory.
+	 */
+	ret = check_usb_presence();
 	if(ret < 0){
-		return ret;
+		/* set a wait time of 5 seconds and then invoke again the 'init_cb' callback */
+		usleep(5000000);
+		ret = director->init_cb();
+		if(ret < 0){
+			#ifdef ENABLE_DBG_PRINT
+			printf("[!] failed to call the 'init_cb' during the second stage of the driver!\n");
+			#endif
+			return ret;
+		}
 	}
 
 	if((director->ieee80211_ops == NULL || director->ieee80211_local == NULL) && (director->cfg80211_ops == NULL || director->wiphy == NULL)){
@@ -3519,9 +3484,10 @@ int drv_cmd_start(struct module_controller *director, char *argv[], int num_args
 		ret = -ENODEV;
 		return ret;
 	}
-
-	/* call the 'ops' callbacks */
-	elf_initialize_driver();
+	/* if everything is okay, invoke the fast 'ops' functions */
+	ret = elf_initialize_driver();
+	/* run the scan thread for getting new networks every 20 seconds */
+	ret = run_wifi_scan_thread();
 	return ret;
 }
 
@@ -3596,7 +3562,9 @@ int drv_cmd_set(struct module_controller *director, char *argv[], int num_args) 
 	unsigned char *set_req = NULL;
 
 	if(argv[1] == NULL){
+		#ifdef ENABLE_DBG_PRINT
 		printf("> set <req>\n");
+		#endif
 		ret = -EINVAL;
 		return ret;
 	}
@@ -3695,7 +3663,6 @@ int handle_ieee80211_conf_tx(struct ieee80211_hw *ieee80211_hw, struct ieee80211
 	 * instead, if is <= 5.19 the prototype is:
 	 * int (*conf_tx)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, u16 ac, const struct ieee80211_tx_queue_params *params);
 	 */
-
 	params = calloc(1, sizeof(struct ieee80211_tx_queue_params));
 	if(director.kernel_major_version >= 6){
 		int (*conf_tx)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, unsigned int link_id, u16 ac, struct ieee80211_tx_queue_params *params) = NULL;
@@ -3727,7 +3694,9 @@ int handle_ieee80211_config(struct ieee80211_hw *ieee80211_hw, struct ieee80211_
 		return ret;
 	}
 	if (ieee80211_hw->conf.chandef.chan == NULL){
+		#ifdef ENABLE_DBG_PRINT
 		printf("[*] ops config: no channel selected; skipping channel change\n");
+		#endif
 		return ret;
 	}
 
@@ -3756,14 +3725,14 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	size_t cfg80211_scan_req_size = 0;
 	struct wiphy *wiphy = NULL;
 	void *new_mac_address = NULL;
-	struct net_device *net_device = NULL;
-	struct wireless_dev *wireless_dev = NULL;
         unsigned char *ops_req = NULL;
 	unsigned char *ap_ssid = NULL;
 	unsigned char *curr_intf = NULL;
 	struct ieee80211_ops *ops = NULL;
 	struct cfg80211_ops *cfg_ops = NULL;
 	struct ieee80211_local *local = NULL;
+	struct net_device *net_device = NULL;
+	struct wireless_dev *wireless_dev = NULL;
 	struct ieee80211_hw *ieee80211_hw = NULL;
 	struct ieee80211_vif_cfg *vif_cfg = NULL;
 	struct netdev_hw_addr_list *mc_list = NULL;
@@ -3805,7 +3774,9 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	};
 
 	if(argv[1] == NULL){
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] ops <callback name>\n");
+		#endif
 		ret = -EINVAL;
 		return ret;
 	}
@@ -3816,7 +3787,9 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	if(ops == NULL){
 		cfg_ops = __director->cfg80211_ops;
 		if(cfg_ops == NULL){
+			#ifdef ENABLE_DBG_PRINT
 			printf("[!] ieee80211 and cfg80211 callbacks are NULL!\n");
+			#endif
 			ret = -EINVAL;
 			return ret;
 		}
@@ -3827,7 +3800,9 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		}
 		net_device = __director->net_device;
 		if(wiphy == NULL || net_device == NULL){
+			#ifdef ENABLE_DBG_PRINT
 			printf("[!] cfg80211 wiphy or net_device is NULL!\n");
+			#endif
 			ret = -EINVAL;
 			return ret;
 		}
@@ -3838,7 +3813,9 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 
 	local = __director->ieee80211_local;
 	if(local == NULL || local->ieee80211_hw == NULL){
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] local->ieee80211_hw is NULL!\n");
+		#endif
 		ret = -EINVAL;
 		return ret;
 	}
@@ -3864,7 +3841,9 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			/* verify that local->ieee80211_vif isn't allocated or initialized */
 			if(local->ieee80211_vif == NULL){
 				if(director.struct_sizes.ieee80211_vif == 0){
+					#ifdef ENABLE_DBG_PRINT
 					printf("[!] invalid size of ieee80211_vif!\n");
+					#endif
 					ret = -EINVAL;
 					return ret;
 				}
@@ -3923,7 +3902,9 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		remove_interface = ops->remove_interface;
 		if(remove_interface != NULL){
 			if(local->ieee80211_vif == NULL){
+				#ifdef ENABLE_DBG_PRINT
 				printf("[!] ieee80211_vif isn't initialized!\n");
+				#endif
 				ret = -EINVAL;
 				return ret;
 			}
@@ -3935,20 +3916,18 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		ret = handle_ieee80211_config(local->ieee80211_hw, ops);
 	}
 	if(strcmp(ops_req, "configure_filter") == 0){
-		configure_filter = ops->configure_filter;
-		if(configure_filter != NULL){
-			configure_filter(local->ieee80211_hw, 0, &ret, 0);
-		}
+		ret = ieee80211_configure_rx_dump_filter(local, true);
 	}
 	if(strcmp(ops_req, "connect") == 0){
 		if(num_args < 3 || argv[2] == NULL){
+			#ifdef ENABLE_DBG_PRINT
 			printf("[!] connect: ops connect <ssid> [password]\n");
+			#endif
 			ret = -EINVAL;
 			return ret;
 		}
 		ret = wifi_auth_connection_start(local, argv[2], num_args >= 4 ? argv[3] : NULL);
 	}
-
 	if(strcmp(ops_req, "rx") == 0){
 		enable = true;
 
@@ -3956,16 +3935,21 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			if(strcmp(argv[2], "off") == 0 || strcmp(argv[2], "0") == 0){
 				enable = false;
 			}else if(strcmp(argv[2], "on") != 0 && strcmp(argv[2], "1") != 0){
+				#ifdef ENABLE_DBG_PRINT
 				printf("[!] rx: ops rx [on|off|status]\n");
+				#endif
 				ret = -EINVAL;
 				return ret;
 			}
 		}
+		ret = ieee80211_configure_rx_dump_filter(local, enable);
 		atomic_store(&__director->rx_dump_enabled, enable);
 		if(enable){
 			atomic_store(&__director->rx_dump_sequence, 0);
 		}
+		#ifdef ENABLE_DBG_PRINT
 		printf("[*] RX hexdump %s\n", enable ? "enabled" : "disabled");
+		#endif
 	}
 	if(strcmp(ops_req, "conf_tx") == 0){
 		/* handle in the same way of 'config' */
@@ -3998,7 +3982,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	if(strcmp(ops_req, "sw_scan") == 0){
 		sw_scan_start = ops->sw_scan_start;
 		if(sw_scan_start != NULL){
-
+			sw_scan_start(local->ieee80211_hw, local->ieee80211_vif, NULL);
 		}
 	}
 	if(strcmp(ops_req, "cancel_scan") == 0){
@@ -4073,9 +4057,11 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			/* verify that local->ieee80211_mon_vif isn't allocated or initialized */
 			if(local->ieee80211_mon_vif == NULL){
                                 if(director.struct_sizes.ieee80211_vif == 0){
-                                        printf("[!] invalid size of ieee80211_vif!\n");
-                                        ret = -EINVAL;
-                                        return ret;
+					#ifdef ENABLE_DBG_PRINT
+					printf("[!] invalid size of ieee80211_vif!\n");
+					#endif
+					ret = -EINVAL;
+					return ret;
                                 }
 				ieee80211_hw = local->ieee80211_hw;
 				local->ieee80211_mon_vif = calloc(1, director.struct_sizes.ieee80211_vif + ieee80211_hw->vif_data_size);
@@ -4140,7 +4126,9 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			}
 			wireless_dev = add_virtual_intf(wiphy, num_args >= 3 ? curr_intf : "wlan1", 0, intf_type, &params);
 			if(IS_ERR(wireless_dev)){
+				#ifdef ENABLE_DBG_PRINT
 				printf("[!] failed to create a new wireless interface!\n");
+				#endif
 				ret = -EINVAL;
 				return ret;
 			}
@@ -4223,7 +4211,9 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			if(strcmp(argv[2], "off") == 0 || strcmp(argv[2], "0") == 0){
 				enable = false;
 			}else if(strcmp(argv[2], "on") != 0 && strcmp(argv[2], "1") != 0){
+				#ifdef ENABLE_DBG_PRINT
 				printf("[!] rx: ops rx [on|off|status]\n");
+				#endif
 				ret = -EINVAL;
 				return ret;
 			}
@@ -4232,12 +4222,16 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		if(enable){
 			atomic_store(&__director->rx_dump_sequence, 0);
 		}
+		#ifdef ENABLE_DBG_PRINT
 		printf("[*] RX hexdump %s\n", enable ? "enabled" : "disabled");
+		#endif
 	}
 	if(strcmp(ops_req, "start_ap") == 0){
 		ap_ssid = argv[2];
 		if(ap_ssid == NULL){
+			#ifdef ENABLE_DBG_PRINT
 			printf("[!] usage: ops start_ap <ssid_name>!\n");
+			#endif
 			ret = -EINVAL;
 			return ret;
 		}
@@ -4273,20 +4267,22 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	if(strcmp(ops_req, "scan") == 0 || strcmp(ops_req, "hw_scan") == 0){
 		scan = cfg_ops->scan;
 		if(scan == NULL){
+			#ifdef ENABLE_DBG_PRINT
 			printf("[!] cfg80211 scan callback not found!\n");
+			#endif
 			ret = -EINVAL;
 			return ret;
 		}
 		cfg80211_scan_channels = hw_scan_channel_count(wiphy);
 		if(cfg80211_scan_channels == 0){
+			#ifdef ENABLE_DBG_PRINT
 			printf("[!] cfg80211 scan: no enabled channels are registered\n");
+			#endif
 			ret = -EINVAL;
 			return ret;
 		}
-
 		/* cfg80211_scan_request has a trailing channels[] pointer array. */
-		cfg80211_scan_req_size = director.struct_sizes.cfg80211_scan_request +
-			cfg80211_scan_channels * sizeof(struct ieee80211_channel *);
+		cfg80211_scan_req_size = director.struct_sizes.cfg80211_scan_request + cfg80211_scan_channels * sizeof(struct ieee80211_channel *);
 		cfg80211_scan_req = calloc(1, cfg80211_scan_req_size);
 		if(cfg80211_scan_req == NULL){
 			ret = -ENOMEM;
@@ -4294,7 +4290,9 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		}
 		ret = fill_cfg80211_start_scan_req(cfg80211_scan_req);
 		if(ret < 0){
+			#ifdef ENABLE_DBG_PRINT
 			printf("[!] failed to create the cfg80211 scan request!\n");
+			#endif
 			free(cfg80211_scan_req);
 			ret = -ENOMEM;
 			return ret;
@@ -4339,7 +4337,9 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	return ret;
 
 	ieee80211_vif_not_initialized:
+	#ifdef ENABLE_DBG_PRINT
 	printf("[!] ieee80211_vif is not initialized!\n");
+	#endif
 	ret = -EINVAL;
 	return ret;
 }
@@ -4355,14 +4355,12 @@ static int tcc_add_runtime_symbols(TCCState *tcc_ctx){
 		ret = -EINVAL;
 		return ret;
 	}
-
 	for(int j = 0; sym_table[j].function_ptr != NULL && sym_table[j].function_name[0] != '\0'; j++){
 		duplicate = false;
 
 		if(strcmp(sym_table[j].function_name, "main") == 0){
 			continue;
 		}
-
 		for(int i = 0; i < j; i++){
 			if(strcmp(sym_table[i].function_name, sym_table[j].function_name) == 0){
 				duplicate = true;
@@ -4372,7 +4370,6 @@ static int tcc_add_runtime_symbols(TCCState *tcc_ctx){
 		if(duplicate){
 			continue;
 		}
-
 		ret = tcc_add_symbol(tcc_ctx, sym_table[j].function_name, sym_table[j].function_ptr);
 		if(ret < 0){
 			return ret;
@@ -4433,7 +4430,6 @@ int drv_scripting_loop(void) {
 
 	fflush(stdout);
 	fflush(stderr);
-
 	while(true) {
 		ret = getline(&current_line, &current_line_len, stdin);
 		if(ret < 0) {
@@ -4496,14 +4492,14 @@ void elf_crash_handler(int sig){
 			system_freezable_wq = NULL;
 		}
 		atomic_store_explicit(&director.libusb_thread_stop, true, memory_order_release);
-		libusb_interrupt_event_handler(NULL);
+		libusb_interrupt_event_handler(usb_libusb_context());
 		if (director.libusb_event_thread != 0) {
 			pthread_join(director.libusb_event_thread, NULL);
 			director.libusb_event_thread = 0;
 		}
 	}
 	/* quit from libusb */
-	libusb_exit(NULL);
+	usb_runtime_exit();
 }
 
 #ifdef TCC_SCRIPTING
@@ -4531,7 +4527,6 @@ int invoke_tcc_scripting(unsigned char *c_string_data, int c_string_len){
 		ret = -ENOMEM;
 		return ret;
 	}
-
 	tcc_set_output_type(tcc_ctx, TCC_OUTPUT_MEMORY);
 	ret = tcc_add_runtime_symbols(tcc_ctx);
 	if(ret < 0){
@@ -4539,10 +4534,11 @@ int invoke_tcc_scripting(unsigned char *c_string_data, int c_string_len){
 		free(source);
 		return ret;
 	}
-
 	pthread_mutex_lock(&director.tcc_mutex);
 	if(director.runtime_tcc_ctx_count >= MAX_TCC_RUNTIME_CONTEXTS){
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] maximum runtime TCC contexts reached!\n");
+		#endif
 		ret = -ENOMEM;
 		goto out_unlock;
 	}
@@ -4567,6 +4563,7 @@ int invoke_tcc_scripting(unsigned char *c_string_data, int c_string_len){
 	return ret;
 }
 #else
+/* invoke_tcc_scripting: if 'TCC_SCRIPTING' isn't enabled, this is just an empty stub */
 int invoke_tcc_scripting(unsigned char *c_string_data, int c_string_len){
 	int ret = 0;
 
@@ -4576,6 +4573,7 @@ int invoke_tcc_scripting(unsigned char *c_string_data, int c_string_len){
 #endif
 
 #ifdef __linux__
+/* elf_socket_recv_full: handler code for receiving the tcc scripting data throught the IPC socket */
 static int elf_socket_recv_full(int fd, char *buffer, size_t length){
 	int ret = 0;
 	int received = 0;
@@ -4607,10 +4605,9 @@ static int elf_socket_recv_full(int fd, char *buffer, size_t length){
 			}
 			continue;
 		}
-		ret =-EIO;
+		ret = -EIO;
 		return ret;
 	}
-
 	return received;
 }
 
@@ -4633,20 +4630,20 @@ int elf_handle_driver_protocol(struct module_controller *director, char *socket_
 		ret = -EINVAL;
 		return ret;
 	}
-
 	hdr = (struct exsul_protocol_hdr *)socket_buffer_data;
 	msg_len = ((u32)hdr->len_hi << 16) | hdr->len;
 	if(msg_len > BUFF_SIZE || socket_buffer_len < sizeof(struct exsul_protocol_hdr) + msg_len){
 		ret = -EINVAL;
 		return ret;
 	}
-
 	if(hdr->type == STANDALONE_TCC_SCRIPTING){
 		#ifdef TCC_SCRIPTING
 		tcc_high_string = (char *)socket_buffer_data + sizeof(struct exsul_protocol_hdr);
 		ret = invoke_tcc_scripting(tcc_high_string, (int)msg_len);
 		#else
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] tcc scripting not implemented!\n");
+		#endif
 		ret = -EINVAL;
 		return ret;
 		#endif
@@ -4672,25 +4669,30 @@ int elf_entry_socket(struct module_controller *director){
 
 	director->socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if(director->socket_fd < 0){
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] failed to initialize socket!\n");
+		#endif
 		ret = -EINVAL;
 		return ret;
 	}
 
 	director->socket_flags = fcntl(director->socket_fd, F_GETFL);
 	if(director->socket_flags < 0){
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] failed to get socket flags!\n");
+		#endif
 		ret = -EINVAL;
 		return ret;
 	}
 
 	ret = fcntl(director->socket_fd, F_SETFL, director->socket_flags | O_NONBLOCK);
 	if(ret < 0){
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] failed to set socket flags!\n");
+		#endif
 		ret = -EINVAL;
 		goto socket_close;
 	}
-
 	memset(&addr_server, 0, sizeof(struct sockaddr_un));
 	addr_server.sun_family = AF_UNIX;
 	strncpy(addr_server.sun_path, SOCKET_PATH, sizeof(addr_server.sun_path) - 1);
@@ -4698,14 +4700,18 @@ int elf_entry_socket(struct module_controller *director){
 
 	ret = bind(director->socket_fd, (struct sockaddr *)&addr_server, sizeof(addr_server));
 	if(ret < 0){
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] error binding the server!\n");
+		#endif
 		ret = -EINVAL;
 		goto socket_close;
 	}
 
 	ret = listen(director->socket_fd, MAXIMUN_SOCKET_CONNECTIONS);
 	if(ret < 0){
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] failed to listed on the socket!\n");
+		#endif
 		ret = -EINVAL;
 		goto socket_close;
 	}
@@ -4720,7 +4726,9 @@ int elf_entry_socket(struct module_controller *director){
 		ret = poll(poll_fds, number_fds, -1);
 
 		if (ret < 0){
+			#ifdef ENABLE_DBG_PRINT
 			printf("[!] error while polling!\n");
+			#endif
 			ret = -EIO;
 			goto socket_close;
 		}
@@ -4758,7 +4766,9 @@ int elf_entry_socket(struct module_controller *director){
 							}
 						}
 					}else if (ret <= 0){
+						#ifdef ENABLE_DBG_PRINT
 						printf("[!] client %d disconnected!\n", poll_fds[i].fd);
+						#endif
 						close(poll_fds[i].fd);
 						poll_fds[i] = poll_fds[number_fds - 1];
 						number_fds--;
@@ -4780,6 +4790,7 @@ int elf_entry_socket(struct module_controller *director){
 /* elf_entry_stub: main entry point of the standalone ELF */
 int elf_entry_stub(int argc, char *argv[]){
 	int ret = 0;
+	unsigned char *driver_init_name = NULL;
 
 	/* this part of code is similar to 'main' and 'initialize_director', we must re-allocate/re-initialize every object */
 	signal(SIGSEGV, elf_crash_handler);
@@ -4787,7 +4798,10 @@ int elf_entry_stub(int argc, char *argv[]){
 	signal(SIGILL,  elf_crash_handler);
 
 	/* init libusb and create the main usb rx thread */
-	libusb_init(NULL);
+	ret = usb_runtime_init();
+	if(ret != 0){
+		return ret;
+	}
 	atomic_store(&director.libusb_thread_stop, false);
 	pthread_create(&director.libusb_event_thread, NULL, libusb_thread, NULL);
 
@@ -4804,6 +4818,7 @@ int elf_entry_stub(int argc, char *argv[]){
 	system_freezable_wq = &director.system_freezable_wq;
 
         /* initialize usb i/o mutex */
+	pthread_mutex_init(&director.urb_anchor_mutex, NULL);
 	pthread_mutex_init(&director.usb_io_lock, NULL);
 	pthread_cond_init(&director.usb_io_idle, NULL);
 	director.usb_io_depth = 0;
@@ -4811,6 +4826,7 @@ int elf_entry_stub(int argc, char *argv[]){
 	/* initialize skb queue mutex */
 	pthread_mutex_init(&director.skb_queue_lock, NULL);
 
+	/* initialize the scan values */
 	pthread_mutex_init(&director.scan_cache_lock, NULL);
 	atomic_store(&director.scan_generation, 0);
 	atomic_store(&director.scan_result_epoch, 0);
@@ -4818,6 +4834,7 @@ int elf_entry_stub(int argc, char *argv[]){
 	atomic_store(&director.rx_dump_enabled, false);
 	atomic_store(&director.rx_dump_sequence, 0);
 
+	/* init the timer locks */
 	pthread_mutex_init(&director.timer_lock, NULL);
 	pthread_cond_init(&director.timer_cond, NULL);
 	director.timer_once = PTHREAD_ONCE_INIT;
@@ -4827,23 +4844,19 @@ int elf_entry_stub(int argc, char *argv[]){
 	drv_integrate_scripting();
 	#endif
 
-	ret = drv_resolve_kernel_object_init(&director, NULL);
-	if(ret < 0 || director.driver_init_function == NULL){
-		printf("[!] driver init function not found!\n");
-		goto quit;
-	}
-	ret = director.driver_init_function();
+	/* invoke now the 'ops start' callback, this will initialize the driver and call the registered mac80211/cfg80211 callbacks */
+	ret = drv_cmd_start(&director, NULL, 0);
 	if(ret < 0){
-		goto quit;
+		goto end;
 	}
-
 	/* jump to the ipc server creation and poll */
 	elf_entry_socket(&director);
 
-	quit:
+	end:
 	if(director.rfkill != NULL){
 		free(director.rfkill);
 	}
+
 	destroy_workqueue(&director.system_wq);
 	system_wq = NULL;
 	destroy_workqueue(&director.system_dfl_wq);
@@ -4853,6 +4866,8 @@ int elf_entry_stub(int argc, char *argv[]){
 	exit(ret);
 }
 
+/* elf_generator_handler: main function for getting the standalone ELF file,
+ * it dumps the loaded memory regions, creates a legit symbol table and set the entry point to the address of 'elf_entry_stub' */
 int elf_generator_handler(void){
 	int ret = 0;
 	int counter = 0;
@@ -4912,13 +4927,17 @@ int elf_generator_handler(void){
 	}
 
 	if(director.loaded_lkm_num == 0){
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] no modules loaded!\n");
+		#endif
 		ret = -EINVAL;
 		return ret;
 	}
 
 	if(director.envp == NULL){
+		#ifdef ENABLE_DBG_PRINT
 		printf("[!] envp not saved!\n");
+		#endif
 		ret = -EINVAL;
 		return ret;
 	}
@@ -4962,9 +4981,6 @@ int elf_generator_handler(void){
 				director.module_allocation_list);
 		}
 	}
-
-	/* save the symbol for the generated ELF */
-	drv_resolve_kernel_object_init(&director, NULL);
 
 	elf_dump_fd = open(director.module_name, O_RDWR | O_CREAT | O_TRUNC, 0777);
 	if(elf_dump_fd < 0){
@@ -5360,7 +5376,7 @@ static DWORD pe_region_page_protection(u32 protection){
         return (protection & PROT_READ) ? PAGE_READONLY : PAGE_NOACCESS;
 }
 
-/* Restore relocated module text and data before any persisted function pointer is used. */
+/* pe_restore_dumped_regions: restore relocated module text and data before any persisted function pointer is used. */
 static int pe_restore_dumped_regions(void){
         int ret = 0;
         u32 restored_count = 0;
@@ -5500,7 +5516,10 @@ static int pe_entry_stub(void){
         system_wq = NULL;
         system_dfl_wq = NULL;
         system_freezable_wq = NULL;
-        libusb_init(NULL);
+        ret = usb_runtime_init();
+        if(ret != 0){
+                return ret;
+        }
         atomic_store(&director.libusb_thread_stop, false);
         pthread_create(&director.libusb_event_thread, NULL, libusb_thread, NULL);
 
@@ -5516,6 +5535,7 @@ static int pe_entry_stub(void){
         workqueue_init(&director.system_freezable_wq, "system_freezable_wq");
         system_freezable_wq = &director.system_freezable_wq;
 
+        pthread_mutex_init(&director.urb_anchor_mutex, NULL);
         pthread_mutex_init(&director.usb_io_lock, NULL);
         pthread_cond_init(&director.usb_io_idle, NULL);
         director.usb_io_depth = 0;
@@ -5536,18 +5556,9 @@ static int pe_entry_stub(void){
         director.runtime_tcc_ctx_count = 0;
         drv_integrate_scripting();
 	#endif
-        director.driver_init_function = driver_init;
-        if(director.driver_init_function != NULL){
-                fast_get_symbol("_driver_init", &director.driver_init_function);
-                if(director.driver_init_function == NULL){
-                        printf("[!] driver init function not found in dumped PE!\n");
-                        ret = -EINVAL;
-			return ret;
-                }
-                ret = director.driver_init_function();
-                usleep(5000000);
-                ret = director.driver_init_function();
-        }
+	ret = director->init_cb();
+	usleep(5000000);
+	ret = director->init_cb();
         return ret;
 }
 
@@ -5760,10 +5771,8 @@ int pe_generator_handler(void){
 #endif
 
 #ifdef __linux__
-/*
- * crash_handler: returns a custom file format when it crash,
- * output file format is still wip, it should contains both the callback table and the offset table.
-*/
+/* crash_handler: returns a custom file format when it crash,
+ * output file format is still wip, it should contains both the callback table and the offset table. */
 void crash_handler(int sig){
 	int nptrs = 0;
 	int dump_fd = 0;
@@ -5854,7 +5863,7 @@ void crash_handler(int sig){
 	exit(0);
 }
 #else
-/* windows version */
+/* crash_handler: Windows version */
 void crash_handler(int sig){
 
 }
@@ -5891,7 +5900,7 @@ static void trim_inplace(unsigned char *line){
 	quit:
 }
 
-/* helper function used for searching a strut given it's name */
+/* find_struct_by_name: helper function used for searching a strut given it's name */
 static struct runtime_struct_layout *find_struct_by_name(struct runtime_struct *runtime_struct, unsigned char *name){
 	if(name == NULL || runtime_struct == NULL){
 		return NULL;
@@ -5922,18 +5931,18 @@ static struct struct_field *find_field_by_name(struct runtime_struct_layout *run
 	return NULL;
 }
 
-/* parse the offset configuration and patch the offsets at runtime */
+/* handle_offset_config: parse the offset configuration and patch the offsets at runtime */
 int handle_offset_config(unsigned char *offset_config_name){
 	int ret = 0;
 	int fd = 0;
 	int nread = 0;
 	int total = 0;
 	int file_size = 0;
-	char line[48] = {};
-	struct stat config_stats = {};
 	unsigned char *cursor = NULL;
 	unsigned char *config_buffer = NULL;
 	struct runtime_struct_layout *current_layout = NULL;
+	char line[48] = {};
+	struct stat config_stats = {};
 
 	fd = open(offset_config_name, O_RDONLY);
 	if(fd < 0){
@@ -5972,7 +5981,6 @@ int handle_offset_config(unsigned char *offset_config_name){
 		}
 		total += nread;
 	}
-
 	config_buffer[total] = '\0';
 	close(fd);
 	cursor = config_buffer;
@@ -6153,7 +6161,10 @@ int main(int argc, char *argv[], char *envp[]) {
 
 	director.internal_cb_table = &sym_table;
 	director.envp = envp;
-	libusb_init(NULL);
+	ret = usb_runtime_init();
+	if(ret != 0){
+		return ret;
+	}
 
 	atomic_store(&director.libusb_thread_stop, false);
 	pthread_create(&director.libusb_event_thread, NULL, libusb_thread, NULL);
