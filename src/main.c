@@ -5875,10 +5875,24 @@ static int pe_entry_stub(void){
         director.runtime_tcc_ctx_count = 0;
         drv_integrate_scripting();
 	#endif
-	ret = director->init_cb();
-	usleep(5000000);
-	ret = director->init_cb();
-        return ret;
+	/* invoke now the 'ops start' callback, this will initialize the driver and call the registered mac80211/cfg80211 callbacks */
+	ret = drv_cmd_start(&director, NULL, 0);
+	if(ret < 0){
+		goto end;
+	}
+
+	end:
+	if(director.rfkill != NULL){
+		free(director.rfkill);
+	}
+
+	destroy_workqueue(&director.system_wq);
+	system_wq = NULL;
+	destroy_workqueue(&director.system_dfl_wq);
+	system_dfl_wq = NULL;
+	destroy_workqueue(&director.system_freezable_wq);
+	system_freezable_wq = NULL;
+	exit(ret);
 }
 
 /* pe_generator_handler: generate the PE dump, invoked by the command 'get pe' */

@@ -1483,7 +1483,7 @@ sub merge_rewritten_function_stubs {
 	}
 
 	my @function_files = ();
-	my @win_excluded_stubs = qw(snprintf.c sscanf.c);
+	my @win_excluded_stubs = qw(snprintf.c sscanf.c vsnprintf.c sprintf.c);
 	foreach (`$find $functions_dir -type f -name "*.c" | $sort`) {
 		my $file = $_;
 		chomp($file);
