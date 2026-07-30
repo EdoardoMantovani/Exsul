@@ -125,7 +125,9 @@ struct module_controller {
 
 	pthread_mutex_t	usb_transfer_pool_lock;
 	struct libusb_transfer *usb_transfer_pool[USB_TRANSFER_POOL_SIZE];
+	struct libusb_transfer *usb_active_transfers[USB_TRANSFER_POOL_SIZE];
 	u16 usb_transfer_pool_count;
+	u16 usb_active_transfer_count;
 	atomic_uint usb_pending_transfers;
 	atomic_uint usb_peak_pending_transfers;
 
@@ -177,6 +179,9 @@ struct module_controller {
 	atomic_uint scan_result_epoch;
 	void *active_scan_req;
 	atomic_bool scan_in_progress;
+	pthread_t wifi_scan_thread;
+	atomic_bool wifi_scan_thread_started;
+	atomic_bool wifi_scan_thread_stop;
 	void *connection_fsm;
 
 	pthread_mutex_t rtnl_mutex;

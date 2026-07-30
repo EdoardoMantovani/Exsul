@@ -377,6 +377,7 @@ static void urb_destroy(struct kref *kref){
 	/* for avoiding problems, unroll the 'container_of' macro */
 	urb = ((struct urb *)(__mptr - 0));
 
+	untrack_urb_alloc(urb);
 	if (urb->transfer_flags & URB_FREE_BUFFER){
 		kfree(urb->transfer_buffer);
 	}
@@ -434,7 +435,9 @@ static void usb_transfer_pool_init(void){
 
 	pthread_mutex_init(&director.usb_transfer_pool_lock, NULL);
 	memset(director.usb_transfer_pool, 0, sizeof(director.usb_transfer_pool));
+	memset(director.usb_active_transfers, 0, sizeof(director.usb_active_transfers));
 	director.usb_transfer_pool_count = 0;
+	director.usb_active_transfer_count = 0;
 	atomic_store_explicit(&director.usb_pending_transfers, 0, memory_order_relaxed);
 	atomic_store_explicit(&director.usb_peak_pending_transfers, 0, memory_order_relaxed);
 
@@ -444,6 +447,55 @@ static void usb_transfer_pool_init(void){
 			break;
 		}
 		director.usb_transfer_pool[director.usb_transfer_pool_count++] = transfer;
+	}
+}
+
+static void usb_transfer_active_add(struct libusb_transfer *transfer){
+	if (transfer == NULL){
+		return;
+	}
+	pthread_mutex_lock(&director.usb_transfer_pool_lock);
+	for (u16 i = 0; i < director.usb_active_transfer_count; i++){
+		if (director.usb_active_transfers[i] == transfer){
+			pthread_mutex_unlock(&director.usb_transfer_pool_lock);
+			return;
+		}
+	}
+	if (director.usb_active_transfer_count < USB_TRANSFER_POOL_SIZE){
+		director.usb_active_transfers[director.usb_active_transfer_count++] = transfer;
+	}
+	pthread_mutex_unlock(&director.usb_transfer_pool_lock);
+}
+
+static void usb_transfer_active_remove_locked(struct libusb_transfer *transfer){
+	if (transfer == NULL){
+		return;
+	}
+	for (u16 i = 0; i < director.usb_active_transfer_count; i++){
+		if (director.usb_active_transfers[i] == transfer){
+			director.usb_active_transfer_count--;
+			director.usb_active_transfers[i] = director.usb_active_transfers[director.usb_active_transfer_count];
+			director.usb_active_transfers[director.usb_active_transfer_count] = NULL;
+			return;
+		}
+	}
+}
+
+static void usb_transfer_cancel_active(void){
+	struct libusb_transfer *active[USB_TRANSFER_POOL_SIZE] = {0};
+	u16 active_count = 0;
+
+	pthread_mutex_lock(&director.usb_transfer_pool_lock);
+	active_count = director.usb_active_transfer_count;
+	for (u16 i = 0; i < active_count; i++){
+		active[i] = director.usb_active_transfers[i];
+	}
+	pthread_mutex_unlock(&director.usb_transfer_pool_lock);
+
+	for (u16 i = 0; i < active_count; i++){
+		if (active[i] != NULL){
+			libusb_cancel_transfer(active[i]);
+		}
 	}
 }
 
@@ -492,6 +544,7 @@ static void usb_transfer_put(struct libusb_transfer *transfer){
 	transfer->actual_length = 0;
 
 	pthread_mutex_lock(&director.usb_transfer_pool_lock);
+	usb_transfer_active_remove_locked(transfer);
 	if (director.usb_transfer_pool_count < USB_TRANSFER_POOL_SIZE){
 		director.usb_transfer_pool[director.usb_transfer_pool_count++] = transfer;
 		transfer = NULL;
@@ -539,8 +592,22 @@ static int usb_runtime_init(void){
 }
 
 static void usb_runtime_exit(void){
+	struct timeval tv = {0, 0};
+	libusb_device_handle *dev = director.usb_dev;
+
+	director.usb_dev = NULL;
+
 	if (director.usb_ctx == NULL){
 		goto end;
+	}
+	usb_transfer_cancel_active();
+	for (int i = 0; i < 100 && atomic_load_explicit(&director.usb_pending_transfers, memory_order_acquire) > 0; i++){
+		libusb_handle_events_timeout(usb_libusb_context(), &tv);
+		usleep(1000);
+	}
+	if (dev != NULL){
+		libusb_release_interface(dev, director.usb_interface_number);
+		libusb_close(dev);
 	}
 	usb_transfer_pool_flush();
 	libusb_exit(director.usb_ctx);

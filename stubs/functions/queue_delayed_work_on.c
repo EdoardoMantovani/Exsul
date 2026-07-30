@@ -3,7 +3,7 @@ int queue_delayed_work_on(int cpu, struct workqueue_struct *wq, struct delayed_w
 	long expected = 0;
 	long desired = 0;
 
-	if (wq == NULL || dwork == NULL){
+	if (wq == NULL || dwork == NULL || dwork->work.func == NULL || (uintptr_t)dwork->work.func <= 4096){
 		return ret;
 	}
 

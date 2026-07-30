@@ -26,6 +26,10 @@
 #define CONNECTION_EAPOL_KEY_INFO_ERROR         0x0400
 #define CONNECTION_EAPOL_KEY_INFO_REQUEST       0x0800
 #define CONNECTION_EAPOL_KEY_INFO_ENCRYPTED     0x1000
+#define CONNECTION_STA_BASE_FALLBACK_SIZE       1024
+#define CONNECTION_STA_PRIV_FALLBACK_SIZE       4096
+#define CONNECTION_STA_PRIV_MAX_SIZE            65536
+#define CONNECTION_STA_ALLOC_FALLBACK_SIZE      8192
 
 /*
  * The maximum number of IPv4 addresses listed for ARP filtering. If the number
@@ -7877,7 +7881,10 @@ static inline int wifi_connection_send_auth(struct ieee80211_local *local, struc
 
 static inline int connection_prepare_station(struct ieee80211_local *local, struct ieee80211_channel *channel){
 	int ret = 0;
-	u16 sta_size = 0;
+	int sta_data_size = 0;
+	size_t sta_size = 0;
+	size_t sta_priv_size = 0;
+	size_t sta_alloc_size = 0;
 	struct connection_fsm *fsm = NULL;
 	struct ieee80211_ops *connection_ops = NULL;
 	struct ieee80211_vif *connection_vif = NULL;
@@ -7917,7 +7924,22 @@ static inline int connection_prepare_station(struct ieee80211_local *local, stru
 		ret = -EINVAL;
 		return ret;
 	}
-	fsm->sta = calloc(1, sta_size + local->hw.sta_data_size);
+	if (sta_size < CONNECTION_STA_BASE_FALLBACK_SIZE){
+		sta_size = CONNECTION_STA_BASE_FALLBACK_SIZE;
+	}
+	sta_data_size = local->hw.sta_data_size;
+	if (sta_data_size > 0){
+		sta_priv_size = (size_t)sta_data_size;
+	}
+	if (sta_priv_size == 0 || sta_priv_size > CONNECTION_STA_PRIV_MAX_SIZE){
+		sta_priv_size = CONNECTION_STA_PRIV_FALLBACK_SIZE;
+		local->hw.sta_data_size = sta_priv_size;
+	}
+	sta_alloc_size = sta_size + sta_priv_size;
+	if (sta_alloc_size < CONNECTION_STA_ALLOC_FALLBACK_SIZE){
+		sta_alloc_size = CONNECTION_STA_ALLOC_FALLBACK_SIZE;
+	}
+	fsm->sta = calloc(1, sta_alloc_size);
 	connection_sta = fsm->sta;
 	fsm->sta_info = calloc(1, sizeof(*fsm->sta_info));
 	fsm->link_sta_info = calloc(1, sizeof(*fsm->link_sta_info));
@@ -8880,14 +8902,15 @@ static inline void scan_cache_observe(struct ieee80211_local *local,
                                       int fixed_hdr_len){
 	u8 ds_len = 0;
 	u8 ssid_len = 0;
-	const u8 *ies = NULL;
 	const u8 *ds = NULL;
+	const u8 *ies = NULL;
 	const u8 *ssid = NULL;
 	struct ieee80211_mgmt *mgmt = NULL;
 	struct exsul_scan_result *entry = NULL;
 	struct ieee80211_rx_status *rx_status = NULL;
-	u32 generation = atomic_load(&director.scan_generation);
+	u32 generation = 0;
 
+	generation = atomic_load(&director.scan_generation);
 	if (local == NULL || skb == NULL || skb->data == NULL || channel == NULL || fixed_hdr_len < 0){
 		goto end;
 	}
@@ -8914,7 +8937,6 @@ static inline void scan_cache_observe(struct ieee80211_local *local,
 			break;
 		}
 	}
-
 	if (entry == NULL) {
 		for (u32 i = 0; i < EXSUL_MAX_SCAN_RESULTS; i++) {
 			if (!director.scan_results[i].valid) {
@@ -8937,23 +8959,19 @@ static inline void scan_cache_observe(struct ieee80211_local *local,
 	if (entry == NULL){
 		goto unlock;
 	}
-
 	if (ssid != NULL && ssid_len > 0 && ssid_len <= EXSUL_MAX_SCAN_SSID_LEN) {
 		memcpy(entry->ssid, ssid, ssid_len);
 		entry->ssid_len = ssid_len;
 	}
-
 	if (ieee80211_is_probe_resp(mgmt->frame_control)){
 		entry->from_probe_resp = true;
 	}
-
 	entry->beacon_interval = le16_to_cpu(mgmt->u.beacon.beacon_int);
 	entry->capability = le16_to_cpu(mgmt->u.beacon.capab_info);
 	entry->center_freq = channel->center_freq;
 	if (ds != NULL && ds_len >= 1){
 		entry->channel = ds[0];
 	}
-
 	if (rx_status != NULL && !(rx_status->flag & RX_FLAG_NO_SIGNAL_VAL)){
 		entry->signal = rx_status->signal;
 	}
@@ -8980,27 +8998,22 @@ static inline void scan_cache_observe_rx_status(struct ieee80211_local *local, s
 	if (skb->len < fixed_hdr_len || skb->len > 4096){
 		goto end;
 	}
-
 	mgmt = (struct ieee80211_mgmt *)skb->data;
 	if (!ieee80211_is_probe_resp(mgmt->frame_control) && !ieee80211_is_beacon(mgmt->frame_control)){
 		goto end;
 	}
-
 	rx_status = IEEE80211_SKB_RXCB(skb);
 	if (rx_status == NULL || rx_status->freq == 0){
 		goto end;
 	}
-
 	wiphy = local->hw.wiphy != NULL ? local->hw.wiphy : local->wiphy;
 	if (wiphy == NULL){
 		goto end;
 	}
-
 	channel = ieee80211_get_channel_khz(wiphy, ieee80211_rx_status_to_khz(rx_status));
 	if (channel == NULL || (channel->flags & IEEE80211_CHAN_DISABLED)){
 		goto end;
 	}
-
 	scan_cache_observe(local, skb, channel, fixed_hdr_len);
 	end:
 }
@@ -9008,17 +9021,11 @@ static inline void scan_cache_observe_rx_status(struct ieee80211_local *local, s
 /* print the scan results */
 static inline void scan_cache_print(void){
 	int printed = 0;
-	u32 current_generation = atomic_load(&director.scan_generation);
-	u32 seen_this_scan = 0;
+	u32 current_generation = 0;
 	struct exsul_scan_result *entry = NULL;
 
+	current_generation = atomic_load(&director.scan_generation);
 	pthread_mutex_lock(&director.scan_cache_lock);
-	for (u32 i = 0; i < EXSUL_MAX_SCAN_RESULTS; i++){
-		if (director.scan_results[i].valid && director.scan_results[i].last_seen_generation == current_generation){
-			seen_this_scan++;
-		}
-	}
-	printf("[*] hw_scan finished: %u networks detected\n", seen_this_scan);
 	for (u32 i = 0; i < EXSUL_MAX_SCAN_RESULTS; i++) {
 		entry = &director.scan_results[i];
 
@@ -9048,7 +9055,7 @@ static inline void scan_cache_print(void){
 		if (entry->channel != 0){
 			printf(" channel=%u", entry->channel);
 		}
-		printf(" signal=%d\n", entry->signal);
+		printf(" signal=%d dBm\n", entry->signal);
 		printed++;
 	}
 	pthread_mutex_unlock(&director.scan_cache_lock);
@@ -10691,21 +10698,41 @@ static void ieee80211_wep_init(struct ieee80211_local *local){
 static void cfg80211_process_wiphy_works(struct cfg80211_registered_device *rdev, struct wiphy_work *end){
 	unsigned int runaway_limit = 100;
 	struct wiphy_work *wk = NULL;
+	struct ieee80211_local *local = director.ieee80211_local;
 
-	while (!list_empty(&rdev->wiphy_work_list)) {
+	if (rdev == NULL || rdev->wiphy == NULL || local == NULL){
+		goto out;
+	}
+
+	for (;;) {
 		wk = NULL;
 
+		pthread_mutex_lock(&local->wiphy_work_queue_mutex);
+		if (list_empty(&rdev->wiphy_work_list)){
+			pthread_mutex_unlock(&local->wiphy_work_queue_mutex);
+			break;
+		}
 		wk = list_first_entry(&rdev->wiphy_work_list, struct wiphy_work, entry);
 		list_del_init(&wk->entry);
+		pthread_mutex_unlock(&local->wiphy_work_queue_mutex);
+		if (wk == NULL || wk->func == NULL || (uintptr_t)wk->func <= 4096){
+			if (wk == end){
+				break;
+			}
+			continue;
+		}
 		wk->func(rdev->wiphy, wk);
 
 		if (wk == end){
 			break;
 		}
 		if (--runaway_limit == 0){
+			pthread_mutex_lock(&local->wiphy_work_queue_mutex);
 			INIT_LIST_HEAD(&rdev->wiphy_work_list);
+			pthread_mutex_unlock(&local->wiphy_work_queue_mutex);
 		}
 	}
+	out:
 }
 
 static void cfg80211_wiphy_worker(struct work_struct *work){
@@ -11644,6 +11671,7 @@ static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw, struct ieee802
 					}
 				}
 				if (ieee80211_prepare_and_rx_handle(&rx, skb, true)){
+					skb = NULL;
 					goto end;
 				}
 				goto out;
@@ -11689,6 +11717,7 @@ static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw, struct ieee802
 			}
 
 			if (ieee80211_prepare_and_rx_handle(&rx, skb, true)){
+				skb = NULL;
 				goto end;
 			}
 			goto out;
@@ -11722,6 +11751,7 @@ static void __ieee80211_rx_handle_packet(struct ieee80211_hw *hw, struct ieee802
 	if (prev != NULL) {
 		rx.sdata = prev;
 		if (ieee80211_rx_for_interface(&rx, skb, true)){
+			skb = NULL;
 			goto end;
 		}
 	}
@@ -11809,8 +11839,8 @@ static inline void rx_dump_skb(struct sk_buff *skb, struct ieee80211_rx_status *
 	if(status != NULL && (status->flag & RX_FLAG_8023)){
 		eth = NULL;
 		#ifdef ENABLE_DBG_PRINT
-		printf("\n[RX %06u] format=802.3 len=%u linear_len=%u freq=%uMHz signal=%ddBm band=%u rate_idx=%u encoding=%u\n",
-		       sequence, skb->len, dump_len, status->freq, status->signal, status->band, status->rate_idx, status->encoding);
+		printf("\n[RX %06u] format=802.3 len=%u freq=%uMHz signal=%ddBm band=%u rate_idx=%u encoding=%u\n",
+		       sequence, skb->len, status->freq, status->signal, status->band, status->rate_idx, status->encoding);
 		if(dump_len >= sizeof(*eth)){
 			eth = (struct ethhdr *)skb->data;
 			printf("[RX %06u] dst=%02x:%02x:%02x:%02x:%02x:%02x src=%02x:%02x:%02x:%02x:%02x:%02x proto=0x%04x\n",
@@ -11828,7 +11858,7 @@ static inline void rx_dump_skb(struct sk_buff *skb, struct ieee80211_rx_status *
 
 	if(dump_len < IEEE80211_MIN_HDR_LEN){
 		#ifdef ENABLE_DBG_PRINT
-		printf("\n[RX %06u] format=802.11 truncated len=%u linear_len=%u\n", sequence, skb->len, dump_len);
+		printf("\n[RX %06u] format=802.11 truncated len=%u\n", sequence, skb->len);
 		print_hex_dump("", "  ", DUMP_PREFIX_OFFSET, 16, 1, skb->data, dump_len, true);
 		#endif
 		goto end;
@@ -11837,12 +11867,11 @@ static inline void rx_dump_skb(struct sk_buff *skb, struct ieee80211_rx_status *
 	hdr = (struct ieee80211_hdr *)skb->data;
 	fc = le16_to_cpu(hdr->frame_control);
 	#ifdef ENABLE_DBG_PRINT
-	printf("\n[RX %06u] format=802.11 subtype=0x%02x fc=0x%04x len=%u linear_len=%u", sequence, fc & IEEE80211_FCTL_STYPE, fc, skb->len, dump_len);
+	printf("\n[RX %06u] format=802.11 subtype=0x%02x fc=0x%04x len=%u", sequence, fc & IEEE80211_FCTL_STYPE, fc, skb->len);
 	#endif
 	if(status != NULL){
 		#ifdef ENABLE_DBG_PRINT
-		printf(" freq=%u MHz signal=%d dBm band=%u rate_idx=%u encoding=%u bw=%u flags=0x%08x",
-			status->freq, status->signal, status->band, status->rate_idx, status->encoding, status->bw, status->flag);
+		printf(" freq=%uMHz signal=%d dBm band=%u bw=%u", status->freq, status->signal, status->band, status->bw);
 		#endif
 	}
 	#ifdef ENABLE_DBG_PRINT
@@ -12195,21 +12224,27 @@ static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 	};
 
 	/*
-	 * Keep probe requests conservative. Capability IEs copied from a
-	 * different kernel/interface can advertise combinations which do not
-	 * describe the running hardware and some APs simply ignore them.
+	 * Keep probe requests conservative and keep them in static storage: the
+	 * hw_scan request is retained asynchronously by drivers such as rtw89.
 	 */
-	const u8 scan_ies_2ghz[] = {
+	static const u8 scan_ies_2ghz[] = {
 		WLAN_EID_SUPP_RATES, 8,
 		0x82, 0x84, 0x8b, 0x96, 0x0c, 0x12, 0x18, 0x24,
 		WLAN_EID_EXT_SUPP_RATES, 4,
 		0x30, 0x48, 0x60, 0x6c,
 	};
-	const u8 scan_ies_5ghz[] = {
+	static const u8 scan_ies_5ghz[] = {
 		WLAN_EID_SUPP_RATES, 8,
 		0x8c, 0x12, 0x98, 0x24, 0xb0, 0x48, 0x60, 0x6c,
 	};
-	u8 scan_ies_combined[sizeof(scan_ies_2ghz) + sizeof(scan_ies_5ghz)];
+	static const u8 scan_ies_combined[] = {
+		WLAN_EID_SUPP_RATES, 8,
+		0x82, 0x84, 0x8b, 0x96, 0x0c, 0x12, 0x18, 0x24,
+		WLAN_EID_EXT_SUPP_RATES, 4,
+		0x30, 0x48, 0x60, 0x6c,
+		WLAN_EID_SUPP_RATES, 8,
+		0x8c, 0x12, 0x98, 0x24, 0xb0, 0x48, 0x60, 0x6c,
+	};
 
 	if (scan_req == NULL){
 		ret = -EINVAL;
@@ -12223,8 +12258,6 @@ static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 	wiphy = local->wiphy;
 
 	memset(scan_req, 0, director.struct_sizes.ieee80211_scan_request);
-	memcpy(scan_ies_combined, scan_ies_2ghz, sizeof(scan_ies_2ghz));
-	memcpy(scan_ies_combined + sizeof(scan_ies_2ghz), scan_ies_5ghz, sizeof(scan_ies_5ghz));
 
 	ies = &scan_req->ies;
 	ies->ies[NL80211_BAND_2GHZ] = scan_ies_combined;

@@ -2,7 +2,7 @@ int queue_work_on(int cpu, struct workqueue_struct *wq, struct work_struct *work
 	long state;
 	pthread_attr_t attr;
 
-	if (wq == NULL || work == NULL){
+	if (wq == NULL || work == NULL || work->func == NULL || (uintptr_t)work->func <= 4096){
 		if (wq == NULL){
 			printf("[%s] wq is null!\n", __FUNCTION__);
 		}

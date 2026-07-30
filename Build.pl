@@ -115,8 +115,9 @@ my @gcc_params = (
 	"-DTCC_SCRIPTING",
 	"-DCONFIG_PM",
 	"-DENABLE_UNWIND_DEBUGGING",
-	"-O3",
+	"-O2",
 	"-w",
+	"-g",
 	"-funwind-tables",
 	"-fasynchronous-unwind-tables",
 	"-fno-omit-frame-pointer",
@@ -126,7 +127,7 @@ my @gcc_params = (
 	"-mno-avx512f",
 );
 my @gcc_stub_params = (
-	"-O3",
+	"-O2",
 	"-fno-builtin",
 	"-mno-sse",
 	"-mno-mmx",

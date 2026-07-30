@@ -1,20 +1,21 @@
 void ieee80211_tx_status_irqsafe(struct ieee80211_hw *hw, struct sk_buff *skb){
-	struct ieee80211_local *local = director.ieee80211_local;
+	struct ieee80211_hdr *hdr = NULL;
+	struct ieee80211_local *local = NULL;
 	struct ieee80211_tx_info *info = NULL;
 
+	local = director.ieee80211_local;
 	if (skb == NULL || IS_ERR(skb)){
 		goto end;
 	}
 	info = skb->cb;
-	if (skb->data != NULL && skb->len >= IEEE80211_MIN_HDR_LEN &&
-	    info != NULL && (info->flags & IEEE80211_TX_INTFL_MLME_CONN_TX)){
+	#ifdef ENABLE_DBG_PRINT
+	if (skb->data != NULL && skb->len >= IEEE80211_MIN_HDR_LEN && info != NULL && (info->flags & IEEE80211_TX_INTFL_MLME_CONN_TX)){
 		struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
-		const char *kind = ieee80211_is_auth(hdr->frame_control) ? "authentication" :
-			ieee80211_is_assoc_req(hdr->frame_control) ? "association" : "management";
+		const char *kind = ieee80211_is_auth(hdr->frame_control) ? "authentication" : ieee80211_is_assoc_req(hdr->frame_control) ? "association" : "management";
 
 		printf("[*] %s TX status: %s\n", kind, (info->flags & IEEE80211_TX_STAT_ACK) ? "acknowledged" : "not acknowledged");
 	}
-
+	#endif
 	if (local != NULL){
 		ieee80211_report_used_skb(local, skb, false, 0);
 	}

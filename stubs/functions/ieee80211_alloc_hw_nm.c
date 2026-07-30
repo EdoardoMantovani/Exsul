@@ -101,6 +101,9 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, struct ieee8021
 	local = wiphy->priv;
 
 	director.ieee80211_local = (struct ieee80211_local *)calloc(1, (ALIGN(sizeof(struct ieee80211_local), 32) + priv_data_len));
+	if(director.ieee80211_local == NULL){
+		goto err_free;
+	}
 	local = director.ieee80211_local;
 	local->wiphy = wiphy;
 
@@ -173,6 +176,10 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, struct ieee8021
 	return hw;
 
 	err_free:
+	if(director.ieee80211_local != NULL){
+		free(director.ieee80211_local);
+		director.ieee80211_local = NULL;
+	}
 	wiphy_free(wiphy);
 	return NULL;
 }

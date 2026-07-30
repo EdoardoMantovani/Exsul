@@ -5,6 +5,7 @@ void __kfree_skb(struct sk_buff *skb){
 		goto end;
 	}
 
+	untrack_skb_alloc(skb);
 	if (skb->head != NULL) {
 		/* decrease the skb referemce count */
 		old = atomic_fetch_sub(&skb_shinfo(skb)->dataref, 1);

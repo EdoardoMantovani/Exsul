@@ -9,6 +9,9 @@ int mod_delayed_work_on(int cpu, struct workqueue_struct *wq, struct delayed_wor
 	}
 
 	work = &dwork->work;
+	if (work->func == NULL || (uintptr_t)work->func <= 4096){
+		return ret;
+	}
 
 	if(work_wq(work) == wq && wq_in_worker(wq) && (work_flags(work) & WORK_STRUCT_RUNNING)) {
 		errno = EDEADLK;

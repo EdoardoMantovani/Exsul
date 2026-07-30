@@ -85,6 +85,178 @@ void *get_ieee80211_priv_data(void){
 	return ieee80211_priv(hw);
 }
 
+struct tracked_skb_alloc {
+	struct sk_buff *skb;
+	struct tracked_skb_alloc *next;
+};
+
+struct tracked_urb_alloc {
+	struct urb *urb;
+	struct tracked_urb_alloc *next;
+};
+
+static struct tracked_skb_alloc *tracked_skb_allocs;
+static struct tracked_urb_alloc *tracked_urb_allocs;
+
+void track_skb_alloc(struct sk_buff *skb){
+	struct tracked_skb_alloc *node = NULL;
+
+	if(skb == NULL){
+		return;
+	}
+	node = malloc(sizeof(*node));
+	if(node == NULL){
+		return;
+	}
+	node->skb = skb;
+	pthread_mutex_lock(&director.skb_queue_lock);
+	node->next = tracked_skb_allocs;
+	tracked_skb_allocs = node;
+	pthread_mutex_unlock(&director.skb_queue_lock);
+}
+
+void untrack_skb_alloc(struct sk_buff *skb){
+	struct tracked_skb_alloc **pp = NULL;
+	struct tracked_skb_alloc *node = NULL;
+
+	if(skb == NULL){
+		return;
+	}
+	pthread_mutex_lock(&director.skb_queue_lock);
+	pp = &tracked_skb_allocs;
+	while(*pp != NULL){
+		if((*pp)->skb == skb){
+			node = *pp;
+			*pp = node->next;
+			break;
+		}
+		pp = &(*pp)->next;
+	}
+	pthread_mutex_unlock(&director.skb_queue_lock);
+	free(node);
+}
+
+void free_tracked_skb_allocs(void){
+	struct tracked_skb_alloc *node = NULL;
+	struct tracked_skb_alloc *next = NULL;
+	struct sk_buff *skb = NULL;
+
+	pthread_mutex_lock(&director.skb_queue_lock);
+	node = tracked_skb_allocs;
+	tracked_skb_allocs = NULL;
+	pthread_mutex_unlock(&director.skb_queue_lock);
+
+	while(node != NULL){
+		next = node->next;
+		skb = node->skb;
+		if(skb != NULL){
+			if(skb->head != NULL && !skb->head_frag){
+				free(skb->head);
+			}
+			free(skb);
+		}
+		free(node);
+		node = next;
+	}
+}
+
+void track_urb_alloc(struct urb *urb){
+	struct tracked_urb_alloc *node = NULL;
+
+	if(urb == NULL){
+		return;
+	}
+	node = malloc(sizeof(*node));
+	if(node == NULL){
+		return;
+	}
+	node->urb = urb;
+	pthread_mutex_lock(&director.skb_queue_lock);
+	node->next = tracked_urb_allocs;
+	tracked_urb_allocs = node;
+	pthread_mutex_unlock(&director.skb_queue_lock);
+}
+
+void untrack_urb_alloc(struct urb *urb){
+	struct tracked_urb_alloc **pp = NULL;
+	struct tracked_urb_alloc *node = NULL;
+
+	if(urb == NULL){
+		return;
+	}
+	pthread_mutex_lock(&director.skb_queue_lock);
+	pp = &tracked_urb_allocs;
+	while(*pp != NULL){
+		if((*pp)->urb == urb){
+			node = *pp;
+			*pp = node->next;
+			break;
+		}
+		pp = &(*pp)->next;
+	}
+	pthread_mutex_unlock(&director.skb_queue_lock);
+	free(node);
+}
+
+void free_tracked_urb_allocs(void){
+	struct tracked_urb_alloc *node = NULL;
+	struct tracked_urb_alloc *next = NULL;
+	struct urb *urb = NULL;
+
+	pthread_mutex_lock(&director.skb_queue_lock);
+	node = tracked_urb_allocs;
+	tracked_urb_allocs = NULL;
+	pthread_mutex_unlock(&director.skb_queue_lock);
+
+	while(node != NULL){
+		next = node->next;
+		urb = node->urb;
+		if(urb != NULL){
+			urb_destroy(&urb->kref);
+		}
+		free(node);
+		node = next;
+	}
+}
+
+void track_kmem_alloc(void *ptr){
+	if(ptr == NULL){
+		return;
+	}
+	for(u8 i = 0; i < MAX_KMEM_ARRAY_SIZE; i++){
+		if(director.kmem_array[i] == ptr){
+			return;
+		}
+	}
+	for(u8 i = 0; i < MAX_KMEM_ARRAY_SIZE; i++){
+		if(director.kmem_array[i] == NULL){
+			director.kmem_array[i] = ptr;
+			return;
+		}
+	}
+}
+
+void untrack_kmem_alloc(void *ptr){
+	if(ptr == NULL){
+		return;
+	}
+	for(u8 i = 0; i < MAX_KMEM_ARRAY_SIZE; i++){
+		if(director.kmem_array[i] == ptr){
+			director.kmem_array[i] = NULL;
+			return;
+		}
+	}
+}
+
+void free_tracked_kmem_allocs(void){
+	for(u8 i = 0; i < MAX_KMEM_ARRAY_SIZE; i++){
+		if(director.kmem_array[i] != NULL){
+			free(director.kmem_array[i]);
+			director.kmem_array[i] = NULL;
+		}
+	}
+}
+
 /* skb_get_data: API function for the standalone ELF which permits to get the 'data' field fo the 'skb', not possible from the tcc scripting environment */
 void *skb_get_data(struct sk_buff *skb){
 	if(skb == NULL){
@@ -425,6 +597,24 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
         return ret;
 }
 
+static void free_usb_interface_alloc(struct usb_interface *intf){
+	if(intf == NULL){
+		return;
+	}
+	if(intf->altsetting != NULL){
+		for(u8 i = 0; i < intf->num_altsetting; i++){
+			free(intf->altsetting[i].endpoint);
+			intf->altsetting[i].endpoint = NULL;
+		}
+		free(intf->altsetting);
+		intf->altsetting = NULL;
+	}
+	if(director.usb_interface == intf){
+		director.usb_interface = NULL;
+	}
+	free(intf);
+}
+
 /* usb_disk_modeswitch: under Windows and other OSes, 'usb_modeswitch' isn't always available,
  * in this case, invoke the hardcoded minimal implementation of modeswitch */
 static int usb_disk_modeswitch(struct module_controller *controller){
@@ -598,6 +788,12 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 
 		ret = libusb_claim_interface(director.usb_dev, director.usb_interface_number);
 		if (ret < 0) {
+			free_usb_interface_alloc(usb_intf);
+			usb_intf = NULL;
+			if(director.usb_device_ptr != NULL){
+				free(director.usb_device_ptr);
+				director.usb_device_ptr = NULL;
+			}
 			libusb_close(director.usb_dev);
 			director.usb_dev = NULL;
 			continue;
@@ -909,8 +1105,8 @@ int parse_module_offset_table(void){
 	int ret = 0;
 	u8 counter = 0;
 	struct runtime_struct *runtime_structs = NULL;
-	struct runtime_struct_layout *runtime_struct_layout = NULL;
 	struct struct_field *current_struct_fields = NULL;
+	struct runtime_struct_layout *runtime_struct_layout = NULL;
 
 	runtime_structs = &runtime_generated_structs;
 	if(runtime_structs == NULL){
@@ -1780,11 +1976,16 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 			needs_trampoline |= target_is_native_stub &&
 					      symbol_uses_plt32(info, i) &&
 					      strstr((char *)name, "__x86_indirect_thunk_") == NULL &&
-					      strcmp((char *)name, "__x86_return_thunk") != 0;
+					      strcmp((char *)name, "__x86_return_thunk") != 0 &&
+					      strcmp((char *)name, "__fentry__") != 0;
 			#endif
 			return_thunk = false;
 			#if defined(__linux__) && defined(__x86_64__)
 			needs_trampoline |= symbol_needs_plt32_trampoline(info, i, target);
+			if(strcmp((char *)name, "__fentry__") == 0){
+				needs_trampoline = false;
+				target_is_native_stub = false;
+			}
 			#endif
 			#ifdef _WIN64
 			/* Undefined kernel imports are commonly STT_NOTYPE on Windows. */
@@ -2217,7 +2418,6 @@ static int call_final_function(struct module *mod, struct load_info *info, unsig
 	Elf(Shdr) *symsect = &info->sechdrs[info->index.sym];
 
 	Elf(Sym) *sym = (void *)symsect->sh_addr;
-
 	strtab = (void *)info->sechdrs[info->index.str].sh_addr;
 	n = symsect->sh_size / sizeof(*sym);
 
@@ -2516,10 +2716,12 @@ int initialize_director(struct module_controller *director, struct load_info **i
 		ret = -ENOMEM;
 		return ret;
 	}
-	director->rfkill = calloc(1, sizeof(struct rfkill));
 	if(director->rfkill == NULL){
-		ret = -ENOMEM;
-		return ret;
+		director->rfkill = calloc(1, sizeof(struct rfkill));
+		if(director->rfkill == NULL){
+			ret = -ENOMEM;
+			return ret;
+		}
 	}
 
 	/* initialize workqueues if necessary */
@@ -2551,6 +2753,9 @@ int initialize_director(struct module_controller *director, struct load_info **i
 	atomic_store(&director->scan_generation, 0);
 	atomic_store(&director->scan_result_epoch, 0);
 	atomic_store(&director->scan_in_progress, false);
+	atomic_store(&director->wifi_scan_thread_started, false);
+	atomic_store(&director->wifi_scan_thread_stop, false);
+	director->wifi_scan_thread = 0;
 	atomic_store(&director->rx_dump_enabled, false);
 	atomic_store(&director->rx_dump_sequence, 0);
 
@@ -2560,7 +2765,12 @@ int initialize_director(struct module_controller *director, struct load_info **i
 
 	/* if enabled, initialize also the tcc scripting layer */
 	#ifdef TCC_SCRIPTING
-	drv_integrate_scripting();
+	if(director->tcc_ctx == NULL){
+		ret = drv_integrate_scripting();
+		if(ret != 0){
+			return ret;
+		}
+	}
 	#endif
 	*info = director->info;
 	return ret;
@@ -2568,13 +2778,20 @@ int initialize_director(struct module_controller *director, struct load_info **i
 
 /* finalize_director: clean everything allocated in the main controller */
 void finalize_director(void){
+#ifdef TCC_SCRIPTING
+	drv_shutdown_scripting();
+#endif
 	if(director.info != NULL){
 		free(director.info);
 		director.info = NULL;
 	}
-	if(director.ieee80211_local != NULL){
-
+	atomic_store_explicit(&director.wifi_scan_thread_stop, true, memory_order_release);
+	if (director.wifi_scan_thread != 0 && atomic_load(&director.wifi_scan_thread_started)) {
+		pthread_join(director.wifi_scan_thread, NULL);
+		director.wifi_scan_thread = 0;
 	}
+	atomic_store(&director.wifi_scan_thread_started, false);
+
 	/* Stop the libusb event thread BEFORE freeing USB resources it accesses;
 	 * otherwise Thread 3 races on the freed usb_device_ptr block. */
 	atomic_store_explicit(&director.libusb_thread_stop, true, memory_order_release);
@@ -2585,10 +2802,37 @@ void finalize_director(void){
 	}
 	usb_runtime_exit();
 
+	if(system_wq != NULL){
+		destroy_workqueue(system_wq);
+		system_wq = NULL;
+	}
+	if(system_dfl_wq != NULL){
+		destroy_workqueue(system_dfl_wq);
+		system_dfl_wq = NULL;
+	}
+	if(system_freezable_wq != NULL){
+		destroy_workqueue(system_freezable_wq);
+		system_freezable_wq = NULL;
+	}
+	if(director.ieee80211_local != NULL){
+		ieee80211_free_hw(director.ieee80211_local->ieee80211_hw);
+	}
+	free_usb_interface_alloc(director.usb_interface);
 	if(director.usb_device_ptr != NULL){
 		free(director.usb_device_ptr);
 		director.usb_device_ptr = NULL;
 	}
+	if(director.active_scan_req != NULL){
+		free(director.active_scan_req);
+		director.active_scan_req = NULL;
+	}
+	if(director.rfkill != NULL){
+		free(director.rfkill);
+		director.rfkill = NULL;
+	}
+	free_tracked_urb_allocs();
+	free_tracked_skb_allocs();
+	free_tracked_kmem_allocs();
 	if(percpu_area != NULL){
 		munmap(percpu_area, 1024 * 1024 * 8);
 		percpu_area = NULL;
@@ -2792,6 +3036,64 @@ int fast_get_name_in_range(void *sym_addr, unsigned char **sym_name){
 	return ret;
 }
 
+static int start_cfg80211_scan(struct wiphy *wiphy, struct cfg80211_ops *cfg80211_ops){
+	int ret = 0;
+	u32 n_channels = 0;
+	size_t scan_req_size = 0;
+	struct cfg80211_scan_request *scan_req = NULL;
+	int (*scan)(struct wiphy *wiphy, struct cfg80211_scan_request *request) = NULL;
+
+	if (wiphy == NULL || cfg80211_ops == NULL || cfg80211_ops->scan == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+	if (atomic_load(&director.scan_in_progress)){
+		ret = -EBUSY;
+		return ret;
+	}
+
+	n_channels = hw_scan_channel_count(wiphy);
+	if (n_channels == 0){
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] cfg80211 scan: no enabled channels are registered\n");
+		#endif
+		ret = -EINVAL;
+		return ret;
+	}
+
+	scan_req_size = director.struct_sizes.cfg80211_scan_request + n_channels * sizeof(struct ieee80211_channel *);
+	free(director.active_scan_req);
+	director.active_scan_req = calloc(1, scan_req_size);
+	if (director.active_scan_req == NULL){
+		ret = -ENOMEM;
+		return ret;
+	}
+
+	scan_req = director.active_scan_req;
+	ret = fill_cfg80211_start_scan_req(scan_req);
+	if (ret < 0){
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] failed to create the cfg80211 scan request!\n");
+		#endif
+		free(director.active_scan_req);
+		director.active_scan_req = NULL;
+		return ret;
+	}
+
+	scan_cache_reset();
+	atomic_store(&director.scan_in_progress, true);
+	scan = cfg80211_ops->scan;
+	ret = scan(wiphy, scan_req);
+	if (ret == 0){
+		run_wifi_scan_thread();
+	}else{
+		atomic_store(&director.scan_in_progress, false);
+		free(director.active_scan_req);
+		director.active_scan_req = NULL;
+	}
+	return ret;
+}
+
 /* fast_run_cfg80211_cb: used in the standalone ELF dump, permits to invoke cfg80211 (and callbacks from 'net_device_ops') callbacks in a simpler way */
 int fast_run_cfg80211_cb(enum fast_run_ops current_ops) {
 	int ret = 0;
@@ -2800,7 +3102,6 @@ int fast_run_cfg80211_cb(enum fast_run_ops current_ops) {
 	struct net_device *net_device = NULL;
 	struct cfg80211_ops *cfg80211_ops = NULL;
 	void (*abort_scan)(struct wiphy *wiphy, struct wireless_dev *wdev) = NULL;
-	int (*scan)(struct wiphy *wiphy, struct cfg80211_scan_request *request) = NULL;
 	int (*del_virtual_intf)(struct wiphy *wiphy, struct wireless_dev *wdev) = NULL;
 	int (*testmode_cmd)(struct wiphy *wiphy, struct wireless_dev *wdev, void *data, int len) = NULL;
 	int (*cfg80211_stop_ap)(struct wiphy *wiphy, struct net_device *dev, unsigned int link_id) = NULL;
@@ -2856,7 +3157,7 @@ int fast_run_cfg80211_cb(enum fast_run_ops current_ops) {
 	}
 
 	if(current_ops == CFG80211_SCAN){
-
+		ret = start_cfg80211_scan(wiphy, cfg80211_ops);
 	}
 	if(current_ops == CFG80211_ABORT_SCAN){
 
@@ -3001,6 +3302,10 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 		cancel_hw_scan = ops->cancel_hw_scan;
 		if(hw_scan != NULL && local->ieee80211_vif != NULL){
 			ret = start_hw_scan(local, hw_scan, cancel_hw_scan);
+			/* if the first scan is okay, start the scan thread */
+			if(ret == 0){
+				run_wifi_scan_thread();
+			}
 		}else{
 			goto ieee80211_vif_not_initialized;
 		}
@@ -3119,10 +3424,49 @@ int elf_initialize_driver(void){
 	return ret;
 }
 
+static void wifi_scan_thread_sleep(void){
+	for (u8 i = 0; i < 50; i++){
+		if (atomic_load_explicit(&director.wifi_scan_thread_stop, memory_order_acquire)){
+			break;
+		}
+		usleep(WIFI_SCAN_THREAD_INTERVAL / 50);
+	}
+}
+
+static void *wifi_scan_thread(void *arg){
+	while (!atomic_load_explicit(&director.wifi_scan_thread_stop, memory_order_acquire)){
+		wifi_scan_thread_sleep();
+		if (atomic_load_explicit(&director.wifi_scan_thread_stop, memory_order_acquire)){
+			break;
+		}
+		if (atomic_load(&director.scan_in_progress)){
+			continue;
+		}
+		/* decide if use cfg80211 or mac80211 scan */
+		if (director.ieee80211_ops != NULL && director.ieee80211_local != NULL){
+			fast_run_ieee80211_cb(IEEE80211_HW_SCAN);
+		}else if (director.cfg80211_ops != NULL && director.wiphy != NULL){
+			fast_run_cfg80211_cb(CFG80211_SCAN);
+		}
+	}
+	return NULL;
+}
+
 /* run_wifi_scan_thread: start the Wi-Fi scan thread */
 int run_wifi_scan_thread(void){
 	int ret = 0;
+	bool expected = false;
 
+	if (!atomic_compare_exchange_strong(&director.wifi_scan_thread_started, &expected, true)){
+		return ret;
+	}
+
+	atomic_store_explicit(&director.wifi_scan_thread_stop, false, memory_order_release);
+	ret = pthread_create(&director.wifi_scan_thread, NULL, wifi_scan_thread, NULL);
+	if (ret != 0){
+		atomic_store(&director.wifi_scan_thread_started, false);
+		director.wifi_scan_thread = 0;
+	}
 	return ret;
 }
 
@@ -3486,8 +3830,6 @@ int drv_cmd_start(struct module_controller *director, char *argv[], int num_args
 	}
 	/* if everything is okay, invoke the fast 'ops' functions */
 	ret = elf_initialize_driver();
-	/* run the scan thread for getting new networks every 20 seconds */
-	ret = run_wifi_scan_thread();
 	return ret;
 }
 
@@ -3721,8 +4063,6 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
         int ret = 0;
 	int intf_type = 0;
 	bool enable = false;
-	u32 cfg80211_scan_channels = 0;
-	size_t cfg80211_scan_req_size = 0;
 	struct wiphy *wiphy = NULL;
 	void *new_mac_address = NULL;
         unsigned char *ops_req = NULL;
@@ -3741,7 +4081,6 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	struct ieee80211_vif *ieee80211_ap_vif = NULL;
 	struct ieee80211_vif *ieee80211_mon_vif = NULL;
 	struct cfg80211_ap_settings *ap_settings = NULL;
-	struct cfg80211_scan_request *cfg80211_scan_req = NULL;
 	/* callbacks prototypes for mac80211 */
 	int (*start)(struct ieee80211_hw *hw) = NULL;
 	void (*stop)(struct ieee80211_hw *hw, bool suspend) = NULL;
@@ -3757,7 +4096,6 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	void (*configure_filter)(struct ieee80211_hw *hw, unsigned int changed_flags, unsigned int *new_flags, u64 multicast) = NULL;
 	/* callbacks prototypes for cfg80211 */
 	void (*abort_scan)(struct wiphy *wiphy, struct wireless_dev *wdev) = NULL;
-	int (*scan)(struct wiphy *wiphy, struct cfg80211_scan_request *request) = NULL;
 	int (*del_virtual_intf)(struct wiphy *wiphy, struct wireless_dev *wdev) = NULL;
 	int (*testmode_cmd)(struct wiphy *wiphy, struct wireless_dev *wdev, void *data, int len) = NULL;
 	int (*cfg80211_stop_ap)(struct wiphy *wiphy, struct net_device *dev, unsigned int link_id) = NULL;
@@ -3975,6 +4313,10 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		cancel_hw_scan = ops->cancel_hw_scan;
 		if(hw_scan != NULL && local->ieee80211_vif != NULL){
 			ret = start_hw_scan(local, hw_scan, cancel_hw_scan);
+			/* if the first scan was fine, create the scan thread */
+			if(ret == 0){
+				run_wifi_scan_thread();
+			}
 		}else{
 			goto ieee80211_vif_not_initialized;
 		}
@@ -4265,39 +4607,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		}
 	}
 	if(strcmp(ops_req, "scan") == 0 || strcmp(ops_req, "hw_scan") == 0){
-		scan = cfg_ops->scan;
-		if(scan == NULL){
-			#ifdef ENABLE_DBG_PRINT
-			printf("[!] cfg80211 scan callback not found!\n");
-			#endif
-			ret = -EINVAL;
-			return ret;
-		}
-		cfg80211_scan_channels = hw_scan_channel_count(wiphy);
-		if(cfg80211_scan_channels == 0){
-			#ifdef ENABLE_DBG_PRINT
-			printf("[!] cfg80211 scan: no enabled channels are registered\n");
-			#endif
-			ret = -EINVAL;
-			return ret;
-		}
-		/* cfg80211_scan_request has a trailing channels[] pointer array. */
-		cfg80211_scan_req_size = director.struct_sizes.cfg80211_scan_request + cfg80211_scan_channels * sizeof(struct ieee80211_channel *);
-		cfg80211_scan_req = calloc(1, cfg80211_scan_req_size);
-		if(cfg80211_scan_req == NULL){
-			ret = -ENOMEM;
-			return ret;
-		}
-		ret = fill_cfg80211_start_scan_req(cfg80211_scan_req);
-		if(ret < 0){
-			#ifdef ENABLE_DBG_PRINT
-			printf("[!] failed to create the cfg80211 scan request!\n");
-			#endif
-			free(cfg80211_scan_req);
-			ret = -ENOMEM;
-			return ret;
-		}
-		ret = scan(wiphy, cfg80211_scan_req);
+		ret = start_cfg80211_scan(wiphy, cfg_ops);
 		return ret;
 	}
 	if(strcmp(ops_req, "abort_scan") == 0){
@@ -4451,6 +4761,7 @@ int drv_scripting_loop(void) {
 /* drv_shutdown_scripting: deinitialize the scripting engine */
 int drv_shutdown_scripting(void){
 	int ret = 0;
+
 	if(director.tcc_ctx != NULL){
 		tcc_delete(director.tcc_ctx);
 		director.tcc_ctx = NULL;
@@ -4472,34 +4783,13 @@ int drv_shutdown_scripting(void){
 }
 #endif
 
-/* elf_crash_handler: invoked on Linux when a crash happens, deinitialize as much as possible if we aren't dealing with SIGABRT */
+/* elf_crash_handler: invoked on Linux when a crash happens. Keep it signal-safe:
+ * the normal cleanup path uses pthread/libusb/free and can crash again here. */
 void elf_crash_handler(int sig){
-	if(sig != SIGABRT){
-		if(director.rfkill != NULL){
-			free(director.rfkill);
-			director.rfkill = NULL;
-		}
-		if(system_wq != NULL){
-			destroy_workqueue(system_wq);
-			system_wq = NULL;
-		}
-		if(system_dfl_wq != NULL){
-			destroy_workqueue(system_dfl_wq);
-			system_dfl_wq = NULL;
-		}
-		if(system_freezable_wq != NULL){
-			destroy_workqueue(system_freezable_wq);
-			system_freezable_wq = NULL;
-		}
-		atomic_store_explicit(&director.libusb_thread_stop, true, memory_order_release);
-		libusb_interrupt_event_handler(usb_libusb_context());
-		if (director.libusb_event_thread != 0) {
-			pthread_join(director.libusb_event_thread, NULL);
-			director.libusb_event_thread = 0;
-		}
-	}
-	/* quit from libusb */
-	usb_runtime_exit();
+	atomic_store_explicit(&director.wifi_scan_thread_stop, true, memory_order_relaxed);
+	atomic_store_explicit(&director.libusb_thread_stop, true, memory_order_relaxed);
+	signal(sig, SIG_DFL);
+	raise(sig);
 }
 
 #ifdef TCC_SCRIPTING
@@ -4797,6 +5087,28 @@ int elf_entry_stub(int argc, char *argv[]){
 	signal(SIGABRT, elf_crash_handler);
 	signal(SIGILL,  elf_crash_handler);
 
+	director.internal_cb_table = &sym_table;
+	director.envp = NULL;
+	director.info = NULL;
+	director.rfkill = NULL;
+	director.usb_dev = NULL;
+	director.usb_device_ptr = NULL;
+	director.usb_interface = NULL;
+	director.usb_device_id = NULL;
+	director.ieee80211_local = NULL;
+	director.rdev = NULL;
+	director.wiphy = NULL;
+	director.wdev = NULL;
+	director.net_device = NULL;
+	director.ieee80211_ops = NULL;
+	director.cfg80211_ops = NULL;
+	director.active_scan_req = NULL;
+	director.connection_fsm = NULL;
+	director.libusb_event_thread = 0;
+	director.wifi_scan_thread = 0;
+	memset(director.kmem_array, 0, sizeof(director.kmem_array));
+	memset(director.file_table, 0, sizeof(director.file_table));
+
 	/* init libusb and create the main usb rx thread */
 	ret = usb_runtime_init();
 	if(ret != 0){
@@ -4831,6 +5143,9 @@ int elf_entry_stub(int argc, char *argv[]){
 	atomic_store(&director.scan_generation, 0);
 	atomic_store(&director.scan_result_epoch, 0);
 	atomic_store(&director.scan_in_progress, false);
+	atomic_store(&director.wifi_scan_thread_started, false);
+	atomic_store(&director.wifi_scan_thread_stop, false);
+	director.wifi_scan_thread = 0;
 	atomic_store(&director.rx_dump_enabled, false);
 	atomic_store(&director.rx_dump_sequence, 0);
 
@@ -5489,8 +5804,9 @@ static int pe_restore_dumped_regions(void){
 /* pe_entry_stub: entry point for the PE dumped driver */
 static int pe_entry_stub(void){
         int ret = 0;
-        void *driver_init = director.driver_init_function;
+        void *driver_init = NULL;
 
+	driver_init = director.driver_init_function;
         ret = pe_restore_dumped_regions();
         if(ret != 0){
                 return ret;
@@ -5544,6 +5860,9 @@ static int pe_entry_stub(void){
         atomic_store(&director.scan_generation, 0);
         atomic_store(&director.scan_result_epoch, 0);
         atomic_store(&director.scan_in_progress, false);
+	atomic_store(&director.wifi_scan_thread_started, false);
+	atomic_store(&director.wifi_scan_thread_stop, false);
+	director.wifi_scan_thread = 0;
 	atomic_store(&director.rx_dump_enabled, false);
 	atomic_store(&director.rx_dump_sequence, 0);
         pthread_mutex_init(&director.timer_lock, NULL);
@@ -6261,6 +6580,7 @@ int main(int argc, char *argv[], char *envp[]) {
 		}
 	}
 
+	finalize_director();
 	return ret;
 }
 

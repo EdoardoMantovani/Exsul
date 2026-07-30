@@ -43,6 +43,7 @@ int usb_submit_urb(struct urb *urb, int mem_flags){
 	}
 
 	urb->hcpriv = transfer;
+	usb_transfer_active_add(transfer);
 	/* The USB core owns an URB reference until the completion callback returns. */
 	usb_get_urb(urb);
 	/* increase the 'use_count' field by 1, assume that the transfer will be successful */

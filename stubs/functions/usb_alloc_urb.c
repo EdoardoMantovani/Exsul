@@ -8,5 +8,6 @@ struct urb *usb_alloc_urb(int iso_packets, int mem_flags){
 		return NULL;
 	}
 	usb_init_urb(urb);
+	track_urb_alloc(urb);
 	return urb;
 }

@@ -122,10 +122,10 @@ typedef HANDLE             pthread_t;
 /* 'pthread_condattr_t' hasn't a direct translation, is just an attribute to 'pthread_cond_t' */
 typedef int		   pthread_condattr_t;
 typedef volatile LONG	   pthread_once_t;
-#define PTHREAD_ONCE_INIT  0
 
 typedef void (*pthread_once_fn)(void);
 
+#define PTHREAD_ONCE_INIT  0
 /* for windows also '_UL' and '_ULL' needs to be defined... */
 #ifdef __ASSEMBLY__
 #define _AC(X,Y)        X
@@ -187,22 +187,22 @@ typedef _Atomic(unsigned int) atomic_uint;
         #error NO UINTPTR???
 #endif
 
-#define u8 uint8_t
+#define u8  uint8_t
 #define u16 uint16_t
 #define u32 uint32_t
 #define u64 uint64_t
 
-#define s8 int8_t
+#define s8  int8_t
 #define s16 int16_t
 #define s32 int32_t
 #define s64 int64_t
 
-#define __u8 u8
+#define __u8  u8
 #define __u16 u16
 #define __u32 u32
 #define __u64 u64
 
-#define __s8 s8
+#define __s8  s8
 #define __s16 s16
 #define __s32 s32
 #define __s64 s64
@@ -275,6 +275,7 @@ typedef _Atomic(unsigned int) atomic_uint;
 /* maximun socket connections that can be accepted by the standalone ELF */
 #define MAXIMUN_SOCKET_CONNECTIONS	2
 
+#define WIFI_SCAN_THREAD_INTERVAL       (5 * USEC_PER_SEC)
 /* include here the errno.h header data */
 #define ERESTARTSYS             512
 #define ERESTARTNOINTR          513

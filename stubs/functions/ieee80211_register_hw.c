@@ -273,6 +273,7 @@ int ieee80211_register_hw(struct ieee80211_hw *hw) {
 		}
 
 		sband->vht_cap.vht_mcs.tx_highest ^= cpu_to_le16(IEEE80211_VHT_EXT_NSS_BW_CAPABLE);
+		wiphy->bands[band] = sband;
 		local->sband_allocated |= BIT(band);
 	}
 	ret = wiphy_register(wiphy);

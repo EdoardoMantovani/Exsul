@@ -526,6 +526,9 @@ static int dev_addr_init(struct net_device *netdev){
 
 static int __netif_receive_skb_one_core(struct sk_buff *skb, bool pfmemalloc){
 	int ret = 0;
+	if (skb != NULL){
+		consume_skb(skb);
+	}
 	return ret;
 }
 

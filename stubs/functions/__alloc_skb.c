@@ -53,6 +53,8 @@ struct sk_buff *__alloc_skb(unsigned int size, int gfp_mask, int flags, int node
 
 	allocated_skb->truesize = (unsigned int)(sk_buff_size + size + sk_shared_info_size);
 	refcount_set(&allocated_skb->users, 1);
+	atomic_store(&skb_shinfo(allocated_skb)->dataref, 1);
+	track_skb_alloc(allocated_skb);
 
 	return allocated_skb;
 }

@@ -44,6 +44,7 @@ static inline void tasklet_schedule(struct tasklet_struct *t){
  * Return: 0
  */
 static void *worker_thread(void *arg){
+	void (*work_func)(struct work_struct *) = NULL;
 	struct work_struct *work = NULL;
 	struct workqueue_struct *wq = NULL;
 
@@ -58,6 +59,7 @@ static void *worker_thread(void *arg){
 
 		if (!list_empty(&wq->work_list)) {
 			work = list_first_entry(&wq->work_list, struct work_struct, entry);
+			work_func = work->func;
 			list_del_init(&work->entry);
 			atomic_store_explicit(&work->data, work_encode(wq, WORK_STRUCT_RUNNING), memory_order_relaxed);
 			wq->nr_active++;
@@ -68,7 +70,9 @@ static void *worker_thread(void *arg){
 				pthread_cond_wait(&director.usb_io_idle, &director.usb_io_lock);
 			}
 			pthread_mutex_unlock(&director.usb_io_lock);
-			work->func(work);
+			if (work_func != NULL && (uintptr_t)work_func > 4096){
+				work_func(work);
+			}
 			pthread_mutex_lock(&wq->lock);
 
 			wq->nr_active--;
