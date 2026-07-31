@@ -359,7 +359,7 @@ typedef _Atomic(unsigned int) atomic_uint;
 #define TASK_NORMAL		(TASK_INTERRUPTIBLE | TASK_UNINTERRUPTIBLE)
 
 /* for knowing the vid/pid of the usb device associated to a loaded lkm, we can read the data pointed by the symbol 'usb_device_id' */
-#define USB_TABLE_SYM_NAME	"__mod_device_table__usb__"
+#define USB_TABLE_SYM_NAME	"__mod_device_table__"
 
 #define MAX_DRIVER_TO_USERSPACE_IO_SIZE	256
 #define MAX_USERSPACE_TO_DRIVER_IO_SIZE	256
@@ -421,6 +421,7 @@ enum fast_run_ops {
 	NDO_UNINIT,
 	NDO_OPEN,
 	NDO_STOP,
+	NDO_VALIDATE_ADDR,
 	NDO_SET_RX_MODE,
 	CFG80211_SCAN,
 	CFG80211_ABORT_SCAN,

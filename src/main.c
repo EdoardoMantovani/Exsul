@@ -2749,6 +2749,7 @@ int initialize_director(struct module_controller *director, struct load_info **i
 	pthread_mutex_init(&director->skb_queue_lock, NULL);
 	/* initialize the scan lock */
 	pthread_mutex_init(&director->scan_cache_lock, NULL);
+	pthread_mutex_init(&director->wiphy_work_queue_mutex, NULL);
 	/* set to '0' the scan and rx_dump parameters */
 	atomic_store(&director->scan_generation, 0);
 	atomic_store(&director->scan_result_epoch, 0);
@@ -2785,12 +2786,7 @@ void finalize_director(void){
 		free(director.info);
 		director.info = NULL;
 	}
-	atomic_store_explicit(&director.wifi_scan_thread_stop, true, memory_order_release);
-	if (director.wifi_scan_thread != 0 && atomic_load(&director.wifi_scan_thread_started)) {
-		pthread_join(director.wifi_scan_thread, NULL);
-		director.wifi_scan_thread = 0;
-	}
-	atomic_store(&director.wifi_scan_thread_started, false);
+	stop_wifi_scan_thread();
 
 	/* Stop the libusb event thread BEFORE freeing USB resources it accesses;
 	 * otherwise Thread 3 races on the freed usb_device_ptr block. */
@@ -3036,64 +3032,6 @@ int fast_get_name_in_range(void *sym_addr, unsigned char **sym_name){
 	return ret;
 }
 
-static int start_cfg80211_scan(struct wiphy *wiphy, struct cfg80211_ops *cfg80211_ops){
-	int ret = 0;
-	u32 n_channels = 0;
-	size_t scan_req_size = 0;
-	struct cfg80211_scan_request *scan_req = NULL;
-	int (*scan)(struct wiphy *wiphy, struct cfg80211_scan_request *request) = NULL;
-
-	if (wiphy == NULL || cfg80211_ops == NULL || cfg80211_ops->scan == NULL){
-		ret = -EINVAL;
-		return ret;
-	}
-	if (atomic_load(&director.scan_in_progress)){
-		ret = -EBUSY;
-		return ret;
-	}
-
-	n_channels = hw_scan_channel_count(wiphy);
-	if (n_channels == 0){
-		#ifdef ENABLE_DBG_PRINT
-		printf("[!] cfg80211 scan: no enabled channels are registered\n");
-		#endif
-		ret = -EINVAL;
-		return ret;
-	}
-
-	scan_req_size = director.struct_sizes.cfg80211_scan_request + n_channels * sizeof(struct ieee80211_channel *);
-	free(director.active_scan_req);
-	director.active_scan_req = calloc(1, scan_req_size);
-	if (director.active_scan_req == NULL){
-		ret = -ENOMEM;
-		return ret;
-	}
-
-	scan_req = director.active_scan_req;
-	ret = fill_cfg80211_start_scan_req(scan_req);
-	if (ret < 0){
-		#ifdef ENABLE_DBG_PRINT
-		printf("[!] failed to create the cfg80211 scan request!\n");
-		#endif
-		free(director.active_scan_req);
-		director.active_scan_req = NULL;
-		return ret;
-	}
-
-	scan_cache_reset();
-	atomic_store(&director.scan_in_progress, true);
-	scan = cfg80211_ops->scan;
-	ret = scan(wiphy, scan_req);
-	if (ret == 0){
-		run_wifi_scan_thread();
-	}else{
-		atomic_store(&director.scan_in_progress, false);
-		free(director.active_scan_req);
-		director.active_scan_req = NULL;
-	}
-	return ret;
-}
-
 /* fast_run_cfg80211_cb: used in the standalone ELF dump, permits to invoke cfg80211 (and callbacks from 'net_device_ops') callbacks in a simpler way */
 int fast_run_cfg80211_cb(enum fast_run_ops current_ops) {
 	int ret = 0;
@@ -3119,7 +3057,6 @@ int fast_run_cfg80211_cb(enum fast_run_ops current_ops) {
 		ret = -EINVAL;
 		return ret;
 	}
-
 	if(current_ops == NDO_INIT){
 		ret = netdevice_init(net_device);
 	}
@@ -3131,6 +3068,9 @@ int fast_run_cfg80211_cb(enum fast_run_ops current_ops) {
 	}
 	if(current_ops == NDO_STOP){
 		ret = netdevice_stop(net_device);
+	}
+	if(current_ops == NDO_VALIDATE_ADDR){
+		ret = netdevice_validate_address(net_device);
 	}
 	if(current_ops == NDO_SET_RX_MODE){
 		ret = netdevice_set_rx_mode(net_device);
@@ -3150,6 +3090,10 @@ int fast_run_cfg80211_cb(enum fast_run_ops current_ops) {
 		return ret;
 	}
 	wdev = director.wdev;
+	if(wdev == NULL && net_device->ieee80211_ptr != NULL){
+		wdev = net_device->ieee80211_ptr;
+		director.wdev = wdev;
+	}
 	if(wdev == NULL){
 		printf("[!] wdev is NULL!\n");
 		ret = -EINVAL;
@@ -3163,7 +3107,7 @@ int fast_run_cfg80211_cb(enum fast_run_ops current_ops) {
 
 	}
 	if(current_ops == CFG80211_ADD_INTERFACE){
-
+		director.wdev = cfg80211_add_virtual_intf(wiphy, cfg80211_ops);
 	}
 	if(current_ops == CFG80211_CHANGE_INTERFACE){
 
@@ -3416,56 +3360,14 @@ int elf_initialize_driver(void){
 		/* invoke a preliminary 'hw_scan' */
 		fast_run_ieee80211_cb(IEEE80211_HW_SCAN);
 	}else{
+		/* invoke the 'ndo_validate_addr' callback */
+		fast_run_cfg80211_cb(NDO_VALIDATE_ADDR);
 		/* invoke the 'ndo_open' callback */
 		fast_run_cfg80211_cb(NDO_OPEN);
+		/* invoke the 'ndo_set_rx_mode' callback */
+		fast_run_cfg80211_cb(NDO_SET_RX_MODE);
 		/* invoke the 'scan' callback */
 		fast_run_cfg80211_cb(CFG80211_SCAN);
-	}
-	return ret;
-}
-
-static void wifi_scan_thread_sleep(void){
-	for (u8 i = 0; i < 50; i++){
-		if (atomic_load_explicit(&director.wifi_scan_thread_stop, memory_order_acquire)){
-			break;
-		}
-		usleep(WIFI_SCAN_THREAD_INTERVAL / 50);
-	}
-}
-
-static void *wifi_scan_thread(void *arg){
-	while (!atomic_load_explicit(&director.wifi_scan_thread_stop, memory_order_acquire)){
-		wifi_scan_thread_sleep();
-		if (atomic_load_explicit(&director.wifi_scan_thread_stop, memory_order_acquire)){
-			break;
-		}
-		if (atomic_load(&director.scan_in_progress)){
-			continue;
-		}
-		/* decide if use cfg80211 or mac80211 scan */
-		if (director.ieee80211_ops != NULL && director.ieee80211_local != NULL){
-			fast_run_ieee80211_cb(IEEE80211_HW_SCAN);
-		}else if (director.cfg80211_ops != NULL && director.wiphy != NULL){
-			fast_run_cfg80211_cb(CFG80211_SCAN);
-		}
-	}
-	return NULL;
-}
-
-/* run_wifi_scan_thread: start the Wi-Fi scan thread */
-int run_wifi_scan_thread(void){
-	int ret = 0;
-	bool expected = false;
-
-	if (!atomic_compare_exchange_strong(&director.wifi_scan_thread_started, &expected, true)){
-		return ret;
-	}
-
-	atomic_store_explicit(&director.wifi_scan_thread_stop, false, memory_order_release);
-	ret = pthread_create(&director.wifi_scan_thread, NULL, wifi_scan_thread, NULL);
-	if (ret != 0){
-		atomic_store(&director.wifi_scan_thread_started, false);
-		director.wifi_scan_thread = 0;
 	}
 	return ret;
 }
@@ -3821,14 +3723,6 @@ int drv_cmd_start(struct module_controller *director, char *argv[], int num_args
 		}
 	}
 
-	if((director->ieee80211_ops == NULL || director->ieee80211_local == NULL) && (director->cfg80211_ops == NULL || director->wiphy == NULL)){
-		#ifdef ENABLE_DBG_PRINT
-		printf("[!] driver initialized without registering wireless operations\n");
-		#endif
-		ret = -ENODEV;
-		return ret;
-	}
-	/* if everything is okay, invoke the fast 'ops' functions */
 	ret = elf_initialize_driver();
 	return ret;
 }
@@ -4264,6 +4158,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			ret = -EINVAL;
 			return ret;
 		}
+		stop_wifi_scan_thread();
 		ret = wifi_auth_connection_start(local, argv[2], num_args >= 4 ? argv[3] : NULL);
 	}
 	if(strcmp(ops_req, "rx") == 0){
@@ -5140,6 +5035,7 @@ int elf_entry_stub(int argc, char *argv[]){
 
 	/* initialize the scan values */
 	pthread_mutex_init(&director.scan_cache_lock, NULL);
+	pthread_mutex_init(&director.wiphy_work_queue_mutex, NULL);
 	atomic_store(&director.scan_generation, 0);
 	atomic_store(&director.scan_result_epoch, 0);
 	atomic_store(&director.scan_in_progress, false);
@@ -5857,6 +5753,7 @@ static int pe_entry_stub(void){
         director.usb_io_depth = 0;
         pthread_mutex_init(&director.skb_queue_lock, NULL);
         pthread_mutex_init(&director.scan_cache_lock, NULL);
+        pthread_mutex_init(&director.wiphy_work_queue_mutex, NULL);
         atomic_store(&director.scan_generation, 0);
         atomic_store(&director.scan_result_epoch, 0);
         atomic_store(&director.scan_in_progress, false);

@@ -1546,7 +1546,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[18] = {
 				.struct_size = 0,
 				.struct_name = "net_device_ops",
-				.struct_field_num = 6,
+				.struct_field_num = 7,
 				.fields = {
 					[0] = {
 						.field_name = "ndo_init",
@@ -1570,6 +1570,10 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 					[5] = {
 						.field_name = "ndo_uninit",
+						.field_offset = 0,
+					},
+					[6] = {
+						.field_name = "ndo_validate_addr",
 						.field_offset = 0,
 					},
 				},

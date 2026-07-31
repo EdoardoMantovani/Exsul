@@ -11,6 +11,5 @@ void ieee80211_scan_completed(struct ieee80211_hw *hw, struct cfg80211_scan_info
 			memcpy(&director.ieee80211_local->scan_info, info, sizeof(*info));
 		}
 	}
-	atomic_store(&director.scan_in_progress, false);
-	scan_cache_schedule_print();
+	scan_complete_defer();
 }

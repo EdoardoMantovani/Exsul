@@ -175,6 +175,7 @@ struct module_controller {
 	struct exsul_scan_result scan_results[EXSUL_MAX_SCAN_RESULTS];
 	u32 scan_result_count;
 	pthread_mutex_t scan_cache_lock;
+	pthread_mutex_t wiphy_work_queue_mutex;
 	atomic_uint scan_generation;
 	atomic_uint scan_result_epoch;
 	void *active_scan_req;

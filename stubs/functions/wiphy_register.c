@@ -212,5 +212,6 @@ int wiphy_register(struct wiphy *wiphy){
 			kfree(request);
 		}
 	}
+	director.wiphy = wiphy;
 	return ret;
 }

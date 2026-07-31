@@ -31,6 +31,11 @@
 #define CONNECTION_STA_PRIV_MAX_SIZE            65536
 #define CONNECTION_STA_ALLOC_FALLBACK_SIZE      8192
 
+#define EXSUL_FIF_BCN_PRBRESP_PROMISC		(1U << 4)
+#define EXSUL_FIF_OTHER_BSS			(1U << 6)
+#define EXSUL_FIF_PROBE_REQ			(1U << 8)
+#define EXSUL_RX_DUMP_FILTER_FLAGS		(EXSUL_FIF_BCN_PRBRESP_PROMISC | EXSUL_FIF_OTHER_BSS)
+
 /*
  * The maximum number of IPv4 addresses listed for ARP filtering. If the number
  * of addresses for an interface increase beyond this value, hardware ARP
@@ -7733,11 +7738,6 @@ static inline void connection_notify_pre_auth(struct ieee80211_local *local){
 	end:
 }
 
-#define EXSUL_FIF_BCN_PRBRESP_PROMISC (1U << 4)
-#define EXSUL_FIF_OTHER_BSS (1U << 6)
-#define EXSUL_FIF_PROBE_REQ (1U << 8)
-#define EXSUL_RX_DUMP_FILTER_FLAGS (EXSUL_FIF_BCN_PRBRESP_PROMISC | EXSUL_FIF_OTHER_BSS)
-
 static inline int ieee80211_update_rx_filter(struct ieee80211_local *local, unsigned int flags, bool enable){
 	int ret = 0;
 	unsigned int new_flags = 0;
@@ -9055,7 +9055,7 @@ static inline void scan_cache_print(void){
 		if (entry->channel != 0){
 			printf(" channel=%u", entry->channel);
 		}
-		printf(" signal=%d dBm\n", entry->signal);
+		printf(" signal=%ddBm\n", entry->signal);
 		printed++;
 	}
 	pthread_mutex_unlock(&director.scan_cache_lock);
@@ -9117,6 +9117,48 @@ static inline void scan_cache_schedule_print(void){
 	pthread_detach(thread);
 	#endif
 	end:
+}
+
+#define SCAN_COMPLETE_GRACE_USEC 200000
+
+struct scan_complete_job {
+	u32 generation;
+};
+
+static void *scan_complete_worker(void *arg){
+	struct scan_complete_job *job = arg;
+	u32 generation = job != NULL ? job->generation : 0;
+
+	free(job);
+	usleep(SCAN_COMPLETE_GRACE_USEC);
+	if (atomic_load(&director.scan_generation) == generation &&
+	    atomic_exchange(&director.scan_in_progress, false)){
+		scan_cache_schedule_print();
+	}
+	return NULL;
+}
+
+static inline void scan_complete_defer(void){
+	struct scan_complete_job *job = calloc(1, sizeof(*job));
+	pthread_t thread;
+
+	if (job == NULL){
+		if (atomic_exchange(&director.scan_in_progress, false)){
+			scan_cache_schedule_print();
+		}
+		return;
+	}
+	job->generation = atomic_load(&director.scan_generation);
+	if (pthread_create(&thread, NULL, scan_complete_worker, job) != 0){
+		free(job);
+		if (atomic_exchange(&director.scan_in_progress, false)){
+			scan_cache_schedule_print();
+		}
+		return;
+	}
+	#ifdef __linux__
+	pthread_detach(thread);
+	#endif
 }
 
 struct scan_watchdog_job {
@@ -10695,26 +10737,35 @@ static void ieee80211_wep_init(struct ieee80211_local *local){
 	get_random_bytes(&local->wep_iv, IEEE80211_WEP_IV_LEN);
 }
 
+static inline pthread_mutex_t *wiphy_work_queue_lock(void){
+	struct ieee80211_local *local = director.ieee80211_local;
+
+	if(local != NULL){
+		return &local->wiphy_work_queue_mutex;
+	}
+	return &director.wiphy_work_queue_mutex;
+}
+
 static void cfg80211_process_wiphy_works(struct cfg80211_registered_device *rdev, struct wiphy_work *end){
 	unsigned int runaway_limit = 100;
 	struct wiphy_work *wk = NULL;
-	struct ieee80211_local *local = director.ieee80211_local;
+	pthread_mutex_t *lock = wiphy_work_queue_lock();
 
-	if (rdev == NULL || rdev->wiphy == NULL || local == NULL){
+	if (rdev == NULL || rdev->wiphy == NULL || lock == NULL){
 		goto out;
 	}
 
 	for (;;) {
 		wk = NULL;
 
-		pthread_mutex_lock(&local->wiphy_work_queue_mutex);
+		pthread_mutex_lock(lock);
 		if (list_empty(&rdev->wiphy_work_list)){
-			pthread_mutex_unlock(&local->wiphy_work_queue_mutex);
+			pthread_mutex_unlock(lock);
 			break;
 		}
 		wk = list_first_entry(&rdev->wiphy_work_list, struct wiphy_work, entry);
 		list_del_init(&wk->entry);
-		pthread_mutex_unlock(&local->wiphy_work_queue_mutex);
+		pthread_mutex_unlock(lock);
 		if (wk == NULL || wk->func == NULL || (uintptr_t)wk->func <= 4096){
 			if (wk == end){
 				break;
@@ -10727,9 +10778,9 @@ static void cfg80211_process_wiphy_works(struct cfg80211_registered_device *rdev
 			break;
 		}
 		if (--runaway_limit == 0){
-			pthread_mutex_lock(&local->wiphy_work_queue_mutex);
+			pthread_mutex_lock(lock);
 			INIT_LIST_HEAD(&rdev->wiphy_work_list);
-			pthread_mutex_unlock(&local->wiphy_work_queue_mutex);
+			pthread_mutex_unlock(lock);
 		}
 	}
 	out:
@@ -11838,7 +11889,6 @@ static inline void rx_dump_skb(struct sk_buff *skb, struct ieee80211_rx_status *
 	sequence = atomic_fetch_add(&director.rx_dump_sequence, 1) + 1;
 	if(status != NULL && (status->flag & RX_FLAG_8023)){
 		eth = NULL;
-		#ifdef ENABLE_DBG_PRINT
 		printf("\n[RX %06u] format=802.3 len=%u freq=%uMHz signal=%ddBm band=%u rate_idx=%u encoding=%u\n",
 		       sequence, skb->len, status->freq, status->signal, status->band, status->rate_idx, status->encoding);
 		if(dump_len >= sizeof(*eth)){
@@ -11852,53 +11902,38 @@ static inline void rx_dump_skb(struct sk_buff *skb, struct ieee80211_rx_status *
 			       le16_to_cpu(eth->h_proto));
 		}
 		print_hex_dump("", "  ", DUMP_PREFIX_OFFSET, 16, 1, skb->data, dump_len, true);
-		#endif
 		goto end;
 	}
 
 	if(dump_len < IEEE80211_MIN_HDR_LEN){
-		#ifdef ENABLE_DBG_PRINT
 		printf("\n[RX %06u] format=802.11 truncated len=%u\n", sequence, skb->len);
 		print_hex_dump("", "  ", DUMP_PREFIX_OFFSET, 16, 1, skb->data, dump_len, true);
-		#endif
 		goto end;
 	}
 
 	hdr = (struct ieee80211_hdr *)skb->data;
 	fc = le16_to_cpu(hdr->frame_control);
-	#ifdef ENABLE_DBG_PRINT
 	printf("\n[RX %06u] format=802.11 subtype=0x%02x fc=0x%04x len=%u", sequence, fc & IEEE80211_FCTL_STYPE, fc, skb->len);
-	#endif
 	if(status != NULL){
-		#ifdef ENABLE_DBG_PRINT
 		printf(" freq=%uMHz signal=%d dBm band=%u bw=%u", status->freq, status->signal, status->band, status->bw);
-		#endif
 	}
-	#ifdef ENABLE_DBG_PRINT
 	printf("\n[RX %06u] addr1=%02x:%02x:%02x:%02x:%02x:%02x", sequence, hdr->addr1[0], hdr->addr1[1], hdr->addr1[2],
 		hdr->addr1[3], hdr->addr1[4], hdr->addr1[5]);
-	#endif
 	if(dump_len >= 16){
-		#ifdef ENABLE_DBG_PRINT
 		printf(" addr2=%02x:%02x:%02x:%02x:%02x:%02x", hdr->addr2[0], hdr->addr2[1], hdr->addr2[2],
 		       hdr->addr2[3], hdr->addr2[4], hdr->addr2[5]);
-		#endif
 	}
 	if(dump_len >= 22){
-		#ifdef ENABLE_DBG_PRINT
 		printf(" addr3=%02x:%02x:%02x:%02x:%02x:%02x",
 		       hdr->addr3[0], hdr->addr3[1], hdr->addr3[2],
 		       hdr->addr3[3], hdr->addr3[4], hdr->addr3[5]);
-		#endif
 	}
-	#ifdef ENABLE_DBG_PRINT
 	printf("\n");
 	print_hex_dump("", "  ", DUMP_PREFIX_OFFSET, 16, 1, skb->data, dump_len, true);
-	#endif
 	end:
 }
 
-/* fill 'struct ieee80211_bss_conf' */
+/* bss_conf_init: fill 'struct ieee80211_bss_conf' */
 static int bss_conf_init(struct ieee80211_hw *ieee80211_hw, struct ieee80211_vif *ieee80211_vif){
 	int ret = 0;
 	struct ieee80211_local *local = NULL;
@@ -11966,6 +12001,63 @@ static int bss_conf_init(struct ieee80211_hw *ieee80211_hw, struct ieee80211_vif
 
 	end:
 	return ret;
+}
+
+/* wifi_scan_thread_sleep: timeout function used for sleeping before invoking a new Wi-Fi scan */
+static void wifi_scan_thread_sleep(void){
+        for (u8 i = 0; i < 50; i++){
+                if (atomic_load_explicit(&director.wifi_scan_thread_stop, memory_order_acquire)){
+                        break;
+                }
+                usleep(WIFI_SCAN_THREAD_INTERVAL / 50);
+        }
+}
+
+/* wifi_scan_thread: main Wi-Fi scan thread, invoke a Wi-Fi scan every 5 seconds (default value, can be changed) */
+static void *wifi_scan_thread(void *arg){
+        while (!atomic_load_explicit(&director.wifi_scan_thread_stop, memory_order_acquire)){
+                wifi_scan_thread_sleep();
+                if (atomic_load_explicit(&director.wifi_scan_thread_stop, memory_order_acquire)){
+                        break;
+                }
+                if (atomic_load(&director.scan_in_progress)){
+                        continue;
+                }
+                /* decide if use cfg80211 or mac80211 scan */
+                if (director.ieee80211_ops != NULL && director.ieee80211_local != NULL){
+                        fast_run_ieee80211_cb(IEEE80211_HW_SCAN);
+                }else if (director.cfg80211_ops != NULL && director.wiphy != NULL){
+                        fast_run_cfg80211_cb(CFG80211_SCAN);
+                }
+        }
+        return NULL;
+}
+
+/* run_wifi_scan_thread: start the Wi-Fi scan thread */
+static int run_wifi_scan_thread(void){
+        int ret = 0;
+        bool expected = false;
+
+        if (!atomic_compare_exchange_strong(&director.wifi_scan_thread_started, &expected, true)){
+                return ret;
+        }
+
+        atomic_store_explicit(&director.wifi_scan_thread_stop, false, memory_order_release);
+        ret = pthread_create(&director.wifi_scan_thread, NULL, wifi_scan_thread, NULL);
+        if (ret != 0){
+                atomic_store(&director.wifi_scan_thread_started, false);
+                director.wifi_scan_thread = 0;
+        }
+        return ret;
+}
+
+static void stop_wifi_scan_thread(void){
+	atomic_store_explicit(&director.wifi_scan_thread_stop, true, memory_order_release);
+	if (director.wifi_scan_thread != 0 && atomic_load(&director.wifi_scan_thread_started)) {
+		pthread_join(director.wifi_scan_thread, NULL);
+		director.wifi_scan_thread = 0;
+	}
+	atomic_store(&director.wifi_scan_thread_started, false);
 }
 
 static int fill_cfg80211_start_scan_req(struct cfg80211_scan_request *cfg80211_scan_req){
@@ -12140,7 +12232,7 @@ static int fill_cfg80211_start_ap_req(struct cfg80211_ap_settings *ap_settings){
 	return ret;
 }
 
-/* fill the 'start_ap'/'stop_ap' parameters */
+/* fill_start_ap_req: fill the 'start_ap' callback parameters */
 static int fill_start_ap_req(struct ieee80211_bss_conf *link_conf){
 	int ret = 0;
 	struct wiphy *wiphy = NULL;
@@ -12188,13 +12280,14 @@ static int fill_start_ap_req(struct ieee80211_bss_conf *link_conf){
 static u32 hw_scan_channel_count(struct wiphy *wiphy){
 	int ret = 0;
 	u32 count = 0;
+	struct ieee80211_supported_band *sband = NULL;
 
 	if (wiphy == NULL){
 		return ret;
 	}
 
 	for (enum nl80211_band band = 0; band < NUM_NL80211_BANDS; band++) {
-		struct ieee80211_supported_band *sband = wiphy->bands[band];
+		sband = wiphy->bands[band];
 
 		if (sband == NULL || band == NL80211_BAND_6GHZ){
 			continue;
@@ -12208,7 +12301,7 @@ static u32 hw_scan_channel_count(struct wiphy *wiphy){
 	return count;
 }
 
-/* fill the 'hw_scan' request */
+/* fill_hw_scan_req: fill the 'hw_scan' request for the ieee80211 layer */
 static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 	int ret = 0;
 	int n_channels = 0;
@@ -12322,6 +12415,7 @@ static int fill_hw_scan_req(struct ieee80211_scan_request *scan_req){
 	return ret;
 }
 
+/* start_hw_scan: fill the parameters and invoke the 'hw_scan' callback from 'ieee80211_ops' */
 static int start_hw_scan(struct ieee80211_local *local,
 			 int (*hw_scan)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_scan_request *req),
 			 void (*cancel_hw_scan)(struct ieee80211_hw *hw, struct ieee80211_vif *vif)){
@@ -12386,5 +12480,87 @@ static int start_hw_scan(struct ieee80211_local *local,
 		#endif
 	}
 	return ret;
+}
+
+/* start_cfg80211_scan: invoke directly the cfg80211 scan callback */
+static int start_cfg80211_scan(struct wiphy *wiphy, struct cfg80211_ops *cfg80211_ops){
+        int ret = 0;
+        u32 n_channels = 0;
+        size_t scan_req_size = 0;
+        struct cfg80211_scan_request *scan_req = NULL;
+        int (*scan)(struct wiphy *wiphy, struct cfg80211_scan_request *request) = NULL;
+
+        if (wiphy == NULL || cfg80211_ops == NULL || cfg80211_ops->scan == NULL){
+                ret = -EINVAL;
+                return ret;
+        }
+        if (atomic_load(&director.scan_in_progress)){
+                ret = -EBUSY;
+                return ret;
+        }
+
+        n_channels = hw_scan_channel_count(wiphy);
+        if (n_channels == 0){
+                #ifdef ENABLE_DBG_PRINT
+                printf("[!] cfg80211 scan: no enabled channels are registered\n");
+                #endif
+                ret = -EINVAL;
+                return ret;
+        }
+
+        scan_req_size = director.struct_sizes.cfg80211_scan_request + n_channels * sizeof(struct ieee80211_channel *);
+        free(director.active_scan_req);
+        director.active_scan_req = calloc(1, scan_req_size);
+        if (director.active_scan_req == NULL){
+                ret = -ENOMEM;
+                return ret;
+        }
+
+        scan_req = director.active_scan_req;
+        ret = fill_cfg80211_start_scan_req(scan_req);
+        if (ret < 0){
+                #ifdef ENABLE_DBG_PRINT
+                printf("[!] failed to create the cfg80211 scan request!\n");
+                #endif
+                free(director.active_scan_req);
+                director.active_scan_req = NULL;
+                return ret;
+        }
+
+        scan_cache_reset();
+        atomic_store(&director.scan_in_progress, true);
+        scan = cfg80211_ops->scan;
+        ret = scan(wiphy, scan_req);
+        if (ret == 0){
+                run_wifi_scan_thread();
+        }else{
+                atomic_store(&director.scan_in_progress, false);
+                free(director.active_scan_req);
+                director.active_scan_req = NULL;
+        }
+        return ret;
+}
+
+static struct wireless_dev *cfg80211_add_virtual_intf(struct wiphy *wiphy, struct cfg80211_ops *cfg_ops){
+	struct wireless_dev *wdev = NULL;
+	struct net_device *net_device = NULL;
+	struct wireless_dev *(*add_virtual_intf)(struct wiphy *wiphy, const char *name, unsigned char name_assign_type, enum nl80211_iftype type, struct vif_params *params) = NULL;
+	struct vif_params params = {};
+
+	add_virtual_intf = cfg_ops->add_virtual_intf;
+	if(add_virtual_intf != NULL){
+		params.flags = 0;
+		params.use_4addr = 0;
+		net_device = director.net_device;
+		if(net_device != NULL){
+			memcpy(params.macaddr, director.net_device, ETH_ALEN);
+		}else{
+			memset(params.macaddr, 0xFF, ETH_ALEN);
+		}
+		wdev = add_virtual_intf(wiphy, "wlan", 0, NL80211_IFTYPE_STATION, &params);
+		return wdev;
+	}else{
+		return NULL;
+	}
 }
 #endif

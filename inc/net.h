@@ -712,6 +712,27 @@ static int netdevice_stop(struct net_device *dev){
 	return ret;
 }
 
+/* netdevice_validate_address: wrapper for invoking the 'ndo_validate_addr' callback in 'struct net_device_ops' */
+static int netdevice_validate_address(struct net_device *dev){
+	int ret = 0;
+	struct net_device_ops *ops = NULL;
+	int (*ndo_validate_addr)(struct net_device *dev) = NULL;
+
+	if(dev == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+
+	ops = dev->netdev_ops;
+	if(ops != NULL){
+		ndo_validate_addr = ops->ndo_validate_addr;
+	}
+	if(ndo_validate_addr != NULL){
+		ret = ndo_validate_addr(dev);
+	}
+	return ret;
+}
+
 /* netdevice_set_rx_mode: wrapper for invoking the 'ndo_set_rx_mode' callback in 'struct net_device_ops' */
 static int netdevice_set_rx_mode(struct net_device *dev){
 	int ret = 0;
