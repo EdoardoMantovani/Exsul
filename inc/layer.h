@@ -275,7 +275,7 @@ typedef _Atomic(unsigned int) atomic_uint;
 /* maximun socket connections that can be accepted by the standalone ELF */
 #define MAXIMUN_SOCKET_CONNECTIONS	2
 
-#define WIFI_SCAN_THREAD_INTERVAL       (5 * USEC_PER_SEC)
+#define WIFI_SCAN_THREAD_INTERVAL       (10 * USEC_PER_SEC)
 /* include here the errno.h header data */
 #define ERESTARTSYS             512
 #define ERESTARTNOINTR          513

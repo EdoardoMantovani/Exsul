@@ -11893,7 +11893,7 @@ static inline void rx_dump_skb(struct sk_buff *skb, struct ieee80211_rx_status *
 		       sequence, skb->len, status->freq, status->signal, status->band, status->rate_idx, status->encoding);
 		if(dump_len >= sizeof(*eth)){
 			eth = (struct ethhdr *)skb->data;
-			printf("[RX %06u] dst=%02x:%02x:%02x:%02x:%02x:%02x src=%02x:%02x:%02x:%02x:%02x:%02x proto=0x%04x\n",
+			printf("  dst=%02x:%02x:%02x:%02x:%02x:%02x src=%02x:%02x:%02x:%02x:%02x:%02x proto=0x%04x\n",
 			       sequence,
 			       eth->h_dest[0], eth->h_dest[1], eth->h_dest[2],
 			       eth->h_dest[3], eth->h_dest[4], eth->h_dest[5],
@@ -11906,7 +11906,7 @@ static inline void rx_dump_skb(struct sk_buff *skb, struct ieee80211_rx_status *
 	}
 
 	if(dump_len < IEEE80211_MIN_HDR_LEN){
-		printf("\n[RX %06u] format=802.11 truncated len=%u\n", sequence, skb->len);
+		printf("\n  format=802.11 truncated len=%u\n", sequence, skb->len);
 		print_hex_dump("", "  ", DUMP_PREFIX_OFFSET, 16, 1, skb->data, dump_len, true);
 		goto end;
 	}
@@ -11917,7 +11917,7 @@ static inline void rx_dump_skb(struct sk_buff *skb, struct ieee80211_rx_status *
 	if(status != NULL){
 		printf(" freq=%uMHz signal=%d dBm band=%u bw=%u", status->freq, status->signal, status->band, status->bw);
 	}
-	printf("\n[RX %06u] addr1=%02x:%02x:%02x:%02x:%02x:%02x", sequence, hdr->addr1[0], hdr->addr1[1], hdr->addr1[2],
+	printf("\n  addr1=%02x:%02x:%02x:%02x:%02x:%02x", sequence, hdr->addr1[0], hdr->addr1[1], hdr->addr1[2],
 		hdr->addr1[3], hdr->addr1[4], hdr->addr1[5]);
 	if(dump_len >= 16){
 		printf(" addr2=%02x:%02x:%02x:%02x:%02x:%02x", hdr->addr2[0], hdr->addr2[1], hdr->addr2[2],
