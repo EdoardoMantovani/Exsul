@@ -913,7 +913,7 @@ if($help){
 	print("Made by Edoardo Mantovani, 2026\n");
 	print("-> options:\n");
 	print("--compiler=[gcc|clang]\n");
-	print("--enable-fw: enable static firmware embedding in the main application, this permits to not use the Linux standard path for loading a firmware\n");
+	print("--enable-fw -> enable static firmware embedding in the main application, this permits to not use the Linux standard path for loading a firmware\n");
 	print("--generate_offset -> generate a special json file which can be used for creating the offset backup plan\n");
 	print("--windows -> enable windows compilation and require static Windows libraries for a single executable\n");
 	print("--verbose -> show compilation command line\n");
