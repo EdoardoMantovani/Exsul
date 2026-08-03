@@ -41,8 +41,8 @@ CONFIG
 my %opt = (
 	json          => "required_offsets.json",
 	output        => "offset_backup_solution.h",
-	state         => ".offset_generator_state.json",
-	workdir       => ".offset_generator_work",
+	state         => "offset_generator_state.json",
+	workdir       => "offset_generator_work",
 	from_tag      => "v6.0",
 	to_tag        => undef,
 	tags          => undef,
@@ -92,29 +92,22 @@ main();
 
 sub usage {
 	my ($exit_code) = @_;
-	print <<"USAGE";
-Usage: $0 [options] [required_offsets.json]
-
-Options:
-  --json FILE             Offset JSON input (default: required_offsets.json)
-  --output FILE           Generated C header (default: offset_backup_solution.h)
-  --workdir DIR           Download/build/log directory (default: .offset_generator_work)
-  --state FILE            Resume state file (default: .offset_generator_state.json)
-  --from-tag TAG          First Linux tag to include (default: v6.0)
-  --to-tag TAG            Last Linux tag to include, inclusive
-  --tags LIST             Comma-separated explicit tags; skips remote tag filtering
-  --include-rc            Include release candidate tags
-  --jobs N                make -j value (default: JOBS env or 16)
-  --force                 Rebuild selected tags already present in the state file
-  --keep-builds           Keep extracted Linux source trees
-  --stop-on-error         Stop on the first failed kernel
-  --no-objtool-fix        Do not apply the legacy tools/objtool/elf.c patch
-  --linux-repo URL        Git repo used for tag discovery
-  --archive-base URL      Base URL for tag zip downloads
-
-The tool writes progress to the state file after each completed kernel, so it
-can be stopped and restarted without losing completed offsets.
-USAGE
+	print("$0 [options] [required_offsets.json]\n");
+	print("--json FILE             Offset JSON input (default: required_offsets.json)\n");
+	print("--output FILE           Generated C header (default: offset_backup_solution.h)\n");
+	print("--workdir DIR           Download/build/log directory (default: .offset_generator_work)\n");
+	print("--state FILE            Resume state file (default: .offset_generator_state.json)\n");
+	print("--from-tag TAG          First Linux tag to include (default: v6.0)\n");
+	print("--to-tag TAG            Last Linux tag to include, inclusive\n");
+	print("--tags LIST             Comma-separated explicit tags; skips remote tag filtering\n");
+	print("--include-rc            Include release candidate tags\n");
+	print("--jobs N                make -j value (default: JOBS env or 16)\n");
+	print("--force                 Rebuild selected tags already present in the state file\n");
+	print("--keep-builds           Keep extracted Linux source trees\n");
+	print("--stop-on-error         Stop on the first failed kernel\n");
+	print("--no-objtool-fix        Do not apply the legacy tools/objtool/elf.c patch\n");
+	print("--linux-repo URL        Git repo used for tag discovery\n");
+	print("--archive-base URL      Base URL for tag zip downloads\n");
 	exit($exit_code);
 }
 
@@ -148,12 +141,12 @@ sub main {
 
 	my %completed = map { $_->{tag} => 1 } @{ $state->{records} || [] };
 
-	print "[*] selected " . scalar(@tags) . " Linux tag(s)\n";
+	print("[*] selected " . scalar(@tags) . " Linux tag(s)\n");
 	write_header($output_path, $state, $structs);
 
 	foreach my $tag (@tags) {
 		if ($completed{$tag->{tag}}) {
-			print "[*] skipping $tag->{tag}; already present in " . basename($state_path) . "\n";
+			print("[*] skipping $tag->{tag}; already present in " . basename($state_path) . "\n");
 			next;
 		}
 
@@ -166,8 +159,8 @@ sub main {
 				error => $err,
 			};
 			save_state($state_path, $state);
-			print STDERR "[!] failed $tag->{tag}: $err\n";
-			print STDERR "[!] see logs in " . File::Spec->catdir($workdir, "logs") . "\n";
+			print("[!] failed $tag->{tag}: $err\n");
+			print("[!] see logs in " . File::Spec->catdir($workdir, "logs") . "\n");
 			exit(1) if $opt{stop_on_error};
 			next;
 		}
@@ -175,11 +168,11 @@ sub main {
 		push @{ $state->{records} }, $record;
 		save_state($state_path, $state);
 		write_header($output_path, $state, $structs);
-		print "[*] wrote " . basename($output_path) . " after $tag->{tag}\n";
+		print("[*] wrote " . basename($output_path) . " after $tag->{tag}\n");
 	}
 
 	write_header($output_path, $state, $structs);
-	print "[*] done: $output_path\n";
+	print("[*] done: $output_path\n");
 }
 
 sub load_struct_map {
@@ -187,8 +180,7 @@ sub load_struct_map {
 	my $json_text = read_file($path);
 	my $data = decode_json($json_text);
 
-	die "$path does not contain a top-level structs array\n"
-		unless ref($data->{structs}) eq "ARRAY";
+	die "$path does not contain a top-level structs array\n" unless ref($data->{structs}) eq "ARRAY";
 
 	my @structs;
 	foreach my $entry (@{ $data->{structs} }) {
@@ -215,12 +207,10 @@ sub load_struct_map {
 
 sub discover_linux_tags {
 	my ($cwd) = @_;
-	my $from = parse_linux_tag($opt{from_tag})
-		or die "--from-tag must look like v6, v6.0, v6.1.2, or v6.9-rc1\n";
+	my $from = parse_linux_tag($opt{from_tag}) or die "--from-tag must look like v6, v6.0, v6.1.2, or v6.9-rc1\n";
 	my $to = undef;
 	if (defined($opt{to_tag})) {
-		$to = parse_linux_tag($opt{to_tag})
-			or die "--to-tag must look like v6, v6.0, v6.1.2, or v6.9-rc1\n";
+		$to = parse_linux_tag($opt{to_tag}) or die "--to-tag must look like v6, v6.0, v6.1.2, or v6.9-rc1\n";
 	}
 
 	my @tags;

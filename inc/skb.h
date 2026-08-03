@@ -1623,8 +1623,6 @@ static void __copy_skb_header(struct sk_buff *new, const struct sk_buff *old){
 	/* We do not copy old->sk */
 	new->dev		= old->dev;
 
-	//memcpy(new->cb, old->cb, 48);
-
 	/* Note : this field could be in the headers group.
 	 * It is not yet because we do not want to have a 16 bit hole
 	 */

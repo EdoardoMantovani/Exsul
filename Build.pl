@@ -2,7 +2,7 @@
 
 # Made by Edoardo Mantovani, 2026
 # Exsul build script
-# version 2.0.0 (25 Jul 2026)
+# version 2.1.0 (3 Aug 2026)
 
 use strict;
 use warnings;

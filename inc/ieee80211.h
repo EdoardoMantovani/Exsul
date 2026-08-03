@@ -12013,7 +12013,7 @@ static void wifi_scan_thread_sleep(void){
         }
 }
 
-/* wifi_scan_thread: main Wi-Fi scan thread, invoke a Wi-Fi scan every 5 seconds (default value, can be changed) */
+/* wifi_scan_thread: main Wi-Fi scan thread, invoke a Wi-Fi scan every 10 seconds (default value, can be changed) */
 static void *wifi_scan_thread(void *arg){
         while (!atomic_load_explicit(&director.wifi_scan_thread_stop, memory_order_acquire)){
                 wifi_scan_thread_sleep();
