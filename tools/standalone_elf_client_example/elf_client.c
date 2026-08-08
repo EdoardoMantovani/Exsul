@@ -102,13 +102,12 @@ int main(int argc, char *argv[]){
 	unsigned char  current_c = 0;
 	unsigned char *memarea = NULL;
 	unsigned char *tmp_buffer = NULL;
-	char *command_mode = NULL;
+	unsigned char *command_mode = NULL;
 	unsigned char *packet = NULL;
 	unsigned char *payload = NULL;
 	struct sockaddr_un addr_server = {};
 	struct exsul_protocol_hdr *protocol_pkt = NULL;
 
-	(void)argc;
 	command_mode = argv[1];
 	if(command_mode == NULL){
 		printf("[!] usage ./%s <tcc|console>\n", argv[0]);
