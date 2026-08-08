@@ -2,7 +2,7 @@
 
 # Made by Edoardo Mantovani, 2026
 # Exsul build script
-# version 2.1.0 (3 Aug 2026)
+# version 2.2.0 (8 Aug 2026)
 
 use strict;
 use warnings;
@@ -38,8 +38,6 @@ my $stubs   = "stubs";
 my $build   = "build";
 my $bin     = "bin";
 
-my $final_program = "exsul";
-
 my $main      = "main.c";
 my $win_layer = "layer.h";
 my $proto_gen = "prototypes.h";
@@ -47,6 +45,8 @@ my $cb_table  = "cb_table.h";
 
 my $functions = "functions";
 my $variables = "variables";
+
+my  $final_program = "exsul";
 
 my $function_proto_regex = q{^\h*[_A-Za-z]\w*(?:[\w\h\*]*\h+)+[_A-Za-z]\w*\h*\([^;{}]*\)\h*(?=\{)};
 my $find_command_arg = q{};

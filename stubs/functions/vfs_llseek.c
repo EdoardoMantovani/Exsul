@@ -1,10 +1,14 @@
-int vfs_llseek(struct file_layer *file, u32 offset, int whence){
+int vfs_llseek(struct file *file, u32 offset, int whence){
 	int ret = 0;
-	if(file == NULL || file->actual_fd <= 0){
+
+	if(file == NULL){
 		ret = -EINVAL;
 		return ret;
 	}
-
-	ret = lseek(file->actual_fd, offset, whence);
+	if(file->f_flags <= 0){
+		ret = -EIO;
+		return ret;
+	}
+	ret = lseek(file->f_flags, offset, whence);
 	return ret;
 }

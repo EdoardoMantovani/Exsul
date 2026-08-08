@@ -1945,13 +1945,7 @@ void patch_call_sites(s32 *start, s32 *end, const struct core_text *ct){
 }
 
 void callthunks_setup(struct callthunk_sites *cs, const struct core_text *ct){
-	#ifdef ENABLE_DBG_PRINT
-	printf("[*] patching call sites %s\n", ct->name);
-	#endif
 	patch_call_sites(cs->call_start, cs->call_end, ct);
-	#ifdef ENABLE_DBG_PRINT
-	printf("[*] patching call sites done: %s\n", ct->name);
-	#endif
 }
 
 void __attribute__((noinline)) callthunks_patch_module_calls(struct callthunk_sites *cs, struct module *mod){

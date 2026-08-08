@@ -9,11 +9,50 @@ the support for the HCI layer is partially implemented and it is expected to ful
 This tool is at an experimental stage: it is useful for driver research, debugging/function tracing, fuzzing and firmware reverse engineering,
 but it is (still) not a drop-in replacement for the Linux kernel, the tun/tap network registration process needs to be examined before practically implementing it.
 
+## Exsul Under-The-Hood
+
+The general idea for running a kernel module in userspace is based upon several assumption:
+- you can reproduce/run the (Linux) kernel module linking process
+- you have the correct struct-offsets which have been used for compiling the target kernel module
+- you have the full Linux kernel stack and the exported functions needed by the target kernel module
+
+Regarding the first point, Linux implements the system call `init_module` for loading and running a given kernel object,
+this is essentially what gets called from tools like `insmod` and `modprobe`,
+`init_module` itself is not too difficult to implement in the userspace, most of its operations are quite straightforward:
+check if the ELF header and section table are corrupt, search and resolve the relocations, allocate the
+memory layout for the loaded module and place the sections of the module in its memory, most of the steps can be reproduced easily,
+the only *complex* part relies on the relocation resolutions and symbol lookup, the kernel has a symbol table which is used for connecting an exported function
+by its name, Exsul implements a similar architecture by mantaining an huge array called *sym_table* (see this later). 
+The second point was by far the most challenging of this project, suppose we have the following kernel C code: 
+```c
+data = skb_push(skb, IEEE80211_HT_CTL_LEN);
+memmove(data, data + IEEE80211_HT_CTL_LEN, hdr_len);
+```
+both `skb_push` and `memmove` are exported functions, this means that their code isn't inside the kernel object (.ko) but instead it is present
+in the host kernel and at runtime, the code of `skb_push` is:
+```c
+void *skb_push(struct sk_buff *skb, unsigned int len)
+{
+	skb->data -= len;
+	skb->len  += len;
+	if (unlikely(skb->data < skb->head))
+		skb_under_panic(skb, len, __builtin_return_address(0));
+	return skb->data;
+}
+```
+the offsets for the `data`, `head` and `len` fields changes across kernel versions, so the `data` field on Linux 7.0.0-28 is at 208, while the same offset under Linux
+5.15.167.4 is at 200, you can understand that this creates an huge problem because the kernel module has hardcoded only one specific version of those offsets.
+
+For the last point, - the Linux exported functions - under the folder `/stubs/functions` and `/stub/variables`, you will find a big number of C files, each contains the definition of one
+specific function/global variable exported by the kernel (with `readelf -sW <target_module.ko> | grep UND`)
+When Perl runs `Build.pl`, every C stubs will be merged into a single big file and it will be compiled inside Exsul, this means that at the end, Exsul reminds the Linux Kernel Library
+project, with the difference that most functions have been reimplemented manually specifically for the userspace.
+
 ## Build Requirements
 
 - Perl
 - GCC or Clang (use the --compiler flag for switching the compiler)
-- `readelf`, `xxd`
+- standard Linux utilities: `readelf`, `sort`, `awk` and `xxd`
 - libusb-1.0-dev
 - libdwarf (soon will be replaced)
 - TinyCC development headers/library
@@ -52,7 +91,7 @@ Made by Edoardo Mantovani, 2026
 --help -> display this help text
 ```
 
-## Loading and Executing LKMs
+## Loading and Executing Linux Kernel Modules
 
 Basic form for loading a module under Exsul:
 
@@ -175,5 +214,15 @@ sigabort_crash.bin # for sigabort events where memory cannot be allocated
 
 ## FAQ
 
-- How many drivers are supported for now ?
-* the tested drivers are rtw89, mt76, rtw8852cu, rtl8852bu and rtw8851bu
+### Which drivers are tested right now?
+
+The currently tested driver families are `rtw89`, `mt76`, notice that also the development kernel modules written by Realtek like `rtw8852cu`, `rtl8852bu`, and `rtw8851bu` are fully working.
+
+### Can Exsul create a real network interface?
+
+Not as a complete kernel replacement for now, the driver-side mac80211/cfg80211/netdev callbacks can be invoked and tested, but for a full practical network integration it still needs the tun/tap
+registration path and related net stack behavior to be completed, in the next releases this aspect will be examined.
+
+### Which architectures are supported ?
+
+For now only x86_64, in the future Exsul will be able to work also under arm32/arm64.

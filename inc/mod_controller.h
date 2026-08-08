@@ -105,8 +105,6 @@ struct module_controller {
 	struct usb_interface *usb_interface;
 	struct usb_device_id *usb_device_id;
 
-	struct file_layer file_table[MAX_FILE_IDX];
-
         /* data gathered when the usb device is attached to the host system */
         u8 usb_interface_number;
         u8 usb_endpoint_num;
@@ -231,6 +229,19 @@ struct module_controller {
 
 	/* store some important struct sizes, done once foreach module loaded */
 	struct fast_struct_size struct_sizes;
+
+	/* tasklets related data */
+	u8 tasklet_numbers;
+	atomic_int tasklet_sync_state;
+	bool tasklet_initialized;
+	bool tasklet_stopped;
+	pthread_mutex_t tasklet_lock;
+        pthread_cond_t tasklet_wake;
+	struct tasklet_head tasklet_normal_priority;
+	struct tasklet_head tasklet_high_priority;
+	struct tasklet_runtime_state *tasklet_runtime_states;
+	pthread_t *tasklet_workers;
+	unsigned int number_tasklet_workers;
 
 	/* timing synchronization primitives used in 'timer_xxx' functions */
 	pthread_mutex_t timer_lock;

@@ -1,8 +1,9 @@
 int dev_alloc_name(void *dev, const char *name){
 	int ret = 0;
-	char tmpl[IFNAMSIZ];
-	struct net_device *netdev = dev;
+	char tmpl[IFNAMSIZ] = {};
+	struct net_device *netdev = NULL;
 
+	netdev = dev;
 	if(netdev == NULL || name == NULL){
 		ret = -EINVAL;
 		return ret;

@@ -11889,7 +11889,7 @@ static inline void rx_dump_skb(struct sk_buff *skb, struct ieee80211_rx_status *
 	sequence = atomic_fetch_add(&director.rx_dump_sequence, 1) + 1;
 	if(status != NULL && (status->flag & RX_FLAG_8023)){
 		eth = NULL;
-		printf("\n[RX %06u] format=802.3 len=%u freq=%uMHz signal=%ddBm band=%u rate_idx=%u encoding=%u\n",
+		printf("\n[%06u] format=802.3 len=%u freq=%uMHz signal=%ddBm band=%u rate_idx=%u encoding=%u\n",
 		       sequence, skb->len, status->freq, status->signal, status->band, status->rate_idx, status->encoding);
 		if(dump_len >= sizeof(*eth)){
 			eth = (struct ethhdr *)skb->data;
@@ -11913,7 +11913,7 @@ static inline void rx_dump_skb(struct sk_buff *skb, struct ieee80211_rx_status *
 
 	hdr = (struct ieee80211_hdr *)skb->data;
 	fc = le16_to_cpu(hdr->frame_control);
-	printf("\n[RX %06u] format=802.11 subtype=0x%02x fc=0x%04x len=%u", sequence, fc & IEEE80211_FCTL_STYPE, fc, skb->len);
+	printf("\n[%06u] format=802.11 subtype=0x%02x fc=0x%04x len=%u", sequence, fc & IEEE80211_FCTL_STYPE, fc, skb->len);
 	if(status != NULL){
 		printf(" freq=%uMHz signal=%d dBm band=%u bw=%u", status->freq, status->signal, status->band, status->bw);
 	}

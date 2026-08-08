@@ -1,3 +1,8 @@
-void __tasklet_hi_schedule(void *tasklet){
-
+void __tasklet_hi_schedule(struct tasklet_struct *tasklet){
+	if (tasklet == NULL || tasklet_test_state(tasklet, TASKLET_STATE_KILL)){
+		goto end;
+	}
+	tasklet_set_state(tasklet, TASKLET_STATE_SCHED);
+	queue_tasklet(tasklet, TASKLET_PRIO_HIGH);
+	end:
 }

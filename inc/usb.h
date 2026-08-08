@@ -280,6 +280,19 @@ struct usb_driver {
 };
 typedef void (LINUX_ABI *usb_complete_t)(struct urb *);
 
+struct tracked_skb_alloc {
+        struct sk_buff *skb;
+        struct tracked_skb_alloc *next;
+};
+
+struct tracked_urb_alloc {
+        struct urb *urb;
+        struct tracked_urb_alloc *next;
+};
+
+static struct tracked_skb_alloc *tracked_skb_allocs;
+static struct tracked_urb_alloc *tracked_urb_allocs;
+
 static int usb_anchor_check_wakeup(struct usb_anchor *anchor){
 	return anchor->suspend_wakeups == 0 && list_empty(&anchor->urb_list);
 }

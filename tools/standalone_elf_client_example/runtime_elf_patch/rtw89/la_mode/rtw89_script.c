@@ -219,14 +219,6 @@ struct fast_struct_size {
         u16 hci_dev;
 };
 
-/* 'struct file' transation layer */
-struct file_layer {
-        /* play with the file pointer, associate a fd with an file pointer used by the kernel module */
-        void *original_file_ptr;
-        int actual_fd;
-        int actual_offset;
-};
-
 struct usb_dev_tuple {
         __u16 usb_pid;
         __u16 usb_vid;
@@ -412,8 +404,6 @@ struct module_controller {
 	/* backup args used for running the 'xxx_driver_init' function */
 	struct usb_interface *usb_interface;
 	struct usb_device_id *usb_device_id;
-
-	struct file_layer file_table[MAX_FILE_IDX];
 
         /* data gathered when the usb device is attached to the host system */
         u8                                usb_interface_number;
@@ -2090,11 +2080,19 @@ static bool rtw89_la_bb_cr_window_invalid(void *rtwdev){
 }
 
 u32 halbb_get_cr(void *rtwdev, u32 addr, u32 mask){
-	return rtw89_phy_read32_idx(rtwdev, addr, MASKDWORD, RTW89_PHY_0);
+	/* LA PORT FIX: preserve HALBB masked-CR semantics. */
+	if (mask == 0)
+		return 0;
+
+	return rtw89_phy_read32_idx(rtwdev, addr, mask, RTW89_PHY_0);
 }
 
 void halbb_set_cr(void *rtwdev, u32 addr, u32 mask, u32 val){
-	rtw89_phy_write32_idx(rtwdev, addr, MASKDWORD, val, RTW89_PHY_0);
+	/* LA PORT FIX: do not overwrite the whole BB register for a field write. */
+	if (mask == 0)
+		return;
+
+	rtw89_phy_write32_idx(rtwdev, addr, mask, val, RTW89_PHY_0);
 }
 
 u32 halbb_get_reg_cmn(void *rtwdev, u32 addr, u32 mask, enum phl_phy_idx phy_idx){
@@ -2651,29 +2649,56 @@ int rtw_hal_mac_get_lamode_st(void *rtwdev, u8 *la_state, u16 *la_finish_addr, b
 
 void rtw89_la_shared_buf_read(void *rtwdev, u32 start_addr, u8 *buf, u32 len){
 	u32 base_addr = SHARED_BUF_BASE_ADDR_AX;
-	u32 page = start_addr / MAC_MEM_DUMP_PAGE_SIZE_AX;
-	u32 residue = start_addr % MAC_MEM_DUMP_PAGE_SIZE_AX;
 	u32 copied = 0;
 
 	if (!buf || len == 0) {
 		return;
 	}
 
-	rtw89_usb_ops_write32(rtwdev, R_AX_FILTER_MODEL_ADDR,
-			      base_addr + page * MAC_MEM_DUMP_PAGE_SIZE_AX);
-
+	/*
+	 * LA PORT FIX:
+	 * R_AX_INDIR_ACCESS_ENTRY exposes one MAC_MEM_DUMP_PAGE_SIZE_AX
+	 * window at a time.  An RTL8852C 128K LA buffer spans
+	 * 0x30000..0x50000 and therefore crosses the 0x40000 page boundary.
+	 * Re-select R_AX_FILTER_MODEL_ADDR whenever the requested range moves
+	 * into another shared-buffer page.
+	 */
 	while (copied < len) {
-		u32 val = rtw89_usb_ops_read32(rtwdev,
-					       R_AX_INDIR_ACCESS_ENTRY + residue + copied);
-		u32 chunk = len - copied;
+		u32 current_addr = start_addr + copied;
+		u32 page = current_addr / MAC_MEM_DUMP_PAGE_SIZE_AX;
+		u32 residue = current_addr % MAC_MEM_DUMP_PAGE_SIZE_AX;
+		u32 page_left = MAC_MEM_DUMP_PAGE_SIZE_AX - residue;
+		u32 read_len = len - copied;
+		u32 page_copied = 0;
 
-		if (chunk > sizeof(val)) {
-			chunk = sizeof(val);
+		if (read_len > page_left)
+			read_len = page_left;
+
+		rtw89_usb_ops_write32(rtwdev, R_AX_FILTER_MODEL_ADDR,
+				      base_addr + page * MAC_MEM_DUMP_PAGE_SIZE_AX);
+
+		printf("[*] LA shared-buffer page=%u, model=0x%08x, residue=0x%x, len=0x%x\n",
+		       page,
+		       base_addr + page * MAC_MEM_DUMP_PAGE_SIZE_AX,
+		       residue, read_len);
+
+		while (page_copied < read_len) {
+			u32 val = rtw89_usb_ops_read32(rtwdev,
+					       R_AX_INDIR_ACCESS_ENTRY +
+					       residue + page_copied);
+			u32 chunk = read_len - page_copied;
+
+			if (chunk > sizeof(val))
+				chunk = sizeof(val);
+
+			for (u32 i = 0; i < chunk; i++) {
+				buf[copied + page_copied + i] =
+					(val >> (8 * i)) & 0xff;
+			}
+			page_copied += chunk;
 		}
-		for (u32 i = 0; i < chunk; i++) {
-			buf[copied + i] = (val >> (8 * i)) & 0xff;
-		}
-		copied += chunk;
+
+		copied += read_len;
 	}
 }
 
@@ -2785,16 +2810,19 @@ void halbb_la_rpt_buf_get(void *rtwdev, struct bb_la_mode_info *la_mode_info, u1
 }
 
 void halbb_la_main(void *rtwdev, struct bb_la_mode_info *la_mode_info){
-	struct la_dma_info	*dma = &la_mode_info->la_dma_i;
-	struct la_mac_cfg_info *cfg = &la_mode_info->la_mac_cfg_i;
-	u8 mac_rpt_state = LA_HW_IDLE;
-	u32 mac_trig_fail;
+	u8 i = 0;
 	u8 tmp_u1b = 0;
-	u8 i = 0, la_hw_finish_cnt = 0;
+	u8 mac_rpt_state = LA_HW_IDLE;
+	u8 la_hw_finish_cnt = 0;
 	u16 finish_ofst = 0;
-	bool round_up = 0;
-	bool loss_data;
+	bool round_up = false;
+	bool loss_data = false;
+	u32 mac_trig_fail = 0;
+	struct la_dma_info *dma = NULL;
+        struct la_mac_cfg_info *cfg = NULL;
 
+	dma = &la_mode_info->la_dma_i;
+	cfg = &la_mode_info->la_mac_cfg_i;
 	if (la_mode_info->la_mode_state != LA_STATE_MAIN) {
 		halbb_la_stop(la_mode_info);
 	}
@@ -2828,7 +2856,12 @@ void halbb_la_main(void *rtwdev, struct bb_la_mode_info *la_mode_info){
 						  &finish_ofst, &round_up,
 						  &loss_data);
 
-			printf("[%d] rpt=((0x%x)), finish_ofst =((%d)), round_up =((%d)) \n", i, mac_rpt_state, finish_ofst, round_up);
+			printf("[%d] rpt=((0x%x)), finish_ofst =((%d)), round_up =((%d)), loss_data =((%d)) \n",
+			       i, mac_rpt_state, finish_ofst, round_up, loss_data);
+
+			/* LA PORT FIX: make DLE/pktbuffer loss visible to the caller. */
+			if (loss_data)
+				printf("[!] LA DATA LOSS: shared/DLE buffer contention reported by MAC\n");
 
 			if (mac_rpt_state == LA_HW_RE_START) {
 				printf("[Restart]\n");
@@ -2888,14 +2921,22 @@ bool halbb_la_drv_buf_allocate(struct bb_la_mode_info *la_mode_info){
 	bool ret = true;
 	struct la_string_info *buf = &la_mode_info->la_string_i;
 
-	if (buf->length == 0) {
-		buf->octet = (u32 *)calloc(1, buf->buffer_size);
+	/*
+	 * LA PORT FIX:
+	 * Reallocate if LA buffer mode changes after an earlier capture.  The
+	 * original one-shot allocation would leave a 128K host allocation in
+	 * place if buffer_size later changed to 256K.
+	 */
+	if (!buf->octet || buf->length != buf->buffer_size) {
+		u32 *new_octet = NULL;
 
-		if (!buf->octet){
+		new_octet = (u32 *)realloc(buf->octet, buf->buffer_size);
+		if (!new_octet) {
 			ret = false;
-		}
-		if (ret){
+		} else {
+			buf->octet = new_octet;
 			buf->length = buf->buffer_size;
+			memset(buf->octet, 0, buf->buffer_size);
 		}
 	}
 	return ret;
@@ -2920,7 +2961,7 @@ void halbb_la_run(void *rtwdev, struct bb_la_mode_info *la_mode_info){
 		return;
 	}
 
-	if (buf->length == 0){
+	if (!buf->octet || buf->length != buf->buffer_size){
 		is_set_success = halbb_la_drv_buf_allocate(la_mode_info);
 	}
 
@@ -2988,7 +3029,17 @@ int main(void){
 	}
 
 	la_mode_info.la_print_i.print_buff_opt = 0;
-	la_mode_info.la_count_max = 10;
+
+	/*
+	 * LA PORT FIX / bring-up mode:
+	 * Keep the first port synchronous and single-shot.  The copied HALBB
+	 * repeated-capture path depends on an initialized LA timer callback,
+	 * which this standalone script does not yet install.
+	 *
+	 * Restore this to 10 only after halbb_la_timer_init()/callback-style
+	 * rescheduling is implemented in the userspace kernel shim.
+	 */
+	la_mode_info.la_count_max = 1;
 
 	/* bb lamode cmn 390 0 0x10203 0 6 */
 	la_mode_info.la_mac_cfg_i.la_trigger_time = 390;

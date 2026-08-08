@@ -1,8 +1,5 @@
 /* made by Edoardo Mantovani, 2026 */
 #include <layer.h>
-#include <ieee80211.h>
-
-#define SYM_ENTRIES	 4096
 
 /* global symbol table */
 struct internal_cb_table sym_table[SYM_ENTRIES];
@@ -68,6 +65,7 @@ void *get_net_device(void){
 	return director.net_device;
 }
 
+/* get_ieee80211_hw: used in the standalone ELF api for getting the pointer of the struct 'ieee80211_hw' used in the module */
 void *get_ieee80211_hw(void){
 	if(director.ieee80211_local == NULL){
 		return NULL;
@@ -84,19 +82,6 @@ void *get_ieee80211_priv_data(void){
 	}
 	return ieee80211_priv(hw);
 }
-
-struct tracked_skb_alloc {
-	struct sk_buff *skb;
-	struct tracked_skb_alloc *next;
-};
-
-struct tracked_urb_alloc {
-	struct urb *urb;
-	struct tracked_urb_alloc *next;
-};
-
-static struct tracked_skb_alloc *tracked_skb_allocs;
-static struct tracked_urb_alloc *tracked_urb_allocs;
 
 void track_skb_alloc(struct sk_buff *skb){
 	struct tracked_skb_alloc *node = NULL;
@@ -1993,8 +1978,7 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 			return_thunk = strcmp((char *)name, "__x86_return_thunk") == 0;
 			#endif
 			if (needs_trampoline) {
-				trampoline = x86_64_make_trampoline(target, target_is_native_stub,
-								return_thunk);
+				trampoline = x86_64_make_trampoline(target, target_is_native_stub, return_thunk);
 				if (trampoline == NULL) {
 					#ifdef ENABLE_DBG_PRINT
 					printf("[!] trampoline alloc failed for %s\n", name);
@@ -2262,7 +2246,7 @@ static int module_set_memory(const struct module *mod, enum mod_mem_type type) {
 		break;
 	case MOD_TEXT:
 	case MOD_INIT_TEXT:
-		mprotect_perm = PROT_READ | PROT_EXEC | PROT_WRITE;
+		mprotect_perm = PROT_READ | PROT_WRITE | PROT_EXEC;
 		break;
 	default:
 		#ifdef ENABLE_DBG_PRINT
@@ -2270,6 +2254,12 @@ static int module_set_memory(const struct module *mod, enum mod_mem_type type) {
 		#endif
 		return ret;
 	}
+
+	#ifdef _WIN64
+	if(mod_mem->size == 0){
+		return ret;
+	}
+	#endif
 
 	ret = mprotect(mod_mem->base, mod_mem->size, mprotect_perm);
 	return ret;
@@ -2279,14 +2269,18 @@ int module_enable_rodata_ro(const struct module *mod, bool after_init) {
 	int ret = 0;
 
 	ret = module_set_memory(mod, MOD_RODATA);
-
 	if (ret) {
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] failed to set read-only .rodata permissions!\n");
+		#endif
 		return ret;
 	}
 
 	ret = module_set_memory(mod, MOD_INIT_RODATA);
-
 	if (ret) {
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] failed to set read-only .mod_init_rodata permissions!\n");
+		#endif
 		return ret;
 	}
 
@@ -2301,8 +2295,10 @@ int module_enable_data_nx(const struct module *mod) {
 
 	for_class_mod_mem_type(type, data) {
 		ret = module_set_memory(mod, type);
-
 		if (ret) {
+			#ifdef ENABLE_DBG_PRINT
+			printf("[!] failed to set memory in \'module_enable_data_nx\'\n");
+			#endif
 			return ret;
 		}
 	}
@@ -2314,8 +2310,10 @@ int module_enable_text_rox(const struct module *mod) {
 
 	for_class_mod_mem_type(type, text) {
 		ret = module_set_memory(mod, type);
-
 		if (ret) {
+			#ifdef ENABLE_DBG_PRINT
+			printf("[!] failed to set memory in \'module_enable_text_rox\'\n");
+			#endif
 			return ret;
 		}
 	}
@@ -2387,15 +2385,6 @@ static int do_init_module(struct module *mod) {
 	int ret = 0;
 
 	do_mod_ctors(mod);
-	if (ret > 0) {
-		#ifdef ENABLE_DBG_PRINT
-		printf("%s: '%s'->init suspiciously returned %d, it should "
-		       "follow 0/-E convention\n"
-		       "%s: loading module anyway...\n",
-		       __FUNCTION__, mod->name, ret, __FUNCTION__);
-		#endif
-	}
-
 	mod->state = MODULE_STATE_LIVE;
 	director.mod = mod;
 	/* Keep the latest loaded module's init callback; dependency modules are loaded first. */
@@ -2621,7 +2610,7 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	ret  = percpu_modalloc(mod, info);
 	if (ret) {
 		#ifdef ENABLE_DBG_PRINT
-		printf("[!] end at line: %d\n", __LINE__);
+		printf("[!] failed to allocate the percpu variable!\n");
 		#endif
 		ret = -EINVAL;
 		return ret;
@@ -2629,7 +2618,7 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	ret = find_module_sections(mod, info);
 	if (ret) {
 		#ifdef ENABLE_DBG_PRINT
-		printf("[!] end at line: %d\n", __LINE__);
+		printf("[!] failed to detect module sections!\n");
 		#endif
 		ret = -EINVAL;
 		return ret;
@@ -2637,7 +2626,7 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	ret = simplify_symbols(mod, info);
 	if (ret < 0 && director.global_conf.strict_missing_syms == true) {
 		#ifdef ENABLE_DBG_PRINT
-		printf("[!] end at line: %d\n", __LINE__);
+		printf("[!] failed to simplify symbols!\n");
 		#endif
 		ret = -EINVAL;
 		return ret;
@@ -2645,7 +2634,7 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	ret = apply_relocations(mod, info);
 	if (ret < 0) {
 		#ifdef ENABLE_DBG_PRINT
-		printf("[!] end at line: %d\n", __LINE__);
+		printf("[!] failed the relocations patch phase!\n");
 		#endif
 		ret = -EINVAL;
 		return ret;
@@ -2653,7 +2642,7 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	ret = post_relocation(mod, info);
 	if (ret < 0) {
 		#ifdef ENABLE_DBG_PRINT
-		printf("[!] end at line: %d\n", __LINE__);
+		printf("[!] failed the post relocation phase!\n");
 		#endif
 		ret = -EINVAL;
 		return ret;
@@ -2661,7 +2650,7 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	ret = complete_formation(mod, info);
 	if (ret) {
 		#ifdef ENABLE_DBG_PRINT
-		printf("[!] end at line: %d\n", __LINE__);
+		printf("[!] failed to set permissions for the module\'s segments\n");
 		#endif
 		ret = -EINVAL;
 		return ret;
@@ -2669,7 +2658,7 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	ret = do_init_module(mod);
 	if (ret) {
 		#ifdef ENABLE_DBG_PRINT
-		printf("[!] end at line: %d\n", __LINE__);
+		printf("[!] failed to detect the module\'s probe function\n");
 		#endif
 		ret = -EINVAL;
 		return ret;
@@ -2739,6 +2728,11 @@ int initialize_director(struct module_controller *director, struct load_info **i
 		system_freezable_wq = &director->system_freezable_wq;
 	}
 
+	/* for tasklets, just allocate an array of 'pthreads' */
+	if(director->tasklet_workers == NULL){
+		tasklet_subsystem_init(MAX_SPAWNED_TASKLETS);
+	}
+
 	/* initialize usb i/o mutex */
 	pthread_mutex_init(&director->urb_anchor_mutex, NULL);
 	pthread_mutex_init(&director->usb_io_lock, NULL);
@@ -2779,15 +2773,16 @@ int initialize_director(struct module_controller *director, struct load_info **i
 
 /* finalize_director: clean everything allocated in the main controller */
 void finalize_director(void){
-#ifdef TCC_SCRIPTING
+	#ifdef TCC_SCRIPTING
 	drv_shutdown_scripting();
-#endif
+	#endif
 	if(director.info != NULL){
 		free(director.info);
 		director.info = NULL;
 	}
-	stop_wifi_scan_thread();
-
+	if(director.scan_in_progress == true){
+		stop_wifi_scan_thread();
+	}
 	/* Stop the libusb event thread BEFORE freeing USB resources it accesses;
 	 * otherwise Thread 3 races on the freed usb_device_ptr block. */
 	atomic_store_explicit(&director.libusb_thread_stop, true, memory_order_release);
@@ -2797,7 +2792,7 @@ void finalize_director(void){
 		director.libusb_event_thread = 0;
 	}
 	usb_runtime_exit();
-
+	tasklet_subsystem_shutdown();
 	if(system_wq != NULL){
 		destroy_workqueue(system_wq);
 		system_wq = NULL;
@@ -2817,10 +2812,6 @@ void finalize_director(void){
 	if(director.usb_device_ptr != NULL){
 		free(director.usb_device_ptr);
 		director.usb_device_ptr = NULL;
-	}
-	if(director.active_scan_req != NULL){
-		free(director.active_scan_req);
-		director.active_scan_req = NULL;
 	}
 	if(director.rfkill != NULL){
 		free(director.rfkill);
@@ -4982,6 +4973,8 @@ int elf_entry_stub(int argc, char *argv[]){
 	signal(SIGABRT, elf_crash_handler);
 	signal(SIGILL,  elf_crash_handler);
 
+	director.wifi_scan_thread = 0;
+	director.libusb_event_thread = 0;
 	director.internal_cb_table = &sym_table;
 	director.envp = NULL;
 	director.info = NULL;
@@ -4999,10 +4992,7 @@ int elf_entry_stub(int argc, char *argv[]){
 	director.cfg80211_ops = NULL;
 	director.active_scan_req = NULL;
 	director.connection_fsm = NULL;
-	director.libusb_event_thread = 0;
-	director.wifi_scan_thread = 0;
 	memset(director.kmem_array, 0, sizeof(director.kmem_array));
-	memset(director.file_table, 0, sizeof(director.file_table));
 
 	/* init libusb and create the main usb rx thread */
 	ret = usb_runtime_init();
@@ -5023,6 +5013,9 @@ int elf_entry_stub(int argc, char *argv[]){
 
 	workqueue_init(&director.system_freezable_wq, "system_freezable_wq");
 	system_freezable_wq = &director.system_freezable_wq;
+
+	tasklet_subsystem_reset_runtime_state();
+	tasklet_subsystem_init(MAX_SPAWNED_TASKLETS);
 
         /* initialize usb i/o mutex */
 	pthread_mutex_init(&director.urb_anchor_mutex, NULL);
@@ -6308,10 +6301,12 @@ int handle_offset_config(unsigned char *offset_config_name){
 
 /* entry point: takes the args and start the interactive shell */
 int main(int argc, char *argv[], char *envp[]) {
-	int	       ret	     = 0;
-	int            fd            = 0;
-	char           line[64]      = {};
-	unsigned char *drv_arg[5]    = {};
+	int ret = 0;
+	int fd = 0;
+	char line[64] = {};
+	unsigned char *drv_arg[5] = {};
+	unsigned char *param_name = NULL;
+	unsigned char *param_value = NULL;
 	unsigned char *function_name = NULL;
 	unsigned char *offset_config_name = NULL;
 
@@ -6412,8 +6407,8 @@ int main(int argc, char *argv[], char *envp[]) {
 			ret = handle_offset_config(offset_config_name);
 			#ifdef ENABLE_DBG_PRINT
 			struct runtime_struct *runtime_structs = NULL;
-			struct runtime_struct_layout *runtime_struct_layout = NULL;
 			struct struct_field *current_struct_fields = NULL;
+			struct runtime_struct_layout *runtime_struct_layout = NULL;
 
 			runtime_structs = &runtime_generated_structs;
 			for (u16 counter = 0; counter < ARRAY_SIZE(runtime_structs->structs); counter++) {
@@ -6439,16 +6434,29 @@ int main(int argc, char *argv[], char *envp[]) {
 		}
 	}
 
+	/* continue by searching for any other module param, mark it by searching for the '=' tag */
+	for(u8 argv_idx = 1; argv[argv_idx] != NULL; argv_idx++){
+		if(argv_idx != 1 && strstr(argv[argv_idx], "=") != NULL && strstr(argv[argv_idx], ".ko") == NULL){
+			param_name  = strtok(argv[argv_idx], "=");
+			param_value = strtok(NULL, "=");
+			/* store the param name and its value for later use */
+			
+		}
+	}
 	/* add a fast loading option: if the user insert as argv 1 or more '.ko', load them in the order given */
 	if(strstr(argv[1], ".ko") != NULL){
 		for(u8 argv_idx = 1; argv[argv_idx] != NULL; argv_idx++){
 			/* add a new fast option: if there is only 1 name without .ko, assume it is the function that needs to be executed */
-			if(argv_idx != 1 && strstr(argv[argv_idx], ".ko") == NULL && strstr(argv[argv_idx], ".conf") == NULL){
+			if(argv_idx != 1 && strstr(argv[argv_idx], ".ko") == NULL && strstr(argv[argv_idx], ".conf") == NULL && strstr(argv[argv_idx], "=") == NULL){
 				function_name = argv[argv_idx];
 				continue;
 			}
 			/* skip the .conf file */
 			if(argv_idx != 1 && strstr(argv[argv_idx], ".ko") == NULL && strstr(argv[argv_idx], ".conf") != NULL){
+				continue;
+			}
+			/* skip also the parameter */
+			if(argv_idx != 1 && strstr(argv[argv_idx], ".ko") == NULL && strstr(argv[argv_idx], "=") != NULL){
 				continue;
 			}
 			fd = open(argv[argv_idx], O_RDONLY);

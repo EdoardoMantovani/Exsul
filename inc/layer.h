@@ -30,10 +30,12 @@
 #include <linux/in6.h>
 #include <linux/const.h>
 #include <linux/if_ether.h>
+#include <linux/wireless.h>
 #include <linux/nl80211.h>
 #include <linux/swab.h>
 #include <linux/types.h>
 #include <linux/ethtool.h>
+#include <linux/netlink.h>
 #include <linux/usb/ch9.h>
 #include <pthread.h>
 #include <signal.h>
@@ -89,7 +91,9 @@
 #include <linux/elf-em.h>
 #include <linux/if_ether.h>
 #include <linux/nl80211.h>
+#include <linux/wireless.h>
 #include <linux/ethtool.h>
+#include <linux/netlink.h>
 #include <linux/usb/ch9.h>
 #include <asm-generic/errno-base.h>
 #include <asm-generic/errno.h>
@@ -251,8 +255,14 @@ typedef _Atomic(unsigned int) atomic_uint;
 /* maximun number of usb endpoints possible */
 #define USB_MAX_ENDPOINT_NUM    	30
 
+/* maximun number of tasklets which are spawned at the start of Exsul */
+#define MAX_SPAWNED_TASKLETS		2
+
 /* minimun area size for tcc jit */
 #define TCC_MINIMUN_AREA_SIZE		512
+
+/* total number of available symbols entries */
+#define SYM_ENTRIES			4096
 
 /* path for the firmware files, this will be used mainly in Linux, for Windows expect a local folder */
 #define DEFAULT_FW_PATH			"/lib/firmware/"
@@ -275,7 +285,9 @@ typedef _Atomic(unsigned int) atomic_uint;
 /* maximun socket connections that can be accepted by the standalone ELF */
 #define MAXIMUN_SOCKET_CONNECTIONS	2
 
+/* maximun scan interval (default to 10 seconds) */
 #define WIFI_SCAN_THREAD_INTERVAL       (10 * USEC_PER_SEC)
+
 /* include here the errno.h header data */
 #define ERESTARTSYS             512
 #define ERESTARTNOINTR          513
@@ -527,7 +539,8 @@ enum wq_flags {
 
 enum {
 	TASKLET_STATE_SCHED,	/* Tasklet is scheduled for execution */
-	TASKLET_STATE_RUN	/* Tasklet is running (SMP only) */
+	TASKLET_STATE_RUN,	/* Tasklet is running (SMP only) */
+	TASKLET_STATE_KILL,	/* Tasklet is killed */
 };
 
 enum mod_mem_type {
@@ -723,6 +736,19 @@ struct usb_dev_tuple {
 	__u16 usb_pid;
 	__u16 usb_vid;
 	bool is_used;
+};
+
+/*
+ * Meta data about the request passed to the iw_handler.
+ * Most handlers can safely ignore what's in there.
+ * The 'cmd' field might come handy if you want to use the same handler
+ * for multiple command...
+ * This struct is also my long term insurance. I can add new fields here
+ * without breaking the prototype of iw_handler...
+ */
+struct iw_request_info {
+        __u16           cmd;            /* Wireless Extension command */
+        __u16           flags;          /* More to come ;-) */
 };
 
 /* a single wait-queue entry structure: */
@@ -921,7 +947,7 @@ struct wakeup_source {
 struct tasklet_struct {
 	struct tasklet_struct *next;
 	unsigned long state;
-	atomic_uint count;
+	atomic_t count;
 	bool use_callback;
 	union {
 		void (*func)(unsigned long data);
@@ -1031,19 +1057,6 @@ struct seq_list {
 	int seq_list_entries;
 	struct seq_file *next;
 	struct seq_file *prev;
-};
-
-/* 'struct file' transation layer */
-struct file_layer {
-	/* play with the file pointer, associate a fd with an file pointer used by the kernel module */
-	void *original_file_ptr;
-	int actual_fd;
-	int actual_offset;
-};
-
-struct file_list {
-	int file_list_entries;
-	struct file_layer *elem;
 };
 
 struct module_memory {

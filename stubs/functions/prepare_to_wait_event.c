@@ -14,13 +14,10 @@ long prepare_to_wait_event(struct wait_queue_head *wq_head, struct wait_queue_en
 	}
 
 	spin_lock(&wq_head->lock);
-
 	if (!wq_entry_is_linked(wq_entry)){
 		list_add_tail(&wq_entry->entry, &wq_head->head);
 	}
-
 	atomic_store(&task_struct->__state, state);
-
 	spin_unlock(&wq_head->lock);
 	return ret;
 }
