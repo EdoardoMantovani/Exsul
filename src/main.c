@@ -5716,7 +5716,6 @@ static int pe_entry_stub(void){
         director.connection_fsm = NULL;
         director.libusb_event_thread = 0;
         memset(director.kmem_array, 0, sizeof(director.kmem_array));
-        memset(director.file_table, 0, sizeof(director.file_table));
 
         system_wq = NULL;
         system_dfl_wq = NULL;
