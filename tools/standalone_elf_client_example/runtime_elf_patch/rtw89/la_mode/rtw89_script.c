@@ -3019,9 +3019,7 @@ int main(void){
 	halbb_la_reset(rtwdev, &la_mode_info);
 
 	la_mode_info.la_mac_cfg_i.mac_la_buf_sel = LA_BUFF_128K;
-	la_mode_info.la_mac_cfg_i.mac_alloc_success =
-		halbb_la_mac_cfg_buf(rtwdev, &la_mode_info,
-				      la_mode_info.la_mac_cfg_i.mac_la_buf_sel);
+	la_mode_info.la_mac_cfg_i.mac_alloc_success = halbb_la_mac_cfg_buf(rtwdev, &la_mode_info, la_mode_info.la_mac_cfg_i.mac_la_buf_sel);
 	if (!la_mode_info.la_mac_cfg_i.mac_alloc_success) {
 		printf("[!] MAC BUF CR set fail\n");
 		ret = -EIO;

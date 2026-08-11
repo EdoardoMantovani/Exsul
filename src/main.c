@@ -2986,6 +2986,27 @@ int fast_get_symbol(unsigned char *sym_name, void **sym_addr){
 	return ret;
 }
 
+/* fast_get_symbol_from_parts: given 2 strings, find the object/function pointer whose name contains the strings and return it's size */
+int fast_get_symbol_from_parts(unsigned char *sym_name_part_one, unsigned char *sym_name_part_two, void **sym_addr){
+        int ret = 0;
+        unsigned char *current_function_name = NULL;
+
+        for (u16 i = 0; i < SYM_ENTRIES; i++) {
+                if(sym_table[i].function_name[0] == '\0'){
+                        continue;
+                }
+                current_function_name = &sym_table[i].function_name;
+                if(strstr(current_function_name, sym_name_part_one) != NULL && strstr(current_function_name, sym_name_part_two) != NULL){
+                        if(sym_table[i].function_size != 0){
+                                ret = sym_table[i].function_size;
+                        }
+                        *sym_addr = (void *)sym_table[i].function_ptr;
+                        break;
+                }
+        }
+        return ret;
+}
+
 /* fast_get_name: do the opposite of the function above: given a function pointer, retrieve it's name */
 int fast_get_name(void *sym_addr, unsigned char **sym_name){
 	int ret = 0;

@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <libdwarf/libdwarf.h>
 #include <linux/nl80211.h>
@@ -66,6 +67,17 @@
 
 #define atomic_bool			bool
 
+#define EXSUL_DIRECTOR_STRUCT_SIZES_OFFSET	13976
+#define EXSUL_FAST_STRUCT_SIZE_NET_DEVICE_OFFSET 24
+#define EXSUL_NET_DEVICE_FALLBACK_SIZE		(3 * 1024)
+#define EXSUL_ALIGN_UP(value, align)		(((value) + ((align) - 1)) & ~((align) - 1))
+
+#define RTW_ADAPTER_DVOBJ_OFFSET		64
+#define RTW_ADAPTER_PNETDEV_OFFSET		21360
+#define RTW_DVOBJ_PHL_OFFSET			200
+#define RTW_PHL_HAL_OFFSET			34360
+#define RTW_HAL_MAC_OFFSET			440
+
 #define BITS_PER_BYTE           	8
 #define BITS_PER_TYPE(type)     	(sizeof(type) * BITS_PER_BYTE)
 
@@ -111,6 +123,8 @@ enum _IFACE_ID {
 	IFACE_ID_MAX,
 };
 
+#define MAX_READ_BUFFER_LENGTH 48
+
 /* struct defined in rtw8852cu */
 struct mac_ax_adapter {
         struct mac_ax_ops *ops;
@@ -119,10 +133,17 @@ struct mac_ax_adapter {
         struct mac_ax_pltfm_cb *pltfm_cb;
 };
 
+struct rtw_netdev_priv_indicator {
+	void *priv;
+	u32 sizeof_priv;
+};
+
 /* prototypes for the standard kernel API && standalone ELF init functions */
+void *get_director(void);
 void *get_net_device(void);
 void elf_initialize_driver(void);
 void *get_ieee80211_priv_data(void);
+int fast_get_symbol(unsigned char *sym_name, void **sym_addr);
 u32 mac_flash_read(void *adapter, u32 addr, u32 length, u8 *buffer, u32 timeout);
 
 /* simple support function for dumping the 'flash_read' command output */
@@ -156,42 +177,96 @@ void DumpHex(const void* data, size_t size) {
 	}
 }
 
+static u16 get_exsul_netdev_size(void)
+{
+	u8 *director = (u8 *)get_director();
+	u16 netdev_size = 0;
+
+	if (director != NULL) {
+		netdev_size = *(u16 *)(director +
+			EXSUL_DIRECTOR_STRUCT_SIZES_OFFSET +
+			EXSUL_FAST_STRUCT_SIZE_NET_DEVICE_OFFSET);
+	}
+
+	if (netdev_size < 512 || netdev_size > 8192)
+		netdev_size = EXSUL_NET_DEVICE_FALLBACK_SIZE;
+
+	return netdev_size;
+}
+
+static void *read_ptr_at(void *base, u32 offset)
+{
+	if (base == NULL)
+		return NULL;
+
+	return *(void **)((u8 *)base + offset);
+}
+
+static void *get_live_mac_ax_adapter(void){
+	u16 netdev_size = get_exsul_netdev_size();
+	void *netdev = get_net_device();
+	struct rtw_netdev_priv_indicator *npi = NULL;
+	void *adapter = NULL;
+	void *dvobj = NULL;
+	void *phl = NULL;
+	void *hal = NULL;
+	void *mac = NULL;
+
+	if (netdev == NULL) {
+		printf("[!] net_device is NULL\n");
+		return NULL;
+	}
+
+	npi = (struct rtw_netdev_priv_indicator *)((u8 *)netdev +
+		EXSUL_ALIGN_UP(netdev_size, 32));
+	if (npi == NULL || npi->priv == NULL) {
+		printf("[!] rtw netdev private indicator is NULL\n");
+		return NULL;
+	}
+	if (npi->sizeof_priv <= RTW_ADAPTER_PNETDEV_OFFSET || npi->sizeof_priv > (1024 * 1024)) {
+		printf("[!] unexpected Realtek adapter private size: %u\n", npi->sizeof_priv);
+		return NULL;
+	}
+
+	adapter = npi->priv;
+	if (read_ptr_at(adapter, RTW_ADAPTER_PNETDEV_OFFSET) != netdev) {
+		printf("[!] recovered adapter does not point back to net_device\n");
+		return NULL;
+	}
+	dvobj = read_ptr_at(adapter, RTW_ADAPTER_DVOBJ_OFFSET);
+	phl = read_ptr_at(dvobj, RTW_DVOBJ_PHL_OFFSET);
+	hal = read_ptr_at(phl, RTW_PHL_HAL_OFFSET);
+	mac = read_ptr_at(hal, RTW_HAL_MAC_OFFSET);
+
+	if (mac == NULL) {
+		printf("[!] failed to recover live mac_ax_adapter\n");
+		printf("[!] netdev=%p netdev_size=%u adapter=%p dvobj=%p phl=%p hal=%p\n",
+		       netdev, netdev_size, adapter, dvobj, phl, hal);
+	}
+
+	return mac;
+}
+
 int main(void){
 	int ret = 0;
-	u16 read_buffer_len = 0;
 	u32 flash_read_dump_addr = 0;
-	void *dvobj = NULL;
-	struct mac_ax_adapter *mac_ax_adapter = NULL;
-	u8 read_buffer[MAX_READ_BUFFER_LENGTH] = 0;
+	void *mac_ax_adapter = NULL;
+	u8 read_buffer[MAX_READ_BUFFER_LENGTH] = {};
 
-	elf_initialize_driver();
-	/* get rtwdev from the private data of ieee80211_local */
-	rtwdev = get_ieee80211_priv_data();
-	if(rtwdev == NULL){
-		printf("[!] cannot find the ieee80211 driver private data!\n");
-		ret = -EINVAL;
-		return ret;
-	}
-	/* after some research, I discovered that the equivalent of 'struct mac_ax_adapter' is a global variable
-	*  in our case it is: 'mac_8852c_adapter'
-	*/
-	mac_ax_adapter = mac_8852c_adapter;
+	mac_ax_adapter = get_live_mac_ax_adapter();
 	if(mac_ax_adapter == NULL){
-		ret = -EINVAL;
-		return ret;
-	}
-	if(mac_ax_adapter->ops == NULL || mac_ax_adapter->drv_adapter == NULL || mac_ax_adapter->phl_adapter == NULL){
 		ret = -EINVAL;
 		return ret;
 	}
 	flash_read_dump_addr = 0x2000000;
 	/* invoke the 'mac_flash_read' function */
-	ret = mac_flash_read(mac_ax_adapter, flash_read_dump_addr, MAX_READ_BUFFER_LENGTH, &read_buffer, 200);
-	if(ret < 0){
-		printf("[!] failed to send the flash_read command!\n");
+	ret = mac_flash_read(mac_ax_adapter, flash_read_dump_addr, MAX_READ_BUFFER_LENGTH, read_buffer, 200);
+	if(ret != 0){
+		printf("[!] failed to send the flash_read command: 0x%08x\n", ret);
 		goto end;
 	}
-	printf("[*] dumping flash_read command at %p\n", flash_read_dump_addr);
+	printf("[*] dumping flash_read command at 0x%08x\n", flash_read_dump_addr);
 	DumpHex(read_buffer, MAX_READ_BUFFER_LENGTH);
 	end:
+	return ret;
 }

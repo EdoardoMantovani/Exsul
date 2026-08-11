@@ -392,6 +392,11 @@ typedef _Atomic(unsigned int) atomic_uint;
 #define wake_up_interruptible_all(x)    __wake_up(x, TASK_INTERRUPTIBLE, 0, NULL)
 #define wake_up_interruptible_sync(x)   __wake_up_sync((x), TASK_INTERRUPTIBLE)
 
+/* mantain the algorithmic implementations of the crc32 little/big endian*/
+#define crc32_le_arch			crc32_le_base
+#define crc32_be_arch			crc32_be_base
+#define crc32c_arch			crc32c_base
+
 /* sections for the crashdump */
 enum {
 	CRASH_SECTION_SYMBOL_TABLE,
@@ -2456,6 +2461,7 @@ static u64 read_uleb128(u8 *p, int len){
 #include <hashtable.h>
 #include <wq.h>
 #include <jiffies.h>
+#include <crc.h>
 #include <usb.h>
 #include <bits.h>
 #include <skb.h>

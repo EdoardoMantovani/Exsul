@@ -1,6 +1,6 @@
 /* header file which contains functions for interacting with the 'mod_controller' struct */
 
-/* used for retrieving at runtime the size of a not defined struct in the
+/* get_struct_size: used for retrieving at runtime the size of a not defined struct in the
  * main source code (usually this is for 'struct device' or others which changes in every kernel version)
  */
 static int get_struct_size(unsigned char *struct_name){

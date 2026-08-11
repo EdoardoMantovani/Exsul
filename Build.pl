@@ -1636,6 +1636,7 @@ if($verbose){
 	print("$compiler @gcc_params -I./$virtual_compilation_folder/$include @gcc_stub_params -include $virtual_compilation_folder/$include/$win_layer -c $merged_source -o $build/$final_stub\n");
 }
 
+# still need to decide if mantain this or not
 if($enable_exported_symbols_tracing){
 	my $coccinelle = `which spatch`;
 	my $coccinelle_file = undef;

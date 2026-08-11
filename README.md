@@ -19,10 +19,11 @@ The general idea for running a kernel module in userspace is based upon several 
 Regarding the first point, Linux implements the system call `init_module` for loading and running a given kernel object,
 this is essentially what gets called from tools like `insmod` and `modprobe`,
 `init_module` itself is not too difficult to implement in the userspace, most of its operations are quite straightforward:
-check if the ELF header and section table are corrupt, search and resolve the relocations, allocate the
+check if the ELF header and section table are corrupt, search and resolve the relocations, allocate and create the
 memory layout for the loaded module and place the sections of the module in its memory, most of the steps can be reproduced easily,
 the only *complex* part relies on the relocation resolutions and symbol lookup, the kernel has a symbol table which is used for connecting an exported function
-by its name, Exsul implements a similar architecture by mantaining an huge array called *sym_table* (see this later). 
+by its name, Exsul implements a similar architecture by maintaining a huge array called `sym_table`, each entry of this array is composed by the function name and
+it's address in memory, this permits to quickly fix a relocation. 
 The second point was by far the most challenging of this project, suppose we have the following kernel C code: 
 ```c
 data = skb_push(skb, IEEE80211_HT_CTL_LEN);
@@ -43,10 +44,24 @@ void *skb_push(struct sk_buff *skb, unsigned int len)
 the offsets for the `data`, `head` and `len` fields changes across kernel versions, so the `data` field on Linux 7.0.0-28 is at 208, while the same offset under Linux
 5.15.167.4 is at 200, you can understand that this creates an huge problem because the kernel module has hardcoded only one specific version of those offsets.
 
-For the last point, - the Linux exported functions - under the folder `/stubs/functions` and `/stub/variables`, you will find a big number of C files, each contains the definition of one
+For the last point, - the Linux exported functions - under the folder `/stubs/functions` and `/stubs/variables`, you will find a big number of C files, each contains the definition of one
 specific function/global variable exported by the kernel (with `readelf -sW <target_module.ko> | grep UND`)
 When Perl runs `Build.pl`, every C stubs will be merged into a single big file and it will be compiled inside Exsul, this means that at the end, Exsul reminds the Linux Kernel Library
-project, with the difference that most functions have been reimplemented manually specifically for the userspace.
+project, with the difference that most functions have been reimplemented manually specifically for the userspace and the usb stack had been reimplemented by using libusb as backend.
+
+The complete execution flow can be summarized in this way:
+
+1. Exsul opens every `.ko` passed on the command line and parses the ELF headers, sections, symbols and relocations (reproduce `init_module`).
+2. Every loadable section is copied inside an userspace memory mapping with permissions similar to the original kernel layout (reproduce `init_module`).
+3. Undefined symbols are resolved from the internal `sym_table`.
+4. The automatic initialization is finished, if the user wants to start the kernel module, it needs to invoke the `start` command.
+5. From that point the driver starts to run inside Exsul, using the Exsul's kernel API instead of the Linux kernel.
+
+Remember: the project does not try to reimplement the full Linux kernel, it implements only a small subset of the exported functions which are
+actively used by USB Wi-Fi drivers: memory allocation, locks, timers, workqueues, tasklets, firmware request, usb send/receive, netdev registration, cfg80211 and mac80211 registration and
+rx processing.
+Some functions are almost identical to the kernel implementation, while others are simplified wrappers around pthreads, libusb or normal libc functions, the biggest advantage is that
+they can be easily added/changed by modifying the C files under `/stubs/functions`.
 
 ## Build Requirements
 
@@ -189,8 +204,15 @@ perl distro_offset_generator.pl required_offsets.json distro_struct_offsets.h
 
 The current script is Ubuntu-oriented and expects official debug packages. It uses `pahole` to extract offsets from unpacked debug images.
 
-## Standalone Executable
+## Exsul Tools
 
+As an additional component of Exsul, various tools are present under `./tools`, as for the version 2.1.0, the available tools are: 
+* crashdump_parser: when Exsul crashes, produces a crashdump file, this tool permits to parse it and retrieve useful informations
+* generate_inat: used for generating the inat table under x86, not common to use
+* udev_rules: permits to set the udev rules under Linux for the rtw89 devices for using the dongles without having the root permissions, this permits Exsul to run completely in userspace
+* merge_kernel_api: permits to merge every C files under `/stub/` into a single, big file, notice that the `Build.pl` script does this in order to enhance the compilation time for Exsul
+* offset_generator:
+* standalone_elf_client_example: see the standalone ELF section
 
 ## Debugging
 
@@ -207,10 +229,13 @@ crashreport-YYYY-MM-DD_HH:MM:SS.bin
 sigabort_crash.bin # for sigabort events where memory cannot be allocated
 ```
 
+## Standalone Executable
+
+
 ## Current Limitations
 
 - Correct structure offsets are critical; wrong offsets usually become memory corruption or invalid callback calls.
-- USB, firmware loading, workqueues, timers, cfg80211, mac80211, netdev, and allocation semantics are approximations of kernel behavior.
+- USB, firmware loading, workqueues, timers, cfg80211, mac80211, netdev, and allocation semantics are approximations of kernel behavior, they works fine in general but they won't handle every flags passed by the kernel modules for now.
 
 ## FAQ
 
