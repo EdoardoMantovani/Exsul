@@ -3,7 +3,6 @@ void __bitmap_xor(unsigned long *dst, unsigned long *bitmap1, unsigned long *bit
 	unsigned int nr = 0;
 
 	nr = BITS_TO_LONGS(bits);
-
 	for (k = 0; k < nr; k++){
 		dst[k] = bitmap1[k] ^ bitmap2[k];
 	}
