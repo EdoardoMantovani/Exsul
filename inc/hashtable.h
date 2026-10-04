@@ -477,6 +477,36 @@ static inline int rhltable_insert_simple(struct rhltable *hlt, struct rhlist_hea
 	return ret;
 }
 
+/* Inverse of rhltable_insert_simple; its nodes each own a bucket-chain entry. */
+static inline int rhltable_remove_simple(struct rhltable *hlt, struct rhlist_head *node,
+					const struct rhashtable_params params){
+	struct rhashtable *ht = &hlt->ht;
+	struct bucket_table *tbl = ht->tbl;
+	struct rhash_lock_head **bucket;
+	struct rhash_head *head, *prev = NULL;
+	void *key = (char *)node - params.head_offset + params.key_offset;
+	if (tbl == NULL)
+		return -ENOENT;
+	bucket = rht_bucket_insert(ht, tbl, rht_key_hashfn(ht, tbl, key, params));
+	if (bucket == NULL)
+		return -ENOENT;
+	pthread_mutex_lock(&director.rhashtable_lock);
+	for (head = rht_ptr_exclusive(bucket); head && !rht_is_a_nulls(head); head = head->next){
+		if (head == &node->rhead){
+			if (prev)
+				prev->next = head->next;
+			else
+				*bucket = (struct rhash_lock_head *)head->next;
+			atomic_fetch_sub_explicit(&ht->nelems, 1, memory_order_relaxed);
+			pthread_mutex_unlock(&director.rhashtable_lock);
+			return 0;
+		}
+		prev = head;
+	}
+	pthread_mutex_unlock(&director.rhashtable_lock);
+	return -ENOENT;
+}
+
 static void rhashtable_free_one(struct rhashtable *ht, struct rhash_head *obj, void (*free_fn)(void *ptr, void *arg), void *arg){
 	struct rhlist_head *list = NULL;
 

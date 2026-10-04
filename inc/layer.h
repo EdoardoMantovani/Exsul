@@ -423,6 +423,7 @@ enum fast_run_ops {
 	/* ieee80211 callbacks code */
 	IEEE80211_START,
 	IEEE80211_STOP,
+	IEEE80211_SUSPEND,
 	IEEE80211_ADD_INTERFACE,
 	IEEE80211_REMOVE_INTERFACE,
 	IEEE80211_CONFIG,
@@ -726,6 +727,12 @@ struct kobj_type {
 	const struct kobj_ns_type_operations *(*child_ns_type)(struct kobject *kobj);
 	const void *(*namespace)(struct kobject *kobj);
 	void (*get_ownership)(struct kobject *kobj, int *uid, int *gid);
+};
+
+struct notifier_block {
+	int (*notifier_call)(struct notifier_block *nb, unsigned long action, void *data);
+	struct notifier_block *next;
+	int priority;
 };
 
 struct cdev {

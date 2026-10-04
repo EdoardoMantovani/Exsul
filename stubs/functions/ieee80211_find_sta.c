@@ -12,7 +12,7 @@ struct ieee80211_sta *ieee80211_find_sta(struct ieee80211_vif *vif, const u8 *ad
 	}
 
 	fsm = connection_get();
-	if (fsm != NULL && fsm->sta != NULL && ether_addr_equal(addr, fsm->bssid)){
+	if (fsm != NULL && !fsm->stopping && fsm->sta != NULL && ether_addr_equal(addr, fsm->bssid)){
 		return fsm->sta;
 	}
 

@@ -13,7 +13,8 @@ int usb_submit_urb(struct urb *urb, int mem_flags){
 		ret = -EPERM;
 		return ret;
 	}
-	if (director.usb_dev == NULL){
+	if (director.usb_dev == NULL ||
+	    atomic_load_explicit(&director.usb_device_lost, memory_order_acquire)){
 		ret = -ENODEV;
 		return ret;
 	}
@@ -66,7 +67,13 @@ int usb_submit_urb(struct urb *urb, int mem_flags){
 		atomic_fetch_sub_explicit(&urb->use_count, 1, memory_order_relaxed);
 		usb_free_urb(urb);
 		usb_transfer_put(transfer);
-		ret = -EIO;
+		if (ret == LIBUSB_ERROR_NO_DEVICE){
+			atomic_store_explicit(&director.usb_device_lost, true,
+					      memory_order_release);
+			ret = -ENODEV;
+		}else{
+			ret = -EIO;
+		}
 		return ret;
 	}
 	usb_transfer_note_submit();

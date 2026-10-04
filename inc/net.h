@@ -124,6 +124,12 @@
 
 #define MAX_NETDEVICE_NOTIFIERS 16
 
+enum netdev_queue_state_t {
+	__QUEUE_STATE_DRV_XOFF,
+	__QUEUE_STATE_STACK_XOFF,
+	__QUEUE_STATE_FROZEN,
+};
+
 enum {
 	NETIF_F_SG_BIT,			/* Scatter/gather IO. */
 	NETIF_F_IP_CSUM_BIT,		/* Can checksum TCP/UDP over IPv4. */
@@ -389,6 +395,25 @@ static inline void eth_zero_addr(u8 *addr){
 static inline void ether_addr_copy(u8 *dst, const u8 *src){
 	*(u32 *)dst = *(const u32 *)src;
 	*(u16 *)(dst + 4) = *(const u16 *)(src + 4);
+}
+
+static inline void netif_tx_stop_queue(struct netdev_queue *dev_queue){
+	/* Must be an atomic op see netif_txq_try_stop() */
+	set_bit(__QUEUE_STATE_DRV_XOFF, &dev_queue->state);
+}
+
+/**
+ *	netif_running - test if up
+ *	@dev: network device
+ *
+ *	Test if the device has been brought up.
+ */
+static inline bool netif_running(const struct net_device *netdev){
+	return test_bit(__LINK_STATE_START, &netdev->state);
+}
+
+static inline struct netdev_queue *netdev_get_tx_queue(const struct net_device *netdev, unsigned int index){
+	return &netdev->_tx[index];
 }
 
 static struct netdev_hw_addr *__hw_addr_create(const unsigned char *addr, int addr_len, unsigned char addr_type, bool global, bool sync){

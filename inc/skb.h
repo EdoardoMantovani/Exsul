@@ -197,21 +197,21 @@ enum {
 	SKB_GSO_TCP_FIXEDID_INNER = 1 << 31,
 };
 
-/**
+/*
  * enum skb_drop_reason - the reasons of skb drops
  *
  * The reason of skb drop, which is used in kfree_skb_reason().
  */
 enum skb_drop_reason {
-	/**
+	/*
 	 * @SKB_NOT_DROPPED_YET: skb is not dropped yet (used for no-drop case)
 	 */
 	SKB_NOT_DROPPED_YET = 0,
-	/** @SKB_CONSUMED: packet has been consumed */
+	/* @SKB_CONSUMED: packet has been consumed */
 	SKB_CONSUMED,
-	/** @SKB_DROP_REASON_NOT_SPECIFIED: drop reason is not specified */
+	/* @SKB_DROP_REASON_NOT_SPECIFIED: drop reason is not specified */
 	SKB_DROP_REASON_NOT_SPECIFIED,
-	/**
+	/*
 	 * @SKB_DROP_REASON_NO_SOCKET: no valid socket that can be used.
 	 * Reason could be one of three cases:
 	 * 1) no established/listening socket found during lookup process
@@ -219,393 +219,393 @@ enum skb_drop_reason {
 	 * 3) no valid child socket during 3WHS process
 	 */
 	SKB_DROP_REASON_NO_SOCKET,
-	/** @SKB_DROP_REASON_SOCKET_CLOSE: socket is close()d */
+	/* @SKB_DROP_REASON_SOCKET_CLOSE: socket is close()d */
 	SKB_DROP_REASON_SOCKET_CLOSE,
-	/** @SKB_DROP_REASON_SOCKET_FILTER: dropped by socket filter */
+	/* @SKB_DROP_REASON_SOCKET_FILTER: dropped by socket filter */
 	SKB_DROP_REASON_SOCKET_FILTER,
-	/** @SKB_DROP_REASON_SOCKET_RCVBUFF: socket receive buff is full */
+	/* @SKB_DROP_REASON_SOCKET_RCVBUFF: socket receive buff is full */
 	SKB_DROP_REASON_SOCKET_RCVBUFF,
-	/**
+	/*
 	 * @SKB_DROP_REASON_UNIX_DISCONNECT: recv queue is purged when SOCK_DGRAM
 	 * or SOCK_SEQPACKET socket re-connect()s to another socket or notices
 	 * during send() that the peer has been close()d.
 	 */
 	SKB_DROP_REASON_UNIX_DISCONNECT,
-	/**
+	/*
 	 * @SKB_DROP_REASON_UNIX_SKIP_OOB: Out-Of-Band data is skipped by
 	 * recv() without MSG_OOB so dropped.
 	 */
 	SKB_DROP_REASON_UNIX_SKIP_OOB,
-	/** @SKB_DROP_REASON_PKT_TOO_SMALL: packet size is too small */
+	/* @SKB_DROP_REASON_PKT_TOO_SMALL: packet size is too small */
 	SKB_DROP_REASON_PKT_TOO_SMALL,
-	/** @SKB_DROP_REASON_TCP_CSUM: TCP checksum error */
+	/* @SKB_DROP_REASON_TCP_CSUM: TCP checksum error */
 	SKB_DROP_REASON_TCP_CSUM,
-	/** @SKB_DROP_REASON_UDP_CSUM: UDP checksum error */
+	/* @SKB_DROP_REASON_UDP_CSUM: UDP checksum error */
 	SKB_DROP_REASON_UDP_CSUM,
-	/** @SKB_DROP_REASON_NETFILTER_DROP: dropped by netfilter */
+	/* @SKB_DROP_REASON_NETFILTER_DROP: dropped by netfilter */
 	SKB_DROP_REASON_NETFILTER_DROP,
-	/**
+	/*
 	 * @SKB_DROP_REASON_OTHERHOST: packet don't belong to current host
 	 * (interface is in promisc mode)
 	 */
 	SKB_DROP_REASON_OTHERHOST,
-	/** @SKB_DROP_REASON_IP_CSUM: IP checksum error */
+	/* @SKB_DROP_REASON_IP_CSUM: IP checksum error */
 	SKB_DROP_REASON_IP_CSUM,
-	/**
+	/*
 	 * @SKB_DROP_REASON_IP_INHDR: there is something wrong with IP header (see
 	 * IPSTATS_MIB_INHDRERRORS)
 	 */
 	SKB_DROP_REASON_IP_INHDR,
-	/**
+	/*
 	 * @SKB_DROP_REASON_IP_RPFILTER: IP rpfilter validate failed. see the
 	 * document for rp_filter in ip-sysctl.rst for more information
 	 */
 	SKB_DROP_REASON_IP_RPFILTER,
-	/**
+	/*
 	 * @SKB_DROP_REASON_UNICAST_IN_L2_MULTICAST: destination address of L2 is
 	 * multicast, but L3 is unicast.
 	 */
 	SKB_DROP_REASON_UNICAST_IN_L2_MULTICAST,
-	/** @SKB_DROP_REASON_XFRM_POLICY: xfrm policy check failed */
+	/* @SKB_DROP_REASON_XFRM_POLICY: xfrm policy check failed */
 	SKB_DROP_REASON_XFRM_POLICY,
-	/** @SKB_DROP_REASON_IP_NOPROTO: no support for IP protocol */
+	/* @SKB_DROP_REASON_IP_NOPROTO: no support for IP protocol */
 	SKB_DROP_REASON_IP_NOPROTO,
-	/**
+	/*
 	 * @SKB_DROP_REASON_PROTO_MEM: proto memory limitation, such as
 	 * udp packet drop out of udp_memory_allocated.
 	 */
 	SKB_DROP_REASON_PROTO_MEM,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_AUTH_HDR: TCP-MD5 or TCP-AO hashes are met
 	 * twice or set incorrectly.
 	 */
 	SKB_DROP_REASON_TCP_AUTH_HDR,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_MD5NOTFOUND: no MD5 hash and one expected,
 	 * corresponding to LINUX_MIB_TCPMD5NOTFOUND
 	 */
 	SKB_DROP_REASON_TCP_MD5NOTFOUND,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_MD5UNEXPECTED: MD5 hash and we're not expecting
 	 * one, corresponding to LINUX_MIB_TCPMD5UNEXPECTED
 	 */
 	SKB_DROP_REASON_TCP_MD5UNEXPECTED,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_MD5FAILURE: MD5 hash and its wrong, corresponding
 	 * to LINUX_MIB_TCPMD5FAILURE
 	 */
 	SKB_DROP_REASON_TCP_MD5FAILURE,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_AONOTFOUND: no TCP-AO hash and one was expected,
 	 * corresponding to LINUX_MIB_TCPAOREQUIRED
 	 */
 	SKB_DROP_REASON_TCP_AONOTFOUND,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_AOUNEXPECTED: TCP-AO hash is present and it
 	 * was not expected, corresponding to LINUX_MIB_TCPAOKEYNOTFOUND
 	 */
 	SKB_DROP_REASON_TCP_AOUNEXPECTED,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_AOKEYNOTFOUND: TCP-AO key is unknown,
 	 * corresponding to LINUX_MIB_TCPAOKEYNOTFOUND
 	 */
 	SKB_DROP_REASON_TCP_AOKEYNOTFOUND,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_AOFAILURE: TCP-AO hash is wrong,
 	 * corresponding to LINUX_MIB_TCPAOBAD
 	 */
 	SKB_DROP_REASON_TCP_AOFAILURE,
-	/**
+	/*
 	 * @SKB_DROP_REASON_SOCKET_BACKLOG: failed to add skb to socket backlog (
 	 * see LINUX_MIB_TCPBACKLOGDROP)
 	 */
 	SKB_DROP_REASON_SOCKET_BACKLOG,
-	/** @SKB_DROP_REASON_TCP_FLAGS: TCP flags invalid */
+	/* @SKB_DROP_REASON_TCP_FLAGS: TCP flags invalid */
 	SKB_DROP_REASON_TCP_FLAGS,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_ABORT_ON_DATA: abort on data, corresponding to
 	 * LINUX_MIB_TCPABORTONDATA
 	 */
 	SKB_DROP_REASON_TCP_ABORT_ON_DATA,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_ZEROWINDOW: TCP receive window size is zero,
 	 * see LINUX_MIB_TCPZEROWINDOWDROP
 	 */
 	SKB_DROP_REASON_TCP_ZEROWINDOW,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_OLD_DATA: the TCP data received is already
 	 * received before (spurious retrans may happened), see
 	 * LINUX_MIB_DELAYEDACKLOST
 	 */
 	SKB_DROP_REASON_TCP_OLD_DATA,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_OVERWINDOW: the TCP data is out of window,
 	 * the seq of the first byte exceed the right edges of receive
 	 * window
 	 */
 	SKB_DROP_REASON_TCP_OVERWINDOW,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_OFOMERGE: the data of skb is already in the ofo
 	 * queue, corresponding to LINUX_MIB_TCPOFOMERGE
 	 */
 	SKB_DROP_REASON_TCP_OFOMERGE,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_RFC7323_PAWS: PAWS check, corresponding to
 	 * LINUX_MIB_PAWSESTABREJECTED, LINUX_MIB_PAWSACTIVEREJECTED
 	 */
 	SKB_DROP_REASON_TCP_RFC7323_PAWS,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_RFC7323_PAWS_ACK: PAWS check, old ACK packet.
 	 * Corresponds to LINUX_MIB_PAWS_OLD_ACK.
 	 */
 	SKB_DROP_REASON_TCP_RFC7323_PAWS_ACK,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_RFC7323_TW_PAWS: PAWS check, socket is in
 	 * TIME_WAIT state.
 	 * Corresponds to LINUX_MIB_PAWS_TW_REJECTED.
 	 */
 	SKB_DROP_REASON_TCP_RFC7323_TW_PAWS,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_RFC7323_TSECR: PAWS check, invalid TSEcr.
 	 * Corresponds to LINUX_MIB_TSECRREJECTED.
 	 */
 	SKB_DROP_REASON_TCP_RFC7323_TSECR,
-	/** @SKB_DROP_REASON_TCP_LISTEN_OVERFLOW: listener queue full. */
+	/* @SKB_DROP_REASON_TCP_LISTEN_OVERFLOW: listener queue full. */
 	SKB_DROP_REASON_TCP_LISTEN_OVERFLOW,
-	/** @SKB_DROP_REASON_TCP_OLD_SEQUENCE: Old SEQ field (duplicate packet) */
+	/* @SKB_DROP_REASON_TCP_OLD_SEQUENCE: Old SEQ field (duplicate packet) */
 	SKB_DROP_REASON_TCP_OLD_SEQUENCE,
-	/** @SKB_DROP_REASON_TCP_INVALID_SEQUENCE: Not acceptable SEQ field. */
+	/* @SKB_DROP_REASON_TCP_INVALID_SEQUENCE: Not acceptable SEQ field. */
 	SKB_DROP_REASON_TCP_INVALID_SEQUENCE,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_INVALID_END_SEQUENCE:
 	 * Not acceptable END_SEQ field.
 	 * Corresponds to LINUX_MIB_BEYOND_WINDOW.
 	 */
 	SKB_DROP_REASON_TCP_INVALID_END_SEQUENCE,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_INVALID_ACK_SEQUENCE: Not acceptable ACK SEQ
 	 * field because ack sequence is not in the window between snd_una
 	 * and snd_nxt
 	 */
 	SKB_DROP_REASON_TCP_INVALID_ACK_SEQUENCE,
-	/** @SKB_DROP_REASON_TCP_RESET: Invalid RST packet */
+	/* @SKB_DROP_REASON_TCP_RESET: Invalid RST packet */
 	SKB_DROP_REASON_TCP_RESET,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_INVALID_SYN: Incoming packet has unexpected
 	 * SYN flag
 	 */
 	SKB_DROP_REASON_TCP_INVALID_SYN,
-	/** @SKB_DROP_REASON_TCP_CLOSE: TCP socket in CLOSE state */
+	/* @SKB_DROP_REASON_TCP_CLOSE: TCP socket in CLOSE state */
 	SKB_DROP_REASON_TCP_CLOSE,
-	/** @SKB_DROP_REASON_TCP_FASTOPEN: dropped by FASTOPEN request socket */
+	/* @SKB_DROP_REASON_TCP_FASTOPEN: dropped by FASTOPEN request socket */
 	SKB_DROP_REASON_TCP_FASTOPEN,
-	/** @SKB_DROP_REASON_TCP_OLD_ACK: TCP ACK is old, but in window */
+	/* @SKB_DROP_REASON_TCP_OLD_ACK: TCP ACK is old, but in window */
 	SKB_DROP_REASON_TCP_OLD_ACK,
-	/** @SKB_DROP_REASON_TCP_TOO_OLD_ACK: TCP ACK is too old */
+	/* @SKB_DROP_REASON_TCP_TOO_OLD_ACK: TCP ACK is too old */
 	SKB_DROP_REASON_TCP_TOO_OLD_ACK,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_ACK_UNSENT_DATA: TCP ACK for data we haven't
 	 * sent yet
 	 */
 	SKB_DROP_REASON_TCP_ACK_UNSENT_DATA,
-	/** @SKB_DROP_REASON_TCP_OFO_QUEUE_PRUNE: pruned from TCP OFO queue */
+	/* @SKB_DROP_REASON_TCP_OFO_QUEUE_PRUNE: pruned from TCP OFO queue */
 	SKB_DROP_REASON_TCP_OFO_QUEUE_PRUNE,
-	/** @SKB_DROP_REASON_TCP_OFO_DROP: data already in receive queue */
+	/* @SKB_DROP_REASON_TCP_OFO_DROP: data already in receive queue */
 	SKB_DROP_REASON_TCP_OFO_DROP,
-	/** @SKB_DROP_REASON_IP_OUTNOROUTES: route lookup failed */
+	/* @SKB_DROP_REASON_IP_OUTNOROUTES: route lookup failed */
 	SKB_DROP_REASON_IP_OUTNOROUTES,
-	/**
+	/*
 	 * @SKB_DROP_REASON_BPF_CGROUP_EGRESS: dropped by BPF_PROG_TYPE_CGROUP_SKB
 	 * eBPF program
 	 */
 	SKB_DROP_REASON_BPF_CGROUP_EGRESS,
-	/** @SKB_DROP_REASON_IPV6DISABLED: IPv6 is disabled on the device */
+	/* @SKB_DROP_REASON_IPV6DISABLED: IPv6 is disabled on the device */
 	SKB_DROP_REASON_IPV6DISABLED,
-	/** @SKB_DROP_REASON_NEIGH_CREATEFAIL: failed to create neigh entry */
+	/* @SKB_DROP_REASON_NEIGH_CREATEFAIL: failed to create neigh entry */
 	SKB_DROP_REASON_NEIGH_CREATEFAIL,
-	/** @SKB_DROP_REASON_NEIGH_FAILED: neigh entry in failed state */
+	/* @SKB_DROP_REASON_NEIGH_FAILED: neigh entry in failed state */
 	SKB_DROP_REASON_NEIGH_FAILED,
-	/** @SKB_DROP_REASON_NEIGH_QUEUEFULL: arp_queue for neigh entry is full */
+	/* @SKB_DROP_REASON_NEIGH_QUEUEFULL: arp_queue for neigh entry is full */
 	SKB_DROP_REASON_NEIGH_QUEUEFULL,
-	/** @SKB_DROP_REASON_NEIGH_DEAD: neigh entry is dead */
+	/* @SKB_DROP_REASON_NEIGH_DEAD: neigh entry is dead */
 	SKB_DROP_REASON_NEIGH_DEAD,
-	/** @SKB_DROP_REASON_NEIGH_HH_FILLFAIL: failed to fill the device hard header */
+	/* @SKB_DROP_REASON_NEIGH_HH_FILLFAIL: failed to fill the device hard header */
 	SKB_DROP_REASON_NEIGH_HH_FILLFAIL,
-	/** @SKB_DROP_REASON_TC_EGRESS: dropped in TC egress HOOK */
+	/* @SKB_DROP_REASON_TC_EGRESS: dropped in TC egress HOOK */
 	SKB_DROP_REASON_TC_EGRESS,
-	/** @SKB_DROP_REASON_SECURITY_HOOK: dropped due to security HOOK */
+	/* @SKB_DROP_REASON_SECURITY_HOOK: dropped due to security HOOK */
 	SKB_DROP_REASON_SECURITY_HOOK,
-	/**
+	/*
 	 * @SKB_DROP_REASON_QDISC_DROP: dropped by qdisc when packet outputting (
 	 * failed to enqueue to current qdisc)
 	 */
 	SKB_DROP_REASON_QDISC_DROP,
-	/**
+	/*
 	 * @SKB_DROP_REASON_QDISC_BURST_DROP: dropped when net.core.qdisc_max_burst
 	 * limit is hit.
 	 */
 	SKB_DROP_REASON_QDISC_BURST_DROP,
-	/**
+	/*
 	 * @SKB_DROP_REASON_QDISC_OVERLIMIT: dropped by qdisc when a qdisc
 	 * instance exceeds its total buffer size limit.
 	 */
 	SKB_DROP_REASON_QDISC_OVERLIMIT,
-	/**
+	/*
 	 * @SKB_DROP_REASON_QDISC_CONGESTED: dropped by a qdisc AQM algorithm
 	 * due to congestion.
 	 */
 	SKB_DROP_REASON_QDISC_CONGESTED,
-	/**
+	/*
 	 * @SKB_DROP_REASON_CAKE_FLOOD: dropped by the flood protection part of
 	 * CAKE qdisc AQM algorithm (BLUE).
 	 */
 	SKB_DROP_REASON_CAKE_FLOOD,
-	/**
+	/*
 	 * @SKB_DROP_REASON_FQ_BAND_LIMIT: dropped by fq qdisc when per band
 	 * limit is reached.
 	 */
 	SKB_DROP_REASON_FQ_BAND_LIMIT,
-	/**
+	/*
 	 * @SKB_DROP_REASON_FQ_HORIZON_LIMIT: dropped by fq qdisc when packet
 	 * timestamp is too far in the future.
 	 */
 	SKB_DROP_REASON_FQ_HORIZON_LIMIT,
-	/**
+	/*
 	 * @SKB_DROP_REASON_FQ_FLOW_LIMIT: dropped by fq qdisc when a flow
 	 * exceeds its limits.
 	 */
 	SKB_DROP_REASON_FQ_FLOW_LIMIT,
-	/**
+	/*
 	 * @SKB_DROP_REASON_CPU_BACKLOG: failed to enqueue the skb to the per CPU
 	 * backlog queue. This can be caused by backlog queue full (see
 	 * netdev_max_backlog in net.rst) or RPS flow limit
 	 */
 	SKB_DROP_REASON_CPU_BACKLOG,
-	/** @SKB_DROP_REASON_XDP: dropped by XDP in input path */
+	/* @SKB_DROP_REASON_XDP: dropped by XDP in input path */
 	SKB_DROP_REASON_XDP,
-	/** @SKB_DROP_REASON_TC_INGRESS: dropped in TC ingress HOOK */
+	/* @SKB_DROP_REASON_TC_INGRESS: dropped in TC ingress HOOK */
 	SKB_DROP_REASON_TC_INGRESS,
-	/** @SKB_DROP_REASON_UNHANDLED_PROTO: protocol not implemented or not supported */
+	/* @SKB_DROP_REASON_UNHANDLED_PROTO: protocol not implemented or not supported */
 	SKB_DROP_REASON_UNHANDLED_PROTO,
-	/** @SKB_DROP_REASON_SKB_CSUM: sk_buff checksum computation error */
+	/* @SKB_DROP_REASON_SKB_CSUM: sk_buff checksum computation error */
 	SKB_DROP_REASON_SKB_CSUM,
-	/** @SKB_DROP_REASON_SKB_GSO_SEG: gso segmentation error */
+	/* @SKB_DROP_REASON_SKB_GSO_SEG: gso segmentation error */
 	SKB_DROP_REASON_SKB_GSO_SEG,
-	/**
+	/*
 	 * @SKB_DROP_REASON_SKB_UCOPY_FAULT: failed to copy data from user space,
 	 * e.g., via zerocopy_sg_from_iter() or skb_orphan_frags_rx()
 	 */
 	SKB_DROP_REASON_SKB_UCOPY_FAULT,
-	/** @SKB_DROP_REASON_DEV_HDR: device driver specific header/metadata is invalid */
+	/* @SKB_DROP_REASON_DEV_HDR: device driver specific header/metadata is invalid */
 	SKB_DROP_REASON_DEV_HDR,
-	/**
+	/*
 	 * @SKB_DROP_REASON_DEV_READY: the device is not ready to xmit/recv due to
 	 * any of its data structure that is not up/ready/initialized,
 	 * e.g., the IFF_UP is not set, or driver specific tun->tfiles[txq]
 	 * is not initialized
 	 */
 	SKB_DROP_REASON_DEV_READY,
-	/** @SKB_DROP_REASON_FULL_RING: ring buffer is full */
+	/* @SKB_DROP_REASON_FULL_RING: ring buffer is full */
 	SKB_DROP_REASON_FULL_RING,
-	/** @SKB_DROP_REASON_NOMEM: error due to OOM */
+	/* @SKB_DROP_REASON_NOMEM: error due to OOM */
 	SKB_DROP_REASON_NOMEM,
-	/**
+	/*
 	 * @SKB_DROP_REASON_HDR_TRUNC: failed to trunc/extract the header from
 	 * networking data, e.g., failed to pull the protocol header from
 	 * frags via pskb_may_pull()
 	 */
 	SKB_DROP_REASON_HDR_TRUNC,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TAP_FILTER: dropped by (ebpf) filter directly attached
 	 * to tun/tap, e.g., via TUNSETFILTEREBPF
 	 */
 	SKB_DROP_REASON_TAP_FILTER,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TAP_TXFILTER: dropped by tx filter implemented at
 	 * tun/tap, e.g., check_filter()
 	 */
 	SKB_DROP_REASON_TAP_TXFILTER,
-	/** @SKB_DROP_REASON_ICMP_CSUM: ICMP checksum error */
+	/* @SKB_DROP_REASON_ICMP_CSUM: ICMP checksum error */
 	SKB_DROP_REASON_ICMP_CSUM,
-	/**
+	/*
 	 * @SKB_DROP_REASON_INVALID_PROTO: the packet doesn't follow RFC 2211,
 	 * such as a broadcasts ICMP_TIMESTAMP
 	 */
 	SKB_DROP_REASON_INVALID_PROTO,
-	/**
+	/*
 	 * @SKB_DROP_REASON_IP_INADDRERRORS: host unreachable, corresponding to
 	 * IPSTATS_MIB_INADDRERRORS
 	 */
 	SKB_DROP_REASON_IP_INADDRERRORS,
-	/**
+	/*
 	 * @SKB_DROP_REASON_IP_INNOROUTES: network unreachable, corresponding to
 	 * IPSTATS_MIB_INADDRERRORS
 	 */
 	SKB_DROP_REASON_IP_INNOROUTES,
-	/** @SKB_DROP_REASON_IP_LOCAL_SOURCE: the source ip is local */
+	/* @SKB_DROP_REASON_IP_LOCAL_SOURCE: the source ip is local */
 	SKB_DROP_REASON_IP_LOCAL_SOURCE,
-	/**
+	/*
 	 * @SKB_DROP_REASON_IP_INVALID_SOURCE: the source ip is invalid:
 	 * 1) source ip is multicast or limited broadcast
 	 * 2) source ip is zero and not IGMP
 	 */
 	SKB_DROP_REASON_IP_INVALID_SOURCE,
-	/** @SKB_DROP_REASON_IP_LOCALNET: source or dest ip is local net */
+	/* @SKB_DROP_REASON_IP_LOCALNET: source or dest ip is local net */
 	SKB_DROP_REASON_IP_LOCALNET,
-	/**
+	/*
 	 * @SKB_DROP_REASON_IP_INVALID_DEST: the dest ip is invalid:
 	 * 1) dest ip is 0
 	 */
 	SKB_DROP_REASON_IP_INVALID_DEST,
-	/**
+	/*
 	 * @SKB_DROP_REASON_PKT_TOO_BIG: packet size is too big (maybe exceed the
 	 * MTU)
 	 */
 	SKB_DROP_REASON_PKT_TOO_BIG,
-	/** @SKB_DROP_REASON_DUP_FRAG: duplicate fragment */
+	/* @SKB_DROP_REASON_DUP_FRAG: duplicate fragment */
 	SKB_DROP_REASON_DUP_FRAG,
-	/** @SKB_DROP_REASON_FRAG_REASM_TIMEOUT: fragment reassembly timeout */
+	/* @SKB_DROP_REASON_FRAG_REASM_TIMEOUT: fragment reassembly timeout */
 	SKB_DROP_REASON_FRAG_REASM_TIMEOUT,
-	/**
+	/*
 	 * @SKB_DROP_REASON_FRAG_TOO_FAR: ipv4 fragment too far.
 	 * (/proc/sys/net/ipv4/ipfrag_max_dist)
 	 */
 	SKB_DROP_REASON_FRAG_TOO_FAR,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TCP_MINTTL: ipv4 ttl or ipv6 hoplimit below
 	 * the threshold (IP_MINTTL or IPV6_MINHOPCOUNT).
 	 */
 	SKB_DROP_REASON_TCP_MINTTL,
-	/** @SKB_DROP_REASON_IPV6_BAD_EXTHDR: Bad IPv6 extension header. */
+	/* @SKB_DROP_REASON_IPV6_BAD_EXTHDR: Bad IPv6 extension header. */
 	SKB_DROP_REASON_IPV6_BAD_EXTHDR,
-	/** @SKB_DROP_REASON_IPV6_NDISC_FRAG: invalid frag (suppress_frag_ndisc). */
+	/* @SKB_DROP_REASON_IPV6_NDISC_FRAG: invalid frag (suppress_frag_ndisc). */
 	SKB_DROP_REASON_IPV6_NDISC_FRAG,
-	/** @SKB_DROP_REASON_IPV6_NDISC_HOP_LIMIT: invalid hop limit. */
+	/* @SKB_DROP_REASON_IPV6_NDISC_HOP_LIMIT: invalid hop limit. */
 	SKB_DROP_REASON_IPV6_NDISC_HOP_LIMIT,
-	/** @SKB_DROP_REASON_IPV6_NDISC_BAD_CODE: invalid NDISC icmp6 code. */
+	/* @SKB_DROP_REASON_IPV6_NDISC_BAD_CODE: invalid NDISC icmp6 code. */
 	SKB_DROP_REASON_IPV6_NDISC_BAD_CODE,
-	/** @SKB_DROP_REASON_IPV6_NDISC_BAD_OPTIONS: invalid NDISC options. */
+	/* @SKB_DROP_REASON_IPV6_NDISC_BAD_OPTIONS: invalid NDISC options. */
 	SKB_DROP_REASON_IPV6_NDISC_BAD_OPTIONS,
-	/**
+	/*
 	 * @SKB_DROP_REASON_IPV6_NDISC_NS_OTHERHOST: NEIGHBOUR SOLICITATION
 	 * for another host.
 	 */
 	SKB_DROP_REASON_IPV6_NDISC_NS_OTHERHOST,
-	/** @SKB_DROP_REASON_QUEUE_PURGE: bulk free. */
+	/* @SKB_DROP_REASON_QUEUE_PURGE: bulk free. */
 	SKB_DROP_REASON_QUEUE_PURGE,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TC_COOKIE_ERROR: An error occurred whilst
 	 * processing a tc ext cookie.
 	 */
 	SKB_DROP_REASON_TC_COOKIE_ERROR,
-	/**
+	/*
 	 * @SKB_DROP_REASON_PACKET_SOCK_ERROR: generic packet socket errors
 	 * after its filter matches an incoming packet.
 	 */
 	SKB_DROP_REASON_PACKET_SOCK_ERROR,
-	/** @SKB_DROP_REASON_TC_CHAIN_NOTFOUND: tc chain lookup failed. */
+	/* @SKB_DROP_REASON_TC_CHAIN_NOTFOUND: tc chain lookup failed. */
 	SKB_DROP_REASON_TC_CHAIN_NOTFOUND,
-	/**
+	/*
 	 * @SKB_DROP_REASON_TC_RECLASSIFY_LOOP: tc exceeded max reclassify loop
 	 * iterations.
 	 */
@@ -814,7 +814,6 @@ struct sk_buff_head {
                 struct sk_buff  *next;
                 struct sk_buff  *prev;
         );
-
         __u32           qlen;
 };
 
@@ -872,23 +871,26 @@ static inline unsigned char *skb_tail_pointer(const struct sk_buff *skb){
 }
 
 static inline void *__skb_put(struct sk_buff *skb, unsigned int len){
-	void *tmp = skb_tail_pointer(skb);
+	void *tmp = NULL;
 
+	tmp = skb_tail_pointer(skb);
 	skb->tail += len;
 	skb->len  += len;
 	return tmp;
 }
 
 static inline void *__skb_put_zero(struct sk_buff *skb, unsigned int len){
-	void *tmp = __skb_put(skb, len);
+	void *tmp = NULL;
 
+	tmp = __skb_put(skb, len);
 	memset(tmp, 0, len);
 	return tmp;
 }
 
 static inline void *__skb_put_data(struct sk_buff *skb, const void *data, unsigned int len){
-	void *tmp = __skb_put(skb, len);
+	void *tmp = NULL;
 
+	tmp = __skb_put(skb, len);
 	memcpy(tmp, data, len);
 	return tmp;
 }
@@ -898,15 +900,17 @@ static inline void __skb_put_u8(struct sk_buff *skb, u8 val){
 }
 
 static inline void *skb_put_zero(struct sk_buff *skb, unsigned int len){
-	void *tmp = skb_put(skb, len);
+	void *tmp = NULL;
 
+	tmp = skb_put(skb, len);
 	memset(tmp, 0, len);
 	return tmp;
 }
 
 static inline void *skb_put_data(struct sk_buff *skb, const void *data,  unsigned int len){
-	void *tmp = skb_put(skb, len);
+	void *tmp = NULL;
 
+	tmp = skb_put(skb, len);
 	memcpy(tmp, data, len);
 	return tmp;
 }
@@ -933,6 +937,7 @@ static inline void skb_copy_to_linear_data_offset(struct sk_buff *skb, const int
 
 static inline int __pskb_trim(struct sk_buff *skb, unsigned int len){
 	int ret = 0;
+
 	if (skb->data_len){
 		ret = ___pskb_trim(skb, len);
 		return ret;
@@ -961,10 +966,13 @@ static inline bool skb_pfmemalloc(const struct sk_buff *skb){
 }
 
 static inline int skb_alloc_rx_flag(const struct sk_buff *skb){
+	int ret = 0;
+
 	if (skb_pfmemalloc(skb)){
-		return SKB_ALLOC_RX;
+		ret = SKB_ALLOC_RX;
+		return ret;
 	}
-	return 0;
+	return ret;
 }
 
 /*
@@ -1037,7 +1045,7 @@ static inline void skb_frag_off_copy(skb_frag_t *fragto, const skb_frag_t *fragf
 	fragto->offset = fragfrom->offset;
 }
 
-/**
+/*
  *	skb_peek - peek at the head of an &sk_buff_head
  *	@list_: list to peek at
  *
@@ -1051,8 +1059,9 @@ static inline void skb_frag_off_copy(skb_frag_t *fragto, const skb_frag_t *fragf
  *	volatile. Use with caution.
  */
 static inline struct sk_buff *skb_peek(const struct sk_buff_head *list_){
-	struct sk_buff *skb = list_->next;
+	struct sk_buff *skb = NULL;
 
+	skb = list_->next;
 	if (skb == (struct sk_buff *)list_){
 		skb = NULL;
 	}
@@ -1060,26 +1069,26 @@ static inline struct sk_buff *skb_peek(const struct sk_buff_head *list_){
 }
 
 static inline unsigned int skb_tail_offset(const struct sk_buff *skb){
-#if BITS_PER_LONG > 32
+	#if BITS_PER_LONG > 32
 	return skb->tail;
-#else
+	#else
 	return (unsigned int)(skb->tail - skb->head);
-#endif
+	#endif
 }
 
 static inline void skb_set_tail_offset(struct sk_buff *skb, unsigned int tail){
-#if BITS_PER_LONG > 32
+	#if BITS_PER_LONG > 32
 	skb->tail = tail;
-#else
+	#else
 	skb->tail = skb->head + tail;
-#endif
+	#endif
 }
 
 static inline unsigned char *skb_end_pointer(const struct sk_buff *skb){
 	#if BITS_PER_LONG > 32
-		return skb->head + skb->end;
+	return skb->head + skb->end;
 	#else
-		return skb->end;
+	return skb->end;
 	#endif
 }
 
@@ -1100,7 +1109,7 @@ static inline void skb_set_tail_pointer(struct sk_buff *skb, const int offset){
 	#endif
 }
 
-/**
+/*
  *	__skb_peek - peek at the head of a non-empty &sk_buff_head
  *	@list_: list to peek at
  *
@@ -1126,7 +1135,7 @@ static inline void skb_set_end_offset(struct sk_buff *skb, unsigned int offset){
 	#endif
 }
 
-/**
+/*
  *      skb_get - reference buffer
  *      @skb: buffer to reference
  *
@@ -1158,7 +1167,7 @@ static void skb_clone_fraglist(struct sk_buff *skb){
  * If users == 1, we are the only owner and can avoid redundant atomic changes.
  */
 
-/**
+/*
  *	skb_cloned - is the buffer a clone
  *	@skb: buffer to check
  *
@@ -1176,6 +1185,7 @@ static inline int skb_cloned(const struct sk_buff *skb){
 
 static inline int skb_unclone(struct sk_buff *skb, int pri){
 	int ret = 0;
+
 	if (skb_cloned(skb)){
 		ret = pskb_expand_head(skb, 0, 0, pri);
 		return ret;
@@ -1194,7 +1204,10 @@ static void skb_kfree_head(void *head, unsigned int end_offset){
 }
 
 static void skb_free_head(struct sk_buff *skb){
-	unsigned char *head = skb->head;
+	unsigned char *head = NULL;
+
+	head = skb->head;
+	/* for now don't implement this code */
 	#if 0
 	if (skb->head_frag) {
 		if (skb_pp_recycle(skb, head)){
@@ -1207,7 +1220,7 @@ static void skb_free_head(struct sk_buff *skb){
 	#endif
 }
 
-/**
+/*
  *	skb_peek_next - peek skb following the given one from a queue
  *	@skb: skb to start from
  *	@list_: list to peek at
@@ -1226,7 +1239,7 @@ static inline struct sk_buff *skb_peek_next(struct sk_buff *skb, const struct sk
 	return next;
 }
 
-/**
+/*
  *	skb_peek_tail - peek at the tail of an &sk_buff_head
  *	@list_: list to peek at
  *
@@ -1249,7 +1262,7 @@ static inline struct sk_buff *skb_peek_tail(const struct sk_buff_head *list_){
 
 }
 
-/**
+/*
  *	skb_queue_len	- get queue length
  *	@list_: list to measure
  *
@@ -1259,7 +1272,7 @@ static inline __u32 skb_queue_len(const struct sk_buff_head *list_){
 	return list_->qlen;
 }
 
-/**
+/*
  *	skb_queue_len_lockless	- get queue length
  *	@list_: list to measure
  *
@@ -1270,7 +1283,7 @@ static inline __u32 skb_queue_len_lockless(const struct sk_buff_head *list_){
 	return READ_ONCE(list_->qlen);
 }
 
-/**
+/*
  *	__skb_queue_head_init - initialize non-spinlock portions of sk_buff_head
  *	@list: queue to initialize
  *
@@ -1297,7 +1310,7 @@ static inline void skb_queue_head_init(struct sk_buff_head *list){
 	__skb_queue_head_init(list);
 }
 
-/**
+/*
  *	skb_queue_empty - check if a queue is empty
  *	@list: queue head
  *
@@ -1307,7 +1320,7 @@ static inline int skb_queue_empty(const struct sk_buff_head *list){
 	return list->next == (const struct sk_buff *) list;
 }
 
-/**
+/*
  *	skb_queue_empty_lockless - check if a queue is empty
  *	@list: queue head
  *
@@ -1356,7 +1369,7 @@ static inline void skb_list_del_init(struct sk_buff *skb){
 	skb_mark_not_on_list(skb);
 }
 
-/**
+/*
  *	skb_headroom - bytes at buffer head
  *	@skb: buffer to check
  *
@@ -1374,7 +1387,7 @@ static inline unsigned char *skb_checksum_start(const struct sk_buff *skb){
 	return skb->head + skb->csum_start;
 }
 
-/**
+/*
  *	skb_tailroom - bytes at buffer end
  *	@skb: buffer to check
  *
@@ -1384,7 +1397,7 @@ static inline int skb_tailroom(const struct sk_buff *skb){
 	return skb_is_nonlinear(skb) ? 0 : skb->end - skb->tail;
 }
 
-/**
+/*
  *	skb_availroom - bytes at buffer end
  *	@skb: buffer to check
  *
@@ -1392,13 +1405,16 @@ static inline int skb_tailroom(const struct sk_buff *skb){
  *	allocated by sk_stream_alloc()
  */
 static inline int skb_availroom(const struct sk_buff *skb){
+	int ret = 0;
+
 	if (skb_is_nonlinear(skb)){
-		return 0;
+		return ret;
 	}
-	return skb->end - skb->tail - skb->reserved_tailroom;
+	ret = skb->end - skb->tail - skb->reserved_tailroom;
+	return ret;
 }
 
-/**
+/*
  *	skb_reserve - adjust headroom
  *	@skb: buffer to alter
  *	@len: bytes to move
@@ -1411,7 +1427,7 @@ static inline void skb_reserve(struct sk_buff *skb, int len){
 	skb->tail += len;
 }
 
-/**
+/*
  *      __skb_queue_after - queue a buffer at the list head
  *      @list: list to use
  *      @prev: place after this buffer
@@ -1448,6 +1464,7 @@ static inline void __skb_unlink(struct sk_buff *skb, struct sk_buff_head *list){
 
 static inline struct sk_buff *__skb_dequeue(struct sk_buff_head *list){
 	struct sk_buff *skb = list->next;
+
 	if (skb == (struct sk_buff *)list){
 		return NULL;
 	}
@@ -1457,6 +1474,7 @@ static inline struct sk_buff *__skb_dequeue(struct sk_buff_head *list){
 
 static inline struct sk_buff *__skb_dequeue_tail(struct sk_buff_head *list){
 	struct sk_buff *skb = list->prev;
+
 	if (skb == (struct sk_buff *)list){
 		return NULL;
 	}
@@ -1465,7 +1483,8 @@ static inline struct sk_buff *__skb_dequeue_tail(struct sk_buff_head *list){
 }
 
 static void skb_panic(struct sk_buff *skb, unsigned int sz, void *addr, const char msg[]){
-	printf("%s: text:%px len:%d put:%d head:%px data:%px tail:%#lx end:%#lx dev:%s\n",
+	#ifdef ENABLE_DBG_PRINT
+	printf("[!] %s: text:%px len:%d put:%d head:%px data:%px tail:%#lx end:%#lx dev:%s\n",
 		msg,
 		addr,
 		skb->len,
@@ -1476,6 +1495,7 @@ static void skb_panic(struct sk_buff *skb, unsigned int sz, void *addr, const ch
 		(unsigned long)skb->end,
 		"<NULL>"
 	);
+	#endif
 }
 
 static void skb_over_panic(struct sk_buff *skb, unsigned int sz, void *addr){
@@ -1483,12 +1503,15 @@ static void skb_over_panic(struct sk_buff *skb, unsigned int sz, void *addr){
 }
 
 static void skb_under_panic(struct sk_buff *skb, unsigned int sz, void *addr){
+	#ifdef ENABLE_DBG_PRINT
 	printf("[!!] detected skb panic!...\n");
+	#endif
 	skb_panic(skb, sz, addr, __func__);
 }
 
 static inline bool skb_unref(struct sk_buff *skb){
 	int ret = 0;
+
 	if (unlikely(skb == NULL)){
 		ret = false;
 		return ret;
@@ -1738,7 +1761,7 @@ static inline void __skb_queue_splice(const struct sk_buff_head *list, struct sk
 	WRITE_ONCE(skb_list_prev(next), last);
 }
 
-/**
+/*
  *	skb_queue_splice_init - join two skb lists and reinitialise the emptied list
  *	@list: the new list to add
  *	@head: the place to add it in the first list
@@ -1753,7 +1776,7 @@ static inline void skb_queue_splice_init(struct sk_buff_head *list, struct sk_bu
 	}
 }
 
-/**
+/*
  *	skb_queue_splice_tail - join two skb lists, each list being a queue
  *	@list: the new list to add
  *	@head: the place to add it in the first list
@@ -1769,7 +1792,7 @@ static inline void kfree_skb_reason(struct sk_buff *skb, int reason){
 	sk_skb_reason_drop(NULL, skb, reason);
 }
 
-/**
+/*
  *	__skb_queue_purge_reason - empty a list
  *	@list: list to empty
  *	@reason: drop reason
@@ -1860,7 +1883,7 @@ static inline void skb_zcopy_clear(struct sk_buff *skb, bool zerocopy_success){
 	}
 }
 
-/**
+/*
  *	skb_orphan - orphan a buffer
  *	@skb: buffer to orphan
  *
@@ -1879,7 +1902,7 @@ static inline void skb_orphan(struct sk_buff *skb){
 	}
 }
 
-/**
+/*
  *	skb_orphan_frags - orphan the frags contained in a buffer
  *	@skb: buffer to orphan frags from
  *	@gfp_mask: allocation mask for replacement pages
@@ -1906,7 +1929,7 @@ static inline int skb_orphan_frags_rx(struct sk_buff *skb, int gfp_mask){
 	return skb_copy_ubufs(skb, gfp_mask);
 }
 
-/**
+/*
  * skb_frag_page - retrieve the page referred to by a paged fragment
  * @frag: the paged fragment
  *
@@ -1916,7 +1939,7 @@ static inline void *skb_frag_page(const skb_frag_t *frag){
 	return frag->netmem;
 }
 
-/**
+/*
  * skb_frag_netmem - retrieve the netmem referred to by a fragment
  * @frag: the fragment
  *
@@ -1931,7 +1954,7 @@ static inline void skb_fill_netmem_desc(struct sk_buff *skb, int i, netmem_ref n
 	skb_shinfo(skb)->nr_frags = i + 1;
 }
 
-/**
+/*
  * __skb_frag_ref - take an addition reference on a paged fragment.
  * @frag: the paged fragment
  *
@@ -1941,7 +1964,7 @@ static inline void __skb_frag_ref(skb_frag_t *frag){
 	get_netmem(skb_frag_netmem(frag));
 }
 
-/**
+/*
  * skb_frag_ref - take an addition reference on a paged fragment of an skb.
  * @skb: the buffer
  * @f: the fragment offset.

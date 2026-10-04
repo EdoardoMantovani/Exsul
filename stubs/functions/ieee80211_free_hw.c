@@ -7,12 +7,15 @@ void ieee80211_free_hw(struct ieee80211_hw *hw){
 	if(local == NULL){
 		goto end;
 	}
+	if (wifi_connection_stop(local))
+		goto end;
 	wiphy = local->wiphy;
 	if(wiphy == NULL){
 		goto free_local;
 	}
 
 	sta_info_stop(local);
+	connection_free_retired();
 	while (!list_empty(&local->interfaces)) {
 		sdata = list_first_entry(&local->interfaces, struct ieee80211_sub_if_data, list);
 		list_del_rcu(&sdata->list);

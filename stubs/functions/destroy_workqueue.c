@@ -8,7 +8,7 @@ void destroy_workqueue(struct workqueue_struct *wq){
 	if(wq == NULL){
 		goto out;
 	}
-	if(wq == &director.system_wq || wq == &director.system_dfl_wq || wq == &director.system_freezable_wq){
+	if(wq == &director.system_wq || wq == &director.system_percpu_wq || wq == &director.system_dfl_wq || wq == &director.system_freezable_wq){
 		free_wq = false;
 	}
 

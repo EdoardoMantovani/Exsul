@@ -33,12 +33,6 @@ struct usb_host_config;
 
 struct net_device;
 
-struct notifier_block {
-	int (*notifier_call)(struct notifier_block *nb, unsigned long action, void *data);
-	struct notifier_block *next;
-	int priority;
-};
-
 struct sock;
 struct rfkill;
 struct device;

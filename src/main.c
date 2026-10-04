@@ -10,6 +10,10 @@ static unsigned int native_cb_entries;
 #include <arm64/arm64.h>
 #include <x86_64/x86_64.h>
 
+/* headers for the fuzzer API (if enabled during compilation) and the standalone ELF/PE API */
+#include <fuzzer.h>
+#include <standalone.h>
+
 /* structures and definitions used for representing the command table used by the main program. */
 enum {
 	DRV_CMD_EXIT,
@@ -43,45 +47,6 @@ struct exsul_protocol_hdr {
         u8 len_hi;
         u16 len;
 };
-
-/* APIs used by the standalone ELF scripting system */
-void *get_director(void){
-	return &director;
-}
-
-void *get_ieee80211_local(void){
-	return director.ieee80211_local;
-}
-
-void *get_wiphy(void){
-	return director.wiphy;
-}
-
-void *get_wireless_dev(void){
-	return director.wdev;
-}
-
-void *get_net_device(void){
-	return director.net_device;
-}
-
-/* get_ieee80211_hw: used in the standalone ELF api for getting the pointer of the struct 'ieee80211_hw' used in the module */
-void *get_ieee80211_hw(void){
-	if(director.ieee80211_local == NULL){
-		return NULL;
-	}
-	return director.ieee80211_local->ieee80211_hw;
-}
-
-void *get_ieee80211_priv_data(void){
-	void *hw = NULL;
-
-	hw = get_ieee80211_hw();
-	if(hw == NULL){
-		return NULL;
-	}
-	return ieee80211_priv(hw);
-}
 
 void track_skb_alloc(struct sk_buff *skb){
 	struct tracked_skb_alloc *node = NULL;
@@ -240,14 +205,6 @@ void free_tracked_kmem_allocs(void){
 			director.kmem_array[i] = NULL;
 		}
 	}
-}
-
-/* skb_get_data: API function for the standalone ELF which permits to get the 'data' field fo the 'skb', not possible from the tcc scripting environment */
-void *skb_get_data(struct sk_buff *skb){
-	if(skb == NULL){
-		return NULL;
-	}
-	return skb->data;
 }
 
 /* parse_module_usb_table: get the vid/pid entries from the loaded kernel object */
@@ -513,7 +470,22 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
                 ret = -ENOMEM;
                 goto fail_free_endpoints;
         }
-
+	/* allocate also 'usb_bus' */
+	if(director.struct_sizes.usb_bus <= 0){
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] usb_bus struct has size 0!\n");
+		#endif
+		/* ignore but it will lead to a crash if certain drivers are loaded */
+		ret = -EINVAL;
+	}
+	udev_ptr->bus = calloc(1, director.struct_sizes.usb_bus);
+	if(udev_ptr->bus == NULL){
+		#ifdef ENABLE_DBG_PRINT
+		printf("[!] failed to allocate usb_bus!\n");
+		#endif
+		ret = -ENOMEM;
+	}
+	/* get the usb device descriptor */
 	ret = libusb_get_device_descriptor(libusb_dev, &dev_desc);
 	if(ret == 0) {
 		udev_ptr->descriptor.bLength            = dev_desc.bLength;
@@ -787,6 +759,8 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 		*intf_out = usb_intf;
 		*matched_id_out = p;
 		director.usb_device_id = p;
+		atomic_store_explicit(&director.usb_device_lost, false,
+				      memory_order_release);
 		return ret;
 	}
 
@@ -833,7 +807,7 @@ static Dwarf_Unsigned dwarf_get_member_offset(Dwarf_Debug dbg, Dwarf_Die member_
 	if (dwarf_formudata(attr, &offset, &err) != DW_DLV_OK) {
 		if (dwarf_formexprloc(attr, &exprlen, &block, &err) == DW_DLV_OK && exprlen > 0 && block) {
 			if (block[0] == DW_OP_plus_uconst || block[0] == DW_OP_constu){
-				offset = read_uleb128(block + 1, (size_t)exprlen - 1);
+				offset = read_uleb128(block + 1, (int)exprlen - 1);
 			}
 		}
 	}
@@ -2718,6 +2692,10 @@ int initialize_director(struct module_controller *director, struct load_info **i
 		workqueue_init(&director->system_wq, "system_wq");
 		system_wq = &director->system_wq;
 	}
+	if(system_percpu_wq == NULL){
+		workqueue_init(&director->system_percpu_wq, "system_percpu_wq");
+		system_percpu_wq = &director->system_percpu_wq;
+	}
 	if(system_dfl_wq == NULL){
 		workqueue_init(&director->system_dfl_wq, "system_dfl_wq");
 		system_dfl_wq = &director->system_dfl_wq;
@@ -2743,6 +2721,7 @@ int initialize_director(struct module_controller *director, struct load_info **i
 	pthread_mutex_init(&director->skb_queue_lock, NULL);
 	/* initialize the scan lock */
 	pthread_mutex_init(&director->scan_cache_lock, NULL);
+	connection_runtime_init();
 	pthread_mutex_init(&director->wiphy_work_queue_mutex, NULL);
 	/* set to '0' the scan and rx_dump parameters */
 	atomic_store(&director->scan_generation, 0);
@@ -2773,6 +2752,11 @@ int initialize_director(struct module_controller *director, struct load_info **i
 
 /* finalize_director: clean everything allocated in the main controller */
 void finalize_director(void){
+	wifi_connection_stop(director.ieee80211_local);
+	#ifdef ENABLE_FUZZING
+	/* delete the urb queue used for fuzzing, not always initialized */
+	fuzz_assign_urb_cb(NULL);
+	#endif
 	#ifdef TCC_SCRIPTING
 	drv_shutdown_scripting();
 	#endif
@@ -2792,10 +2776,17 @@ void finalize_director(void){
 		director.libusb_event_thread = 0;
 	}
 	usb_runtime_exit();
+	#ifdef ENABLE_FUZZING
+	fuzz_runtime_destroy();
+	#endif
 	tasklet_subsystem_shutdown();
 	if(system_wq != NULL){
 		destroy_workqueue(system_wq);
 		system_wq = NULL;
+	}
+	if(system_percpu_wq != NULL){
+		destroy_workqueue(system_percpu_wq);
+		system_percpu_wq = NULL;
 	}
 	if(system_dfl_wq != NULL){
 		destroy_workqueue(system_dfl_wq);
@@ -2920,6 +2911,10 @@ int collect_sizes(struct module_controller *director){
         if(current_struct_size != director->struct_sizes.usb_interface && current_struct_size > 0){
                 director->struct_sizes.usb_interface = current_struct_size;
         }
+	current_struct_size = get_struct_size("usb_bus");
+	if(current_struct_size != director->struct_sizes.usb_bus && current_struct_size > 0){
+		director->struct_sizes.usb_bus = current_struct_size;
+	}
         current_struct_size = get_struct_size("device");
         if(current_struct_size != director->struct_sizes.device && current_struct_size > 0){
                 director->struct_sizes.device = current_struct_size;
@@ -2928,6 +2923,15 @@ int collect_sizes(struct module_controller *director){
         if(current_struct_size != director->struct_sizes.hci_dev && current_struct_size > 0){
                 director->struct_sizes.hci_dev = current_struct_size;
         }
+	current_struct_size = get_struct_size("cfg80211_chan_def");
+	if(current_struct_size != director->struct_sizes.cfg80211_chan_def && current_struct_size > 0){
+		director->struct_sizes.cfg80211_chan_def = current_struct_size;
+	}
+	current_struct_size = get_struct_size("ieee80211_chanctx_conf");
+	if(current_struct_size != director->struct_sizes.ieee80211_chanctx_conf && current_struct_size > 0){
+		director->struct_sizes.ieee80211_chanctx_conf = current_struct_size;
+	}
+	/* fallback method for 'skb_shared_info' */
         if(director->struct_sizes.skb_shared_info == 0){
                 director->struct_sizes.skb_shared_info = sizeof(struct skb_shared_info);
         }
@@ -3169,6 +3173,7 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 	struct ieee80211_vif *ieee80211_mon_vif = NULL;
 	int (*start)(struct ieee80211_hw *hw) = NULL;
 	void (*stop)(struct ieee80211_hw *hw, bool suspend) = NULL;
+	int (*suspend)(struct ieee80211_hw *hw, struct cfg80211_wowlan *wowlan) = NULL;
 	int (*add_interface)(struct ieee80211_hw *hw, struct ieee80211_vif *vif) = NULL;
 	void (*cancel_hw_scan)(struct ieee80211_hw *hw, struct ieee80211_vif *vif) = NULL;
 	void (*remove_interface)(struct ieee80211_hw *hw, struct ieee80211_vif *vif) = NULL;
@@ -3177,6 +3182,9 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 	void (*stop_ap)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_bss_conf *link_conf) = NULL;
 	int (*ampdu_action)(struct ieee80211_hw *hw, struct ieee80211_vif *vif, struct ieee80211_ampdu_params *params) = NULL;
 	void (*configure_filter)(struct ieee80211_hw *hw, unsigned int changed_flags, unsigned int *new_flags, u64 multicast) = NULL;
+	/* additional wowlan structs */
+	struct cfg80211_pkt_pattern wowlan_pattern = {};
+	u8 wowlan_packet[WOWLAN_MAGIC_PATTERN_LEN] = {};
 
 	/* for now use only 'ieee80211_ops' as reference */
 	ops = director.ieee80211_ops;
@@ -3200,9 +3208,28 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 		}
 	}
 	if(current_op == IEEE80211_STOP){
+		ret = wifi_connection_stop(local);
+		if (ret)
+			return ret;
 		stop = ops->stop;
 		if(stop != NULL){
 			stop(local->ieee80211_hw, false);
+		}
+	}
+	if(current_op == IEEE80211_SUSPEND){
+		suspend = ops->suspend;
+		if(suspend != NULL){
+			if(director.cfg80211_wowlan == NULL){
+				ret = build_wowlan_magic_pattern(local, &wowlan_pattern, wowlan_packet, sizeof(wowlan_packet));
+				if(ret != 0){
+					return ret;
+				}
+				ret = fill_cfg80211_wowlan(WOWLAN_MAGIC_PKT, &wowlan_pattern, 1, NULL);
+				if(ret != 0){
+					return ret;
+				}
+			}
+			ret = suspend(local->ieee80211_hw, director.cfg80211_wowlan);
 		}
 	}
 	if(current_op == IEEE80211_ADD_INTERFACE){
@@ -3230,13 +3257,19 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 				}
 				ieee80211_vif->cab_queue = IEEE80211_INVAL_HW_QUEUE;
 				rcu_assign_pointer(ieee80211_vif->link_conf[0], bss_conf);
-				ieee80211_vif->valid_links  |= BIT(0);
-				ieee80211_vif->active_links |= BIT(0);
+				ieee80211_vif->valid_links = 0;
+				ieee80211_vif->active_links = 0;
+				ret = bss_conf_init(ieee80211_hw, ieee80211_vif);
+				if (ret)
+					return ret;
 			}
 			ret = add_interface(local->ieee80211_hw, local->ieee80211_vif);
 		}
 	}
 	if(current_op == IEEE80211_REMOVE_INTERFACE){
+		ret = wifi_connection_stop(local);
+		if (ret)
+			return ret;
 		remove_interface = ops->remove_interface;
 		if(remove_interface != NULL){
 			if(local->ieee80211_vif == NULL){
@@ -3248,7 +3281,7 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 		}
 	}
 	if(current_op == IEEE80211_CONFIG){
-		ret = ret = handle_ieee80211_config(local->ieee80211_hw, ops);
+		ret = handle_ieee80211_config(local->ieee80211_hw, ops);
 	}
 	if(current_op == IEEE80211_CONFIGURE_FILTER){
 		ret = ieee80211_configure_rx_dump_filter(local, true);
@@ -3541,9 +3574,7 @@ int fast_execute_function(unsigned char *function_name){
 	return ret;
 }
 
-/*
- *      Utilities functions used for the cmd shell.
- */
+/* utilities functions used for the cmd shell */
 static int drv_parse_line(char *line, char **drv_arg, int max_args) {
 	int   ret   = 0;
 	char *token = NULL;
@@ -3936,12 +3967,21 @@ int handle_ieee80211_conf_tx(struct ieee80211_hw *ieee80211_hw, struct ieee80211
 /* handle_ieee80211_config: the 'configure' callback in ieee80211_ops uses different prototypes based on kernel version, handle this */
 int handle_ieee80211_config(struct ieee80211_hw *ieee80211_hw, struct ieee80211_ops *ops){
 	int ret = 0;
+	struct cfg80211_chan_def *cfg80211_chan_def = NULL;
+	struct ieee80211_local *local = NULL;
 
 	if (ieee80211_hw == NULL || ops == NULL){
 		ret = -EINVAL;
 		return ret;
 	}
-	if (ieee80211_hw->conf.chandef.chan == NULL){
+	if(ops->add_chanctx != NULL){
+		return ret;
+	}
+	local = director.ieee80211_local;
+	if(local != NULL){
+		cfg80211_chan_def = local->dflt_chandef;
+	}
+	if (cfg80211_chan_def == NULL || cfg80211_chan_def->chan == NULL){
 		#ifdef ENABLE_DBG_PRINT
 		printf("[*] ops config: no channel selected; skipping channel change\n");
 		#endif
@@ -3990,6 +4030,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	/* callbacks prototypes for mac80211 */
 	int (*start)(struct ieee80211_hw *hw) = NULL;
 	void (*stop)(struct ieee80211_hw *hw, bool suspend) = NULL;
+	int (*suspend)(struct ieee80211_hw *hw, struct cfg80211_wowlan *wowlan) = NULL;
 	int (*add_interface)(struct ieee80211_hw *hw, struct ieee80211_vif *vif) = NULL;
 	void (*cancel_hw_scan)(struct ieee80211_hw *hw, struct ieee80211_vif *vif) = NULL;
 	void (*remove_interface)(struct ieee80211_hw *hw, struct ieee80211_vif *vif) = NULL;
@@ -4013,6 +4054,9 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 	int (*change_virtual_intf)(struct wiphy *wiphy, struct net_device *dev, enum nl80211_iftype type, struct vif_params *params) = NULL;
 	struct wireless_dev *(*add_virtual_intf)(struct wiphy *wiphy, const char *name, unsigned char name_assign_type, enum nl80211_iftype type, struct vif_params *params) = NULL;
 
+        /* additional wowlan structs */
+	struct cfg80211_pkt_pattern wowlan_pattern = {};
+	u8 wowlan_packet[WOWLAN_MAGIC_PATTERN_LEN] = {};
 	struct vif_params params = {
 		.use_4addr = -1
 	};
@@ -4073,9 +4117,28 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		}
 	}
 	if(strcmp(ops_req, "stop") == 0){
+		ret = wifi_connection_stop(local);
+		if (ret)
+			return ret;
 		stop = ops->stop;
 		if(stop != NULL){
 			stop(local->ieee80211_hw, false);
+		}
+	}
+	if(strcmp(ops_req, "suspend") == 0){
+		suspend = ops->suspend;
+		if(suspend != NULL){
+			if(director.cfg80211_wowlan == NULL){
+				ret = build_wowlan_magic_pattern(local, &wowlan_pattern, wowlan_packet, sizeof(wowlan_packet));
+				if(ret != 0){
+					return ret;
+				}
+				ret = fill_cfg80211_wowlan(WOWLAN_MAGIC_PKT, &wowlan_pattern, 1, NULL);
+				if(ret != 0){
+					return ret;
+				}
+			}
+			ret = suspend(local->ieee80211_hw, director.cfg80211_wowlan);
 		}
 	}
 	if(strcmp(ops_req, "add_interface") == 0){
@@ -4134,15 +4197,19 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 				}
 				ieee80211_vif->cab_queue = IEEE80211_INVAL_HW_QUEUE;
 				rcu_assign_pointer(ieee80211_vif->link_conf[0], bss_conf);
-				ieee80211_vif->valid_links  |= BIT(0);
-				ieee80211_vif->active_links |= BIT(0);
+				ieee80211_vif->valid_links = 0;
+				ieee80211_vif->active_links = 0;
+				ret = bss_conf_init(ieee80211_hw, ieee80211_vif);
+				if (ret)
+					return ret;
 			}
 			ret = add_interface(local->ieee80211_hw, local->ieee80211_vif);
-			/* generate the bss_config */
-			ret = bss_conf_init(local->ieee80211_hw, local->ieee80211_vif);
 		}
 	}
 	if(strcmp(ops_req, "remove_interface") == 0){
+		ret = wifi_connection_stop(local);
+		if (ret)
+			return ret;
 		remove_interface = ops->remove_interface;
 		if(remove_interface != NULL){
 			if(local->ieee80211_vif == NULL){
@@ -4172,6 +4239,9 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		}
 		stop_wifi_scan_thread();
 		ret = wifi_auth_connection_start(local, argv[2], num_args >= 4 ? argv[3] : NULL);
+	}
+	if(strcmp(ops_req, "disconnect") == 0){
+		return wifi_connection_stop(local);
 	}
 	if(strcmp(ops_req, "rx") == 0){
 		enable = true;
@@ -5013,6 +5083,7 @@ int elf_entry_stub(int argc, char *argv[]){
 	director.cfg80211_ops = NULL;
 	director.active_scan_req = NULL;
 	director.connection_fsm = NULL;
+	director.connection_runtime_initialized = false;
 	memset(director.kmem_array, 0, sizeof(director.kmem_array));
 
 	/* init libusb and create the main usb rx thread */
@@ -5028,6 +5099,9 @@ int elf_entry_stub(int argc, char *argv[]){
 
 	workqueue_init(&director.system_wq, "system_wq");
 	system_wq = &director.system_wq;
+
+	workqueue_init(&director.system_percpu_wq, "system_percpu_wq");
+	system_percpu_wq = &director.system_percpu_wq;
 
 	workqueue_init(&director.system_dfl_wq, "system_dfl_wq");
 	system_dfl_wq = &director.system_dfl_wq;
@@ -5049,6 +5123,7 @@ int elf_entry_stub(int argc, char *argv[]){
 
 	/* initialize the scan values */
 	pthread_mutex_init(&director.scan_cache_lock, NULL);
+	connection_runtime_init();
 	pthread_mutex_init(&director.wiphy_work_queue_mutex, NULL);
 	atomic_store(&director.scan_generation, 0);
 	atomic_store(&director.scan_result_epoch, 0);
@@ -5084,6 +5159,8 @@ int elf_entry_stub(int argc, char *argv[]){
 
 	destroy_workqueue(&director.system_wq);
 	system_wq = NULL;
+	destroy_workqueue(&director.system_percpu_wq);
+	system_percpu_wq = NULL;
 	destroy_workqueue(&director.system_dfl_wq);
 	system_dfl_wq = NULL;
 	destroy_workqueue(&director.system_freezable_wq);
@@ -5735,10 +5812,12 @@ static int pe_entry_stub(void){
         director.ieee80211_ops = NULL;
         director.active_scan_req = NULL;
         director.connection_fsm = NULL;
+	director.connection_runtime_initialized = false;
         director.libusb_event_thread = 0;
         memset(director.kmem_array, 0, sizeof(director.kmem_array));
 
         system_wq = NULL;
+        system_percpu_wq = NULL;
         system_dfl_wq = NULL;
         system_freezable_wq = NULL;
         ret = usb_runtime_init();
@@ -5755,6 +5834,8 @@ static int pe_entry_stub(void){
         }
         workqueue_init(&director.system_wq, "system_wq");
         system_wq = &director.system_wq;
+        workqueue_init(&director.system_percpu_wq, "system_percpu_wq");
+        system_percpu_wq = &director.system_percpu_wq;
         workqueue_init(&director.system_dfl_wq, "system_dfl_wq");
         system_dfl_wq = &director.system_dfl_wq;
         workqueue_init(&director.system_freezable_wq, "system_freezable_wq");
@@ -5766,6 +5847,7 @@ static int pe_entry_stub(void){
         director.usb_io_depth = 0;
         pthread_mutex_init(&director.skb_queue_lock, NULL);
         pthread_mutex_init(&director.scan_cache_lock, NULL);
+	connection_runtime_init();
         pthread_mutex_init(&director.wiphy_work_queue_mutex, NULL);
         atomic_store(&director.scan_generation, 0);
         atomic_store(&director.scan_result_epoch, 0);
@@ -5798,6 +5880,8 @@ static int pe_entry_stub(void){
 
 	destroy_workqueue(&director.system_wq);
 	system_wq = NULL;
+	destroy_workqueue(&director.system_percpu_wq);
+	system_percpu_wq = NULL;
 	destroy_workqueue(&director.system_dfl_wq);
 	system_dfl_wq = NULL;
 	destroy_workqueue(&director.system_freezable_wq);

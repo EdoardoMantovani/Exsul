@@ -3,17 +3,22 @@ int ieee80211_register_hw(struct ieee80211_hw *hw) {
 	int i = 0;
 	int channels = 0;
 	int max_bitrates = 0;
+	bool ie_cap = false;
 	bool supp_ht = false;
 	bool supp_vht = false;
 	bool supp_he = false;
 	bool supp_eht = false;
 	bool supp_s1g = false;
+	bool local_cap = false;
 	enum nl80211_band band;
 	struct wiphy *wiphy = NULL;
 	struct ieee80211_ops *ops = NULL;
 	struct ieee80211_local *local = NULL;
+	struct ieee80211_supported_band *sband = NULL;
+	struct ieee80211_conf *ieee80211_conf = NULL;
+	struct cfg80211_chan_def *dflt_chandef = NULL;
 	struct cfg80211_scan_request *int_scan_req = NULL;
-	struct cfg80211_chan_def dflt_chandef = {};
+	const struct ieee80211_sband_iftype_data *iftd = NULL;
 
 	local = director.ieee80211_local;
 	if (local == NULL){
@@ -39,8 +44,7 @@ int ieee80211_register_hw(struct ieee80211_hw *hw) {
 		ret = -EINVAL;
 		return ret;
 	}
-	if ((wiphy->features & NL80211_FEATURE_TDLS_CHANNEL_SWITCH) &&
-		(!ops->tdls_channel_switch || !ops->tdls_cancel_channel_switch ||!ops->tdls_recv_channel_switch)){
+	if ((wiphy->features & NL80211_FEATURE_TDLS_CHANNEL_SWITCH) && (!ops->tdls_channel_switch || !ops->tdls_cancel_channel_switch ||!ops->tdls_recv_channel_switch)){
 		ret = -EOPNOTSUPP;
 		return ret;
 	}
@@ -60,13 +64,33 @@ int ieee80211_register_hw(struct ieee80211_hw *hw) {
 	local->rx_chains = 1;
 
 	for (band = 0; band < NUM_NL80211_BANDS; band++) {
-		const struct ieee80211_sband_iftype_data *iftd;
-		struct ieee80211_supported_band *sband = wiphy->bands[band];
-
+		sband = wiphy->bands[band];
 		if (sband == NULL){
 			continue;
 		}
-		if (!dflt_chandef.chan) {
+		if (dflt_chandef == NULL){
+			dflt_chandef = local->dflt_chandef;
+		}
+		if (dflt_chandef == NULL){
+			if (director.struct_sizes.cfg80211_chan_def == 0){
+				ret = -EINVAL;
+				return ret;
+			}
+			dflt_chandef = calloc(1, director.struct_sizes.cfg80211_chan_def);
+			if (dflt_chandef == NULL){
+				ret = -ENOMEM;
+				return ret;
+			}
+			local->dflt_chandef = dflt_chandef;
+		}
+		if (local->monitor_chanreq == NULL){
+			local->monitor_chanreq = calloc(1, sizeof(*local->monitor_chanreq));
+			if (local->monitor_chanreq == NULL){
+				ret = -ENOMEM;
+				return ret;
+			}
+		}
+		if (dflt_chandef->chan == NULL) {
 			for (i = 0; i < sband->n_channels; i++) {
 				if (!(sband->channels[i].flags &
 				      (IEEE80211_CHAN_DISABLED | IEEE80211_CHAN_S1G_NO_PRIMARY))){
@@ -76,19 +100,16 @@ int ieee80211_register_hw(struct ieee80211_hw *hw) {
 			if (i == sband->n_channels){
 				i = 0;
 			}
-			cfg80211_chandef_create(&dflt_chandef, &sband->channels[i], NL80211_CHAN_NO_HT);
-			local->monitor_chanreq.oper = dflt_chandef;
+			cfg80211_chandef_create(dflt_chandef, &sband->channels[i], NL80211_CHAN_NO_HT);
+			local->monitor_chanreq->oper = dflt_chandef;
 			if (local->emulate_chanctx) {
-				local->dflt_chandef = dflt_chandef;
-				hw->conf.chandef = dflt_chandef;
+				ieee80211_conf = &hw->conf;
+				ieee80211_conf->chandef = dflt_chandef;
 			}
 		}
 
 		channels += sband->n_channels;
-
-		if (sband->ht_cap.ht_supported &&
-		    (sband->ht_cap.cap & IEEE80211_HT_CAP_DELAY_BA) &&
-		    (wiphy->flags & WIPHY_FLAG_SUPPORTS_MLO)){
+		if (sband->ht_cap.ht_supported && (sband->ht_cap.cap & IEEE80211_HT_CAP_DELAY_BA) && (wiphy->flags & WIPHY_FLAG_SUPPORTS_MLO)){
 			ret = -EINVAL;
 			return ret;
 		}
@@ -116,14 +137,11 @@ int ieee80211_register_hw(struct ieee80211_hw *hw) {
 		if (!sband->ht_cap.ht_supported){
 			continue;
 		}
-		local->rx_chains = max(ieee80211_mcs_to_chains(&sband->ht_cap.mcs),
-				       local->rx_chains);
-
+		local->rx_chains = max(ieee80211_mcs_to_chains(&sband->ht_cap.mcs), local->rx_chains);
 		sband->ht_cap.cap |= WLAN_HT_CAP_SM_PS_DISABLED << IEEE80211_HT_CAP_SM_PS_SHIFT;
 	}
 
-	if (wiphy->interface_modes & BIT(NL80211_IFTYPE_AP) &&
-	    !ieee80211_hw_check(hw, SW_CRYPTO_CONTROL)) {
+	if (wiphy->interface_modes & BIT(NL80211_IFTYPE_AP) && !ieee80211_hw_check(hw, SW_CRYPTO_CONTROL)) {
 		wiphy->interface_modes |= BIT(NL80211_IFTYPE_AP_VLAN);
 		wiphy->software_iftypes |= BIT(NL80211_IFTYPE_AP_VLAN);
 	}
@@ -248,15 +266,11 @@ int ieee80211_register_hw(struct ieee80211_hw *hw) {
 	}
 	ret = ieee80211_init_rate_ctrl_alg(local, hw->rate_control_algorithm);
 	if (ret < 0) {
-		printf("[!][wiphy] Failed to initialize rate control algorithm\n");
+		printf("[!] wiphy: failed to initialize rate control algorithm\n");
 		goto fail_rate;
 	}
 
 	for (band = 0; band < NUM_NL80211_BANDS; band++) {
-		struct ieee80211_supported_band *sband = NULL;
-		bool local_cap = false;
-		bool ie_cap = false;
-
 		local_cap = ieee80211_hw_check(hw, SUPPORTS_VHT_EXT_NSS_BW);
 		sband = wiphy->bands[band];
 		if (sband == NULL || !sband->vht_cap.vht_supported){
@@ -289,22 +303,22 @@ int ieee80211_register_hw(struct ieee80211_hw *hw) {
 
 		ret = ieee80211_if_add(local, "wlan%d", 1, NULL, NL80211_IFTYPE_STATION, &params);
 		if (ret){
-			printf("[!] Failed to add default virtual iface\n");
+			printf("[!] failed to add default virtual iface\n");
 		}
 	}
 
 	return ret;
 
- fail_wiphy_register:
+	fail_wiphy_register:
 	//wiphy_unregister(wiphy);
 	rate_control_deinitialize(local);
 	ieee80211_remove_interfaces(local);
- fail_rate:
+	fail_rate:
 	ieee80211_txq_teardown_flows(local);
- fail_flows:
+	fail_flows:
 	ieee80211_led_exit(local);
 	destroy_workqueue(local->workqueue);
- fail_workqueue:
+	fail_workqueue:
 	kfree(int_scan_req);
 	return ret;
 }

@@ -1,9 +1,9 @@
 struct sk_buff *ieee80211_pspoll_get(struct ieee80211_hw *hw, struct ieee80211_vif *ieee80211_vif){
-	struct ieee80211_vif_cfg *cfg = NULL;
-	struct ieee80211_sub_if_data *sdata = NULL;
-	struct ieee80211_pspoll *pspoll = NULL;
-	struct ieee80211_local *local = NULL;
 	struct sk_buff *skb = NULL;
+	struct ieee80211_local *local = NULL;
+	struct ieee80211_vif_cfg *cfg = NULL;
+	struct ieee80211_pspoll *pspoll = NULL;
+	struct ieee80211_sub_if_data *sdata = NULL;
 
 	local = director.ieee80211_local;
 	sdata = local->sdata;

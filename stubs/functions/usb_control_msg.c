@@ -12,6 +12,11 @@ int usb_control_msg(struct usb_device *dev, unsigned int pipe, __u8 request, __u
 		size,
 		timeout
 	);
+	#ifdef ENABLE_FUZZING
+	if(ret > 0 && usb_pipein(pipe)){
+		(void)fuzz_report_usb_rx(data, ret);
+	}
+	#endif
 	usb_unlock();
 	return ret;
 }

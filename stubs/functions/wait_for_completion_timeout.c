@@ -63,8 +63,9 @@ unsigned long wait_for_completion_timeout(struct completion *x, unsigned long ti
 				continue;
 			}
 			if (errno == ETIMEDOUT) {
-				return ret;
+				return 0;
 			}
+			return 0;
 		}
 	}
 }

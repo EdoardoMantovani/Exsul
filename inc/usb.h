@@ -594,6 +594,7 @@ static int usb_runtime_init(void){
 	int ret = 0;
 
 	director.usb_ctx = NULL;
+	atomic_store_explicit(&director.usb_device_lost, false, memory_order_release);
 	ret = libusb_init(&director.usb_ctx);
 	if (ret != LIBUSB_SUCCESS){
 		director.usb_ctx = NULL;
@@ -609,6 +610,7 @@ static void usb_runtime_exit(void){
 	libusb_device_handle *dev = director.usb_dev;
 
 	director.usb_dev = NULL;
+	atomic_store_explicit(&director.usb_device_lost, true, memory_order_release);
 
 	if (director.usb_ctx == NULL){
 		goto end;
@@ -633,7 +635,7 @@ static inline int usb_handle_events_timeout(struct timeval *tv){
 
 	ret = libusb_handle_events_timeout(usb_libusb_context(), tv);
 	if (ret == LIBUSB_ERROR_INTERRUPTED || ret == LIBUSB_ERROR_TIMEOUT){
-		return 0;
+		return ret;
 	}
 	return ret;
 }
@@ -687,6 +689,8 @@ static void libusb_urb_callback(struct libusb_transfer *transfer){
 		break;
 		case LIBUSB_TRANSFER_NO_DEVICE:
 			urb->status = -ENODEV;
+			atomic_store_explicit(&director.usb_device_lost, true,
+					      memory_order_release);
 		break;
 		case LIBUSB_TRANSFER_OVERFLOW:
 			urb->status = -EOVERFLOW;
@@ -697,6 +701,13 @@ static void libusb_urb_callback(struct libusb_transfer *transfer){
 	}
 
 	urb->actual_length = transfer->actual_length;
+		#ifdef ENABLE_FUZZING
+		if(transfer->status == LIBUSB_TRANSFER_COMPLETED &&
+		   transfer->actual_length > 0 &&
+		   (transfer->endpoint & LIBUSB_ENDPOINT_IN)){
+			fuzz_report_usb_rx(transfer->buffer, transfer->actual_length);
+	        }
+        #endif
 
 	urb->hcpriv = NULL;
 	atomic_fetch_sub_explicit(&urb->use_count, 1, memory_order_release);
@@ -725,6 +736,10 @@ static void *libusb_thread(void *unused){
 	setup_percpu();
 	while (!atomic_load_explicit(&director.libusb_thread_stop, memory_order_acquire)){
 		ret = usb_handle_events_timeout(&tv);
+		if (ret == LIBUSB_ERROR_NO_DEVICE){
+			atomic_store_explicit(&director.usb_device_lost, true,
+					      memory_order_release);
+		}
 		if (ret != 0 && ret != LIBUSB_ERROR_NO_DEVICE){
 			continue;
 		}

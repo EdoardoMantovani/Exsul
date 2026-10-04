@@ -26,8 +26,11 @@ struct fast_struct_size {
         u16 usb_device;
         u16 usb_driver;
         u16 usb_interface;
+	u16 usb_bus;
         u16 device;
         u16 hci_dev;
+	u16 cfg80211_chan_def;
+	u16 ieee80211_chanctx_conf;
 };
 
 struct exsul_scan_result {
@@ -43,6 +46,9 @@ struct exsul_scan_result {
 	s8 signal;
 	u32 seen;
 	u32 last_seen_generation;
+	/* Preserve the AP's advertised security/rates for connection negotiation. */
+	u16 ies_len;
+	u8 ies[1024];
 };
 
 #define USB_TRANSFER_POOL_SIZE	128
@@ -120,6 +126,7 @@ struct module_controller {
 	/* threads associated with libusb's async urb transfer, permits to implement the 'usb_send_urb' kernel function */
 	pthread_t libusb_event_thread;
 	atomic_bool libusb_thread_stop;
+	atomic_bool usb_device_lost;
 
 	pthread_mutex_t	usb_transfer_pool_lock;
 	struct libusb_transfer *usb_transfer_pool[USB_TRANSFER_POOL_SIZE];
@@ -149,9 +156,13 @@ struct module_controller {
 
 	/* tcc scripting data */
 	#ifdef TCC_SCRIPTING
+	/* main tcc context */
 	TCCState *tcc_ctx;
+	/* buffer for tcc jit "script" */
 	unsigned char *tcc_memarea;
+	/* mutex used for running the tcc jit "script" */
 	pthread_mutex_t tcc_mutex;
+	/* support multiple tcc instances */
 	TCCState *runtime_tcc_ctx[MAX_TCC_RUNTIME_CONTEXTS];
 	u8 runtime_tcc_ctx_count;
 	#endif
@@ -163,6 +174,22 @@ struct module_controller {
 	/* track every memory region mapped in the actual memory, it doesn't matter much the original module they belongs to */
 	struct allocation_list *module_allocation_list;
 
+	#ifdef ENABLE_FUZZING
+	/* set to true when in fuzzing mode, hooks the USB bus I/O functions for redirecting/parsing the device interface */
+	u8 fuzzing_mode_enabled;
+	/* Generic, owned feedback queue populated by a driver-specific observer. */
+	struct fuzz_urb_list *fuzz_urb_list;
+	struct fuzz_urb_list *fuzz_urb_tail;
+	size_t fuzz_urb_count;
+	pthread_mutex_t fuzz_lock;
+	pthread_cond_t fuzz_cond;
+	u8 fuzz_runtime_initialized;
+	unsigned int fuzz_callback_refs;
+	/* this callback is driver specific and it is used for appending a frame to the urb fuzz queue, in general, it must
+	 * parse the data and submit normalized feedback with fuzz_urb_append(). */
+	int (*fuzz_accept_valid_urb)(void *data, int len);
+	#endif
+
 	/* kernel based structs */
 	struct wiphy *wiphy;
 	struct wireless_dev *wdev;
@@ -170,6 +197,7 @@ struct module_controller {
         struct rfkill *rfkill;
 	struct ieee80211_local *ieee80211_local;
         struct cfg80211_registered_device *rdev;
+	struct cfg80211_wowlan *cfg80211_wowlan;
 	struct exsul_scan_result scan_results[EXSUL_MAX_SCAN_RESULTS];
 	u32 scan_result_count;
 	pthread_mutex_t scan_cache_lock;
@@ -181,7 +209,13 @@ struct module_controller {
 	pthread_t wifi_scan_thread;
 	atomic_bool wifi_scan_thread_started;
 	atomic_bool wifi_scan_thread_stop;
-	void *connection_fsm;
+	_Atomic(void *) connection_fsm;
+	void *connection_retired;
+	pthread_mutex_t connection_lock;
+	pthread_mutex_t connection_control_lock;
+	pthread_cond_t connection_wake;
+	u16 connection_tx_cookie;
+	bool connection_runtime_initialized;
 
 	pthread_mutex_t rtnl_mutex;
 	/* store here the backup for every 'ops' struct, it will be called later via the 'ops' command */
@@ -211,6 +245,7 @@ struct module_controller {
 
 	/* global workqueues */
 	struct workqueue_struct system_wq;
+	struct workqueue_struct system_percpu_wq;
 	struct workqueue_struct system_freezable_wq;
 	struct workqueue_struct system_dfl_wq;
 

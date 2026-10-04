@@ -2,11 +2,8 @@ void cfg80211_chandef_create(struct cfg80211_chan_def *chandef, struct ieee80211
 	if (chan == NULL){
 		goto end;
 	}
-
-	*chandef = (struct cfg80211_chan_def) {
-		.chan = chan,
-		.freq1_offset = chan->freq_offset,
-	};
+	chandef->chan = chan;
+	chandef->freq1_offset = chan->freq_offset;
 
 	switch (chan_type) {
 	case NL80211_CHAN_NO_HT:

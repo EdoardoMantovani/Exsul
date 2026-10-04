@@ -6,15 +6,13 @@ int regulatory_hint(struct wiphy *wiphy, const char *alpha2){
 		ret = -EINVAL;
 		return ret;
 	}
-
 	wiphy->regulatory_flags &= ~REGULATORY_CUSTOM_REG;
-
 	request = __kmalloc_large_noprof(sizeof(struct regulatory_request), GFP_KERNEL);
 	if (!request){
 		ret = -ENOMEM;
 		return ret;
 	}
-	//request->wiphy_idx = get_wiphy_idx(wiphy);
+	/* request->wiphy_idx = get_wiphy_idx(wiphy); */
 
 	request->alpha2[0] = alpha2[0];
 	request->alpha2[1] = alpha2[1];

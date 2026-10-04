@@ -2,7 +2,7 @@
 
 # Made by Edoardo Mantovani, 2026
 # Exsul build script
-# version 2.2.0 (8 Aug 2026)
+# version 2.3.0 (25 sept 2026)
 
 use strict;
 use warnings;
@@ -85,6 +85,7 @@ my $verbose = undef;
 my $dbg = undef;
 my $strip = undef;
 my $enable_exported_symbols_tracing = undef;
+my $enable_tcc_fuzzing = undef;
 my $clean = undef;
 my $help = undef;
 my @windows_runtime_dlls = ();
@@ -161,11 +162,13 @@ my %struct_whitelist = (
 	"sock"			=> "sock",
 	"dev"			=> "device",
 	"udev"			=> "usb_device",
+	"usb_bus"		=> "usb_bus",
         "rate_info"     	=> "rate_info",
 	"hw"			=> "ieee80211_hw",
 	"urb"			=> "urb",
 	"fops"			=> "file_operations",
 	"net_device"		=> "net_device",
+	"netdev_queue"		=> "netdev_queue",
 	"intf"			=> "usb_interface",
 	"ieee80211_ops" 	=> "ieee80211_ops",
 	"driver"		=> "device_driver",
@@ -185,6 +188,9 @@ my %struct_whitelist = (
 	"ieee80211_ops"		=> "ieee80211_ops",
 	"cfg80211_ops"		=> "cfg80211_ops",
 	"net_device_ops"	=> "net_device_ops",
+	"cfg80211_sched_scan"	=> "cfg80211_sched_scan_request", 
+	"cfg80211_chan_def"	=> "cfg80211_chan_def",
+	"ieee80211_chan_conf"   => "ieee80211_chanctx_conf",
 );
 my %fixed_only_structs = (
 	"ieee80211_sta"      => 1,
@@ -289,6 +295,7 @@ my %field_ctype = (
 		"complete"				=> "void *", # should be a callback but use a void pointer for now
 	},
 	usb_device => {
+		"bus"					=> "void *",
 		"ep0"					=> "struct usb_host_endpoint",
 		"descriptor"				=> "struct usb_device_descriptor",
 		"bos"					=> "struct usb_host_bos *",
@@ -299,6 +306,18 @@ my %field_ctype = (
 		"ep_in"					=> "struct usb_host_endpoint *",
 		"ep_out"				=> "struct usb_host_endpoint *",
 		"tt"					=> "struct usb_tt *", # probably will be a "never used" struct
+	},
+	usb_bus => {
+		"busnum"				=> "int",
+		"devnum_next"				=> "int",
+		"bus_name"				=> "char *",
+		"bandwidth_int_reqs"			=> "int",
+		"bandwidth_isoc_reqs"			=> "int",
+		"monitored"				=> "int",
+		"sg_tablesize"				=> "unsigned",
+		"no_sg_constraint"			=> "unsigned",
+		"otg_port"				=> "u8",
+		"uses_pio_for_control"			=> "u8",
 	},
 	rate_info => {
 		"bw"					=> "unsigned int",
@@ -367,6 +386,11 @@ my %field_ctype = (
 		"gso_ipv4_max_size"			=> "unsigned int",
 		"gso_max_segs"				=> "u16",
 		"num_tc"				=> "s16",
+		"_tx"					=> "struct netdev_queue *", 
+	},
+	netdev_queue => {
+		"dev"					=> "struct net_device *",
+		"state"					=> "unsigned long",
 	},
 	usb_interface => {
 		"altsetting"				=> "struct usb_host_interface *",
@@ -438,6 +462,16 @@ my %field_ctype = (
 		"unassign_vif_chanctx"			=> "void *",
 		"vif_cfg_changed"			=> "void *",
 		"wake_tx_queue"				=> "void *",
+		"suspend"				=> "void *",
+		"start_ap"				=> "void *",
+		"stop_ap"				=> "void *",
+		"set_tim"				=> "void *",
+		"set_key"				=> "void *",
+		"cancel_hw_scan"			=> "void *",
+		"sched_scan_start"			=> "void *",
+		"sched_scan_stop"			=> "void *",
+		"set_antenna"				=> "void *",
+		"get_antenna"				=> "void *",
 	},
 	cfg80211_ops => {
 		"suspend"				=> "void *",
@@ -825,7 +859,39 @@ my %field_ctype = (
 		"supp_rates"				=> "u32",
 		"rx_nss"				=> "u8",
 	},
+	cfg80211_sched_scan_request => {
+		"reqid"					=> "u64",
+		"ssids"					=> "struct cfg80211_ssid *",
+		"n_ssids"				=> "int",
+		"n_channels"				=> "u32",
+		"ie"					=> "u8 *",
+		"ie_len"				=> "int",
+		"flags"					=> "u32",
+		"delay"					=> "u32",
+	},
+	cfg80211_chan_def => {
+		"chan"					=> "struct ieee80211_channel *",
+		"npca_chan"				=> "struct ieee80211_channel *",
+		"width"					=> "int",
+		"center_freq1"				=> "u32",
+		"center_freq2"				=> "u32",
+		"edmg"					=> "struct ieee80211_edmg",
+		"freq1_offset"				=> "u16",
+		"punctured"				=> "u16",
+		"npca_punctured"			=> "u16",
+		"s1g_primary_2mhz"			=> "bool",
+	},
+	ieee80211_chanctx_conf => {
+		"def"					=> "struct cfg80211_chan_def",
+		"min_def"				=> "struct cfg80211_chan_def",
+		"ap"					=> "struct cfg80211_chan_def",
+		"radio_idx"				=> "int",
+		"rx_chains_static"			=> "u8",
+		"rx_chains_dynamic"			=> "u8",
+		"radar_enabled"				=> "bool",
+	},
 );
+
 my %inline_array_field = (
 	module => {
 		"mem"				=> 1,
@@ -874,6 +940,9 @@ my %inline_array_field = (
 		"addr"				=> 1,
 		"supp_rates"			=> 1,
 	},
+	net_device => {
+		"_tx"				=> 1,
+	},
 );
 
 chomp($ls);
@@ -904,6 +973,7 @@ GetOptions(
 	"dbg"		  => \$dbg,
 	"strip"		  => \$strip,
 	"trace"		  => \$enable_exported_symbols_tracing,
+	"fuzzer"	  => \$enable_tcc_fuzzing,
 	"clean"           => \$clean,
 	"help"            => \$help,
 );
@@ -920,6 +990,7 @@ if($help){
 	print("--dbg -> enable debugging strings in Exsul\n");
 	print("--strip -> strip the final executable\n");
 	print("--trace -> trace every exported function, used mainly for debugging!\n");
+	print("--fuzzer -> enable fuzzing on the TCC interface\n");
 	print("--clean -> clear every compilation file\n");
 	print("--help -> display this help text\n");
 	exit(0);
@@ -937,6 +1008,11 @@ if($generate_offset_file){
 # enable the debugging strings in Exsul
 if($dbg){
 	push(@gcc_params, "-DENABLE_DBG_PRINT ");
+}
+
+# enable the fuzzing mode
+if($enable_tcc_fuzzing){
+	push(@gcc_params, "-DENABLE_FUZZING ");
 }
 
 # select the default before applying compiler-specific flags. Kernel modules
@@ -988,7 +1064,8 @@ if($clean){
 	`$rm -f sigabort_crash*`;
 	`$rm -f offsets.conf`;
 	`$rm *.elf 2>/dev/null`;
-
+	`$rm *.bin 2>/dev/null`;
+	`$rm *.txt 2>/dev/null`;
 	if($offset_generation_file){
 		`$rm $offset_generation_file 2>/dev/null`;
 	}else{
@@ -1515,12 +1592,21 @@ sub merge_rewritten_function_stubs {
 
 # print logo
 print(color("green"));
-print("███████╗██╗  ██╗███████╗██╗   ██╗██╗     
-██╔════╝╚██╗██╔╝██╔════╝██║   ██║██║     
-█████╗   ╚███╔╝ ███████╗██║   ██║██║     
-██╔══╝   ██╔██╗ ╚════██║██║   ██║██║     
-███████╗██╔╝ ██╗███████║╚██████╔╝███████╗
-╚══════╝╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚══════╝\n");
+print("⠀⠀⠀⢠⡾⠁⠀⠀⣠⠖⠁⠀⠈⢀⡾⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠹⣦⣶⡀⠀⠀⠀⠀⠀⠀⢀⠀⠀⠀⠀⠀⠹⣄⠀⠀⠀⠈⠣⣀⠀⠀⢹⣦⠀⠀⠀⠀
+⠀⠀⢠⣾⠁⠀⢀⣾⠁⠀⠀⠀⣠⠏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠟⢻⣆⠀⠀⠀⠀⢰⣿⡄⠀⠀⠀⠀⠀⠈⢷⡀⠀⠀⠀⠈⢧⡀⠀⠹⡆⠀⠀⠀
+⠀⠀⣾⠃⠀⢀⡾⠁⠀⠀⠀⣰⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢧⡀⠀⠀⢸⡏⠁⠀⠀⠀⠀⠀⣀⠈⢳⡀⠀⠀⠀⠀⢷⡄⠀⢻⡄⠀⠀
+⠀⣸⡇⠀⢠⣿⠁⠀⠀⠀⣸⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣰⣶⡲⢲⣶⢲⡖⠲⣄⡀⠀⠙⢆⠀⠀⠀⠀⠀⣠⣦⡴⠊⠁⠀⠀⢳⠀⠀⠀⠀⠀⢿⡄⠘⣿⠀⠀
+⠠⣿⠀⠀⣾⡃⠀⠀⠀⢀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⣿⣿⣙⠟⠩⠉⠸⢟⣻⣠⡷⠀⠀⠀⠀⠀⠀⠠⠞⠙⠉⠀⠀⠀⠀⠀⠈⣇⠀⠀⠀⠀⠸⣿⡀⢸⡇⠀
+⢰⡿⠀⠀⣿⣾⠁⠀⠀⣸⠀⠀⠀⠀⠀⠀⠀⠀⠀⡀⠠⠄⠀⢈⣩⢽⣟⣛⣿⣆⡠⠘⣫⣟⢃⠀⠀⠀⠀⢀⠀⠀⠀⠤⣤⣤⣤⠀⠀⠀⠀⢹⡆⠀⠀⠀⣶⣿⡇⠠⣧⠀
+⢸⡇⠀⢸⢿⣿⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠀⡀⡀⠠⠝⠻⠛⠘⠛⢀⣠⢛⡭⣻⠇⠀⠀⠀⢠⡇⠀⠀⠀⠀⠈⠉⠉⠉⠐⠒⠂⢸⡇⠀⠀⠀⣿⣿⡇⠀⣿⠀
+⣿⡇⠀⠀⢸⣿⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⠄⢨⠐⠀⠀⠈⢀⣀⣠⢤⣤⡀⢰⣏⣑⣯⣡⠟⣠⣤⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⣿⣯⠁⠀⣿⠀
+⢻⡇⠀⠀⢸⣿⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⡀⠄⣾⣏⢸⠳⢂⣿⢇⠮⠭⠉⡈⣥⣾⢿⣱⡿⠀⠀⢀⣤⣀⣀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡇⠀⠀⠀⣿⡿⠀⠀⣿⠀
+⢸⣇⠀⠀⠀⢿⡆⠀⠀⢿⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣄⢈⠛⠿⢛⣋⡥⢤⣶⢖⣬⣿⠞⠟⢿⠋⠀⠀⠀⣎⢉⡙⠻⡆⠀⠀⠀⠀⠀⠀⠀⢸⡇⠀⠀⠀⣿⠃⠀⠀⣿⠀
+⠈⣿⠀⠀⠀⠘⣇⠀⠀⠸⡆⠀⠀⠀⠀⠀⠀⠀⣸⠟⠙⢿⠀⠀⠘⢺⣿⢷⡶⣾⢱⣶⣿⣷⡄⠀⠀⠀⠺⣯⡈⠋⠀⣧⡀⠀⠀⠀⠀⠀⠀⡿⠀⠀⠀⢠⡇⠀⠀⢀⡇⠀
+⠀⢿⡀⠀⠀⠀⢻⡀⠀⠀⢳⡀⠀⠀⠀⢰⠀⠀⣿⠠⣿⡞⠳⡄⠀⠀⠈⠑⠂⠤⠘⠳⠿⠿⠃⣊⣉⣁⡀⠊⠻⠾⠿⣏⠁⠀⠀⠀⠀⠀⢸⠃⠀⠀⠀⡾⠁⠀⠀⣼⠇⠀
+⠀⠘⣇⠀⠀⠀⠀⢧⠀⠀⠈⢷⠀⠀⠀⠘⠁⡄⡿⣶⢶⣽⡿⡀⠀⢿⣿⣹⣿⢣⣶⠆⠠⣿⡋⣷⣦⠿⢿⣷⢀⡐⠁⠀⠀⠀⠀⠀⠀⣠⠇⠀⠀⠀⢰⠃⠀⠀⢰⡟⠀⠀
+⠀⠀⢻⣦⠀⠀⠀⢀⣠⣄⠀⠈⢳⡀⠀⠀⠀⠀⠉⠛⠀⠢⠄⡀⣀⣀⠙⡳⣦⡀⠹⣆⠀⠛⡳⡶⣤⠼⠿⠊⠁⠀⠀⠀⠀⠀⠀⠀⣰⠋⠀⠀⢄⡀⠀⠀⠀⢀⡿⠁⠀⠀
+⠀⠀⠀⢻⣆⢠⡴⠛⡅⢈⡆⠀⠀⠱⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠄⠀⠉⠈⠈⠙⠛⠋⠈⠛⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡼⠃⠀⢀⣀⣀⣙⣣⣤;\n");
 print(color("reset"));
 
 # create the build directory

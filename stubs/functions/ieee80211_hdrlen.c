@@ -5,7 +5,6 @@ unsigned int ieee80211_hdrlen(__le16 fc){
 		hdrlen = 4;
 		goto out;
 	}
-
 	if (ieee80211_is_data(fc)) {
 		if (ieee80211_has_a4(fc))
 			hdrlen = 30;
@@ -33,11 +32,12 @@ unsigned int ieee80211_hdrlen(__le16 fc){
 		 *   bits that matter:         ^^^      (0x00E0)
 		 *   value of those: 0b0000000011000000 (0x00C0)
 		 */
-		if ((fc & cpu_to_le16(0x00E0)) == cpu_to_le16(0x00C0))
+		if ((fc & cpu_to_le16(0x00E0)) == cpu_to_le16(0x00C0)){
 			hdrlen = 10;
-		else
+		}else{
 			hdrlen = 16;
+		}
 	}
-out:
+	out:
 	return hdrlen;
 }
