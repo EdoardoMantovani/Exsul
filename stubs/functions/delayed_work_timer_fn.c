@@ -2,7 +2,6 @@ void delayed_work_timer_fn(struct workqueue_struct *wq){
         struct timespec now = {};
 
         now = wq_now(wq);
-
         while (!list_empty(&wq->delayed_list)) {
                 struct delayed_work *dwork = NULL;
                 struct work_struct *work = NULL;

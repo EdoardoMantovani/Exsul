@@ -29,11 +29,9 @@ struct link_sta_info *link_sta_info_get_bss(struct ieee80211_sub_if_data *sdata,
 		if (link_sta->sta == NULL){
 			continue;
 		}
-		if (&link_sta->sta->sdata == sdata ||
-		    (link_sta->sta->sdata.bss != NULL && link_sta->sta->sdata.bss == sdata->bss)){
+		if (&link_sta->sta->sdata == sdata || (link_sta->sta->sdata.bss != NULL && link_sta->sta->sdata.bss == sdata->bss)){
 			return link_sta;
 		}
 	}
-
 	return fallback;
 }

@@ -7,7 +7,6 @@ struct sk_buff *__build_skb(void *data, unsigned int frag_size){
 	}
 	memset(skb, 0, SK_BUFF_STRUCT_SIZE);
 	__build_skb_around(skb, data, frag_size);
-
 	return skb;
 }
 

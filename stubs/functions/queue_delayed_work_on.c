@@ -30,11 +30,8 @@ int queue_delayed_work_on(int cpu, struct workqueue_struct *wq, struct delayed_w
 		atomic_store_explicit(&dwork->work.data, 0, memory_order_release);
 		return ret;
 	}
-
 	dwork->expires = timespec_add_ms(wq_now(wq), delay);
-
 	delayed_list_insert_sorted(wq, dwork);
-
 	pthread_cond_signal(&wq->cond);
 	pthread_mutex_unlock(&wq->lock);
 	ret = true;

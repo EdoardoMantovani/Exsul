@@ -1,7 +1,9 @@
 int mod_delayed_work_on(int cpu, struct workqueue_struct *wq, struct delayed_work *dwork, unsigned long delay){
 	int ret = 0;
-	bool was_pending = 0;
 	long flags = 0;
+	long desired = 0;
+	long expected = 0;
+	bool was_pending = 0;
 	struct work_struct *work = NULL;
 
 	if (wq == NULL || dwork == NULL){
@@ -36,8 +38,8 @@ int mod_delayed_work_on(int cpu, struct workqueue_struct *wq, struct delayed_wor
 	}
 
 	if (!(flags & (WORK_STRUCT_PENDING | WORK_STRUCT_RUNNING))) {
-		long expected = 0;
-		long desired = work_encode(wq, WORK_STRUCT_PENDING | WORK_STRUCT_DELAYED);
+		expected = 0;
+		desired = work_encode(wq, WORK_STRUCT_PENDING | WORK_STRUCT_DELAYED);
 		ret = atomic_compare_exchange_strong_explicit(&work->data, &expected, desired, memory_order_acq_rel, memory_order_relaxed);
 		if(ret == 0) {
 			pthread_mutex_unlock(&wq->lock);

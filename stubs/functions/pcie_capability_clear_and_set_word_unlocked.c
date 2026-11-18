@@ -8,5 +8,6 @@ int pcie_capability_clear_and_set_word_unlocked(struct pci_dev *dev, int pos, u1
 	}
 	val &= ~clear;
 	val |= set;
-	return pcie_capability_write_word(dev, pos, val);
+	ret = pcie_capability_write_word(dev, pos, val);
+	return ret;
 }

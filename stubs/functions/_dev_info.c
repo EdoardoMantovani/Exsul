@@ -1,7 +1,7 @@
 void _dev_info(const struct device *dev, const char *fmt, ...){
+	int len = 0;
 	va_list ap;
 	char buf[2048] = {};
-	int len = 0;
 
 	va_start(ap, fmt);
 	len = vsnprintf(buf, sizeof(buf), fmt, ap);

@@ -1,6 +1,8 @@
 /* header created for avoiding errors during the 'stubs' compilation phase */
 
 struct dentry;
+struct file;
+struct inode;
 
 enum rfkill_hard_block_reasons;
 enum ieee80211_chanctx_switch_mode;
@@ -91,3 +93,5 @@ struct ieee80211_sub_if_data;
 struct ieee80211_chanctx_conf;
 struct ieee80211_supported_band;
 struct ieee80211_vif_chanctx_switch;
+
+struct serdev_device_driver;

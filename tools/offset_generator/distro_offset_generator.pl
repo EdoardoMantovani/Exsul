@@ -35,15 +35,16 @@ my $header_prefix = "";
 my $header_buffer = undef;
 my %kernel_record_by_package = ();
 my $mac80211_mod_fallback = "mac80211.ko";
+my $cfg80211_mod_fallback = "cfg80211.ko";
 my $bluetooth_mod_fallback = "bluetooth.ko";
 my $ubuntu_kernel_pkg_folder = "extracted_kernel/";
 my $ubuntu_kernel_dbgsym_string = "-generic-dbgsym_";
 my $ubuntu_kernel_dbgsym_local_path = "usr/lib/debug/boot/";
-my $ubuntu_kernel_repo_string = "http://ddebs.ubuntu.com/pool/main/l/linux/";
+my $ubuntu_kernel_repo_string = "https://ddebs.ubuntu.com/pool/main/l/linux/";
 
 my $status = 0;
 my $output = 0;
-my @ubuntu_min_kernel_version = (5, 15, 0);
+my @ubuntu_min_kernel_version = (5, 15, 0); # start from Ubuntu 5.15.0 until the latest release
 my @kernel_offset_records = ();
 
 if(@ARGV > 2){
@@ -142,14 +143,14 @@ foreach($mechanize_object->find_all_links()){
 }
 print("};\n\n");
 print("/* get_current_kernel_version: automatically created function which returns the enum value correspondent to the actual kernel version detected */\n");
-print("static enum supported_kernel_versionsenum supported_kernel_versions get_current_kernel_version(void){\n");
+print("static enum supported_kernel_versions get_current_kernel_version(void){\n");
 foreach($mechanize_object->find_all_links()){
         if($_->url =~ $ubuntu_kernel_dbgsym_string && $_->url =~ $current_arch && ubuntu_kernel_version_supported($_->url)){
                 my $pkg_name = $_->url;
                 my @version = ();
                 $pkg_name =~ /(\d+)\.(\d+)\.(\d+)-(\d+)-generic-dbgsym_/;
                 @version = (0 + $1, 0 + $2, 0 + $3, 0 + $4);
-                print("    if(director.kernel_major_version == $version[0] && director.kernel_minor_version == $version[1] && director.kernel_patch == $version[3]){\n");
+		print("    if(director.kernel_major_version == $version[0] && director.kernel_minor_version == $version[1] && director.kernel_patch == $version[2] && director.kernel_abi_version == $version[3]){\n");
 		print("        return LINUX_KERNEL_" . $version[0] . "_" . $version[1] . "_" . $version[2] . "_" . $version[3] . ";" . "\n");
 		print("    }\n");
         }
@@ -159,15 +160,46 @@ print("    return 0xff;\n");
 print("}\n\n");
 select($stdout_fh);
 
+load_existing_header_records($generated_header_path, $required_structs, \@kernel_offset_records);
+
+sub record_has_all_required_structs {
+	my ($record, $structs) = @_;
+
+	return 0 unless defined($record);
+	foreach my $struct (@$structs){
+		my $layout = $record->{structs}{ $struct->{name} };
+		return 0 unless defined($layout) && defined($layout->{struct_size}) && $layout->{struct_size} > 0;
+		foreach my $field (@{ $struct->{fields} }){
+			return 0 unless exists($layout->{fields}{$field});
+		}
+	}
+	return 1;
+}
+
 # second stage: download everything
 foreach($mechanize_object->find_all_links()){
 	if($_->url =~ $ubuntu_kernel_dbgsym_string && $_->url =~ $current_arch && ubuntu_kernel_version_supported($_->url)){
 		my $pkg_name = $_->url;
 		my $vmlinux_path = undef;
+		my $record = $kernel_record_by_package{$pkg_name};
+
+		if(record_has_all_required_structs($record, $required_structs)){
+			print("[*] keeping existing offsets for " . $pkg_name . "\n");
+			next;
+		}
 
 		print("[*] downloading " . $pkg_name . "\n");
 		$ubuntu_current_link = $ubuntu_kernel_repo_string . $pkg_name;
-		`$curl --progress-bar --remote-name --location $ubuntu_current_link`;
+		if(!-f $pkg_name){
+			my $partial_pkg = $pkg_name . ".part";
+			system($curl, "--fail", "--progress-bar", "--continue-at", "-", "--output", $partial_pkg, "--location", $ubuntu_current_link);
+			if($? != 0 || !-f $partial_pkg || !rename($partial_pkg, $pkg_name)){
+				print("[!] failed to download " . $pkg_name . "\n");
+				next;
+			}
+		}else{
+			print("[*] using cached package " . $pkg_name . "\n");
+		}
 		print("[*] extracting " . $pkg_name . "\n");
 		system($dpkg, "-x", $pkg_name, $ubuntu_kernel_pkg_folder);
 		$vmlinux_path = find_extracted_vmlinux($ubuntu_kernel_pkg_folder);
@@ -186,9 +218,8 @@ foreach($mechanize_object->find_all_links()){
 		}
 		write_generated_header();
 
-		# delete every downloaded '.ddeb' package
+		# Keep the package as a resumable cache; only discard extracted files.
 		`$rm -rf $ubuntu_kernel_pkg_folder`;
-		`$rm -f *.ddeb`;
 		$ubuntu_current_link = undef;	 
 	}
 }
@@ -205,12 +236,74 @@ sub write_generated_header {
 	print("[*] wrote " . $generated_header_path . "\n");
 }
 
+sub load_c_offset_array {
+	my ($text, $array_name) = @_;
+	my %values = ();
+	my $body = undef;
+
+	if($text =~ /static const\s+[^{;]+\s+\Q$array_name\E\[\]\s*=\s*\{(.*?)\n\};/s){
+		$body = $1;
+		while($body =~ /\[(LINUX_KERNEL_[A-Za-z0-9_]+)\]\s*=\s*(\d+)\s*,/g){
+			$values{$1} = 0 + $2;
+		}
+	}
+
+	return \%values;
+}
+
+sub load_existing_header_records {
+	my ($path, $structs, $records) = @_;
+	my $text = undef;
+	my %records_by_enum = map { $_->{kernel_enum} => $_ } @$records;
+
+	return unless -f $path;
+	open(my $fh, "<", $path) or return;
+	local $/;
+	$text = <$fh>;
+	close($fh);
+	return unless defined($text);
+
+	foreach my $struct (@$structs){
+		my $struct_name = $struct->{name};
+		my $struct_id = c_identifier($struct_name);
+		my $sizes = load_c_offset_array($text, $struct_id . "_struct_size_offsets");
+		my $size_valid = load_c_offset_array($text, $struct_id . "_struct_size_valid");
+
+		foreach my $kernel_enum (keys %records_by_enum){
+			if(($size_valid->{$kernel_enum} // 0) != 0){
+				$records_by_enum{$kernel_enum}->{structs}{$struct_name}{struct_size} = $sizes->{$kernel_enum};
+				$records_by_enum{$kernel_enum}->{structs}{$struct_name}{fields} = {};
+			}
+		}
+
+		foreach my $field (@{ $struct->{fields} }){
+			my $field_id = c_identifier($field);
+			my $offsets = load_c_offset_array($text, $struct_id . "_" . $field_id . "_offsets");
+			my $offset_valid = load_c_offset_array($text, $struct_id . "_" . $field_id . "_offset_valid");
+
+			foreach my $kernel_enum (keys %records_by_enum){
+				if(($offset_valid->{$kernel_enum} // 0) != 0){
+					$records_by_enum{$kernel_enum}->{structs}{$struct_name}{fields}{$field} = $offsets->{$kernel_enum};
+				}
+			}
+		}
+	}
+}
+
 sub ubuntu_kernel_enum_name {
 	my ($pkg_name) = @_;
 
 	return undef unless defined($pkg_name);
 	return undef unless $pkg_name =~ /(\d+)\.(\d+)\.(\d+)-(\d+)-generic-dbgsym_/;
 	return "LINUX_KERNEL_" . (0 + $1) . "_" . (0 + $2) . "_" . (0 + $3) . "_" . (0 + $4);
+}
+
+sub ubuntu_kernel_release_name {
+	my ($pkg_name) = @_;
+
+	return undef unless defined($pkg_name);
+	return undef unless $pkg_name =~ /(\d+)\.(\d+)\.(\d+)-(\d+)-generic-dbgsym_/;
+	return (0 + $1) . "." . (0 + $2) . "." . (0 + $3) . "-" . (0 + $4) . "-generic";
 }
 
 sub c_identifier {
@@ -381,24 +474,15 @@ sub find_extracted_vmlinux {
 	return $candidates[0];
 }
 
-sub find_fallback_module_path {
-	my ($module_name) = @_;
-	my $path = undef;
-	my $paths = undef;
+sub prepare_fallback_module_path {
+	my ($path) = @_;
 
-	$paths = `$find $ubuntu_kernel_pkg_folder -type f -name $module_name`;
-	($path) = split(/\n/, $paths);
-	if(!defined($path) || $path eq ""){
-		$paths = `$find $ubuntu_kernel_pkg_folder -type f -name $module_name.zst`;
-		($path) = split(/\n/, $paths);
-	}
-	return undef unless defined($path) && $path ne "";
-
+	return undef unless defined($path) && -f $path;
 	if($path =~ /\.zst\z/){
 		my $decompressed_path = $path;
 		$decompressed_path =~ s/\.zst\z//;
 		system($zstd, "-df", "-q", $path, "-o", $decompressed_path);
-		if($? != 0 || ! -f $decompressed_path){
+		if($? != 0 || !-f $decompressed_path){
 			print("[!] failed to decompress fallback module " . $path . "\n");
 			return undef;
 		}
@@ -408,18 +492,68 @@ sub find_fallback_module_path {
 	return $path;
 }
 
+sub find_fallback_module_path {
+	my ($module_name, $kernel_release) = @_;
+	my $path = undef;
+	my $paths = undef;
+	my @relative_path = ();
+
+	if(defined($kernel_release)){
+		if($module_name eq $mac80211_mod_fallback){
+			@relative_path = ("kernel", "net", "mac80211", $module_name);
+		}elsif($module_name eq $cfg80211_mod_fallback){
+			@relative_path = ("kernel", "net", "wireless", $module_name);
+		}elsif($module_name eq $bluetooth_mod_fallback){
+			@relative_path = ("kernel", "net", "bluetooth", $module_name);
+		}
+
+		if(@relative_path){
+			$path = File::Spec->catfile($ubuntu_kernel_pkg_folder, "usr", "lib", "debug", "lib", "modules", $kernel_release, @relative_path);
+			return prepare_fallback_module_path($path) if -f $path;
+			return prepare_fallback_module_path($path . ".zst") if -f $path . ".zst";
+		}
+	}
+
+	$paths = `$find $ubuntu_kernel_pkg_folder -type f -name $module_name`;
+	($path) = split(/\n/, $paths);
+	if(!defined($path) || $path eq ""){
+		$paths = `$find $ubuntu_kernel_pkg_folder -type f -name $module_name.zst`;
+		($path) = split(/\n/, $paths);
+	}
+	return prepare_fallback_module_path($path);
+}
+
 sub capture_fallback_pahole_struct {
-	my ($struct_name, $module_name) = @_;
+	my ($struct_name, $module_name, $kernel_release) = @_;
+	my $fallback_output = "";
+	my $fallback_status = 0;
 
-	$fallback_path = find_fallback_module_path($module_name);
-	return 0 unless defined($fallback_path);
+	$fallback_path = find_fallback_module_path($module_name, $kernel_release);
+	return "" unless defined($fallback_path);
 
-	($status, $output) = capture_pahole_struct($struct_name, $fallback_path);
-	return $output =~ /\S/;
+	($fallback_status, $fallback_output) = capture_pahole_struct($struct_name, $fallback_path);
+	return "" if $fallback_status != 0 || $fallback_output !~ /\S/;
+	print("[*] using module DWARF from " . $fallback_path . " for struct " . $struct_name . "\n");
+	return $fallback_output;
+}
+
+sub fallback_module_for_struct {
+	my ($struct_name) = @_;
+
+	return $bluetooth_mod_fallback if $struct_name =~ /^hci_/ || $struct_name eq "discovery_state";
+	return $cfg80211_mod_fallback if $struct_name =~ /^cfg80211_/ ||
+		$struct_name eq "rate_info" || $struct_name eq "wiphy" ||
+		$struct_name eq "wireless_dev";
+	return $mac80211_mod_fallback if $struct_name =~ /^ieee80211_/;
+	return undef;
 }
 
 sub extract_offsets_from_vmlinux {
 	my ($pkg_name, $vmlinux_path, $structs) = @_;
+	my @struct_names = map { $_->{name} } @$structs;
+	my ($batch_status, $batch_output) = capture_pahole_struct(join(",", @struct_names), $vmlinux_path, 1);
+	my $struct_outputs = split_pahole_structs($batch_output);
+	my $kernel_release = ubuntu_kernel_release_name($pkg_name);
 
 	print("[*] extracting offsets from " . $vmlinux_path . "\n");
 	print("[*] package: " . $pkg_name . "\n");
@@ -433,22 +567,28 @@ sub extract_offsets_from_vmlinux {
 	return undef unless defined($kernel_enum);
 
 	foreach my $struct (@$structs){
-		($status, $output) = capture_pahole_struct($struct->{name}, $vmlinux_path);
+		my $struct_output = $struct_outputs->{ $struct->{name} } // "";
+		my ($struct_size, $offsets) = parse_pahole_output($struct_output, $struct->{fields});
+		my $fallback_module = fallback_module_for_struct($struct->{name});
 
-		if($output !~ /\S/){
-			# usually pahole fails for hci_xxx and ieee80211_xxx structs in vmlinux;
-			# in this case, search the matching module, including compressed .ko.zst files.
-			if($struct->{name} =~ "hci_" && capture_fallback_pahole_struct($struct->{name}, $bluetooth_mod_fallback)){
-				goto fallback;
+		# cfg80211/mac80211 types are commonly only complete in their module
+		# DWARF.  An emitted declaration with size zero is as unusable as a
+		# missing declaration, so query the exact module for this kernel release.
+		if(($struct_output !~ /\S/ || $struct_size == 0) && defined($fallback_module)){
+			my $fallback_output = capture_fallback_pahole_struct($struct->{name}, $fallback_module, $kernel_release);
+			if($fallback_output =~ /\S/){
+				my ($fallback_size, $fallback_offsets) = parse_pahole_output($fallback_output, $struct->{fields});
+				$struct_size = $fallback_size if $fallback_size > 0;
+				foreach my $field (keys %$fallback_offsets){
+					$offsets->{$field} = $fallback_offsets->{$field} unless exists($offsets->{$field});
+				}
 			}
-			if($struct->{name} =~ "ieee80211_" && capture_fallback_pahole_struct($struct->{name}, $mac80211_mod_fallback)){
-				goto fallback;
-			}
-			print("[!] struct " . $struct->{name} . " not found by pahole\n");
+		}
+
+		if($struct_size == 0){
+			print("[!] struct " . $struct->{name} . " has no usable DWARF layout\n");
 			next;
 		}
-		fallback:
-		my ($struct_size, $offsets) = parse_pahole_output($output, $struct->{fields});
 		$record{structs}{$struct->{name}} = {
 			struct_size => $struct_size,
 			fields => {},
@@ -469,7 +609,7 @@ sub extract_offsets_from_vmlinux {
 }
 
 sub capture_pahole_struct {
-	my ($struct_name, $vmlinux_path) = @_;
+	my ($struct_name, $vmlinux_path, $skip_missing) = @_;
 	my $output = "";
 	my $status = 0;
 	my $pid = open(my $fh, "-|");
@@ -477,7 +617,11 @@ sub capture_pahole_struct {
 	die "failed to fork pahole: $!\n" unless defined($pid);
 	if($pid == 0){
 		open(STDERR, ">", File::Spec->devnull()) or exit(127);
-		exec($pahole, "-C", $struct_name, $vmlinux_path) or exit(127);
+		if($skip_missing){
+			exec($pahole, "--skip_missing", "-C", $struct_name, $vmlinux_path) or exit(127);
+		}else{
+			exec($pahole, "-C", $struct_name, $vmlinux_path) or exit(127);
+		}
 	}
 
 	{
@@ -488,6 +632,35 @@ sub capture_pahole_struct {
 	close($fh);
 	$status = $? >> 8;
 	return ($status, $output);
+}
+
+sub split_pahole_structs {
+	my ($output) = @_;
+	my %struct_outputs = ();
+	my $current_name = undef;
+	my $current_output = "";
+	my $depth = 0;
+
+	foreach my $line (split(/\n/, $output)){
+		if(!defined($current_name)){
+			if($line =~ /^struct\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/){
+				$current_name = $1;
+				$current_output = $line . "\n";
+				$depth = ($line =~ tr/{/{/) - ($line =~ tr/}/}/);
+			}
+			next;
+		}
+
+		$current_output .= $line . "\n";
+		$depth += ($line =~ tr/{/{/) - ($line =~ tr/}/}/);
+		if($depth == 0){
+			$struct_outputs{$current_name} = $current_output unless exists($struct_outputs{$current_name});
+			$current_name = undef;
+			$current_output = "";
+		}
+	}
+
+	return \%struct_outputs;
 }
 
 sub parse_pahole_output {

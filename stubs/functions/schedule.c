@@ -1,5 +1,5 @@
 void schedule(void){
-	struct task_struct *current_task = NULL;
+	struct __task_struct *current_task = NULL;
 	current_task = current;
 
 	if(current_task == NULL){

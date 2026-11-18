@@ -12,7 +12,7 @@ struct hci_dev *hci_alloc_dev_priv(int sizeof_priv){
 		alloc_size += sizeof_priv;
 	}
 
-	hdev = malloc(alloc_size);
+	hdev = calloc(1, alloc_size);
 	if (hdev == NULL){
 		return NULL;
 	}
@@ -124,6 +124,7 @@ struct hci_dev *hci_alloc_dev_priv(int sizeof_priv){
 	skb_queue_head_init(&hdev->rx_q);
 	skb_queue_head_init(&hdev->cmd_q);
 	skb_queue_head_init(&hdev->raw_q);
+	hci_devcd_setup(hdev);
 
 	__init_waitqueue_head(&hdev->req_wait_q, "read_wait_q", NULL);
 	#if 0

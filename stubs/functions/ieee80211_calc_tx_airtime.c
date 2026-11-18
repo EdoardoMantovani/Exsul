@@ -12,6 +12,5 @@ u32 ieee80211_calc_tx_airtime(struct ieee80211_hw *hw, struct ieee80211_tx_info 
 		}
 		duration += cur_duration * rate->count;
 	}
-
 	return duration;
 }

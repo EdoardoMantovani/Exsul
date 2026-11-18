@@ -2,7 +2,7 @@ void wiphy_work_queue(struct wiphy *wiphy, struct wiphy_work *work){
 	bool inserted = false;
 	pthread_mutex_t *lock = wiphy_work_queue_lock();
 
-	if(lock == NULL || work == NULL || director.rdev == NULL || work->func == NULL || (uintptr_t)work->func <= 4096){
+	if(atomic_load(&director.finalizing) || lock == NULL || work == NULL || director.rdev == NULL || work->func == NULL || (uintptr_t)work->func <= 4096){
 		goto end;
 	}
 

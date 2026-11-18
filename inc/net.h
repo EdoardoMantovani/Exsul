@@ -215,7 +215,7 @@ enum {
 	 * in Documentation/networking/netdev-features.rst.
 	 */
 
-	/**/NETDEV_FEATURE_COUNT
+	/* */NETDEV_FEATURE_COUNT
 };
 
 /* These flag bits are private to the generic network queueing
@@ -303,36 +303,36 @@ static struct notifier_block *netdevice_notifiers[MAX_NETDEVICE_NOTIFIERS];
  *	skb_headlen(skb) == 0 (data starts from frag0)
  */
 enum netdev_priv_flags {
-	IFF_802_1Q_VLAN			= 1<<0,
-	IFF_EBRIDGE			= 1<<1,
-	IFF_BONDING			= 1<<2,
-	IFF_ISATAP			= 1<<3,
-	IFF_WAN_HDLC			= 1<<4,
-	IFF_XMIT_DST_RELEASE		= 1<<5,
-	IFF_DONT_BRIDGE			= 1<<6,
-	IFF_DISABLE_NETPOLL		= 1<<7,
-	IFF_MACVLAN_PORT		= 1<<8,
-	IFF_BRIDGE_PORT			= 1<<9,
-	IFF_OVS_DATAPATH		= 1<<10,
-	IFF_TX_SKB_SHARING		= 1<<11,
-	IFF_UNICAST_FLT			= 1<<12,
-	IFF_TEAM_PORT			= 1<<13,
-	IFF_SUPP_NOFCS			= 1<<14,
-	IFF_LIVE_ADDR_CHANGE		= 1<<15,
-	IFF_MACVLAN			= 1<<16,
-	IFF_XMIT_DST_RELEASE_PERM	= 1<<17,
-	IFF_L3MDEV_MASTER		= 1<<18,
-	IFF_NO_QUEUE			= 1<<19,
-	IFF_OPENVSWITCH			= 1<<20,
-	IFF_L3MDEV_SLAVE		= 1<<21,
-	IFF_TEAM			= 1<<22,
-	IFF_RXFH_CONFIGURED		= 1<<23,
-	IFF_PHONY_HEADROOM		= 1<<24,
-	IFF_MACSEC			= 1<<25,
-	IFF_NO_RX_HANDLER		= 1<<26,
-	IFF_FAILOVER			= 1<<27,
-	IFF_FAILOVER_SLAVE		= 1<<28,
-	IFF_L3MDEV_RX_HANDLER		= 1<<29,
+	IFF_802_1Q_VLAN			= 1 << 0,
+	IFF_EBRIDGE			= 1 << 1,
+	IFF_BONDING			= 1 << 2,
+	IFF_ISATAP			= 1 << 3,
+	IFF_WAN_HDLC			= 1 << 4,
+	IFF_XMIT_DST_RELEASE		= 1 << 5,
+	IFF_DONT_BRIDGE			= 1 << 6,
+	IFF_DISABLE_NETPOLL		= 1 << 7,
+	IFF_MACVLAN_PORT		= 1 << 8,
+	IFF_BRIDGE_PORT			= 1 << 9,
+	IFF_OVS_DATAPATH		= 1 << 10,
+	IFF_TX_SKB_SHARING		= 1 << 11,
+	IFF_UNICAST_FLT			= 1 << 12,
+	IFF_TEAM_PORT			= 1 << 13,
+	IFF_SUPP_NOFCS			= 1 << 14,
+	IFF_LIVE_ADDR_CHANGE		= 1 << 15,
+	IFF_MACVLAN			= 1 << 16,
+	IFF_XMIT_DST_RELEASE_PERM	= 1 << 17,
+	IFF_L3MDEV_MASTER		= 1 << 18,
+	IFF_NO_QUEUE			= 1 << 19,
+	IFF_OPENVSWITCH			= 1 << 20,
+	IFF_L3MDEV_SLAVE		= 1 << 21,
+	IFF_TEAM			= 1 << 22,
+	IFF_RXFH_CONFIGURED		= 1 << 23,
+	IFF_PHONY_HEADROOM		= 1 << 24,
+	IFF_MACSEC			= 1 << 25,
+	IFF_NO_RX_HANDLER		= 1 << 26,
+	IFF_FAILOVER			= 1 << 27,
+	IFF_FAILOVER_SLAVE		= 1 << 28,
+	IFF_L3MDEV_RX_HANDLER		= 1 << 29,
 	IFF_NO_ADDRCONF			= BIT_ULL(30),
 	IFF_TX_SKB_NO_LINEAR		= BIT_ULL(31),
 };
@@ -340,26 +340,26 @@ enum netdev_priv_flags {
 typedef u64 netdev_features_t;
 
 struct netdev_hw_addr_list {
-	struct list_head	list;
-	int			count;
+	struct list_head list;
+	int count;
 
 	/* Auxiliary tree for faster lookup on addition and deletion */
-	struct rb_root		tree;
+	struct rb_root tree;
 };
 
 struct netdev_hw_addr {
-	struct list_head	list;
-	struct rb_node		node;
-	unsigned char		addr[MAX_ADDR_LEN];
-	unsigned char		type;
-	bool			global_use;
-	int			sync_cnt;
-	int			refcount;
-	int			synced;
-	struct rcu_head		rcu_head;
+	struct list_head list;
+	struct rb_node node;
+	unsigned char addr[MAX_ADDR_LEN];
+	unsigned char type;
+	bool global_use;
+	int sync_cnt;
+	int refcount;
+	int synced;
+	struct rcu_head	rcu_head;
 };
 
-/**
+/*
  * eth_random_addr - Generate software assigned random Ethernet address
  * @addr: Pointer to a six-byte array containing the Ethernet address
  *
@@ -372,7 +372,7 @@ static inline void eth_random_addr(u8 *addr){
 	addr[0] |= 0x02;	/* set local assignment bit (IEEE802) */
 }
 
-/**
+/*
  * eth_broadcast_addr - Assign broadcast address
  * @addr: Pointer to a six-byte array containing the Ethernet address
  *
@@ -382,7 +382,7 @@ static inline void eth_broadcast_addr(u8 *addr){
 	memset(addr, 0xff, ETH_ALEN);
 }
 
-/**
+/*
  * eth_zero_addr - Assign zero address
  * @addr: Pointer to a six-byte array containing the Ethernet address
  *
@@ -402,7 +402,7 @@ static inline void netif_tx_stop_queue(struct netdev_queue *dev_queue){
 	set_bit(__QUEUE_STATE_DRV_XOFF, &dev_queue->state);
 }
 
-/**
+/*
  *	netif_running - test if up
  *	@dev: network device
  *
@@ -421,7 +421,6 @@ static struct netdev_hw_addr *__hw_addr_create(const unsigned char *addr, int ad
         struct netdev_hw_addr *ha = NULL;
 
         alloc_size = sizeof(*ha);
-
         if (alloc_size < L1_CACHE_BYTES){
                 alloc_size = L1_CACHE_BYTES;
         }
@@ -436,7 +435,6 @@ static struct netdev_hw_addr *__hw_addr_create(const unsigned char *addr, int ad
         ha->global_use = global;
         ha->synced = sync ? 1 : 0;
         ha->sync_cnt = 0;
-
         return ha;
 }
 
@@ -450,7 +448,6 @@ static int __hw_addr_add_ex(struct netdev_hw_addr_list *list, unsigned char *add
 		ret = -EINVAL;
 		return ret;
 	}
-
 	while (*ins_point) {
 		ha = rb_entry(*ins_point, struct netdev_hw_addr, node);
 		diff = memcmp(addr, ha->addr, addr_len);
@@ -459,17 +456,16 @@ static int __hw_addr_add_ex(struct netdev_hw_addr_list *list, unsigned char *add
 		}
 
 		parent = *ins_point;
-		if (diff < 0) {
+		if (diff < 0){
 			ins_point = &parent->rb_left;
-		} else if (diff > 0) {
+		}else if (diff > 0){
 			ins_point = &parent->rb_right;
-		} else {
+		}else{
 			if (exclusive){
 				ret = -EEXIST;
 				return ret;
 			}
-
-			if (global) {
+			if (global){
 				/* check if addr is already used as global */
 				if (ha->global_use){
 					return ret;
@@ -477,7 +473,7 @@ static int __hw_addr_add_ex(struct netdev_hw_addr_list *list, unsigned char *add
 					ha->global_use = true;
 				}
 			}
-			if (sync) {
+			if (sync){
 				if (ha->synced && sync_count){
 					ret = -EEXIST;
 					return ret;
@@ -489,7 +485,6 @@ static int __hw_addr_add_ex(struct netdev_hw_addr_list *list, unsigned char *add
 			return ret;
 		}
 	}
-
 	ha = __hw_addr_create(addr, addr_len, addr_type, global, sync);
 	if (ha == NULL){
 		ret = -ENOMEM;
@@ -501,12 +496,12 @@ static int __hw_addr_add_ex(struct netdev_hw_addr_list *list, unsigned char *add
 
 	list_add_tail_rcu(&ha->list, &list->list);
 	list->count++;
-
 	return ret;
 }
 
 static int __hw_addr_add(struct netdev_hw_addr_list *list, unsigned char *addr, int addr_len, unsigned char addr_type){
 	int ret = 0;
+
 	ret = __hw_addr_add_ex(list, addr, addr_len, addr_type, false, false, 0, false);
 	return ret;
 }
@@ -551,6 +546,7 @@ static int dev_addr_init(struct net_device *netdev){
 
 static int __netif_receive_skb_one_core(struct sk_buff *skb, bool pfmemalloc){
 	int ret = 0;
+
 	if (skb != NULL){
 		consume_skb(skb);
 	}
@@ -559,51 +555,19 @@ static int __netif_receive_skb_one_core(struct sk_buff *skb, bool pfmemalloc){
 
 static int __netif_receive_skb(struct sk_buff *skb){
 	int ret = 0;
+
 	ret = __netif_receive_skb_one_core(skb, false);
 	return ret;
 }
 
 static void __netif_receive_skb_list(struct list_head *head){
-	bool pfmemalloc = false;
-	struct list_head *pos = NULL;
-	struct list_head *tmp = NULL;
-	struct sk_buff *skb = NULL;
-
-	pos = head->next;
-	while (pos != head) {
-		tmp = pos->next;
-		skb = (struct sk_buff *)pos;
-		struct list_head sublist;
-		list_cut_before(&sublist, head, pos);
-		if (!list_empty(&sublist)){
-			__netif_receive_skb_list_core(&sublist, pfmemalloc);
-		}
-		pos = tmp;
-	}
 	if (!list_empty(head)){
-		__netif_receive_skb_list_core(head, pfmemalloc);
+		__netif_receive_skb_list_core(head, false);
 	}
 }
 
 static void netif_receive_skb_list_internal(struct list_head *head){
-	struct sk_buff *skb = NULL;
-	struct sk_buff *next = NULL;
-	struct list_head *pos = NULL;
-	struct list_head *tmp = NULL;
-	LIST_HEAD(sublist);
-
-	pos = head->next;
-	while (pos != head) {
-		tmp = pos->next;
-		skb = (struct sk_buff *)pos;
-		skb_list_del_init(skb);
-		if (!skb_defer_rx_timestamp(skb)){
-			list_add_tail(&skb->list, &sublist);
-		}
-		pos = tmp;
-	}
-
-	list_splice_init(&sublist, head);
+	/* PHY RX timestamp deferral is disabled in this userspace stack. */
 	__netif_receive_skb_list(head);
 }
 
@@ -614,7 +578,6 @@ static int netif_receive_skb_internal(struct sk_buff *skb){
 		ret = NET_RX_SUCCESS;
 		return ret;
 	}
-
 	ret = __netif_receive_skb(skb);
 	return ret;
 }
@@ -658,7 +621,6 @@ static int netdevice_init(struct net_device *dev){
 		ret = -EINVAL;
 		return ret;
 	}
-
 	ops = dev->netdev_ops;
 	if(ops != NULL){
 		ndo_init = ops->ndo_init;
@@ -679,7 +641,6 @@ static int netdevice_uninit(struct net_device *dev){
 		ret = -EINVAL;
 		return ret;
 	}
-
 	ops = dev->netdev_ops;
 	if(ops != NULL){
 		ndo_uninit = ops->ndo_uninit;
@@ -700,7 +661,6 @@ static int netdevice_open(struct net_device *dev){
 		ret = -EINVAL;
 		return ret;
 	}
-
 	call_netdevice_notifiers(NETDEV_PRE_UP, dev);
 	ops = dev->netdev_ops;
 	if(ops != NULL){
@@ -726,7 +686,6 @@ static int netdevice_stop(struct net_device *dev){
 		ret = -EINVAL;
 		return ret;
 	}
-
 	ops = dev->netdev_ops;
 	if(ops != NULL){
 		ndo_stop = ops->ndo_stop;
@@ -747,7 +706,6 @@ static int netdevice_validate_address(struct net_device *dev){
 		ret = -EINVAL;
 		return ret;
 	}
-
 	ops = dev->netdev_ops;
 	if(ops != NULL){
 		ndo_validate_addr = ops->ndo_validate_addr;
@@ -768,7 +726,6 @@ static int netdevice_set_rx_mode(struct net_device *dev){
 		ret = -EINVAL;
 		return ret;
 	}
-
 	ops = dev->netdev_ops;
 	if(ops != NULL){
 		ndo_set_rx_mode = ops->ndo_set_rx_mode;
@@ -789,7 +746,6 @@ static int netdevice_set_mac_address(struct net_device *dev, void *mac_address){
 		ret = -EINVAL;
 		return ret;
 	}
-
 	ops = dev->netdev_ops;
 	if(ops != NULL){
 		ndo_set_mac_address = ops->ndo_set_mac_address;

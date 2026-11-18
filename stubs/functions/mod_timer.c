@@ -1,11 +1,15 @@
 int mod_timer(struct timer_list *timer, unsigned long expires){
+	int ret = 0;
 	int was_pending = 0;
 	struct hlist_node *next = NULL;
 	struct hlist_node **pprev = NULL;
 
-	pthread_once(&director.timer_once, timer_thread_init);
-
 	pthread_mutex_lock(&director.timer_lock);
+	if(director.timer_stopping){
+		pthread_mutex_unlock(&director.timer_lock);
+		return ret;
+	}
+	pthread_once(&director.timer_once, timer_thread_init);
 
 	if (timer->entry.pprev != NULL) {
 		was_pending = 1;
@@ -22,7 +26,6 @@ int mod_timer(struct timer_list *timer, unsigned long expires){
 	timer->expires = expires;
 	__enqueue_timer(timer);
 	pthread_cond_signal(&director.timer_cond);
-
 	pthread_mutex_unlock(&director.timer_lock);
 	return was_pending;
 }

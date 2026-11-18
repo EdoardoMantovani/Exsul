@@ -2,7 +2,7 @@
 
 # Made by Edoardo Mantovani, 2026
 # Exsul build script
-# version 2.3.0 (25 sept 2026)
+# version 2.5.0 (30 october 2026)
 
 use strict;
 use warnings;
@@ -63,6 +63,8 @@ my $stub_name = undef;
 my $cb_header = undef;
 my $fw_header = undef;
 my $offsets = undef;
+my $distro_offsets_source = undef;
+my $distro_offsets_header = undef;
 my $cb_counter = 0;
 my $proto_header = undef;
 my $iterator = undef;
@@ -88,6 +90,7 @@ my $enable_exported_symbols_tracing = undef;
 my $enable_tcc_fuzzing = undef;
 my $clean = undef;
 my $help = undef;
+my $no_dwarf = undef;
 my @windows_runtime_dlls = ();
 
 my $exsul_sz = 0;
@@ -111,6 +114,8 @@ my %field_idx_by_name = ();
 my %struct_set = ();
 my %used_fields_by_struct = ();
 
+$distro_offsets_header = "distro_struct_offsets.h";
+$distro_offsets_source = "tools/offset_generator/distro_struct_offsets.h";
 my @gcc_params = (
 	"-DARCH_INDEPENDENT_BITOPS",
 	"-DTCC_SCRIPTING",
@@ -155,6 +160,7 @@ my @gcc_final_linkings = (
 
 my %struct_whitelist = (
 	"file"			=> "file",
+	"inode"			=> "inode",
 	"skb"			=> "sk_buff",
 	"skb_info"		=> "skb_shared_info",
 	"mod"			=> "module",
@@ -163,7 +169,9 @@ my %struct_whitelist = (
 	"dev"			=> "device",
 	"udev"			=> "usb_device",
 	"usb_bus"		=> "usb_bus",
+	"usb_driver"		=> "usb_driver",
         "rate_info"     	=> "rate_info",
+	"wdev"			=> "wireless_dev",
 	"hw"			=> "ieee80211_hw",
 	"urb"			=> "urb",
 	"fops"			=> "file_operations",
@@ -172,8 +180,8 @@ my %struct_whitelist = (
 	"intf"			=> "usb_interface",
 	"ieee80211_ops" 	=> "ieee80211_ops",
 	"driver"		=> "device_driver",
-	"usb_driver"		=> "usb_driver",
 	"hdev"			=> "hci_dev",
+	"discov"		=> "discovery_state",
 	"hci_conn"		=> "hci_conn",
 	"cfg80211_scan"		=> "cfg80211_scan_request",
 	"settings"		=> "cfg80211_ap_settings",
@@ -197,8 +205,21 @@ my %fixed_only_structs = (
 	"ieee80211_link_sta" => 1,
 );
 my %field_ctype = (
+	task_struct => {
+		"__state"				=> "unsigned int",
+		"saved_state"				=> "unsigned int",
+		"stack"					=> "void *",
+		"flags"					=> "unsigned int",
+		"on_cpu"				=> "u8",
+		"on_rq"					=> "u8",
+	},
 	file => {
 		"f_flags"				=> "unsigned int",
+		"f_inode"				=> "struct inode *",
+		"f_pos"					=> "loff_t",
+	},
+	inode => {
+		"i_size"				=> "loff_t",
 	},
 	module => {
 		"mem"					=> "struct module_memory",
@@ -399,6 +420,21 @@ my %field_ctype = (
 		"dev"					=> "struct device",
 		"usb_dev"				=> "struct device *",
 		"reset_ws"				=> "struct work_struct",
+	},
+	wireless_dev => {
+		"wiphy"					=> "struct wiphy *",
+		"iftype"				=> "int",
+		"net_device"				=> "netdev",
+		"identifier"				=> "u32",
+		"mgmt_registrations_need_updated"	=> "u8",
+		"conn"					=> "struct cfg80211_conn *",
+		"connect_keys"				=> "struct cfg80211_cached_keys",
+		"connected"				=> "u8",
+		"ps"					=> "bool",
+		"ps_timeout"				=> "int",
+		"ap_unexpected_nlportid"		=> "u32",
+		"owner_nlportid"			=> "u32",
+		"nl_owner_dead"				=> "bool",
 	},
 	ieee80211_hw => {
 		"conf"					=> "struct ieee80211_conf",
@@ -634,6 +670,17 @@ my %field_ctype = (
 		"get_codec_config_data"			=> "void *",
 		"classify_pkt_type"			=> "void *",
 	},
+	discovery_state => {
+		"type"					=> "int",
+		"timestamp"				=> "unsigned long",
+		"last_adv_rssi"				=> "s8",
+		"last_adv_addr_type"			=> "u8",
+		"report_invalid_rssi"			=> "bool",
+		"result_filtering"			=> "bool",
+		"limited"				=> "bool",
+		"rssi"					=> "s8",
+		"uuid_count"				=> "u16",
+	},
 	hci_conn => {
 		"list"					=> "struct list_head",
 	},
@@ -847,10 +894,19 @@ my %field_ctype = (
 	ieee80211_sta => {
 		"addr"					=> "u8",
 		"aid"					=> "u16",
+		"max_sp"				=> "u8",
 		"wme"					=> "bool",
 		"valid_links"				=> "u16",
 		"deflink"				=> "struct ieee80211_link_sta",
 		"link"					=> "struct ieee80211_link_sta *",
+		"tdls"					=> "bool",
+		"tdls_initiator"			=> "bool",
+		"mfp"					=> "bool",
+		"mlo"					=> "bool",
+		"spp_amsdu"				=> "bool",
+		"support_p2p_ps"			=> "bool",
+		"txq"					=> "struct ieee80211_txq *",
+		"drv_priv"				=> "u8",
 	},
 	ieee80211_link_sta => {
 		"sta"					=> "struct ieee80211_sta *",
@@ -935,6 +991,8 @@ my %inline_array_field = (
 	ieee80211_sta => {
 		"addr"				=> 1,
 		"link"				=> 1,
+		"txq"				=> 1,
+		"drv_priv"			=> 1,
 	},
 	ieee80211_link_sta => {
 		"addr"				=> 1,
@@ -975,6 +1033,7 @@ GetOptions(
 	"trace"		  => \$enable_exported_symbols_tracing,
 	"fuzzer"	  => \$enable_tcc_fuzzing,
 	"clean"           => \$clean,
+	"no-dwarf"        => \$no_dwarf,
 	"help"            => \$help,
 );
 
@@ -992,6 +1051,7 @@ if($help){
 	print("--trace -> trace every exported function, used mainly for debugging!\n");
 	print("--fuzzer -> enable fuzzing on the TCC interface\n");
 	print("--clean -> clear every compilation file\n");
+	print("--no-dwarf -> use only the built-in distro structure offsets\n");
 	print("--help -> display this help text\n");
 	exit(0);
 }
@@ -1008,6 +1068,11 @@ if($generate_offset_file){
 # enable the debugging strings in Exsul
 if($dbg){
 	push(@gcc_params, "-DENABLE_DBG_PRINT ");
+}
+
+if($no_dwarf){
+	push(@gcc_params, "-DEXSUL_NO_DWARF");
+	@gcc_final_linkings = grep { $_ ne "-ldwarf" } @gcc_final_linkings;
 }
 
 # enable the fuzzing mode
@@ -1066,6 +1131,8 @@ if($clean){
 	`$rm *.elf 2>/dev/null`;
 	`$rm *.bin 2>/dev/null`;
 	`$rm *.txt 2>/dev/null`;
+	`$rm *.log 2>/dev/null`;
+	`$rm *.list 2>/dev/null`;
 	if($offset_generation_file){
 		`$rm $offset_generation_file 2>/dev/null`;
 	}else{
@@ -1089,11 +1156,11 @@ if($windows_support){
 
 	if($windows_static){
 		my @required_static_libs = (
-			"win/libs/libdwarf.a",
 			"win/libs/libusb-1.0.a",
 			"win/libs/libtcc.a",
 			"win/libs/libzstd.a",
 		);
+		unshift(@required_static_libs, "win/libs/libdwarf.a") unless $no_dwarf;
 		my @missing_static_libs = grep { ! -e $_ } @required_static_libs;
 		push(@gcc_final_linkings, @required_static_libs);
 		push(@gcc_final_linkings, "-lbcrypt");
@@ -1109,13 +1176,15 @@ if($windows_support){
 		push(@gcc_final_linkings, "-lwinpthread");
 		push(@gcc_final_linkings, "-lsynchronization");
 		# now add the Windows import/static libraries used by the DLL-backed build
-		push(@gcc_final_linkings, "win/libs/libdwarf.dll.a");
-		push(@gcc_final_linkings, "win/libs/libdwarfp.dll.a");
+		if(!$no_dwarf){
+			push(@gcc_final_linkings, "win/libs/libdwarf.dll.a");
+			push(@gcc_final_linkings, "win/libs/libdwarfp.dll.a");
+			push(@windows_runtime_dlls, "win/libs/libdwarf-2.dll");
+		}
 		push(@gcc_final_linkings, "win/libs/libusb-1.0.a");
 		push(@gcc_final_linkings, "win/libs/libusb-1.0.dll.a");
 		push(@gcc_final_linkings, "win/libs/libtcc.dll");
 		push(@gcc_final_linkings, "win/libs/libzstd.a");
-		push(@windows_runtime_dlls, "win/libs/libdwarf-2.dll");
 		push(@windows_runtime_dlls, "win/libs/libtcc.dll");
 	}
 }
@@ -1263,6 +1332,7 @@ sub build_fixed_alias_map {
 sub harvest_declared_ptr_aliases {
 	my ($line) = @_;
 	my %found = ();
+	return %found if index($line, "struct") < 0 || index($line, "*") < 0;
 
 	foreach my $struct (keys %struct_set) {
 		next if $fixed_only_structs{$struct};
@@ -1332,7 +1402,7 @@ sub emit_runtime_struct_header {
 
 	open(OFFSETS, '>', $offsets_path) or die $!;
 	print OFFSETS "struct struct_field {\n";
-	print OFFSETS "	unsigned char  field_name[24];\n";
+	print OFFSETS "	unsigned char  field_name[64];\n";
 	print OFFSETS "	unsigned short field_offset;\n";
 	print OFFSETS "};\n\n";
 	print OFFSETS "struct runtime_struct_layout {\n";
@@ -1427,6 +1497,98 @@ sub emit_runtime_struct_header {
 	}
 }
 
+sub c_identifier {
+	my ($name) = @_;
+	$name =~ s/[^A-Za-z0-9_]/_/g;
+	return $name;
+}
+
+sub emit_distro_offsets_adapter {
+	my ($source_path, $output_path) = @_;
+	my $header = "";
+	my @kernels = ();
+	my %seen_kernels = ();
+	my %arrays = ();
+
+	# check if the initial source path works
+	if(-f $source_path){
+		open(my $input, '<', $source_path) or die "[!] failed to open $source_path: $!\n";
+		local $/;
+		$header = <$input>;
+		close($input) or die $!;
+		$header =~ s/static void associate_runtime_generated_struct_offsets\b[\s\S]*\z//;
+		while($header =~ /^\s*(LINUX_KERNEL_(\d+)_(\d+)_(\d+)_(\d+))\s*,/mg){
+			push(@kernels, [$1, $2, $3, $4, $5]) unless $seen_kernels{$1}++;
+		}
+		%arrays = map { $_ => 1 }
+		($header =~ /static const (?:unsigned short|unsigned char)\s+([A-Za-z_]\w*)\s*\[\]/g);
+	}
+
+	open(my $output, '>', $output_path) or die "open $output_path: $!\n";
+	print $output "#ifndef __EXSUL_DISTRO_STRUCT_OFFSETS_H__\n";
+	print $output "#define __EXSUL_DISTRO_STRUCT_OFFSETS_H__\n\n";
+	print $output $header;
+	if(@kernels){
+		print $output "\nstruct exsul_distro_kernel_entry {\n";
+		print $output "\tunsigned char major, minor, patch;\n";
+		print $output "\tunsigned short abi;\n";
+		print $output "\tint kernel;\n};\n";
+		print $output "static const struct exsul_distro_kernel_entry exsul_distro_kernels[] = {\n";
+		foreach my $kernel (@kernels){
+			my ($enum, $major, $minor, $patch, $abi) = @$kernel;
+			print $output "\t{$major, $minor, $patch, $abi, $enum},\n";
+		}
+		print $output "};\n";
+	}
+	print $output "\nstatic int distro_apply_runtime_offsets(struct runtime_struct *runtime_structs){\n";
+	print $output "\tint applied = 0;\n";
+	print $output "\tint kernel = -1;\n";
+	print $output "\tunsigned int selected = 0;\n";
+	print $output "\tunsigned int selected_release = 0;\n";
+	print $output "\tunsigned int best_release_delta = ~0U;\n";
+	print $output "\tunsigned int best_abi_delta = ~0U;\n";
+	print $output "\tunsigned int target_release = ((unsigned int)director.kernel_major_version << 16) | ((unsigned int)director.kernel_minor_version << 8) | director.kernel_patch;\n";
+	print $output "\tif(runtime_structs == NULL){\n\t\treturn -EINVAL;\n\t}\n";
+	if(@kernels){
+		print $output "\tfor(unsigned int i = 0; i < ARRAY_SIZE(exsul_distro_kernels); i++){\n";
+		print $output "\t\tunsigned int candidate_release = ((unsigned int)exsul_distro_kernels[i].major << 16) | ((unsigned int)exsul_distro_kernels[i].minor << 8) | exsul_distro_kernels[i].patch;\n";
+		print $output "\t\tunsigned int release_delta = candidate_release > target_release ? candidate_release - target_release : target_release - candidate_release;\n";
+		print $output "\t\tunsigned int abi_delta = exsul_distro_kernels[i].abi > director.kernel_abi_version ? exsul_distro_kernels[i].abi - director.kernel_abi_version : director.kernel_abi_version - exsul_distro_kernels[i].abi;\n";
+		print $output "\t\tif(candidate_release == target_release){\n";
+		print $output "\t\t\tif(best_release_delta != 0 || abi_delta < best_abi_delta || (abi_delta == best_abi_delta && exsul_distro_kernels[i].abi <= director.kernel_abi_version && exsul_distro_kernels[selected].abi > director.kernel_abi_version)){";
+		print $output "\t\t\t\tselected = i; kernel = exsul_distro_kernels[i].kernel; selected_release = candidate_release; best_release_delta = 0; best_abi_delta = abi_delta;\n";
+		print $output "\t\t\t}\n";
+		print $output "\t\t}else if(best_release_delta != 0 && (release_delta < best_release_delta || (release_delta == best_release_delta && ((candidate_release == selected_release && ((candidate_release < target_release && exsul_distro_kernels[i].abi > exsul_distro_kernels[selected].abi) || (candidate_release > target_release && exsul_distro_kernels[i].abi < exsul_distro_kernels[selected].abi))) || (candidate_release != selected_release && candidate_release < selected_release))))){\n";
+		print $output "\t\t\t\nselected = i; kernel = exsul_distro_kernels[i].kernel; selected_release = candidate_release; best_release_delta = release_delta; best_abi_delta = abi_delta;\n";
+		print $output "\t\t}\n";
+		print $output "\t}\n";
+	}
+	print $output "\tif(kernel < 0){ return -ENOENT; }\n";
+	if(@kernels){
+		print $output "\t#ifdef ENABLE_DBG_PRINT\n";
+		print $output "\tif(best_release_delta != 0 || best_abi_delta != 0){\n";
+		print $output "\t\tprintf(\"[!] exact distro offsets for %hhu.%hhu.%hhu-%hu unavailable, using %hhu.%hhu.%hhu-%hu\\n\", director.kernel_major_version, director.kernel_minor_version, director.kernel_patch, director.kernel_abi_version, exsul_distro_kernels[selected].major, exsul_distro_kernels[selected].minor, exsul_distro_kernels[selected].patch, exsul_distro_kernels[selected].abi);\n";
+		print $output "\t}\n";
+		print $output "\t#endif\n";
+	}
+
+	foreach my $struct_index (0 .. $#runtime_structs){
+		my $struct = $runtime_structs[$struct_index];
+		my $struct_id = c_identifier($struct->{name});
+		if($arrays{"${struct_id}_struct_size_offsets"} && $arrays{"${struct_id}_struct_size_valid"}){
+			print $output "\n\tif(${struct_id}_struct_size_valid[kernel] && runtime_structs->structs[$struct_index].struct_size == 0){\n\t\truntime_structs->structs[$struct_index].struct_size = ${struct_id}_struct_size_offsets[kernel];\n\t\tapplied++;\n\t}\n";
+		}
+		foreach my $field_index (0 .. $#{ $struct->{fields} }){
+			my $field_id = c_identifier($struct->{fields}[$field_index]{field_name});
+			if($arrays{"${struct_id}_${field_id}_offsets"} && $arrays{"${struct_id}_${field_id}_offset_valid"}){
+				print $output "\n\tif(${struct_id}_${field_id}_offset_valid[kernel] && runtime_structs->structs[$struct_index].fields[$field_index].field_offset == 0){\n\t\truntime_structs->structs[$struct_index].fields[$field_index].field_offset = ${struct_id}_${field_id}_offsets[kernel];\n\t\tapplied++;\n\t}\n";
+			}
+		}
+	}
+	print $output "\n\treturn applied != 0 ? 0 : -ENODATA;\n}\n\n#endif\n";
+	close($output) or die $!;
+}
+
 # main function used for rewriting the file with the struct conversion
 sub rewrite_source_file {
 	my ($in_path) = @_;
@@ -1458,11 +1620,9 @@ sub rewrite_source_file {
                                         print("$line\n");
                                 }
                         }
-			# maps the keys of %local alias as 'key1|key2|key3'..
-        		my $var_re = join '|', map { quotemeta($_) } sort { length($b) <=> length($a) } keys %local_alias;
 			if ($allow_array_mode) {
 				$line =~ s{
-					\b($var_re)->([A-Za-z_]\w*)
+					\b([A-Za-z_]\w*)->([A-Za-z_]\w*)
 					(
 						\s*\[
 							([^\[\]\n]+)
@@ -1488,7 +1648,7 @@ sub rewrite_source_file {
 					}
 				}gex;
 			}else{
-				$line =~ s{\b($var_re)->([A-Za-z_]\w*)(?!\s*\[)}{
+				$line =~ s{\b([A-Za-z_]\w*)->([A-Za-z_]\w*)(?!\s*\[)}{
 					my ($var, $field) = ($1, $2);
 					my $st = $local_alias{$var};
 
@@ -1716,6 +1876,8 @@ foreach my $src (uniq(@sources)){
 }
 
 print("[*] conversion finished!\n");
+# generate the "big" offset table, used for stopping the dependency of the tool on DWARF-only kernel modules
+emit_distro_offsets_adapter($distro_offsets_source, "$virtual_compilation_folder/$include/$distro_offsets_header");
 
 $final_stub = "merged_functions.o";
 if($verbose){
@@ -1791,6 +1953,20 @@ print PROTO " */\n\n";
 print PROTO "/* automatically generated file, don't edit! */\n\n";
 
 $find_command_arg = q{-name "*.c"};
+my %merged_symbol_sizes = ();
+if($windows_support){
+	foreach my $line (`$readelf -S --size-sort --radix=x $build/merged_functions.o 2>/dev/null`){
+		my @columns = split(' ', $line);
+		next if @columns < 4;
+		$merged_symbol_sizes{$columns[-1]} = "0x" . $columns[1];
+	}
+}else{
+	foreach my $line (`$readelf -sW $build/merged_functions.o 2>/dev/null`){
+		my @columns = split(' ', $line);
+		next if @columns < 8 || $columns[0] !~ /:\z/;
+		$merged_symbol_sizes{$columns[7]} = $columns[2];
+	}
+}
 foreach(`$find $stubs/$functions/ $find_command_arg`){
 	$current_stub = $_;
 	chomp($current_stub);
@@ -1804,16 +1980,8 @@ foreach(`$find $stubs/$functions/ $find_command_arg`){
 	$stub_name =~ s/\..*$//;
 	$iterator = (((split("/", $stub_name))[-1]));
 	# get the symbol size
-	if($windows_support){
-		$sym_size = `$readelf -S --size-sort --radix=x build/merged_functions.o 2>/dev/null | $grep \" $iterator\$\" 2>/dev/null | $awk $readelf_table_parse 2>/dev/null`;
-		if($iterator eq "snprintf" || $iterator eq "sscanf"){
-			$sym_size = "00";
-		}
-		$sym_size = length($sym_size) ? "0x" . $sym_size : 0;
-	}else{
-		$sym_size = `$readelf -sW $build/merged_functions.o 2>/dev/null | $grep \" $iterator\$\" 2>/dev/null | $awk $readelf_table_parse 2>/dev/null`;	
-	}
-	chomp($sym_size);
+	$sym_size = $merged_symbol_sizes{$iterator};
+	$sym_size = "0x00" if $windows_support && ($iterator eq "snprintf" || $iterator eq "sscanf");
 	if(!$sym_size){
 		$sym_size = 0;
 	}

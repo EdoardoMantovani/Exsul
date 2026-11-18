@@ -6,10 +6,10 @@
 static int get_struct_size(unsigned char *struct_name){
 	int ret = 0;
 	struct runtime_struct *runtime_structs = NULL;
-	struct runtime_struct_layout *runtime_struct_layout = NULL;
 	struct struct_field *current_struct_fields = NULL;
-	runtime_structs = &runtime_generated_structs;
+	struct runtime_struct_layout *runtime_struct_layout = NULL;
 
+	runtime_structs = &runtime_generated_structs;
 	if(struct_name == NULL){
 		ret = -EINVAL;
 		return ret;
@@ -20,7 +20,8 @@ static int get_struct_size(unsigned char *struct_name){
 		if (runtime_struct_layout->struct_name == NULL){
 			break;
 		}else{
-			if(strcmp(struct_name, runtime_struct_layout->struct_name) == 0){
+			ret = strcmp(struct_name, runtime_struct_layout->struct_name);
+			if(ret == 0){
 				ret = runtime_struct_layout->struct_size;
 				return ret;
 			}

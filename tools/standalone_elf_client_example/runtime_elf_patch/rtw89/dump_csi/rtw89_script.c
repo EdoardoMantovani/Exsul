@@ -1,8 +1,11 @@
 /* Made by Edoardo Mantovani, 2026 */
 #include <stdio.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <unistd.h>
 #include <pthread.h>
 #include <linux/const.h>
 #include <linux/nl80211.h>
@@ -200,11 +203,6 @@ typedef struct {
         int counter;
 } atomic_t;
 
-struct global_conf {
-	u8 show_struct_offset;
-	u8 strict_missing_syms;
-};
-
 struct fast_struct_size {
         u16 ieee80211_hw;
         u16 ieee80211_ops;
@@ -390,8 +388,6 @@ struct module_controller {
 	/* ipc client */
 	int client_flags;
 
-	/* global configuration struct, the field can be set at runtime via the 'set' command */
-	struct global_conf global_conf;
         struct module *mod;
         struct load_info *info;
         struct internal_cb_table *internal_cb_table;
@@ -850,252 +846,594 @@ struct timer_list {
 	u32                     flags;
 };
 
-#define CSI_POLL_TIME			30 /* msec */
-#define RTW89_CORE_RX_TYPE_CSI		11
-#define CSI_MSG_LEN			1000
-#define RTW89_USB_RX_SCAN_LEN		0x400
-#define RTW89_CSI_RELAY_LEN		13
-#define RTW89_CSI_RELAY_PAD		16
-#define RTW89_CSI_DUMP_MAX		512
+#define RTW89_CORE_RX_TYPE_CHAN_INFO	2
+#define RTW89_USB_RX_ALIGNMENT		8
+#define RTW89_RXDESC_SHORT_LEN		16
+#define RTW89_RXDESC_LONG_LEN		32
+#define RTW89_CHINFO_HDR_LEN		8
+#define RTW89_CHINFO_PHY_HDR_LEN		8
+#define RTW89_CSI_DATA_MAX		65536
 
-#define RTW89_RXDESC_PKT_SIZE_OFF	0
-#define RTW89_RXDESC_PKT_TYPE_OFF	2
-#define RTW89_RXDESC_BB_SEL_OFF		9
-#define RTW89_RXDESC_DATA_RATE_OFF	12
-#define RTW89_RXDESC_BW_OFF		15
-#define RTW89_RXDESC_FREE_RUN_OFF	16
-#define RTW89_RXDESC_USER_ID_OFF	20
-#define RTW89_RXDESC_PPDU_CNT_OFF	22
-#define RTW89_RXDESC_PPDU_TYPE_OFF	23
-#define RTW89_RXDESC_MAC_ID_OFF		38
-#define RTW89_RXDESC_RSSI_OFF		46
+/* RTL8852C MAC channel-info registers. */
+#define R_AX_BBRPT_COEX_CFG		0x9604
+#define B_AX_BBRPT_COEX_EN		0x00000001
+#define R_AX_CH_INFO			0x9620
+#define B_AX_CH_INFO_EN			0x00000001
+#define B_AX_CH_INFO_ON			0x00000008
+#define B_AX_CH_INFO_STOP_REQ		0x00000010
+#define B_AX_CH_INFO_STOP		0x00000020
+#define R_AX_BBRPT_CHINFO_ERR_IMR_ISR	0x962c
+#define B_AX_BBRPT_CHINFO_ERR_MASK	0x00ff0000
+#define R_AX_CH_INFO_QRY		0xce44
+#define B_AX_CH_INFO_REQUESTING		0x00100000
+#define B_AX_CH_INFO_MGNT_FRM		0x00080000
+#define B_AX_CH_INFO_CTRL_FRM		0x00040000
+#define B_AX_CH_INFO_DATA_FRM		0x00020000
 
-void elf_initialize_driver(void);
+/* RTL8852C AP2 BB channel-info registers from halbb_cr_info_8852c.h. */
+#define R_8852C_CH_INFO_CFG		0x025c
+#define B_8852C_CH_INFO_ENABLE		0x00000003
+#define B_8852C_CH_INFO_FORMAT		0x000000fc
+#define B_8852C_CH_INFO_BUFFER		0x0000ff00
+#define R_8852C_CH_INFO_BITMAP		0x0260
+#define R_8852C_CH_INFO_TYPE		0x2000
+#define B_8852C_CH_INFO_TYPE		0x00004000
+#define R_8852C_CH_INFO_SEG_LEN		0x2008
+#define B_8852C_CH_INFO_SEG_LEN		0x06000000
+
+struct csi_rx_meta {
+	u32 timestamp;
+	u16 data_rate;
+	u8 bandwidth;
+	u8 matrix_report;
+};
+
+struct csi_reassembly {
+	bool active;
+	u64 report_id;
+	u8 expected_seq;
+	u8 total_segments;
+	u8 n_rx;
+	u8 n_sts;
+	u8 noise;
+	u8 evm[2];
+	u8 rssi[2];
+	u8 rssi_avg;
+	u8 rxsc;
+	u32 expected_len;
+	u32 data_len;
+	struct csi_rx_meta meta;
+	u8 data[RTW89_CSI_DATA_MAX];
+};
+
+static pthread_mutex_t csi_lock = PTHREAD_MUTEX_INITIALIZER;
+static struct csi_reassembly csi_frame;
+static struct csi_reassembly csi_pending_frame;
+static struct csi_reassembly csi_print_frame_buf;
+static bool csi_pending_ready;
+static volatile u64 csi_report_count;
+static volatile u64 csi_segment_count;
+static volatile u64 csi_chan_info_record_count;
+static volatile u64 csi_bad_rx_record_count;
+static volatile u64 csi_output_drop_count;
+static volatile u64 csi_rx_type_count[16];
+static volatile u64 csi_rx_macid_count[256];
+static volatile u64 csi_rx_frame_type_count[4];
+static volatile u64 csi_rx_invalid_macid_count;
+static u32 csi_bb_bitmap = 0x303;
+static u32 csi_bb_type = 1;
+static bool csi_legacy_mode;
+static bool csi_saw_channel_info_on;
+static bool csi_saw_requesting;
+
+int elf_initialize_driver(void);
 void *get_ieee80211_priv_data(void);
-void timer_init_key(struct timer_list *timer, void *func, unsigned int flags, const char *, struct lock_class_key *);
+int usb_assign_rx_observer(int (*callback)(void *, int));
+u32 rtw89_usb_ops_read32(void *rtwdev, u32 addr);
+void rtw89_usb_ops_write8(void *rtwdev, u32 addr, u8 val);
+void rtw89_usb_ops_write32(void *rtwdev, u32 addr, u32 val);
+void rtw89_phy_set_phy_regs(void *rtwdev, u32 addr, u32 mask, u32 val);
+u32 rtw89_phy_read32_idx(void *rtwdev, u32 addr, u32 mask, int phy_idx);
 
-/* rtw8852cu enum declaration */
-enum rtw_phl_status {
-        RTW_PHL_STATUS_SUCCESS,  /* 0 */
-        RTW_PHL_STATUS_FAILURE,  /* 1 */
-        RTW_PHL_STATUS_RESOURCE, /* 2 */
-        RTW_PHL_STATUS_HAL_INIT_FAILURE, /* 3 */
-        RTW_PHL_STATUS_PENDING,  /* 4 */
-        RTW_PHL_STATUS_FRAME_DROP,    /* 5 */
-        RTW_PHL_STATUS_INVALID_PARAM, /* 6 */
-        RTW_PHL_STATUS_CMD_TIMEOUT,   /* 7 */
-        RTW_PHL_STATUS_CMD_ERROR,     /* 8 */
-        RTW_PHL_STATUS_CMD_DROP,      /* 9 */
-        RTW_PHL_STATUS_CMD_CANNOT_IO, /* 10 */
-        RTW_PHL_STATUS_CMD_SUCCESS,   /* 11 */
-        RTW_PHL_STATUS_UNEXPECTED_ERROR, /* 12 */
-        RTW_PHL_STATUS_CANNOT_IO, /* 13 */
-        RTW_PHL_STATUS_SH_TASK,   /* 14 */
-};
+static u32 csi_get_le32(const u8 *p)
+{
+	return (u32)p[0] | (u32)p[1] << 8 | (u32)p[2] << 16 | (u32)p[3] << 24;
+}
 
-/*
- * PHL CMD support direct execution, no-wait: synchronization, wait:asynchronization
- * PHL_CMD_CMD_DIRECTLY: call PHL API including I/O operation directly
- * PHL_CMD_NO_WARIT: send phl cmd msg to cmd dispatcher and do not wait for completion
- * PHL_CMD_WAIT: send phl cmd msg to cmd dispatcher and wait for completion
- */
-enum phl_cmd_type {
-	PHL_CMD_DIRECTLY,
-	PHL_CMD_NO_WAIT,
-	PHL_CMD_WAIT,
-	PHL_CMD_MAX,
-};
+static u32 csi_align(u32 value, u32 alignment)
+{
+	return (value + alignment - 1) & ~(alignment - 1);
+}
 
-enum phl_chinfo_action {
-	CHINFO_ACT_EN,
-	CHINFO_ACT_CFG,
-	CHINFO_ACT_MAX
-};
+static unsigned long csi_env_ulong(const char *name, unsigned long fallback)
+{
+	char *end = NULL;
+	const char *value = getenv(name);
+	unsigned long parsed;
 
-enum phl_chinfo_group_num {
-	CHINFO_GROUP_NUM_1,
-	CHINFO_GROUP_NUM_2,
-	CHINFO_GROUP_NUM_4,
-	CHINFO_GROUP_NUM_16,
-	CHINFO_GROUP_NUM_MAX
-};
+	if (!value || !value[0])
+		return fallback;
+	errno = 0;
+	parsed = strtoul(value, &end, 0);
+	if (errno || end == value || *end != '\0') {
+		printf("[!] ignoring invalid %s=%s\n", name, value);
+		return fallback;
+	}
+	return parsed;
+}
 
-enum phl_chinfo_mode {
-	CHINFO_MODE_ACK,
-	CHINFO_MODE_MACID,
-	CHINFO_MODE_NDP,
-	CHINFO_MODE_MAX,
-};
+static void csi_hex_dump(const u8 *data, u32 len)
+{
+	u32 i;
 
-/*
- * Compression (I/Q bits)
- * CHINFO_ACCU_1BYTE: S(8,4),
- * CHINFO_ACCU_2BYTES: S(16,12)
- */
-enum phl_chinfo_accuracy {
-	CHINFO_ACCU_1BYTE,
-	CHINFO_ACCU_2BYTES,
-	CHINFO_ACCU_MAX,
-};
-
-enum phl_chinfo_enable_mode {
-	CHINFO_EN_LIGHT_MODE,
-	CHINFO_EN_RICH_MODE,
-	CHINFO_EN_AUTO_MODE,
-	CHINFO_EN_RICH_MAX,
-};
-
-/* rtw8852cu struct declaration */
-struct csi_header {
-        u8 mac_addr[6];                 /* mdata: u8 ta[6]? */
-        u32 hw_assigned_timestamp;      /* mdata: u32 freerun_cnt */
-        u8 channel;                     /* Drv define */
-        u8 bandwidth;                   /* mdata: u8 bw */
-        u16 rx_data_rate;               /* mdata: u16 rx_rate */
-        u8 nc;                          /* ch_rpt_hdr_info */
-        u8 nr;                          /* ch_rpt_hdr_info */
-        u16 num_sub_carrier;            /* Drv define*/
-        u8 num_bit_per_tone;            /* Drv define per I/Q */
-        u8 avg_idle_noise_pwr;          /* ch_rpt_hdr_info */
-        u8 evm[2];                      /* ch_rpt_hdr_info */
-        u8 rssi[2];                     /* phy_info_rpt */
-        u32 csi_data_length;            /* ch_rpt_hdr_info */
-        u8 rxsc;                        /* phy_info_rpt */
-        u8 ch_matrix_report;            /* mdata: u8 get_ch_info */
-        u8 csi_valid;                   /* ch_rpt_hdr_info */
-};
-
-struct chan_info {
-	struct list_head list;
-	u8 *chan_info_buffer;
-	u32 length;
-	struct csi_header csi_header;
-};
-
-struct rtw_chinfo_action_parm {
-	enum phl_chinfo_group_num group_num;
-	enum phl_chinfo_mode mode;
-	enum phl_chinfo_enable_mode enable_mode;
-	enum phl_chinfo_action act;
-	enum phl_chinfo_accuracy accuracy;
-	u32 ele_bitmap;
-	u8 enable;
-	u16 trig_period;
-	u8 tx_nss;
-	u8 rx_nss;
-};
-
-struct rtw_timer_list {
-	struct timer_list timer;
-	void (*function)(void *);
-	void *arg;
-};
-
-struct rtw_timer_list csi_global_timer;
-
-void rtw_csi_poll_timeout_handler(void *rtw89_dev){
-	int ret = 0;
-	u32 buf_len = 0;
-	void *buff = NULL;
-	struct csi_header csi_header = {};
-
-	rtw_csi_poll_timer_set(CSI_POLL_TIME);
-
-	memset(&csi_header, 0, sizeof(csi_header));
-	ret = rtw_phl_query_chan_info(rtw89_dev, CSI_MSG_LEN, buff, &buf_len, &csi_header);
-        if (ret == RTW_PHL_STATUS_SUCCESS) {
-		printf("[*] csi_valid=%d\n", csi_header.csi_valid);
-		printf("[*] csi_data_length=%d\n", csi_header.csi_data_length);
-		printf("[*] rxsc=%d\n", csi_header.rxsc);
-		printf("[*] nc=%d\n", csi_header.nc);
-		printf("[*] nr=%d\n", csi_header.nr);
-		printf("[*] avg_idle_noise_pwr=%d\n", csi_header.avg_idle_noise_pwr);
-		printf("[*] evm[0]=%d\n", csi_header.evm[0]);
-		printf("[*] evm[1]=%d\n", csi_header.evm[1]);
-		printf("[*] rssi[0]=%d%%\n", csi_header.rssi[0] >> 1);
-		printf("[*] rssi[1]=%d%%\n", csi_header.rssi[1] >> 1);
-		printf("[*] timestamp=%u\n", csi_header.hw_assigned_timestamp);
-		printf("[*] rx_data_rate=%d\n", csi_header.rx_data_rate);
-		printf("[*] channel=%d\n", csi_header.channel);
-		printf("[*] bandwidth=%d\n", csi_header.bandwidth);
-		printf("[*] num_sub_carrier=%d\n", csi_header.num_sub_carrier);
-		printf("[*] num_bit_per_tone=%d\n", csi_header.num_bit_per_tone);
-		printf("[*] srcmac = ");
-		for (int i = 0; i < ETH_ALEN; i++){
-			printf("%x ", csi_header.mac_addr[i]);
-		}
-		printf("\n");
-		printf("[*] CSI RAW(len= %d):\n", buf_len);
-		for (int i = 0; i < buf_len; i++) {
-			printf("%x ", buff[i]);
-			if ((i % 8) == 7){
-				printf("\n");
-			}
-		}
-		printf("\n");
+	for (i = 0; i < len; i++) {
+		if ((i & 15) == 0)
+			printf("%04x: ", i);
+		printf("%02X%c", data[i], (i & 15) == 15 || i + 1 == len ? '\n' : ' ');
 	}
 }
 
-void timer_hdl(struct timer_list *in_timer){
-	struct rtw_timer_list *ptimer = timer_container_of(ptimer, in_timer, timer);
-	ptimer->function(ptimer->arg);
+static void csi_print_frame(const struct csi_reassembly *frame)
+{
+	u32 bytes_per_complex = 4; /* 16-bit I plus 16-bit Q */
+	u32 matrix = frame->n_rx * frame->n_sts;
+	u32 tones = matrix ? frame->data_len / (matrix * bytes_per_complex) : 0;
+
+	printf("\n=== RTW89 CSI report %llu ===\n",
+	       (unsigned long long)frame->report_id);
+	printf("valid=1 segments=%u data_len=%u tones=%u bits_per_component=16\n",
+	       frame->total_segments, frame->data_len, tones);
+	printf("nr=%u nc=%u noise=%u evm={%u,%u} rssi={%u,%u} rssi_avg=%u rxsc=%u\n",
+	       frame->n_rx, frame->n_sts, frame->noise,
+	       frame->evm[0], frame->evm[1], frame->rssi[0] >> 1,
+	       frame->rssi[1] >> 1, frame->rssi_avg >> 1, frame->rxsc);
+	printf("timestamp=%u data_rate=0x%03x bandwidth=%u matrix_report=%u\n",
+	       frame->meta.timestamp, frame->meta.data_rate,
+	       frame->meta.bandwidth, frame->meta.matrix_report);
+	printf("CSI RAW:\n");
+	csi_hex_dump(frame->data, frame->data_len);
+	fflush(stdout);
 }
 
-void rtw_init_timer(struct rtw_timer_list *ptimer, void *pfunc, void *cntx){
-	ptimer->function = pfunc;
-	ptimer->arg = cntx;
+static void csi_copy_frame(struct csi_reassembly *dst,
+			   const struct csi_reassembly *src)
+{
+	size_t header_len = offsetof(struct csi_reassembly, data);
 
-	timer_init_key(&ptimer->timer, timer_hdl, 0, NULL, NULL);
+	memcpy(dst, src, header_len);
+	memcpy(dst->data, src->data, src->data_len);
 }
 
-void rtw_csi_poll_init(void *rtw89_dev){
-	struct timer_list *timer = &csi_global_timer.timer;
-
-	if (timer->function != NULL) {
-		printf("[*] CSI polling timer has been init.\n");
-		goto end;
+static void csi_queue_complete_frame(void)
+{
+	csi_frame.report_id = ++csi_report_count;
+	if (csi_pending_ready) {
+		csi_output_drop_count++;
+		return;
 	}
-	printf("[*] init csi poll timer!");
-	rtw_init_timer(&csi_global_timer, rtw_csi_poll_timeout_handler, rtw89_dev);
-	rtw_csi_poll_timer_set(timer, CSI_POLL_TIME);
-	printf("[*] CSI polling timer init!\n");
-	end:
+	csi_copy_frame(&csi_pending_frame, &csi_frame);
+	csi_pending_ready = true;
 }
 
-int main(void){
-	int ret = 0;
-	u8 en = 0;
-	u8 mode = 0;
-	u8 period = 0;
-	u8 en_mode = 0;
-	u8 accuracy = 0;
-	u8 group_num = 0;
+static bool csi_drain_output(void)
+{
+	bool ready = false;
+
+	pthread_mutex_lock(&csi_lock);
+	if (csi_pending_ready) {
+		csi_copy_frame(&csi_print_frame_buf, &csi_pending_frame);
+		csi_pending_ready = false;
+		ready = true;
+	}
+	pthread_mutex_unlock(&csi_lock);
+
+	if (ready)
+		csi_print_frame(&csi_print_frame_buf);
+	return ready;
+}
+
+static void csi_reset_reassembly(void)
+{
+	memset(&csi_frame, 0, sizeof(csi_frame));
+}
+
+static void csi_process_channel_info(const u8 *payload, u32 len,
+				     const struct csi_rx_meta *meta)
+{
+	u32 total_len;
+	u32 available;
+	u32 remaining;
+	u32 copy_len;
+	u32 data_offset;
+	u8 total_segments;
+	u8 seq;
+	u8 flags;
+	bool last;
+
+	if (len < RTW89_CHINFO_HDR_LEN)
+		return;
+
+	total_len = (u32)payload[0] | (u32)payload[1] << 8 |
+		    (u32)(payload[2] & 1) << 16;
+	total_segments = payload[2] >> 1;
+	flags = payload[4];
+	seq = payload[7];
+	last = flags & 1;
+
+	if (!(flags & 2) || !total_segments || total_len < 16 ||
+	    total_len - 16 > RTW89_CSI_DATA_MAX)
+		return;
+
+	data_offset = RTW89_CHINFO_HDR_LEN;
+	if (seq == 0) {
+		if (len < RTW89_CHINFO_HDR_LEN + RTW89_CHINFO_PHY_HDR_LEN)
+			return;
+		csi_reset_reassembly();
+		csi_frame.active = true;
+		csi_frame.expected_seq = 0;
+		csi_frame.total_segments = total_segments;
+		csi_frame.expected_len = total_len - 16;
+		csi_frame.noise = payload[3];
+		csi_frame.n_rx = (flags >> 2) & 7;
+		csi_frame.n_sts = (flags >> 5) & 7;
+		csi_frame.evm[0] = payload[6];
+		csi_frame.rssi[0] = payload[8];
+		csi_frame.rssi[1] = payload[9];
+		csi_frame.rssi_avg = payload[12];
+		csi_frame.rxsc = payload[13] & 0xf;
+		csi_frame.evm[1] = (payload[14] & 0xf) << 4 | payload[13] >> 4;
+		csi_frame.meta = *meta;
+		data_offset += RTW89_CHINFO_PHY_HDR_LEN;
+	}
+
+	if (!csi_frame.active || seq != csi_frame.expected_seq ||
+	    total_segments != csi_frame.total_segments) {
+		csi_reset_reassembly();
+		return;
+	}
+
+	available = len - data_offset;
+	remaining = csi_frame.expected_len - csi_frame.data_len;
+	copy_len = available < remaining ? available : remaining;
+	if (copy_len) {
+		memcpy(csi_frame.data + csi_frame.data_len,
+		       payload + data_offset, copy_len);
+		csi_frame.data_len += copy_len;
+	}
+	csi_frame.expected_seq++;
+	csi_segment_count++;
+
+	if (last || csi_frame.expected_seq == csi_frame.total_segments ||
+	    csi_frame.data_len == csi_frame.expected_len) {
+		if (last && csi_frame.data_len == csi_frame.expected_len) {
+			csi_queue_complete_frame();
+		} else {
+			printf("[!] dropped incomplete CSI report: segments=%u/%u bytes=%u/%u last=%u\n",
+			       csi_frame.expected_seq, csi_frame.total_segments,
+			       csi_frame.data_len, csi_frame.expected_len, last);
+		}
+		csi_reset_reassembly();
+	}
+}
+
+static int csi_usb_rx_observer(void *buffer, int buffer_len)
+{
+	const u8 *data = buffer;
+	u32 remaining;
+	u32 cursor = 0;
+
+	if (!data || buffer_len < RTW89_RXDESC_SHORT_LEN)
+		return 0;
+	remaining = (u32)buffer_len;
+
+	while (remaining >= RTW89_RXDESC_SHORT_LEN) {
+		struct csi_rx_meta meta;
+		u32 dword0 = csi_get_le32(data + cursor);
+		u32 dword1 = csi_get_le32(data + cursor + 4);
+		u32 dword2 = csi_get_le32(data + cursor + 8);
+		u32 dword3 = csi_get_le32(data + cursor + 12);
+		u32 pkt_size = dword0 & 0x3fff;
+		u32 shift_len = ((dword0 >> 14) & 3) * 2;
+		u32 drv_info_len = ((dword0 >> 28) & 7) * 8;
+		u32 pkt_type = (dword0 >> 24) & 0xf;
+		u32 rxd_len = dword0 & 0x80000000U ?
+			      RTW89_RXDESC_LONG_LEN : RTW89_RXDESC_SHORT_LEN;
+		u32 pkt_offset = rxd_len + shift_len + drv_info_len;
+		u32 consumed;
+
+		if (!pkt_size || pkt_offset > remaining ||
+		    pkt_size > remaining - pkt_offset) {
+			csi_bad_rx_record_count++;
+			break;
+		}
+
+		meta.timestamp = dword2;
+		meta.data_rate = (dword1 >> 16) & 0x1ff;
+		meta.bandwidth = (dword1 >> 29) & 7;
+		meta.matrix_report = (dword3 >> 14) & 3;
+		csi_rx_type_count[pkt_type]++;
+		if (pkt_type == 0 && rxd_len == RTW89_RXDESC_LONG_LEN) {
+			u32 dword4 = csi_get_le32(data + cursor + 16);
+			u32 dword5 = csi_get_le32(data + cursor + 20);
+
+			csi_rx_frame_type_count[dword4 & 3]++;
+			if (dword5 & (1U << 28))
+				csi_rx_macid_count[(dword5 >> 16) & 0xff]++;
+			else
+				csi_rx_invalid_macid_count++;
+		}
+
+		if (pkt_type == RTW89_CORE_RX_TYPE_CHAN_INFO) {
+			csi_chan_info_record_count++;
+			pthread_mutex_lock(&csi_lock);
+			csi_process_channel_info(data + cursor + pkt_offset,
+					 pkt_size, &meta);
+			pthread_mutex_unlock(&csi_lock);
+		}
+
+		consumed = csi_align(pkt_offset + pkt_size, RTW89_USB_RX_ALIGNMENT);
+		if (!consumed || consumed > remaining)
+			break;
+		cursor += consumed;
+		remaining -= consumed;
+	}
+	return 0;
+}
+
+static void csi_configure_bb(void *rtwdev)
+{
+	/*
+	 * Mirror the RTL8852C vendor driver's AP2 channel-info setup:
+	 * channel estimation, 16-bit I/Q, 1/16 tone grouping, 2x2 MIMO,
+	 * 12-qword BB segments, and MU buffer blocks 1 through 10.
+	 */
+	rtw89_phy_set_phy_regs(rtwdev, R_8852C_CH_INFO_CFG,
+			       B_8852C_CH_INFO_FORMAT, 0x3e);
+	rtw89_phy_set_phy_regs(rtwdev, R_8852C_CH_INFO_BITMAP,
+			       0xffffffff, csi_bb_bitmap);
+	rtw89_phy_set_phy_regs(rtwdev, R_8852C_CH_INFO_TYPE,
+			       B_8852C_CH_INFO_TYPE, csi_bb_type);
+	rtw89_phy_set_phy_regs(rtwdev, R_8852C_CH_INFO_SEG_LEN,
+			       B_8852C_CH_INFO_SEG_LEN, 0);
+	rtw89_phy_set_phy_regs(rtwdev, R_8852C_CH_INFO_CFG,
+			       B_8852C_CH_INFO_BUFFER, 0xa1);
+	rtw89_phy_set_phy_regs(rtwdev, R_8852C_CH_INFO_CFG,
+			       B_8852C_CH_INFO_ENABLE, 1);
+}
+
+static void csi_dump_configuration(void *rtwdev)
+{
+	u32 bb_cfg = rtw89_phy_read32_idx(rtwdev, R_8852C_CH_INFO_CFG,
+					 0xffffffff, 0);
+	u32 bb_bitmap = rtw89_phy_read32_idx(rtwdev, R_8852C_CH_INFO_BITMAP,
+					    0xffffffff, 0);
+	u32 bb_type = rtw89_phy_read32_idx(rtwdev, R_8852C_CH_INFO_TYPE,
+					  B_8852C_CH_INFO_TYPE, 0);
+	u32 bb_seg = rtw89_phy_read32_idx(rtwdev, R_8852C_CH_INFO_SEG_LEN,
+					 B_8852C_CH_INFO_SEG_LEN, 0);
+	u32 route = rtw89_usb_ops_read32(rtwdev, R_AX_CH_INFO);
+	u32 query = rtw89_usb_ops_read32(rtwdev, R_AX_CH_INFO_QRY);
+	u32 error = rtw89_usb_ops_read32(rtwdev, R_AX_BBRPT_CHINFO_ERR_IMR_ISR);
+
+	printf("[*] RTL8852CU CSI register readback: BB_CFG=0x%08x "
+	       "BB_BITMAP=0x%08x type=%u seg=%u\n",
+	       bb_cfg, bb_bitmap, bb_type, bb_seg);
+	printf("[*] RTL8852CU CSI MAC readback: ROUTE=0x%08x QUERY=0x%08x "
+	       "ERROR=0x%08x%s\n", route, query, error,
+	       query & B_AX_CH_INFO_REQUESTING ? " (request active)" : "");
+	if ((bb_cfg & B_8852C_CH_INFO_ENABLE) != 1 ||
+	    (bb_cfg & B_8852C_CH_INFO_FORMAT) != 0xf8 ||
+	    (bb_cfg & B_8852C_CH_INFO_BUFFER) != 0xa100 ||
+	    bb_bitmap != csi_bb_bitmap || bb_type != csi_bb_type ||
+	    !(route & B_AX_CH_INFO_EN) ||
+	    !(query & B_AX_CH_INFO_EN))
+		printf("[!] RTL8852CU channel-info register readback differs from the requested setup\n");
+	if (error & B_AX_BBRPT_CHINFO_ERR_MASK)
+		printf("[!] RTL8852CU channel-info hardware error flags: 0x%02x\n",
+		       (error & B_AX_BBRPT_CHINFO_ERR_MASK) >> 16);
+}
+
+static void csi_sample_mac_state(void *rtwdev)
+{
+	u32 route = rtw89_usb_ops_read32(rtwdev, R_AX_CH_INFO);
+	u32 query = rtw89_usb_ops_read32(rtwdev, R_AX_CH_INFO_QRY);
+
+	if (route & B_AX_CH_INFO_ON)
+		csi_saw_channel_info_on = true;
+	if (query & B_AX_CH_INFO_REQUESTING)
+		csi_saw_requesting = true;
+}
+
+static void csi_print_observed_macids(void)
+{
+	unsigned int printed = 0;
+	unsigned int macid;
+
+	printf("[*] Wi-Fi RX MACIDs observed:");
+	for (macid = 0; macid < 256; macid++) {
+		if (!csi_rx_macid_count[macid])
+			continue;
+		printf(" %u=%llu", macid,
+		       (unsigned long long)csi_rx_macid_count[macid]);
+		printed++;
+	}
+	if (!printed)
+		printf(" none (no long Wi-Fi RX descriptor)");
+	printf("\n");
+	printf("[*] Wi-Fi RX eligibility: management=%llu control=%llu data=%llu "
+	       "extension=%llu addr-cam-invalid=%llu\n",
+	       (unsigned long long)csi_rx_frame_type_count[0],
+	       (unsigned long long)csi_rx_frame_type_count[1],
+	       (unsigned long long)csi_rx_frame_type_count[2],
+	       (unsigned long long)csi_rx_frame_type_count[3],
+	       (unsigned long long)csi_rx_invalid_macid_count);
+}
+
+static void csi_disable_bb(void *rtwdev)
+{
+	rtw89_phy_set_phy_regs(rtwdev, R_8852C_CH_INFO_CFG,
+			       B_8852C_CH_INFO_ENABLE, 0);
+	rtw89_phy_set_phy_regs(rtwdev, R_8852C_CH_INFO_CFG,
+			       B_8852C_CH_INFO_BUFFER, 0);
+}
+
+static void csi_enable_rich_mode(void *rtwdev, u8 macid)
+{
+	u32 route;
+	u32 query;
+
+	/* Host port/queue 0, 512-byte segments, 4-unit interval, timeout 28. */
+	route = (1U << 18) | (2U << 16) | (4U << 12) |
+		(7U << 9) | B_AX_CH_INFO_EN;
+	/* MIMO channel estimates require data; legacy mode can use ACKs/beacons. */
+	query = B_AX_CH_INFO_EN | (u32)macid << 8 | B_AX_CH_INFO_DATA_FRM;
+	if (csi_legacy_mode)
+		query |= B_AX_CH_INFO_CTRL_FRM | B_AX_CH_INFO_MGNT_FRM;
+
+	rtw89_usb_ops_write8(rtwdev, R_AX_BBRPT_COEX_CFG, B_AX_BBRPT_COEX_EN);
+	rtw89_usb_ops_write32(rtwdev, R_AX_CH_INFO, route);
+	rtw89_usb_ops_write32(rtwdev, R_AX_CH_INFO_QRY, query);
+	printf("[*] enabled RTL8852CU rich channel-info mode for MACID %u\n", macid);
+}
+
+static void csi_disable_rich_mode(void *rtwdev)
+{
+	u32 value;
+	unsigned int retry;
+
+	rtw89_usb_ops_write32(rtwdev, R_AX_CH_INFO_QRY, 0);
+	value = rtw89_usb_ops_read32(rtwdev, R_AX_CH_INFO);
+	if (value & B_AX_CH_INFO_EN) {
+		rtw89_usb_ops_write32(rtwdev, R_AX_CH_INFO,
+				       value | B_AX_CH_INFO_STOP_REQ);
+		for (retry = 0; retry < 100; retry++) {
+			if (rtw89_usb_ops_read32(rtwdev, R_AX_CH_INFO) & B_AX_CH_INFO_STOP)
+				break;
+			usleep(100);
+		}
+	}
+	rtw89_usb_ops_write32(rtwdev, R_AX_CH_INFO, 0);
+}
+
+int main(void)
+{
+	unsigned long duration_ms;
+	unsigned long max_reports;
+	unsigned long macid;
+	unsigned long elapsed_ms = 0;
+	bool observer_registered = false;
 	void *rtwdev = NULL;
-	struct rtw_chinfo_action_parm act_parm = {};
+	int ret;
 
-	elf_initialize_driver();
+	duration_ms = csi_env_ulong("RTW89_CSI_DURATION_MS", 300);
+	max_reports = csi_env_ulong("RTW89_CSI_MAX_REPORTS", 100);
+	macid = csi_env_ulong("RTW89_CSI_MACID", 0);
+	csi_legacy_mode = csi_env_ulong("RTW89_CSI_LEGACY", 0) != 0;
+	if (csi_legacy_mode) {
+		csi_bb_bitmap = 0x1;
+		csi_bb_type = 0;
+	}
+	if (macid > 255) {
+		printf("[!] RTW89_CSI_MACID must fit in 8 bits\n");
+		return -EINVAL;
+	}
+
+	ret = elf_initialize_driver();
+	if (ret) {
+		printf("[!] failed to initialize driver callbacks: %d\n", ret);
+		return ret;
+	}
 	rtwdev = get_ieee80211_priv_data();
+	if (!rtwdev) {
+		printf("[!] rtw89 private data is unavailable\n");
+		return -ENODEV;
+	}
 
-	en = 1;
-	group_num = 0;
-	accuracy = 1; /* dump 16 bit IQ values */
-	mode = 0;
-	en_mode = 1; /* rich mode: dump more CSI frames */
-	period = 30;
+	ret = usb_assign_rx_observer(csi_usb_rx_observer);
+	if (ret) {
+		printf("[!] failed to install USB-IN CSI observer: %d\n", ret);
+		return ret;
+	}
+	observer_registered = true;
 
-	memset(&act_parm, 0, sizeof(struct rtw_chinfo_action_parm));
-	/* configure the channel rx mode */
-	act_parm.act         = CHINFO_ACT_CFG;
-	act_parm.group_num   = CHINFO_GROUP_NUM_16;
-	act_parm.accuracy    = CHINFO_ACCU_1BYTE;
-	act_parm.mode        = CHINFO_MODE_ACK;
-	act_parm.enable_mode = CHINFO_EN_RICH_MODE; /* if set cause 100ms CSI */
-	act_parm.enable      = en;
-	act_parm.trig_period = 30;
-	act_parm.tx_nss      = 2;
-	act_parm.rx_nss      = 2;
-	rtw_phl_cmd_cfg_chinfo(rtwdev, &act_parm, PHL_CMD_WAIT, 500);
-	act_parm.act         = CHINFO_ACT_EN;
-	rtw_phl_cmd_cfg_chinfo(rtwdev, &act_parm, PHL_CMD_WAIT, 500);
+	csi_configure_bb(rtwdev);
+	csi_enable_rich_mode(rtwdev, (u8)macid);
+	printf("[*] RTL8852CU CSI profile: %s\n",
+	       csi_legacy_mode ? "legacy 1x1 (management/control/data)" :
+				 "MIMO 2x2 (data frames)");
+	csi_dump_configuration(rtwdev);
+	printf("[*] printing channel-info reports for %lu ms%s\n",
+	       duration_ms, duration_ms ? "" : " (unbounded)");
+	printf("[*] leave scan or other RX traffic active; set RTW89_CSI_MACID for an associated station\n");
+	fflush(stdout);
+
+	while ((!duration_ms || elapsed_ms < duration_ms) &&
+	       (!max_reports || csi_report_count < max_reports)) {
+		csi_drain_output();
+		csi_sample_mac_state(rtwdev);
+		usleep(10000);
+		elapsed_ms += 10;
+	}
+	while (csi_drain_output())
+		;
+
+	if (duration_ms && !csi_report_count && !csi_legacy_mode &&
+	    !csi_rx_frame_type_count[2]) {
+		printf("[*] no MIMO data frame was observed; retrying with legacy 1x1 CSI\n");
+		csi_disable_rich_mode(rtwdev);
+		csi_disable_bb(rtwdev);
+		csi_legacy_mode = true;
+		csi_bb_bitmap = 0x1;
+		csi_bb_type = 0;
+		if (!csi_rx_macid_count[macid] && csi_rx_invalid_macid_count) {
+			macid = 0xff;
+			printf("[*] using MACID 255 for address-CAM-invalid management frames\n");
+		}
+		csi_configure_bb(rtwdev);
+		csi_enable_rich_mode(rtwdev, (u8)macid);
+		csi_dump_configuration(rtwdev);
+		elapsed_ms = 0;
+		while (elapsed_ms < duration_ms &&
+		       (!max_reports || csi_report_count < max_reports)) {
+			csi_drain_output();
+			csi_sample_mac_state(rtwdev);
+			usleep(10000);
+			elapsed_ms += 10;
+		}
+		while (csi_drain_output())
+			;
+	}
+
+	printf("[*] CSI summary: reports=%llu segments=%llu channel-info-records=%llu bad-rx-records=%llu output_drops=%llu\n",
+	       (unsigned long long)csi_report_count,
+	       (unsigned long long)csi_segment_count,
+	       (unsigned long long)csi_chan_info_record_count,
+	       (unsigned long long)csi_bad_rx_record_count,
+	       (unsigned long long)csi_output_drop_count);
+	printf("[*] RX descriptor types: wifi=%llu ppdu=%llu channel-info=%llu "
+	       "tx-report=%llu dfs=%llu c2h=%llu\n",
+	       (unsigned long long)csi_rx_type_count[0],
+	       (unsigned long long)csi_rx_type_count[1],
+	       (unsigned long long)csi_rx_type_count[2],
+	       (unsigned long long)csi_rx_type_count[6],
+	       (unsigned long long)csi_rx_type_count[8],
+	       (unsigned long long)csi_rx_type_count[10]);
+	csi_print_observed_macids();
+	printf("[*] channel-info engine activity: on=%u requesting=%u\n",
+	       csi_saw_channel_info_on, csi_saw_requesting);
+	if (!csi_chan_info_record_count) {
+		printf("[!] no RTL8852CU RX type-2 channel-info record was observed\n");
+		csi_dump_configuration(rtwdev);
+		if (!csi_rx_type_count[0] && !csi_rx_type_count[1])
+			printf("[!] no Wi-Fi or PPDU RX traffic reached the USB observer during capture\n");
+		else
+			printf("[!] RX traffic was active; verify that the selected MACID receives matching frames\n");
+	}
+	csi_disable_rich_mode(rtwdev);
+	csi_disable_bb(rtwdev);
+
+out:
+	if (observer_registered)
+		usb_assign_rx_observer(NULL);
 	return ret;
 }

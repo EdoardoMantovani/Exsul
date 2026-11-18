@@ -5,7 +5,6 @@ int crypto_shash_init(struct shash_desc *desc){
 		ret = -ENOKEY;
 		return ret;
 	}
-
 	ret = __crypto_shash_init(desc);
 	return ret;
 }

@@ -12,9 +12,7 @@ int hci_cmd_sync_submit(struct hci_dev *hdev, int(*func)(struct hci_dev *hdev, v
 	entry->destroy = destroy;
 
 	list_add_tail(&entry->list, &hdev->cmd_sync_work_list);
-
 	queue_work(hdev->req_workqueue, &hdev->cmd_sync_work);
-
 	unlock:
 	return ret;
 }

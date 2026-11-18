@@ -27,6 +27,7 @@ void ieee80211_rx_list(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta, st
 	if (atomic_load(&director.scan_in_progress) == true){
 		scan_cache_observe_rx_status(local, skb);
 	}
+	peer_rx_observe(local, skb);
 	if (connection_rx_observe(local, skb)){
 		kfree_skb(skb);
 		return;

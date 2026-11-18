@@ -4,7 +4,9 @@ int queue_work_on(int cpu, struct workqueue_struct *wq, struct work_struct *work
 
 	if (wq == NULL || work == NULL || work->func == NULL || (uintptr_t)work->func <= 4096){
 		if (wq == NULL){
+			#ifdef ENABLE_DBG_PRINT
 			printf("[%s] wq is null!\n", __FUNCTION__);
+			#endif
 		}
 		return false;
 	}
@@ -27,9 +29,7 @@ int queue_work_on(int cpu, struct workqueue_struct *wq, struct work_struct *work
 		pthread_attr_destroy(&attr);
 	}
 
-	atomic_store_explicit(&work->data,
-			      work_encode(wq, WORK_STRUCT_PENDING | (state & WORK_STRUCT_RUNNING)),
-			      memory_order_release);
+	atomic_store_explicit(&work->data, work_encode(wq, WORK_STRUCT_PENDING | (state & WORK_STRUCT_RUNNING)), memory_order_release);
 	list_add_tail(&work->entry, &wq->work_list);
 	pthread_cond_signal(&wq->cond);
 	pthread_mutex_unlock(&wq->lock);

@@ -517,15 +517,24 @@ static inline struct aead_instance *aead_instance(struct crypto_instance *inst){
 }
 
 static inline int crypto_is_larval(struct crypto_alg *alg){
-	return alg->cra_flags & CRYPTO_ALG_LARVAL;
+	int ret = 0;
+
+	ret = alg->cra_flags & CRYPTO_ALG_LARVAL;
+	return ret;
 }
 
 static inline int crypto_is_dead(struct crypto_alg *alg){
-	return alg->cra_flags & CRYPTO_ALG_DEAD;
+	int ret = 0;
+
+	ret = alg->cra_flags & CRYPTO_ALG_DEAD;
+	return ret;
 }
 
 static inline int crypto_is_moribund(struct crypto_alg *alg){
-	return alg->cra_flags & (CRYPTO_ALG_DEAD | CRYPTO_ALG_DYING);
+	int ret = 0;
+
+	ret = alg->cra_flags & (CRYPTO_ALG_DEAD | CRYPTO_ALG_DYING);
+	return ret;
 }
 
 static inline struct crypto_tfm *crypto_aead_tfm(struct crypto_aead *tfm){
@@ -549,7 +558,9 @@ static inline struct aead_alg *crypto_aead_alg(struct crypto_aead *tfm){
 }
 
 static void crypto_aead_free_instance(struct crypto_instance *inst){
-	struct aead_instance *aead = aead_instance(inst);
+	struct aead_instance *aead = NULL;
+
+	aead = aead_instance(inst);
 	aead->free(aead);
 }
 
@@ -579,15 +590,24 @@ static inline const char *crypto_tfm_alg_driver_name(struct crypto_tfm *tfm){
 }
 
 static inline unsigned int crypto_tfm_alg_blocksize(struct crypto_tfm *tfm){
-	return tfm->__crt_alg->cra_blocksize;
+	int ret = 0;
+
+	ret = tfm->__crt_alg->cra_blocksize;
+	return ret;
 }
 
 static inline unsigned int crypto_tfm_alg_alignmask(struct crypto_tfm *tfm){
-	return tfm->__crt_alg->cra_alignmask;
+	int ret = 0;
+
+	ret = tfm->__crt_alg->cra_alignmask;
+	return ret;
 }
 
 static inline unsigned int crypto_tfm_alg_reqsize(struct crypto_tfm *tfm){
-	return tfm->__crt_alg->cra_reqsize;
+	int ret = 0;
+
+	ret = tfm->__crt_alg->cra_reqsize;
+	return ret;
 }
 
 static inline u32 crypto_tfm_get_flags(struct crypto_tfm *tfm){
@@ -715,7 +735,6 @@ static int __crypto_shash_init(struct shash_desc *desc){
 	struct crypto_shash *tfm = NULL;
 
 	tfm = desc->tfm;
-
 	if (crypto_shash_block_only(tfm)) {
 		u8 *buf = shash_desc_ctx(desc);
 
@@ -727,9 +746,11 @@ static int __crypto_shash_init(struct shash_desc *desc){
 }
 
 static void crypto_shash_exit_tfm(struct crypto_tfm *tfm){
-	struct crypto_shash *hash = __crypto_shash_cast(tfm);
-	struct shash_alg *alg = crypto_shash_alg(hash);
+	struct shash_alg *alg = NULL;
+	struct crypto_shash *hash = NULL;
 
+	hash = __crypto_shash_cast(tfm);
+	alg = crypto_shash_alg(hash);
 	alg->exit_tfm(hash);
 }
 
@@ -742,6 +763,7 @@ static inline bool crypto_shash_alg_needs_key(struct shash_alg *alg){
 }
 
 static void shash_set_needkey(struct crypto_shash *tfm, struct shash_alg *alg){
+
 	if (crypto_shash_alg_needs_key(alg)){
 		crypto_shash_set_flags(tfm, CRYPTO_TFM_NEED_KEY);
 	}
@@ -749,11 +771,12 @@ static void shash_set_needkey(struct crypto_shash *tfm, struct shash_alg *alg){
 
 static int crypto_shash_init_tfm(struct crypto_tfm *tfm){
 	int ret = 0;
-	struct crypto_shash *hash = __crypto_shash_cast(tfm);
-	struct shash_alg *alg = crypto_shash_alg(hash);
+	struct shash_alg *alg = NULL;
+	struct crypto_shash *hash = NULL;
 
+	hash = __crypto_shash_cast(tfm);
+	alg = crypto_shash_alg(hash);
 	shash_set_needkey(hash, alg);
-
 	if (alg->exit_tfm){
 		tfm->exit = crypto_shash_exit_tfm;
 	}
@@ -767,8 +790,9 @@ static int crypto_shash_init_tfm(struct crypto_tfm *tfm){
 }
 
 static void crypto_shash_free_instance(struct crypto_instance *inst){
-	struct shash_instance *shash = shash_instance(inst);
+	struct shash_instance *shash = NULL;
 
+	shash = shash_instance(inst);
 	shash->free(shash);
 }
 
@@ -822,9 +846,11 @@ static inline struct crypto_aead *__crypto_aead_cast(struct crypto_tfm *tfm){
 }
 
 static void crypto_aead_exit_tfm(struct crypto_tfm *tfm){
-	struct crypto_aead *aead = __crypto_aead_cast(tfm);
-	struct aead_alg *alg = crypto_aead_alg(aead);
+	struct aead_alg *alg = NULL;
+	struct crypto_aead *aead = NULL;
 
+	aead = __crypto_aead_cast(tfm);
+	alg = crypto_aead_alg(aead);
 	alg->exit(aead);
 }
 
@@ -834,9 +860,11 @@ static inline void crypto_aead_set_flags(struct crypto_aead *tfm, u32 flags){
 
 static int crypto_aead_init_tfm(struct crypto_tfm *tfm){
 	int ret = 0;
-	struct crypto_aead *aead = __crypto_aead_cast(tfm);
-	struct aead_alg *alg = crypto_aead_alg(aead);
+	struct aead_alg *alg = NULL;
+	struct crypto_aead *aead = NULL;
 
+	aead = __crypto_aead_cast(tfm);
+	alg = crypto_aead_alg(aead);
 	crypto_aead_set_flags(aead, CRYPTO_TFM_NEED_KEY);
 	crypto_aead_set_reqsize(aead, crypto_tfm_alg_reqsize(tfm));
 

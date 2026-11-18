@@ -1,9 +1,9 @@
 bool ieee80211_rx_for_interface(struct ieee80211_rx_data *rx, struct sk_buff *skb, bool consume){
-	struct ieee80211_rx_status *status = NULL;
+	int link_id = -1;
+	struct sta_info *sta = NULL;
 	struct ieee80211_hdr *hdr = NULL;
 	struct link_sta_info *link_sta = NULL;
-	struct sta_info *sta = NULL;
-	int link_id = -1;
+	struct ieee80211_rx_status *status = NULL;
 
 	if (rx == NULL || skb == NULL || rx->sdata == NULL){
 		return false;
@@ -31,6 +31,5 @@ bool ieee80211_rx_for_interface(struct ieee80211_rx_data *rx, struct sk_buff *sk
 	if (!ieee80211_rx_data_set_sta(rx, sta, link_id)){
 		return false;
 	}
-
 	return ieee80211_prepare_and_rx_handle(rx, skb, consume);
 }

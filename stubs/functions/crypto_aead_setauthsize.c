@@ -5,14 +5,12 @@ int crypto_aead_setauthsize(struct crypto_aead *tfm, unsigned int authsize){
 		ret = -EINVAL;
 		return ret;
 	}
-
 	if (crypto_aead_alg(tfm)->setauthsize) {
 		ret = crypto_aead_alg(tfm)->setauthsize(tfm, authsize);
 		if (ret){
 			return ret;
 		}
 	}
-
 	tfm->authsize = authsize;
 	return ret;
 }

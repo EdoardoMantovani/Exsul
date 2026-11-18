@@ -1,10 +1,10 @@
 int hex_dump_to_buffer(const void *buf, size_t len, int rowsize, int groupsize, char *linebuf, size_t linebuflen, bool ascii){
+	int ret = 0;
 	const u8 *ptr = buf;
 	int ngroups;
 	u8 ch;
 	int j, lx = 0;
 	int ascii_column;
-	int ret;
 
 	#ifdef ENABLE_UNWIND_DEBUGGING
 	#define _U                              0x01    /* upper */

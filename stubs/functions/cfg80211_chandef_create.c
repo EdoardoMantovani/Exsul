@@ -4,7 +4,6 @@ void cfg80211_chandef_create(struct cfg80211_chan_def *chandef, struct ieee80211
 	}
 	chandef->chan = chan;
 	chandef->freq1_offset = chan->freq_offset;
-
 	switch (chan_type) {
 	case NL80211_CHAN_NO_HT:
 		chandef->width = NL80211_CHAN_WIDTH_20_NOHT;

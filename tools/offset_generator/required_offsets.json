@@ -1,8 +1,44 @@
 {
 "structs": [
 		{
+			"name":"cfg80211_ap_settings",
+			"fields": ["auth_type", "beacon", "beacon_interval", "chandef", "dtim_period", "hidden_ssid", "privacy", "ssid", "ssid_len"]
+		},
+		{
+			"name":"cfg80211_beacon_data",
+			"fields": ["head", "head_len", "tail", "tail_len"]
+		},
+		{
+			"name":"cfg80211_chan_def",
+			"fields": ["center_freq1", "center_freq2", "chan", "freq1_offset", "width"]
+		},
+		{
+			"name":"cfg80211_ops",
+			"fields": ["add_virtual_intf", "change_virtual_intf", "del_virtual_intf", "scan", "start_ap", "stop_ap"]
+		},
+		{
+			"name":"cfg80211_scan_request",
+			"fields": ["bssid", "channels", "duration", "duration_mandatory", "first_part", "flags", "ie", "ie_len", "mac_addr", "mac_addr_mask", "n_6ghz_params", "n_channels", "n_ssids", "no_cck", "rates", "scan_6ghz", "scan_6ghz_params", "scan_start", "ssids", "tsf_report_link_id", "wdev", "wiphy"]
+		},
+		{
 			"name":"device",
-			"fields": ["init_name", "kobj"]
+			"fields": ["bus", "class", "dma_mask", "driver", "init_name", "kobj"]
+		},
+		{
+			"name":"device_driver",
+			"fields": ["name"]
+		},
+		{
+			"name":"discovery_state",
+			"fields": ["all", "report_invalid_rssi", "resolve", "result_filtering", "rssi", "state", "unknown", "uuid_count", "uuids"]
+		},
+		{
+			"name":"file",
+			"fields": ["f_flags", "f_inode", "f_pos"]
+		},
+		{
+			"name":"inode",
+			"fields": ["i_size"]
 		},
 		{
 			"name":"hci_conn",
@@ -14,19 +50,35 @@
 		},
 		{
 			"name":"ieee80211_bss_conf",
-			"fields": ["addr", "allow_p2p_go_ps", "arp_addr_cnt", "assoc_capability", "basic_rates", "beacon_int", "beacon_rate", "bssid", "chanreq", "cqm_rssi_high", "cqm_rssi_hyst", "cqm_rssi_low", "cqm_rssi_thold", "dtim_period", "eht_support", "enable_beacon", "frame_time_rts_th", "ftm_responder", "ftm_responder_params", "he_support", "hidden_ssid", "ht_operation_mode", "idle", "link_id", "mcast_rate", "multicast_to_unicast", "ps", "qos", "sync_device_ts", "sync_dtim_count", "sync_tsf", "twt_broadcast", "twt_protected", "twt_requester", "twt_responder", "tx_bss_conf", "txpower", "txpower_type", "use_cts_prot", "use_short_preamble", "use_short_slot", "vif"]
+			"fields": ["addr", "allow_p2p_go_ps", "arp_addr_cnt", "assoc_capability", "basic_rates", "beacon_int", "beacon_rate", "bssid", "chanctx_conf", "chanreq", "cqm_rssi_high", "cqm_rssi_hyst", "cqm_rssi_low", "cqm_rssi_thold", "dtim_period", "eht_support", "enable_beacon", "frame_time_rts_th", "ftm_responder", "ftm_responder_params", "he_support", "hidden_ssid", "ht_operation_mode", "idle", "link_id", "mcast_rate", "multicast_to_unicast", "ps", "qos", "sync_device_ts", "sync_dtim_count", "sync_tsf", "twt_broadcast", "twt_protected", "twt_requester", "twt_responder", "tx_bss_conf", "txpower", "txpower_type", "use_cts_prot", "use_short_preamble", "use_short_slot", "vif"]
+		},
+		{
+			"name":"ieee80211_chanctx_conf",
+			"fields": ["ap", "conf", "def", "driver_present", "min_def", "radio_idx", "rx_chains_dynamic", "rx_chains_static"]
 		},
 		{
 			"name":"ieee80211_hw",
-			"fields": ["conf", "flags", "max_listen_interval", "max_mtu", "max_nan_de_entries", "max_rates", "max_report_rates", "max_rx_aggregation_subframes", "max_signal", "max_tx_aggregation_subframes", "netdev_features", "offchannel_tx_hw_queue", "priv", "queues", "radiotap_mcs_details", "radiotap_vht_details", "rate_control_algorithm", "tx_sk_pacing_shift", "txq_data_size", "uapsd_max_sp_len", "uapsd_queues", "vif_data_size", "weight_multiplier", "wiphy"]
+			"fields": ["chanctx_data_size", "conf", "extra_beacon_tailroom", "extra_tx_headroom", "flags", "max_listen_interval", "max_mtu", "max_nan_de_entries", "max_rates", "max_report_rates", "max_rx_aggregation_subframes", "max_signal", "max_tx_aggregation_subframes", "netdev_features", "offchannel_tx_hw_queue", "priv", "queues", "radiotap_mcs_details", "radiotap_vht_details", "rate_control_algorithm", "sta_data_size", "tx_sk_pacing_shift", "txq_data_size", "uapsd_max_sp_len", "uapsd_queues", "vif_data_size", "weight_multiplier", "wiphy"]
+		},
+		{
+			"name":"ieee80211_link_sta",
+			"fields": ["addr", "link_id", "rx_nss", "sta", "supp_rates"]
 		},
 		{
 			"name":"ieee80211_ops",
-			"fields": ["add_interface", "add_nan_func", "bss_info_changed", "cancel_hw_scan", "conf_tx", "config", "configure_filter", "del_nan_func", "hw_scan", "prepare_multicast", "remain_on_channel", "remove_interface", "set_key", "set_mac_acl", "set_rts_threshold", "start", "start_ap", "start_nan", "stop", "stop_ap", "stop_nan", "sw_scan_start", "tdls_cancel_channel_switch", "tdls_channel_switch", "tdls_recv_channel_switch", "vif_cfg_changed"]
+			"fields": ["add_chanctx", "add_interface", "add_nan_func", "assign_vif_chanctx", "bss_info_changed", "cancel_hw_scan", "change_chanctx", "conf_tx", "config", "configure_filter", "del_nan_func", "flush", "get_tsf", "hw_scan", "link_info_changed", "offset_tsf", "prepare_multicast", "reconfig_complete", "remain_on_channel", "remove_chanctx", "remove_interface", "reset_tsf", "set_default_unicast_key", "set_key", "set_mac_acl", "set_rts_threshold", "set_tsf", "sta_state", "start", "start_ap", "start_nan", "stop", "stop_ap", "stop_nan", "suspend", "sw_scan_start", "tdls_cancel_channel_switch", "tdls_channel_switch", "tdls_recv_channel_switch", "tx", "unassign_vif_chanctx", "vif_cfg_changed"]
+		},
+		{
+			"name":"ieee80211_scan_request",
+			"fields": ["ies", "req"]
+		},
+		{
+			"name":"ieee80211_sta",
+			"fields": ["addr", "aid", "deflink", "link", "wme"]
 		},
 		{
 			"name":"ieee80211_vif",
-			"fields": ["active_links", "addr", "bss_conf", "cfg", "link_conf", "type", "valid_links", "wdev"]
+			"fields": ["active_links", "addr", "addr_valid", "bss_conf", "cab_queue", "cfg", "hw_queue", "link_conf", "p2p", "type", "valid_links", "wdev"]
 		},
 		{
 			"name":"ieee80211_vif_cfg",
@@ -34,11 +86,19 @@
 		},
 		{
 			"name":"module",
-			"fields": ["core_kallsyms", "crcs", "ctors", "dyndbg_info", "extable", "gpl_crcs", "gpl_syms", "kallsyms", "kp", "mem", "name", "noinstr_text_size", "noinstr_text_start", "num_ctors", "num_exentries", "num_gpl_syms", "num_kp", "num_syms", "percpu", "state", "syms"]
+			"fields": ["core_kallsyms", "crcs", "ctors", "dyndbg_info", "extable", "gpl_crcs", "gpl_syms", "init", "kallsyms", "kp", "mem", "name", "noinstr_text_size", "noinstr_text_start", "num_ctors", "num_exentries", "num_gpl_syms", "num_kp", "num_syms", "percpu", "state", "syms"]
 		},
 		{
 			"name":"net_device",
-			"fields": ["cfg", "cfg_pending", "close_list", "dev_addr", "dev_addrs", "dev_refcnt", "ethtool", "features", "group", "gso_max_segs", "gso_max_size", "hw_features", "ieee80211_ptr", "max_mtu", "mc", "min_mtu", "name", "name_assign_type", "needed_headroom", "needed_tailroom", "net_notifier_list", "num_napi_configs", "num_rx_queues", "num_tx_queues", "pcpu_stat_type", "perm_addr", "priv_flags", "priv_len", "ptype_all", "ptype_specific", "real_num_rx_queues", "real_num_tx_queues", "reg_state", "state", "tx_queue_len", "uc", "unreg_list"]
+			"fields": ["_tx", "close_list", "dev_addr", "dev_addrs", "dev_refcnt", "ethtool_ops", "group", "gso_max_segs", "gso_max_size", "ieee80211_ptr", "mc", "name", "name_assign_type", "net_notifier_list", "netdev_ops", "num_tx_queues", "priv_flags", "priv_len", "ptype_all", "ptype_specific", "real_num_tx_queues", "reg_state", "state", "tx_queue_len", "uc", "unreg_list"]
+		},
+		{
+			"name":"net_device_ops",
+			"fields": ["ndo_init", "ndo_open", "ndo_set_mac_address", "ndo_set_rx_mode", "ndo_stop", "ndo_uninit", "ndo_validate_addr"]
+		},
+		{
+			"name":"netdev_queue",
+			"fields": ["state"]
 		},
 		{
 			"name":"rate_info",
@@ -46,7 +106,7 @@
 		},
 		{
 			"name":"sk_buff",
-			"fields": ["_skb_refdst", "active_extensions", "alloc_cpu", "cb", "cloned", "csum", "csum_offset", "csum_start", "data", "data_len", "destructor", "dev", "dst", "dst_pending_confirm", "end", "extensions", "fclone", "hash", "hdr_len", "head", "head_frag", "inner_ipproto", "inner_mac_header", "inner_network_header", "inner_protocol", "inner_protocol_type", "inner_transport_header", "ip_summed", "len", "list", "mac_header", "mac_len", "network_header", "next", "nohdr", "peeked", "pfmemalloc", "pkt_type", "prev", "priority", "protocol", "queue_mapping", "reserved_tailroom", "sk", "slow_gro", "tail", "transport_header", "truesize", "tstamp", "tstamp_type", "unreadable", "users", "wifi_acked", "wifi_acked_valid", "x"]
+			"fields": ["_skb_refdst", "active_extensions", "alloc_cpu", "cb", "cloned", "csum", "csum_offset", "csum_start", "data", "data_len", "destructor", "dev", "dst", "dst_pending_confirm", "end", "extensions", "fclone", "hash", "hdr_len", "head", "head_frag", "inner_ipproto", "inner_mac_header", "inner_network_header", "inner_protocol", "inner_protocol_type", "inner_transport_header", "ip_summed", "len", "list", "mac_header", "network_header", "next", "nohdr", "peeked", "pfmemalloc", "pkt_type", "priority", "protocol", "queue_mapping", "reserved_tailroom", "sk", "slow_gro", "tail", "transport_header", "truesize", "tstamp", "tstamp_type", "unreadable", "users", "wifi_acked", "wifi_acked_valid", "x"]
 		},
 		{
 			"name":"sk_buff_head",
@@ -61,24 +121,32 @@
 			"fields": ["sk_refcnt", "sk_wmem_alloc"]
 		},
 		{
+			"name":"task_struct",
+			"fields": ["__state", "cond", "lock", "should_stop", "started"]
+		},
+		{
 			"name":"urb",
 			"fields": ["actual_length", "anchor", "anchor_list", "complete", "dev", "ep", "hcpriv", "kref", "pipe", "reject", "status", "transfer_buffer", "transfer_buffer_length", "transfer_dma", "transfer_flags", "urb_list", "use_count"]
 		},
 		{
 			"name":"usb_device",
-			"fields": ["actconfig", "descriptor", "dev", "ep_in", "ep_out", "speed"]
+			"fields": ["actconfig", "bus", "config", "descriptor", "dev", "ep_in", "ep_out", "speed"]
 		},
 		{
 			"name":"usb_driver",
-			"fields": ["name", "probe"]
+			"fields": ["disconnect", "id_table", "name", "probe"]
 		},
 		{
 			"name":"usb_interface",
-			"fields": ["altsetting", "cur_altsetting", "dev", "num_altsetting"]
+			"fields": ["altsetting", "cur_altsetting", "dev", "num_altsetting", "reset_ws"]
 		},
 		{
 			"name":"wiphy",
-			"fields": ["addresses", "ap_sme_capa", "bands", "bss_param_support", "bss_priv_size", "cipher_suites", "coverage_class", "dev", "ext_features", "extra_tx_headroom", "features", "flags", "frag_threshold", "interface_modes", "max_acl_mac_addrs", "max_num_csa_counters", "max_remain_on_channel_duration", "max_scan_ie_len", "max_scan_ssids", "max_sched_scan_plan_interval", "max_sched_scan_plans", "mtx", "n_addresses", "n_cipher_suites", "nan_supported_bands", "pmsr_capa", "priv", "reg_notifier", "regd", "regulatory_flags", "retry_long", "retry_short", "rts_threshold", "signal_type", "software_iftypes"]
+			"fields": ["addresses", "ap_sme_capa", "bands", "bss_param_support", "bss_priv_size", "cipher_suites", "coverage_class", "dev", "ext_features", "extra_tx_headroom", "features", "flags", "frag_threshold", "interface_modes", "max_acl_mac_addrs", "max_num_csa_counters", "max_remain_on_channel_duration", "max_scan_ie_len", "max_scan_ssids", "max_sched_scan_plan_interval", "max_sched_scan_plans", "mtx", "n_addresses", "n_cipher_suites", "nan_supported_bands", "pmsr_capa", "reg_notifier", "regd", "regulatory_flags", "retry_long", "retry_short", "rts_threshold", "signal_type", "software_iftypes"]
+		},
+		{
+			"name":"wireless_dev",
+			"fields": ["registered"]
 		}
 	]
 }

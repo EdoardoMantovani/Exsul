@@ -1,6 +1,7 @@
 struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, struct ieee80211_ops *ieee80211_ops, const char *requested_name){
-	int priv_size = 0;
 	bool emulate_chanctx = false;
+	size_t hw_size = 0;
+	size_t hw_alloc_size = 0;
 	struct wiphy *wiphy = NULL;
 	struct ieee80211_hw *hw = NULL;
 	struct ieee80211_local *local = NULL;
@@ -13,23 +14,18 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, struct ieee8021
 		return NULL;
 	}
 
-	/* Ensure 32-byte alignment of our private data and hw private data.
-	 * We use the wiphy priv data for both our ieee80211_local and for
-	 * the driver's private data
-	 *
-	 * In memory it'll be like this:
-	 *
-	 * +-------------------------+
-	 * | struct wiphy	    |
-	 * +-------------------------+
-	 * | struct ieee80211_local  |
-	 * +-------------------------+
-	 * | driver's private data   |
-	 * +-------------------------+
-	 *
-	 */
-	priv_size = ALIGN(sizeof(struct ieee80211_local), 32) + priv_data_len; /* 'NETDEV_ALIGN' = 32 */
-	wiphy = wiphy_new_nm(NULL, /*&mac80211_config_ops,*/ priv_size, requested_name);
+	/* The driver was compiled against the kernel's ieee80211_hw layout. Keep
+	 * that ABI-sized object separate from our userspace-only local state. */
+	hw_size = director.struct_sizes.ieee80211_hw;
+	if (hw_size == 0 || hw_size > SIZE_MAX - 31){
+		return NULL;
+	}
+	hw_alloc_size = ALIGN(hw_size, 32);
+	if (priv_data_len > SIZE_MAX - hw_alloc_size){
+		return NULL;
+	}
+	hw_alloc_size += priv_data_len;
+	wiphy = wiphy_new_nm(NULL, /*&mac80211_config_ops,*/ 0, requested_name);
 
 	if (wiphy == NULL){
 		return NULL;
@@ -98,24 +94,24 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, struct ieee8021
 
 	wiphy->bss_priv_size = sizeof(struct ieee80211_bss);
 
-	local = wiphy->priv;
-
-	director.ieee80211_local = (struct ieee80211_local *)calloc(1, (ALIGN(sizeof(struct ieee80211_local), 32) + priv_data_len));
+	director.ieee80211_local = (struct ieee80211_local *)calloc(1, sizeof(struct ieee80211_local));
 	if(director.ieee80211_local == NULL){
 		goto err_free;
 	}
 	local = director.ieee80211_local;
 	local->wiphy = wiphy;
+	hw = calloc(1, hw_alloc_size);
+	if(hw == NULL){
+		goto err_free;
+	}
+	local->ieee80211_hw = hw;
 
 	if (sta_info_init(local)){
 		goto err_free;
 	}
 
-	hw = (struct ieee80211_hw *)&local->hw;
-	local->ieee80211_hw = hw;
-
 	hw->wiphy = wiphy;
-	hw->priv = (char *)local + ALIGN(sizeof(*local), 32); /* 'NETDEV_ALIGN' = 32 */
+	hw->priv = (char *)hw + ALIGN(hw_size, 32); /* 'NETDEV_ALIGN' = 32 */
 
 	local->ieee80211_ops = ieee80211_ops;
 	local->emulate_chanctx = emulate_chanctx;
@@ -177,6 +173,7 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len, struct ieee8021
 
 	err_free:
 	if(director.ieee80211_local != NULL){
+		free(director.ieee80211_local->ieee80211_hw);
 		free(director.ieee80211_local);
 		director.ieee80211_local = NULL;
 	}

@@ -9,7 +9,6 @@ void cfg80211_bss_iter(struct wiphy *wiphy, struct cfg80211_chan_def *chandef, v
 	if(rdev == NULL){
 		goto end;
 	}
-
 	pthread_mutex_lock(&local->bss_lock);
 	list_for_each_entry(bss, &rdev->bss_list, list) {
 		if (!chandef || cfg80211_is_sub_chan(chandef, bss->pub.channel, false)){

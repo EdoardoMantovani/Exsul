@@ -53,6 +53,11 @@ enum usb_interface_condition {
 
 struct usb_device;
 
+#define USB_DEVICE_ID_MATCH_INT_CLASS		0x0080
+#define USB_DEVICE_ID_MATCH_INT_SUBCLASS	0x0100
+#define USB_DEVICE_ID_MATCH_INT_PROTOCOL	0x0200
+#define USB_DEVICE_ID_MATCH_INT_NUMBER		0x0400
+
 struct usb_device_id {
 	/* which fields to match against? */
 	__u16		match_flags;
@@ -269,29 +274,7 @@ struct usbdrv_wrap {
 	int for_devices;
 };
 
-/* 'usb_driver' is one of the core's struct of the usb subsystem in the Linux kernel,
- * due to the fact that the first 2 function callbacks offset never change,
- * mantain a simplified version of this struct and ignore the other possible callbacks.
- */
-struct usb_driver {
-	const char *name;
-	int (LINUX_ABI *probe) (struct usb_interface *intf, const struct usb_device_id *id);
-	void (LINUX_ABI *disconnect) (struct usb_interface *intf);
-};
 typedef void (LINUX_ABI *usb_complete_t)(struct urb *);
-
-struct tracked_skb_alloc {
-        struct sk_buff *skb;
-        struct tracked_skb_alloc *next;
-};
-
-struct tracked_urb_alloc {
-        struct urb *urb;
-        struct tracked_urb_alloc *next;
-};
-
-static struct tracked_skb_alloc *tracked_skb_allocs;
-static struct tracked_urb_alloc *tracked_urb_allocs;
 
 static int usb_anchor_check_wakeup(struct usb_anchor *anchor){
 	return anchor->suspend_wakeups == 0 && list_empty(&anchor->urb_list);
@@ -390,7 +373,6 @@ static void urb_destroy(struct kref *kref){
 	/* for avoiding problems, unroll the 'container_of' macro */
 	urb = ((struct urb *)(__mptr - 0));
 
-	untrack_urb_alloc(urb);
 	if (urb->transfer_flags & URB_FREE_BUFFER){
 		kfree(urb->transfer_buffer);
 	}
@@ -452,7 +434,6 @@ static void usb_transfer_pool_init(void){
 	director.usb_transfer_pool_count = 0;
 	director.usb_active_transfer_count = 0;
 	atomic_store_explicit(&director.usb_pending_transfers, 0, memory_order_relaxed);
-	atomic_store_explicit(&director.usb_peak_pending_transfers, 0, memory_order_relaxed);
 
 	for (int i = 0; i < USB_TRANSFER_PREALLOC; i++){
 		transfer = libusb_alloc_transfer(0);
@@ -461,23 +442,6 @@ static void usb_transfer_pool_init(void){
 		}
 		director.usb_transfer_pool[director.usb_transfer_pool_count++] = transfer;
 	}
-}
-
-static void usb_transfer_active_add(struct libusb_transfer *transfer){
-	if (transfer == NULL){
-		return;
-	}
-	pthread_mutex_lock(&director.usb_transfer_pool_lock);
-	for (u16 i = 0; i < director.usb_active_transfer_count; i++){
-		if (director.usb_active_transfers[i] == transfer){
-			pthread_mutex_unlock(&director.usb_transfer_pool_lock);
-			return;
-		}
-	}
-	if (director.usb_active_transfer_count < USB_TRANSFER_POOL_SIZE){
-		director.usb_active_transfers[director.usb_active_transfer_count++] = transfer;
-	}
-	pthread_mutex_unlock(&director.usb_transfer_pool_lock);
 }
 
 static void usb_transfer_active_remove_locked(struct libusb_transfer *transfer){
@@ -495,7 +459,7 @@ static void usb_transfer_active_remove_locked(struct libusb_transfer *transfer){
 }
 
 static void usb_transfer_cancel_active(void){
-	struct libusb_transfer *active[USB_TRANSFER_POOL_SIZE] = {0};
+	struct libusb_transfer *active[USB_ACTIVE_TRANSFER_MAX] = {0};
 	u16 active_count = 0;
 
 	pthread_mutex_lock(&director.usb_transfer_pool_lock);
@@ -526,21 +490,40 @@ static void usb_transfer_pool_flush(void){
 	pthread_mutex_unlock(&director.usb_transfer_pool_lock);
 }
 
-/* usb_transfer_get: get the current urb transfer from the transfer pool */
+/* usb_transfer_get: acquire and register an active transfer */
 static struct libusb_transfer *usb_transfer_get(void){
 	struct libusb_transfer *transfer = NULL;
 
 	pthread_mutex_lock(&director.usb_transfer_pool_lock);
-	if (director.usb_transfer_pool_count > 0){
+	if (director.usb_active_transfer_count == USB_ACTIVE_TRANSFER_MAX){
+		pthread_mutex_unlock(&director.usb_transfer_pool_lock);
+		return NULL;
+	}
+	if (director.usb_transfer_pool_count > 0) {
 		director.usb_transfer_pool_count--;
 		transfer = director.usb_transfer_pool[director.usb_transfer_pool_count];
 		director.usb_transfer_pool[director.usb_transfer_pool_count] = NULL;
+		director.usb_active_transfers[director.usb_active_transfer_count++] = transfer;
 	}
 	pthread_mutex_unlock(&director.usb_transfer_pool_lock);
 
-	if (transfer == NULL){
-		transfer = libusb_alloc_transfer(0);
+	if (transfer != NULL){
+		return transfer;
 	}
+
+	transfer = libusb_alloc_transfer(0);
+	if (transfer == NULL){
+		return NULL;
+	}
+
+	pthread_mutex_lock(&director.usb_transfer_pool_lock);
+	if (director.usb_active_transfer_count == USB_ACTIVE_TRANSFER_MAX){
+		pthread_mutex_unlock(&director.usb_transfer_pool_lock);
+		libusb_free_transfer(transfer);
+		return NULL;
+	}
+	director.usb_active_transfers[director.usb_active_transfer_count++] = transfer;
+	pthread_mutex_unlock(&director.usb_transfer_pool_lock);
 	return transfer;
 }
 
@@ -571,23 +554,44 @@ static void usb_transfer_put(struct libusb_transfer *transfer){
 }
 
 static inline void usb_transfer_note_submit(void){
-	unsigned int peak = 0;
-	unsigned int pending = 0;
-
-	pending = atomic_fetch_add_explicit(&director.usb_pending_transfers, 1, memory_order_relaxed) + 1;
-	peak = atomic_load_explicit(&director.usb_peak_pending_transfers, memory_order_relaxed);
-	while (pending > peak &&
-	       !atomic_compare_exchange_weak_explicit(&director.usb_peak_pending_transfers,
-						       &peak,
-						       pending,
-						       memory_order_relaxed,
-						       memory_order_relaxed)){
-		/* wait */
-	}
+	atomic_fetch_add_explicit(&director.usb_pending_transfers, 1, memory_order_relaxed);
 }
 
 static inline void usb_transfer_note_complete(void){
-	atomic_fetch_sub_explicit(&director.usb_pending_transfers, 1, memory_order_relaxed);
+	atomic_fetch_sub_explicit(&director.usb_pending_transfers, 1, memory_order_release);
+}
+
+static void usb_report_rx(void *data, int len){
+	int (*callback)(void *data, int len) = NULL;
+
+	if(data == NULL || len <= 0 || !director.usb_rx_observer_initialized){
+		return;
+	}
+	pthread_mutex_lock(&director.usb_rx_observer_lock);
+	if(director.usb_rx_observer != NULL){
+		callback = director.usb_rx_observer;
+		director.usb_rx_observer_refs++;
+	}
+	pthread_mutex_unlock(&director.usb_rx_observer_lock);
+	if(callback == NULL){
+		return;
+	}
+
+	callback(data, len);
+	pthread_mutex_lock(&director.usb_rx_observer_lock);
+	director.usb_rx_observer_refs--;
+	if(director.usb_rx_observer_refs == 0){
+		pthread_cond_broadcast(&director.usb_rx_observer_idle);
+	}
+	pthread_mutex_unlock(&director.usb_rx_observer_lock);
+}
+
+static void usb_rx_observer_init(void){
+	pthread_mutex_init(&director.usb_rx_observer_lock, NULL);
+	pthread_cond_init(&director.usb_rx_observer_idle, NULL);
+	director.usb_rx_observer = NULL;
+	director.usb_rx_observer_refs = 0;
+	director.usb_rx_observer_initialized = true;
 }
 
 static int usb_runtime_init(void){
@@ -601,12 +605,13 @@ static int usb_runtime_init(void){
 		return -EIO;
 	}
 
+	usb_rx_observer_init();
 	usb_transfer_pool_init();
 	return ret;
 }
 
 static void usb_runtime_exit(void){
-	struct timeval tv = {0, 0};
+	struct timeval tv = {0, USB_EVENT_WAIT_USEC};
 	libusb_device_handle *dev = director.usb_dev;
 
 	director.usb_dev = NULL;
@@ -616,9 +621,8 @@ static void usb_runtime_exit(void){
 		goto end;
 	}
 	usb_transfer_cancel_active();
-	for (int i = 0; i < 100 && atomic_load_explicit(&director.usb_pending_transfers, memory_order_acquire) > 0; i++){
+	while (atomic_load_explicit(&director.usb_pending_transfers, memory_order_acquire) > 0){
 		libusb_handle_events_timeout(usb_libusb_context(), &tv);
-		usleep(1000);
 	}
 	if (dev != NULL){
 		libusb_release_interface(dev, director.usb_interface_number);
@@ -627,30 +631,9 @@ static void usb_runtime_exit(void){
 	usb_transfer_pool_flush();
 	libusb_exit(director.usb_ctx);
 	director.usb_ctx = NULL;
+	pthread_mutex_destroy(&director.usb_transfer_pool_lock);
 	end:
-}
-
-static inline int usb_handle_events_timeout(struct timeval *tv){
-	int ret = 0;
-
-	ret = libusb_handle_events_timeout(usb_libusb_context(), tv);
-	if (ret == LIBUSB_ERROR_INTERRUPTED || ret == LIBUSB_ERROR_TIMEOUT){
-		return ret;
-	}
-	return ret;
-}
-
-/* usb_drain_events: for every urb, */
-static void usb_drain_events(void){
-	int ret = 0;
-	struct timeval tv = {0, 0};
-
-	for (int i = 0; i < USB_EVENT_DRAIN_BURST; i++){
-		ret = usb_handle_events_timeout(&tv);
-		if (ret != 0){
-			break;
-		}
-	}
+	usb_rx_observer_destroy();
 }
 
 /* libusb_urb_callback: main libusb callback used as a thin layer between the userspace and the kernelspace */
@@ -665,8 +648,8 @@ static void libusb_urb_callback(struct libusb_transfer *transfer){
 	/* get the urb pointer from the 'transfer' data */
 	urb = (struct urb *)transfer->user_data;
 	if (urb == NULL){
-		usb_transfer_note_complete();
 		usb_transfer_put(transfer);
+		usb_transfer_note_complete();
 		goto end;
 	}
 
@@ -701,6 +684,11 @@ static void libusb_urb_callback(struct libusb_transfer *transfer){
 	}
 
 	urb->actual_length = transfer->actual_length;
+	if(transfer->status == LIBUSB_TRANSFER_COMPLETED &&
+	   transfer->actual_length > 0 &&
+	   (transfer->endpoint & LIBUSB_ENDPOINT_IN)){
+		usb_report_rx(transfer->buffer, transfer->actual_length);
+	}
 		#ifdef ENABLE_FUZZING
 		if(transfer->status == LIBUSB_TRANSFER_COMPLETED &&
 		   transfer->actual_length > 0 &&
@@ -710,7 +698,6 @@ static void libusb_urb_callback(struct libusb_transfer *transfer){
         #endif
 
 	urb->hcpriv = NULL;
-	atomic_fetch_sub_explicit(&urb->use_count, 1, memory_order_release);
 
 	/* Linux removes a completed URB from its anchor before invoking the driver. */
 	usb_unanchor_urb(urb);
@@ -720,10 +707,12 @@ static void libusb_urb_callback(struct libusb_transfer *transfer){
 		usb_completion_cb(urb);
 	}
 
-	usb_transfer_note_complete();
 	usb_transfer_put(transfer);
+	/* kill_urb must also wait for the driver's completion callback. */
+	atomic_fetch_sub_explicit(&urb->use_count, 1, memory_order_release);
 	/* Drop the reference acquired by usb_submit_urb(). */
 	usb_free_urb(urb);
+	usb_transfer_note_complete();
 
 	end:
 }
@@ -735,15 +724,12 @@ static void *libusb_thread(void *unused){
 
 	setup_percpu();
 	while (!atomic_load_explicit(&director.libusb_thread_stop, memory_order_acquire)){
-		ret = usb_handle_events_timeout(&tv);
+		ret = libusb_handle_events_timeout(usb_libusb_context(), &tv);
 		if (ret == LIBUSB_ERROR_NO_DEVICE){
 			atomic_store_explicit(&director.usb_device_lost, true,
 					      memory_order_release);
 		}
-		if (ret != 0 && ret != LIBUSB_ERROR_NO_DEVICE){
-			continue;
-		}
-		usb_drain_events();
 	}
+	cleanup_percpu(NULL);
 	return NULL;
 }

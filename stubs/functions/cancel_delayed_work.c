@@ -10,20 +10,16 @@ int cancel_delayed_work(struct delayed_work *dwork){
 	}
 
 	work = &dwork->work;
-
 	if (!(work_flags(work) & (WORK_STRUCT_PENDING | WORK_STRUCT_RUNNING))){
 		return ret;
 	}
-
 	wq = work_wq(work);
-
 	if (wq == NULL){
 		return ret;
 	}
 
 	pthread_mutex_lock(&wq->lock);
 	flags = work_flags(work);
-
 	if (flags & WORK_STRUCT_PENDING) {
 		if (work_is_linked(work)){
 			list_del_init(&work->entry);
@@ -32,7 +28,6 @@ int cancel_delayed_work(struct delayed_work *dwork){
 		pthread_cond_broadcast(&wq->cond);
 		cancel = true;
 	}
-
 	pthread_mutex_unlock(&wq->lock);
 	return cancel;
 }

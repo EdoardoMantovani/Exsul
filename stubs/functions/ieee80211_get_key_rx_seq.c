@@ -3,7 +3,6 @@ void ieee80211_get_key_rx_seq(struct ieee80211_key_conf *keyconf, int tid, struc
 	struct ieee80211_key *key = NULL;
 
 	key = container_of(keyconf, struct ieee80211_key, conf);
-
 	switch (key->conf.cipher) {
 	case WLAN_CIPHER_SUITE_TKIP:
 		if (tid < 0 || tid >= IEEE80211_NUM_TIDS){

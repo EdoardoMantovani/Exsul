@@ -1,8 +1,8 @@
 void ieee80211_iterate_stations_atomic(struct ieee80211_hw *hw, void (*iterator)(void *data, struct ieee80211_sta *sta), void *data){
 	bool fsm_seen = false;
 	void (*iter)(void *data, struct ieee80211_sta *sta) = iterator;
-	struct connection_fsm *fsm = NULL;
 	struct sta_info *sta = NULL;
+	struct connection_fsm *fsm = NULL;
 	struct ieee80211_local *local = NULL;
 
 	local = director.ieee80211_local;

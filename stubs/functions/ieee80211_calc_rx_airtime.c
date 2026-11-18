@@ -11,7 +11,6 @@ u32 ieee80211_calc_rx_airtime(struct ieee80211_hw *hw, struct ieee80211_rx_statu
 
 	local = director.ieee80211_local;
 	wiphy = local->wiphy;
-
 	if (status->encoding == RX_ENC_LEGACY) {
 		rate = NULL;
 		sp = status->enc_flags & RX_ENC_FLAG_SHORTPRE;
@@ -39,6 +38,5 @@ u32 ieee80211_calc_rx_airtime(struct ieee80211_hw *hw, struct ieee80211_rx_statu
 	duration *= len;
 	duration /= AVG_PKT_SIZE;
 	duration /= 1024;
-
 	return duration;
 }

@@ -5,14 +5,12 @@ void *__pskb_pull_tail(struct sk_buff *skb, int delta){
 	struct sk_buff *insp  = NULL;
 
 	eat = (skb->tail + delta) - skb->end;
-
 	if (!skb_frags_readable(skb)){
 		return NULL;
 	}
 	if ((eat > 0 || skb_cloned(skb)) && pskb_expand_head(skb, 0, eat > 0 ? eat + 128 : 0, 0)){
 		return NULL;
 	}
-
 	skb_copy_bits(skb, skb_headlen(skb), skb_tail_pointer(skb), delta);
 	if (!skb_has_frag_list(skb)){
 		goto pull_pages;

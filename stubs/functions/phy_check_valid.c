@@ -28,7 +28,6 @@ bool phy_check_valid(int speed, int duplex, unsigned long *features){
 	};
 
 	capa = speed_duplex_to_capa(speed, duplex);
-
 	if (capa < 0){
 		return false;
 	}

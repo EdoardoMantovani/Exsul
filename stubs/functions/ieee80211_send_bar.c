@@ -5,11 +5,11 @@ void ieee80211_send_bar(struct ieee80211_vif *vif, u8 *ra, u16 tid, u16 ssn){
 	struct ieee80211_local *local = NULL;
 
 	local = director.ieee80211_local;
-	skb = dev_alloc_skb(sizeof(*bar) + local->hw.extra_tx_headroom);
+	skb = dev_alloc_skb(sizeof(*bar) + ieee80211_local_tx_headroom(local));
 	if (skb == NULL){
 		goto end;
 	}
-	skb_reserve(skb, local->hw.extra_tx_headroom);
+	skb_reserve(skb, ieee80211_local_tx_headroom(local));
 	bar = skb_put_zero(skb, sizeof(*bar));
 	bar->frame_control = cpu_to_le16(IEEE80211_FTYPE_CTL | IEEE80211_STYPE_BACK_REQ);
 	memcpy(bar->ra, ra, ETH_ALEN);

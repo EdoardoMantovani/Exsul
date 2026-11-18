@@ -12,6 +12,5 @@ bool __bitmap_intersects(unsigned long *bitmap1, unsigned long *bitmap2, unsigne
 			return true;
 		}
 	}
-
 	return false;
 }

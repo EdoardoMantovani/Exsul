@@ -1,6 +1,6 @@
 int ___pskb_trim(struct sk_buff *skb, unsigned int len){
 	int ret = 0;
-	int i   = 0;
+	int i = 0;
 	int frag_sz = 0;
 	int frag_end = 0;
 	unsigned int headlen = 0;

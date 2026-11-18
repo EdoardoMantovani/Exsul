@@ -4,19 +4,16 @@ int hci_recv_frame(struct hci_dev *hdev, struct sk_buff *skb){
 	struct bt_skb_cb *bt_cb = NULL;
 
 	bt_cb = (struct bt_skb_cb *)skb->cb;
-
 	if (hdev == NULL || (!test_bit(HCI_UP, &hdev->flags) && !test_bit(HCI_INIT, &hdev->flags))) {
 		kfree_skb(skb);
 		ret = -ENXIO;
 		return ret;
 	}
-
 	/* Check if the driver agree with packet type classification */
 	dev_pkt_type = hci_dev_classify_pkt_type(hdev, skb);
 	if (bt_cb->pkt_type != dev_pkt_type) {
 		bt_cb->pkt_type = dev_pkt_type;
 	}
-
 	switch (bt_cb->pkt_type) {
 	case HCI_EVENT_PKT:
 		break;
@@ -46,12 +43,9 @@ int hci_recv_frame(struct hci_dev *hdev, struct sk_buff *skb){
 
 	/* Incoming skb */
 	bt_cb->incoming = 1;
-
 	/* Time stamp */
 	__net_timestamp(skb);
-
 	skb_queue_tail(&hdev->rx_q, skb);
 	queue_work(hdev->workqueue, &hdev->rx_work);
-
 	return ret;
 }

@@ -1,7 +1,7 @@
 u32 ieee80211_mandatory_rates(struct ieee80211_supported_band *sband){
-	struct ieee80211_rate *bitrates = NULL;
 	u32 mandatory_rates = 0;
 	enum ieee80211_rate_flags mandatory_flag = 0;
+	struct ieee80211_rate *bitrates = NULL;
 
 	if (!sband){
 		return 1;

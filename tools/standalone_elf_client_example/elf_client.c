@@ -18,7 +18,8 @@
 
 /* remember to change those parameters accordingly to the main Exsul source code. */
 #define MAX_CONNECTION  1
-#define BUFFER_SIZE     1024 * 32
+/* 11 october 2026, updated the buffer size to 512 kb */
+#define BUFFER_SIZE     1024 * 512
 #define SOCKET_PATH	"/tmp/exsul_socket"
 
 #define u8		uint8_t

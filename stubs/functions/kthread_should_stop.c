@@ -1,6 +1,6 @@
 bool kthread_should_stop(void){
 	bool ret = false;
-	struct task_struct *t = NULL;
+	struct __task_struct *t = NULL;
 
 	t = current;
 	if (t == NULL){

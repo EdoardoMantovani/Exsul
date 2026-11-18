@@ -1,10 +1,6 @@
-struct global_conf {
-	u8 show_struct_offset;
-	u8 strict_missing_syms;
-};
-
 struct fast_struct_size {
 	u16 file;
+	u16 inode;
 	u16 wiphy;
 	u16 cfg80211_ops;
 	u16 cfg80211_scan_request;
@@ -51,19 +47,17 @@ struct exsul_scan_result {
 	u8 ies[1024];
 };
 
-#define USB_TRANSFER_POOL_SIZE	128
-#define USB_TRANSFER_PREALLOC	64
-#define USB_EVENT_DRAIN_BURST	16
-#define USB_EVENT_WAIT_USEC	10000
-
-#define MAX_TCC_RUNTIME_CONTEXTS 4
+struct peer_runtime;
+struct mesh_peer;
+struct peer_retired_interface;
 
 struct module_controller {
         char module_name[32];
-	/* current module major, minor and patch version */
+	/* current module kernel version and Ubuntu ABI */
 	u8 kernel_major_version;
 	u8 kernel_minor_version;
 	u8 kernel_patch;
+	u16 kernel_abi_version;
 	/* mantain the count of the loaded modules in the current address space */
 	int modules_loaded;
 	/* mantain a track of the current memory used for everything, in bytes */
@@ -90,12 +84,14 @@ struct module_controller {
 
 	/* ipc client */
 	int client_flags;
+	volatile sig_atomic_t elf_shutdown_requested;
+	int elf_signal_pipe[2];
+	volatile u32 pe_standalone_mode;
 
-	/* global configuration struct, the field can be set at runtime via the 'set' command */
-	struct global_conf global_conf;
         struct module *mod;
         struct load_info *info;
         struct internal_cb_table *internal_cb_table;
+	unsigned int native_cb_entries;
 	struct runtime_struct *runtime_generated_structs;
 
 	/* lock used for the hashtable add/removal of an item */
@@ -112,11 +108,17 @@ struct module_controller {
 	struct usb_device_id *usb_device_id;
 
         /* data gathered when the usb device is attached to the host system */
+	u8 usb_multi_state;
         u8 usb_interface_number;
         u8 usb_endpoint_num;
         struct libusb_endpoint_descriptor usb_ep[USB_MAX_ENDPOINT_NUM];
         struct libusb_device_descriptor usb_dev_desc;
 	pthread_mutex_t urb_anchor_mutex;
+	pthread_mutex_t usb_rx_observer_lock;
+	pthread_cond_t usb_rx_observer_idle;
+	int (*usb_rx_observer)(void *data, int len);
+	unsigned int usb_rx_observer_refs;
+	bool usb_rx_observer_initialized;
 
 	pthread_mutex_t skb_queue_lock;
 	bool connection_tx_trace;
@@ -127,14 +129,18 @@ struct module_controller {
 	pthread_t libusb_event_thread;
 	atomic_bool libusb_thread_stop;
 	atomic_bool usb_device_lost;
+	struct usb_driver *bound_usb_driver;
+	atomic_bool finalizing;
+	bool runtime_initialized;
+	bool mac80211_started;
+	u8 mac80211_interfaces; /* successful add_interface calls: station/AP/monitor */
 
 	pthread_mutex_t	usb_transfer_pool_lock;
 	struct libusb_transfer *usb_transfer_pool[USB_TRANSFER_POOL_SIZE];
-	struct libusb_transfer *usb_active_transfers[USB_TRANSFER_POOL_SIZE];
+	struct libusb_transfer *usb_active_transfers[USB_ACTIVE_TRANSFER_MAX];
 	u16 usb_transfer_pool_count;
 	u16 usb_active_transfer_count;
 	atomic_uint usb_pending_transfers;
-	atomic_uint usb_peak_pending_transfers;
 
 	/* locks for usb i/o operations */
 	pthread_mutex_t usb_io_lock;
@@ -204,6 +210,9 @@ struct module_controller {
 	pthread_mutex_t wiphy_work_queue_mutex;
 	atomic_uint scan_generation;
 	atomic_uint scan_result_epoch;
+	_Atomic(u64) scan_complete_deadline;
+	_Atomic(u64) scan_watchdog_deadline;
+	_Atomic(u64) scan_print_deadline;
 	void *active_scan_req;
 	atomic_bool scan_in_progress;
 	pthread_t wifi_scan_thread;
@@ -217,6 +226,15 @@ struct module_controller {
 	u16 connection_tx_cookie;
 	bool connection_runtime_initialized;
 
+	/* mesh/P2P state */
+	struct peer_runtime *peer_runtime;
+	struct mesh_peer *mesh_retired_peers;
+	struct peer_retired_interface *peer_retired_interfaces;
+	pthread_mutex_t peer_control_lock;
+	pthread_mutex_t peer_state_lock;
+	pthread_mutex_t peer_rx_lock;
+	bool peer_sync_initialized;
+
 	pthread_mutex_t rtnl_mutex;
 	/* store here the backup for every 'ops' struct, it will be called later via the 'ops' command */
 	struct ieee80211_ops *ieee80211_ops;
@@ -225,6 +243,9 @@ struct module_controller {
 	/* access point mode configuration */
 	u8 *ap_ssid;
 	u8 ap_ssid_len;
+	u8 ap_ssid_storage[33];
+	u8 ap_channel;
+	bool ap_started;
 
 	/* array of pointers which emulates the functions 'devm_kxxx', when the driver will quit, every element of the array will be freed */
 	void *kmem_array[MAX_KMEM_ARRAY_SIZE];
@@ -237,8 +258,10 @@ struct module_controller {
 	u8 driver_to_userspace_buffer[MAX_DRIVER_TO_USERSPACE_IO_SIZE];
 
 	/* dwarf data, used for handling the libdwarf context */
+	#ifndef EXSUL_NO_DWARF
 	Dwarf_Debug dbg;
 	Dwarf_Error err;
+	#endif
 
 	struct runtime_single_fields runtime_single_fields;
 	struct list_head wakeup_sources;
@@ -284,6 +307,7 @@ struct module_controller {
 	struct hlist_head timer_head;
 	pthread_once_t timer_once;
 	pthread_t timer_thread;
+	bool timer_stopping;
 	struct timespec	timer_base;
 	/* pointer to the timer whose callback is currently executing, NULL otherwise */
 	struct timer_list *timer_executing;

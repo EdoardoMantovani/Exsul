@@ -12,12 +12,10 @@ void rhashtable_free_and_destroy(struct rhashtable *ht, void (*free_fn)(void *pt
 			struct rhash_head *pos, *next;
 
 			for (pos = rht_ptr_exclusive(rht_bucket(tbl, i)),
-			     next = !rht_is_a_nulls(pos) ?
-					rht_dereference(pos->next, ht) : NULL;
+			     next = !rht_is_a_nulls(pos) ? rht_dereference(pos->next, ht) : NULL;
 			     !rht_is_a_nulls(pos);
 			     pos = next,
-			     next = !rht_is_a_nulls(pos) ?
-					rht_dereference(pos->next, ht) : NULL)
+			     next = !rht_is_a_nulls(pos) ? rht_dereference(pos->next, ht) : NULL)
 				rhashtable_free_one(ht, pos, free_fn, arg);
 		}
 	}

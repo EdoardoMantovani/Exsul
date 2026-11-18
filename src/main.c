@@ -1,10 +1,6 @@
 /* made by Edoardo Mantovani, 2026 */
 #include <layer.h>
-
-/* global symbol table */
-struct internal_cb_table sym_table[SYM_ENTRIES];
-struct module_controller director;
-static unsigned int native_cb_entries;
+#include <globals.h>
 
 /* include here the headers for the various supported architectures */
 #include <arm64/arm64.h>
@@ -48,162 +44,123 @@ struct exsul_protocol_hdr {
         u16 len;
 };
 
-void track_skb_alloc(struct sk_buff *skb){
-	struct tracked_skb_alloc *node = NULL;
+#ifdef __linux__
+/* elf_sigint_handler: sigint handler used in the standalone ELF and in the Exsul core for deallocating the memory correctly, Linux specific function */
+static void elf_sigint_handler(int sig){
+	bool wake = true;
+	int saved_errno = 0;
 
-	if(skb == NULL){
-		return;
-	}
-	node = malloc(sizeof(*node));
-	if(node == NULL){
-		return;
-	}
-	node->skb = skb;
-	pthread_mutex_lock(&director.skb_queue_lock);
-	node->next = tracked_skb_allocs;
-	tracked_skb_allocs = node;
-	pthread_mutex_unlock(&director.skb_queue_lock);
-}
-
-void untrack_skb_alloc(struct sk_buff *skb){
-	struct tracked_skb_alloc **pp = NULL;
-	struct tracked_skb_alloc *node = NULL;
-
-	if(skb == NULL){
-		return;
-	}
-	pthread_mutex_lock(&director.skb_queue_lock);
-	pp = &tracked_skb_allocs;
-	while(*pp != NULL){
-		if((*pp)->skb == skb){
-			node = *pp;
-			*pp = node->next;
-			break;
+	saved_errno = errno;
+	if(sig == SIGINT){
+		/* enter in the shutdown mode */
+		director.elf_shutdown_requested = 1;
+		if(director.elf_signal_pipe[1] >= 0){
+			write(director.elf_signal_pipe[1], &wake, sizeof(wake));
 		}
-		pp = &(*pp)->next;
 	}
-	pthread_mutex_unlock(&director.skb_queue_lock);
-	free(node);
+	errno = saved_errno;
 }
 
-void free_tracked_skb_allocs(void){
-	struct tracked_skb_alloc *node = NULL;
-	struct tracked_skb_alloc *next = NULL;
-	struct sk_buff *skb = NULL;
+/* elf_install_sigint_handler: install 'elf_sigint_handler' */
+static int elf_install_sigint_handler(void){
+	int ret = 0;
+	int flags = 0;
+	struct sigaction action = {};
 
-	pthread_mutex_lock(&director.skb_queue_lock);
-	node = tracked_skb_allocs;
-	tracked_skb_allocs = NULL;
-	pthread_mutex_unlock(&director.skb_queue_lock);
-
-	while(node != NULL){
-		next = node->next;
-		skb = node->skb;
-		if(skb != NULL){
-			if(skb->head != NULL && !skb->head_frag){
-				free(skb->head);
-			}
-			free(skb);
+	director.elf_signal_pipe[0] = -1;
+	director.elf_signal_pipe[1] = -1;
+	if(pipe(director.elf_signal_pipe) < 0){
+		ret = -errno;
+		return ret;
+	}
+	for(int i = 0; i < 2; i++){
+		flags = fcntl(director.elf_signal_pipe[i], F_GETFL);
+		ret = fcntl(director.elf_signal_pipe[i], F_SETFL, flags | O_NONBLOCK);
+		if(flags < 0 || ret < 0){
+			ret = -errno;
+			goto fail;
 		}
-		free(node);
-		node = next;
-	}
-}
-
-void track_urb_alloc(struct urb *urb){
-	struct tracked_urb_alloc *node = NULL;
-
-	if(urb == NULL){
-		return;
-	}
-	node = malloc(sizeof(*node));
-	if(node == NULL){
-		return;
-	}
-	node->urb = urb;
-	pthread_mutex_lock(&director.skb_queue_lock);
-	node->next = tracked_urb_allocs;
-	tracked_urb_allocs = node;
-	pthread_mutex_unlock(&director.skb_queue_lock);
-}
-
-void untrack_urb_alloc(struct urb *urb){
-	struct tracked_urb_alloc **pp = NULL;
-	struct tracked_urb_alloc *node = NULL;
-
-	if(urb == NULL){
-		return;
-	}
-	pthread_mutex_lock(&director.skb_queue_lock);
-	pp = &tracked_urb_allocs;
-	while(*pp != NULL){
-		if((*pp)->urb == urb){
-			node = *pp;
-			*pp = node->next;
-			break;
+		flags = fcntl(director.elf_signal_pipe[i], F_GETFD);
+		ret = fcntl(director.elf_signal_pipe[i], F_SETFD, flags | FD_CLOEXEC);
+		if(flags < 0 || ret < 0){
+			ret = -errno;
+			goto fail;
 		}
-		pp = &(*pp)->next;
 	}
-	pthread_mutex_unlock(&director.skb_queue_lock);
-	free(node);
-}
-
-void free_tracked_urb_allocs(void){
-	struct tracked_urb_alloc *node = NULL;
-	struct tracked_urb_alloc *next = NULL;
-	struct urb *urb = NULL;
-
-	pthread_mutex_lock(&director.skb_queue_lock);
-	node = tracked_urb_allocs;
-	tracked_urb_allocs = NULL;
-	pthread_mutex_unlock(&director.skb_queue_lock);
-
-	while(node != NULL){
-		next = node->next;
-		urb = node->urb;
-		if(urb != NULL){
-			urb_destroy(&urb->kref);
+	action.sa_handler = elf_sigint_handler;
+	sigemptyset(&action.sa_mask);
+	action.sa_flags = 0;
+	if(sigaction(SIGINT, &action, NULL) < 0){
+		ret = -errno;
+		goto fail;
+	}
+	return ret;
+	fail:
+	for(int i = 0; i < 2; i++){
+		if(director.elf_signal_pipe[i] >= 0){
+			close(director.elf_signal_pipe[i]);
+			director.elf_signal_pipe[i] = -1;
 		}
-		free(node);
-		node = next;
 	}
+	return ret;
 }
 
-void track_kmem_alloc(void *ptr){
+static void elf_close_signal_pipe(void){
+	int read_fd = 0;
+	int write_fd = 0;
+	struct sigaction action = {};
+
+	read_fd = director.elf_signal_pipe[0];
+	write_fd = director.elf_signal_pipe[1];
+	action.sa_handler = SIG_IGN;
+	sigemptyset(&action.sa_mask);
+	sigaction(SIGINT, &action, NULL);
+	director.elf_signal_pipe[0] = -1;
+	director.elf_signal_pipe[1] = -1;
+	if(read_fd >= 0){
+		close(read_fd);
+	}
+	if(write_fd >= 0){
+		close(write_fd);
+	}
+}
+#endif
+
+bool track_kmem_alloc(void *ptr){
+	int ret = 0;
+	void *empty = NULL;
+
 	if(ptr == NULL){
-		return;
+		return false;
 	}
-	for(u8 i = 0; i < MAX_KMEM_ARRAY_SIZE; i++){
-		if(director.kmem_array[i] == ptr){
-			return;
+	for(int i = 0; i < MAX_KMEM_ARRAY_SIZE; i++){
+		ret = __atomic_compare_exchange_n(&director.kmem_array[i], &empty, ptr, false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE);
+		if(ret){
+			return true;
 		}
 	}
-	for(u8 i = 0; i < MAX_KMEM_ARRAY_SIZE; i++){
-		if(director.kmem_array[i] == NULL){
-			director.kmem_array[i] = ptr;
-			return;
-		}
-	}
+	return false;
 }
 
 void untrack_kmem_alloc(void *ptr){
+	int ret = 0;
+	void *expected = NULL;
+
 	if(ptr == NULL){
 		return;
 	}
-	for(u8 i = 0; i < MAX_KMEM_ARRAY_SIZE; i++){
-		if(director.kmem_array[i] == ptr){
-			director.kmem_array[i] = NULL;
+	for(int i = 0; i < MAX_KMEM_ARRAY_SIZE; i++){
+		expected = ptr;
+		ret = __atomic_compare_exchange_n(&director.kmem_array[i], &expected, NULL, false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE);
+		if(ret){
 			return;
 		}
 	}
 }
 
 void free_tracked_kmem_allocs(void){
-	for(u8 i = 0; i < MAX_KMEM_ARRAY_SIZE; i++){
-		if(director.kmem_array[i] != NULL){
-			free(director.kmem_array[i]);
-			director.kmem_array[i] = NULL;
-		}
+	for(int i = 0; i < MAX_KMEM_ARRAY_SIZE; i++){
+		free(__atomic_exchange_n(&director.kmem_array[i], NULL, __ATOMIC_ACQ_REL));
 	}
 }
 
@@ -211,70 +168,88 @@ void free_tracked_kmem_allocs(void){
 int parse_module_usb_table(struct usb_device_id **id){
 	int ret = 0;
 	int usb_table_size = 0;
+	int usb_table_entries = 0;
+	void *fallback = NULL;
 	struct usb_device_id *p = NULL;
+	struct usb_device_id *entry = NULL;
+	struct usb_driver *usb_driver = NULL;
+	unsigned char *usb_driver_sym_name = NULL;
 
-	if(director.usb_table_size != 0 && director.usb_table_ptr != NULL){
-		p = director.usb_table_ptr;
-		goto usb_table_parse;
-	}
-	usb_table_size = fast_get_symbol(USB_TABLE_SYM_NAME, &p);
-	if(p == NULL || usb_table_size == 0){
-		#ifdef ENABLE_DBG_PRINT
-		printf("[!] failed to get the usb_table_size symbol!\n");
-		#endif
-		ret = -ENOMEM;
-		return ret;
-	}else{
-		director.usb_table_ptr  = p;
-		director.usb_table_size = usb_table_size;
-	}
-
-	usb_table_parse:
-	*id = p;
-	ret = (usb_table_size % sizeof(struct usb_device_id));
-	if(ret != 0){
-		#ifdef ENABLE_DBG_PRINT
-		printf("[!] usb device table symbol isn't aligned with the size of \'struct usb_device_id\', aborting...\n");
-		#endif
+	if(id == NULL){
 		ret = -EINVAL;
 		return ret;
 	}
-
+	if(director.usb_table_size != 0 && director.usb_table_ptr != NULL){
+		p = director.usb_table_ptr;
+		usb_table_size = director.usb_table_size;
+		goto usb_table_parse;
+	}
+	/* update: before trying with the raw symbol, use 'usb_driver' */
+	usb_driver = director.bound_usb_driver;
+	if(usb_driver == NULL){
+		printf("[!] usb driver not initialized!\n");
+		ret = -EINVAL;
+		return ret;
+	}
+	p = usb_driver->id_table;
+	if(p != NULL){
+		usb_table_size = fast_get_name(p, &usb_driver_sym_name);
+	}
+	if(p == NULL || usb_driver_sym_name == NULL || usb_table_size == 0){
+		/* The driver table was not named in the runtime symbol table. */
+		usb_table_size = fast_get_symbol(USB_TABLE_SYM_NAME, &fallback);
+		if(fallback == NULL || usb_table_size == 0){
+			printf("[!] failed to recover the usb id table symbol!\n");
+			ret = -ENOENT;
+			return ret;
+		}
+		p = fallback;
+		fast_get_name(p, &usb_driver_sym_name);
+		if(usb_driver_sym_name == NULL){
+			usb_driver_sym_name = (unsigned char *)USB_TABLE_SYM_NAME;
+		}
+	}
+	#ifdef ENABLE_DBG_PRINT
+	printf("[*] usb_id_table symbol name: %s\n", usb_driver_sym_name);
+	#endif
+	usb_table_parse:
+	if(p == NULL || usb_table_size <= 0 || usb_table_size % sizeof(struct usb_device_id) != 0){
+		printf("[!] usb device table symbol isn't aligned with the size of struct usb_device_id!\n");
+		ret = -EINVAL;
+		return ret;
+	}
+	director.usb_table_ptr = p;
+	director.usb_table_size = usb_table_size;
+	*id = p;
+	usb_table_entries = usb_table_size / sizeof(struct usb_device_id);
 	#ifdef ENABLE_DBG_PRINT
 	printf("[*] usb devices detected for the current kernel module:\n");
 	#endif
-	for(u8 j = 0; ; j++){
-		if(p == NULL || p->idProduct == 0x00 || p->idVendor == 0x00){
-			break;
+	for(int j = 0; j < usb_table_entries; j++){
+		entry = &p[j];
+		if(entry->idProduct == 0x00 || entry->idVendor == 0x00){
+			continue;
 		}
 		#ifdef ENABLE_DBG_PRINT
-		printf("[*] usb pid: 0x%08x vid: 0x%08x\n", p->idProduct, p->idVendor);
+		printf("[*] usb pid: 0x%08x vid: 0x%08x\n", entry->idProduct, entry->idVendor);
 		#endif
 		/* now add the pid/vid tuple into our main struct, this will be used later for the libusb device handling */
 		for(u8 k = 0; k < MAX_USB_DEV_LIST; k++){
 			if(director.usb_dev_list[k].is_used == false){
-				director.usb_dev_list[k].usb_vid = p->idVendor;
-				director.usb_dev_list[k].usb_pid = p->idProduct;
+				director.usb_dev_list[k].usb_vid = entry->idVendor;
+				director.usb_dev_list[k].usb_pid = entry->idProduct;
 				director.usb_dev_list[k].is_used = true;
-				#ifdef ADVANCED_USB_DEBUGGING
-				printf("entry %d usb_vid: 0x%08x usb_pid: 0x%08x is_used: %d\n",
-					k,
-					director.usb_dev_list[k].usb_vid,
-					director.usb_dev_list[k].usb_pid,
-					director.usb_dev_list[k].is_used);
-				#endif
 				break;
 			}
 		}
-		p++;
 	}
-
 	return ret;
 }
 
 #ifdef ADVANCED_USB_DEBUGGING
 /* dump_usb_host_interface: dump the endpoints from an attached usb device */
 void dump_usb_host_interface(struct usb_interface *intf){
+
 	if(intf == NULL){
 		return;
 	}
@@ -302,24 +277,28 @@ void dump_usb_host_interface(struct usb_interface *intf){
 int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface **in_intf) {
         int ret = 0;
         int int_number = 0;
-        u32 struct_usb_interface_size = 0;
-        u32 struct_usb_device_size = 0;
-        u32 struct_device_size = 0;
-        u8  num_altsetting  = 0;
-        u8  num_ep = 0;
-        libusb_device *libusb_dev = NULL;
-	struct libusb_config_descriptor *cfg = NULL;
-	const struct libusb_interface *libusb_intf = NULL;
-	struct usb_interface *intf_ptr = NULL;
+	int selected_interface = -1;
+	int intf_cache_size = 0;
+	u8 num_ep = 0;
+	u8 config_ifaces = 0;
+	u8 num_altsetting  = 0;
+	u32 struct_device_size = 0;
+	u32 struct_usb_device_size = 0;
+	u32 struct_usb_interface_size = 0;
+	libusb_device *libusb_dev = NULL;
 	struct usb_device *udev_ptr = NULL;
-	const struct libusb_interface_descriptor *alt = NULL;
+	struct usb_interface *intf_ptr = NULL;
+	struct usb_device_id *matched_id = NULL;
+	struct usb_host_config *actconfig = NULL;
+	struct libusb_config_descriptor *cfg = NULL;
+	struct usb_interface_cache *intf_cache = NULL;
+	const struct libusb_interface *libusb_intf = NULL;
 	const struct libusb_endpoint_descriptor *ep = NULL;
+	const struct libusb_interface_descriptor *alt = NULL;
 	struct libusb_device_descriptor dev_desc = {};
 
 	if (handler == NULL || in_intf == NULL) {
-		#ifdef ENABLE_DBG_PRINT
 		printf("[!] invalid usb handler or invalid usb interface!\n");
-		#endif
                 ret = -EINVAL;
 		return ret;
         }
@@ -327,76 +306,90 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
         *in_intf = NULL;
         libusb_dev = libusb_get_device(handler);
         if (libusb_dev == NULL) {
-		#ifdef ENABLE_DBG_PRINT
-                printf("[!] failed to acquire libusb_device!\n");
-		#endif
+                printf("[!] failed to get libusb_device!\n");
                 ret = -EINVAL;
 		return ret;
         }
 
 	ret = libusb_get_active_config_descriptor(libusb_dev, &cfg);
         if (ret < 0) {
-		#ifdef ENABLE_DBG_PRINT
                 printf("[!] failed to get libusb_config_descriptor!\n");
-		#endif
                 ret = -EINVAL;
 		return ret;
         }
 
 	if (cfg->bNumInterfaces == 0) {
-		#ifdef ENABLE_DBG_PRINT
                 printf("[!] device has no interfaces!\n");
-		#endif
                 ret = -ENODEV;
                 goto fail_free_cfg;
         }
+
+	matched_id = director.usb_device_id;
+	for(u8 i = 0; i < cfg->bNumInterfaces && selected_interface < 0; i++){
+		libusb_intf = &cfg->interface[i];
+		for(int k = 0; k < libusb_intf->num_altsetting; k++){
+			alt = &libusb_intf->altsetting[k];
+			if(matched_id != NULL && (matched_id->match_flags & USB_DEVICE_ID_MATCH_INT_CLASS) && matched_id->bInterfaceClass != alt->bInterfaceClass){
+				continue;
+			}
+			if(matched_id != NULL &&
+			   (matched_id->match_flags & USB_DEVICE_ID_MATCH_INT_SUBCLASS) && matched_id->bInterfaceSubClass != alt->bInterfaceSubClass){
+				continue;
+			}
+			if(matched_id != NULL &&
+			   (matched_id->match_flags & USB_DEVICE_ID_MATCH_INT_PROTOCOL) && matched_id->bInterfaceProtocol != alt->bInterfaceProtocol){
+				continue;
+			}
+			if(matched_id != NULL &&
+			   (matched_id->match_flags & USB_DEVICE_ID_MATCH_INT_NUMBER) && matched_id->bInterfaceNumber != alt->bInterfaceNumber){
+				continue;
+			}
+			selected_interface = i;
+			break;
+		}
+	}
+	if(selected_interface < 0){
+		printf("[!] no USB interface matches the selected device-id entry!\n");
+		ret = -ENODEV;
+		goto fail_free_cfg;
+	}
 
         struct_usb_interface_size = director.struct_sizes.usb_interface;
         struct_usb_device_size    = director.struct_sizes.usb_device;
         struct_device_size        = director.struct_sizes.device;
 
 	if (struct_usb_interface_size == 0) {
-		#ifdef ENABLE_DBG_PRINT
                 printf("[!] failed to retrieve size for struct usb_interface!\n");
-		#endif
                 ret = -EINVAL;
                 goto fail_free_cfg;
         }
         if (struct_usb_device_size == 0) {
-		#ifdef ENABLE_DBG_PRINT
                 printf("[!] failed to retrieve size for struct usb_device!\n");
-		#endif
                 ret = -EINVAL;
                 goto fail_free_cfg;
         }
         if (struct_device_size == 0) {
-		#ifdef ENABLE_DBG_PRINT
                 printf("[!] failed to retrieve size for struct device!\n");
-		#endif
                 ret = -EINVAL;
                 goto fail_free_cfg;
         }
 
 	intf_ptr = (struct usb_interface *)calloc(1, struct_usb_interface_size);
         if (intf_ptr == NULL) {
-		#ifdef ENABLE_DBG_PRINT
                 printf("[!] failed to allocate usb_interface!\n");
-		#endif
                 ret = -ENOMEM;
                 goto fail_free_cfg;
         }
 
-	libusb_intf = &cfg->interface[0];
+	libusb_intf = &cfg->interface[selected_interface];
 	num_altsetting = (u8)libusb_intf->num_altsetting;
 
 	#ifdef ADVANCED_USB_DEBUGGING
-        printf("[*] interface 0 has %d altsetting(s)\n", num_altsetting);
+	printf("[*] interface %u has %d altsetting(s)\n", director.usb_interface_number, num_altsetting);
 	#endif
 
         if (num_altsetting == 0) {
-		#ifdef ENABLE_DBG_PRINT
                 printf("[!] interface 0 has no altsettings!\n");
-		#endif
                 ret = -ENODEV;
                 goto fail_free_intf;
         }
@@ -413,9 +406,7 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 	intf_ptr->num_altsetting = num_altsetting;
         for (u8 k = 0; k < num_altsetting; k++) {
                 alt = &libusb_intf->altsetting[k];
-
                 num_ep = alt->bNumEndpoints;
-
 		#ifdef ADVANCED_USB_DEBUGGING
                 printf("[*] altsetting %u: bInterfaceNumber=%u bNumEndpoints=%u\n", k, alt->bInterfaceNumber, num_ep);
 		#endif
@@ -464,26 +455,22 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 	intf_ptr->cur_altsetting = &intf_ptr->altsetting[0];
         udev_ptr = (struct usb_device *)calloc(1, struct_usb_device_size);
         if (udev_ptr == NULL) {
-		#ifdef ENABLE_DBG_PRINT
                 printf("[!] failed to allocate usb_device!\n");
-		#endif
                 ret = -ENOMEM;
                 goto fail_free_endpoints;
         }
 	/* allocate also 'usb_bus' */
 	if(director.struct_sizes.usb_bus <= 0){
-		#ifdef ENABLE_DBG_PRINT
 		printf("[!] usb_bus struct has size 0!\n");
-		#endif
 		/* ignore but it will lead to a crash if certain drivers are loaded */
 		ret = -EINVAL;
+		goto fail_free_udev;
 	}
 	udev_ptr->bus = calloc(1, director.struct_sizes.usb_bus);
 	if(udev_ptr->bus == NULL){
-		#ifdef ENABLE_DBG_PRINT
 		printf("[!] failed to allocate usb_bus!\n");
-		#endif
 		ret = -ENOMEM;
+		goto fail_free_udev;
 	}
 	/* get the usb device descriptor */
 	ret = libusb_get_device_descriptor(libusb_dev, &dev_desc);
@@ -503,12 +490,45 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 		udev_ptr->descriptor.iSerialNumber      = dev_desc.iSerialNumber;
 		udev_ptr->descriptor.bNumConfigurations = dev_desc.bNumConfigurations;
 	}else{
-		#ifdef ENABLE_DBG_PRINT
 		printf("[!] failed to get libusb device descriptor, defaulting bNumConfigurations=1\n");
-		#endif
                 udev_ptr->descriptor.bNumConfigurations = 1;
 	}
+	/* get the current usb configuration */
+	actconfig = calloc(1, sizeof(*actconfig));
+	if(actconfig == NULL){
+		ret = -ENOMEM;
+		goto fail_free_udev;
+	}
+	config_ifaces = cfg->bNumInterfaces;
+	if(config_ifaces > USB_MAXINTERFACES){
+		config_ifaces = USB_MAXINTERFACES;
+	}
+	actconfig->desc.bLength             = cfg->bLength;
+	actconfig->desc.bDescriptorType     = cfg->bDescriptorType;
+	actconfig->desc.wTotalLength        = cfg->wTotalLength;
+	actconfig->desc.bNumInterfaces      = config_ifaces;
+	actconfig->desc.bConfigurationValue = cfg->bConfigurationValue;
+	actconfig->desc.iConfiguration      = cfg->iConfiguration;
+	actconfig->desc.bmAttributes        = cfg->bmAttributes;
+	actconfig->desc.bMaxPower           = cfg->MaxPower;
+	/* not sure if maintain this part */
+	intf_cache_size = sizeof(*intf_cache) + ((int)num_altsetting * sizeof(struct usb_host_interface));
+	intf_cache = calloc(1, intf_cache_size);
+	if(intf_cache == NULL){
+		ret = -ENOMEM;
+		goto fail_free_actconfig;
+	}
+	intf_cache->num_altsetting = num_altsetting;
+	memcpy(intf_cache->altsetting, intf_ptr->altsetting, (int)num_altsetting * sizeof(struct usb_host_interface));
 
+	for(u8 i = 0; i < config_ifaces; i++){
+		actconfig->interface[i] = intf_ptr;
+		actconfig->intf_cache[i] = intf_cache;
+	}
+	udev_ptr->config = actconfig;
+	udev_ptr->actconfig = actconfig;
+
+	/* assign the device speed, convert it from libusb to the kernel's style */
 	switch (libusb_get_device_speed(libusb_dev)) {
 		case LIBUSB_SPEED_SUPER:
 		case LIBUSB_SPEED_SUPER_PLUS:
@@ -528,7 +548,7 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
 		break;
         }
 
-	intf_ptr->dev.parent    = &udev_ptr->dev;
+	intf_ptr->dev.parent = &udev_ptr->dev;
 	director.usb_device_ptr = udev_ptr;
 
 	#ifdef ADVANCED_USB_DEBUGGING
@@ -539,19 +559,34 @@ int parse_usb_and_alloc_intf(libusb_device_handle *handler, struct usb_interface
         libusb_free_config_descriptor(cfg);
         return int_number;
 
+	fail_free_actconfig:
+	if(actconfig != NULL){
+		free(actconfig);
+	}
+	fail_free_udev:
+	if(udev_ptr != NULL){
+		free(udev_ptr->bus);
+		free(udev_ptr);
+	}
 	fail_free_endpoints:
-        for (u8 m = 0; m < num_altsetting; m++) {
-                free(intf_ptr->altsetting[m].endpoint);
-                intf_ptr->altsetting[m].endpoint = NULL;
-        }
+	for (u8 m = 0; m < num_altsetting; m++) {
+		free(intf_ptr->altsetting[m].endpoint);
+		intf_ptr->altsetting[m].endpoint = NULL;
+	}
 	fail_free_altsetting:
-        free(intf_ptr->altsetting);
-        intf_ptr->altsetting = NULL;
+	if(intf_ptr->altsetting != NULL){
+		free(intf_ptr->altsetting);
+	}
+	intf_ptr->altsetting = NULL;
 	fail_free_intf:
-        free(intf_ptr);
+	if(intf_ptr != NULL){
+	        free(intf_ptr);
+	}
 	fail_free_cfg:
-        libusb_free_config_descriptor(cfg);
-        return ret;
+	if(cfg != NULL){
+		libusb_free_config_descriptor(cfg);
+	}
+	return ret;
 }
 
 static void free_usb_interface_alloc(struct usb_interface *intf){
@@ -572,19 +607,55 @@ static void free_usb_interface_alloc(struct usb_interface *intf){
 	free(intf);
 }
 
-/* usb_disk_modeswitch: under Windows and other OSes, 'usb_modeswitch' isn't always available,
- * in this case, invoke the hardcoded minimal implementation of modeswitch */
+static void free_usb_device_alloc(void){
+	u8 count = 0;
+	struct usb_device *udev = NULL;
+	struct usb_host_config *config = NULL;
+	struct usb_interface_cache *cache = NULL;
+
+	udev = director.usb_device_ptr;
+	if(udev == NULL){
+		return;
+	}
+	director.usb_device_ptr = NULL;
+	config = udev->actconfig;
+	if(config != NULL){
+		count = config->desc.bNumInterfaces;
+		if(count > USB_MAXINTERFACES){
+			count = USB_MAXINTERFACES;
+		}
+		for(u8 i = 0; i < count; i++){
+			cache = config->intf_cache[i];
+			if(cache == NULL){
+				continue;
+			}
+			for(u8 j = i; j < count; j++){
+				if(config->intf_cache[j] == cache){
+					config->intf_cache[j] = NULL;
+				}
+			}
+			free(cache);
+		}
+		free(config);
+	}
+	free(udev->bus);
+	free(udev);
+}
+
+/* usb_disk_modeswitch: under Windows and other OSes, 'usb_modeswitch' isn't always available, in this case, invoke the hardcoded minimal implementation of modeswitch */
 static int usb_disk_modeswitch(struct module_controller *controller){
 	int ret = 0;
 	int transferred = 0;
-	const struct usb_device_id *id = NULL;
-	libusb_device *dev = NULL;
-	struct libusb_config_descriptor *cfg = NULL;
-	const struct libusb_interface_descriptor *alt = NULL;
-	const struct libusb_endpoint_descriptor *ep = NULL;
-	u8 intf_num = 0;
+	int csw_transferred = 0;
 	u8 bulk_in = 0;
 	u8 bulk_out = 0;
+	u8 intf_num = 0;
+	libusb_device *dev = NULL;
+	const struct usb_device_id *id = NULL;
+	struct libusb_config_descriptor *cfg = NULL;
+	const struct libusb_endpoint_descriptor *ep = NULL;
+	const struct libusb_interface_descriptor *alt = NULL;
+
 	u8 csw[13] = {0};
 	const u8 eject_cmd[] = {
 		0x55, 0x53, 0x42, 0x43, 0x12, 0x34, 0x56, 0x78,
@@ -656,7 +727,6 @@ static int usb_disk_modeswitch(struct module_controller *controller){
 			}
 		}
 	}
-
 	if(bulk_out == 0){
 		ret = -ENODEV;
 		goto out_free_cfg;
@@ -672,16 +742,17 @@ static int usb_disk_modeswitch(struct module_controller *controller){
 	ret = libusb_claim_interface(controller->usb_dev, intf_num);
 	if(ret == 0){
 		#ifdef ENABLE_DBG_PRINT
-		printf("[*] detected DISK device on interface %u (bulk out: 0x%02x, bulk in: 0x%02x), sending the eject command!\n", intf_num, bulk_out, bulk_in);
+		printf("[*] detected DISK device... sending the eject command!\n", intf_num, bulk_out, bulk_in);
 		#endif
 		ret = libusb_bulk_transfer(controller->usb_dev, bulk_out, (u8 *)eject_cmd, sizeof(eject_cmd), &transferred, 5000);
 		if(ret == 0 && transferred == sizeof(eject_cmd) && bulk_in != 0){
-			int csw_transferred = 0;
+			csw_transferred = 0;
 			libusb_bulk_transfer(controller->usb_dev, bulk_in, csw, sizeof(csw), &csw_transferred, 1000);
 		}
 		libusb_release_interface(controller->usb_dev, intf_num);
 	}
 
+	director.usb_multi_state = true;
 	out_free_cfg:
 	if(cfg != NULL){
 		libusb_free_config_descriptor(cfg);
@@ -689,10 +760,9 @@ static int usb_disk_modeswitch(struct module_controller *controller){
 	out_close:
 	libusb_close(controller->usb_dev);
 	controller->usb_dev = NULL;
-
 	if(ret < 0 || transferred != sizeof(eject_cmd)){
 		#ifdef ENABLE_DBG_PRINT
-		printf("[!] failed to eject the DISK: ret=%d transferred=%d/%d\n", ret, transferred, (int)sizeof(eject_cmd));
+		printf("[!] failed to eject the DISK: error %d transferred %d/%d\n", ret, transferred, sizeof(eject_cmd));
 		#endif
 		ret = -EIO;
 		return ret;
@@ -716,10 +786,10 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 		if (director.usb_dev == NULL){
 			continue;
 		}
-
+		director.usb_device_id = p;
 		#ifndef _WIN64
 		ret = libusb_kernel_driver_active(director.usb_dev, 1);
-		if(ret){
+		if(ret && director.usb_multi_state == true){
 			/* if there is a kernel driver attached to the interface, reset the usb device */
 			ret = libusb_reset_device(director.usb_dev);
 		}
@@ -740,30 +810,22 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 			director.usb_dev = NULL;
 			continue;
 		}
-
 		director.usb_interface_number = ret;
-
 		ret = libusb_claim_interface(director.usb_dev, director.usb_interface_number);
 		if (ret < 0) {
 			free_usb_interface_alloc(usb_intf);
 			usb_intf = NULL;
-			if(director.usb_device_ptr != NULL){
-				free(director.usb_device_ptr);
-				director.usb_device_ptr = NULL;
-			}
+			free_usb_device_alloc();
 			libusb_close(director.usb_dev);
 			director.usb_dev = NULL;
 			continue;
 		}
-
 		*intf_out = usb_intf;
 		*matched_id_out = p;
 		director.usb_device_id = p;
-		atomic_store_explicit(&director.usb_device_lost, false,
-				      memory_order_release);
+		atomic_store_explicit(&director.usb_device_lost, false, memory_order_release);
 		return ret;
 	}
-
 	/* when the original vid/pid pair isn't detected, search for any 'DISK' attached to the system and try to eject it */
 	director.enable_usb_disk_search = true;
 	if(director.enable_usb_disk_search == true){
@@ -784,14 +846,27 @@ int detect_usb_device(const struct usb_device_id *id_table, struct usb_interface
 int invoke_usb_probe(struct usb_driver *new_driver, struct usb_device_id *id, struct usb_interface *intf){
 	int ret = 0;
 	int (LINUX_ABI *probe)(struct usb_interface *intf, const struct usb_device_id *id) = NULL;
-	probe = new_driver->probe;
 
+	probe = new_driver->probe;
 	/* in normal conditions here a mutex would have been implemented, but in this case there is no necessity */
 	ret = probe(intf, id);
+	if(ret == 0){
+		director.bound_usb_driver = new_driver;
+	}else{
+		free_usb_interface_alloc(intf);
+		free_usb_device_alloc();
+		if(director.usb_dev != NULL){
+			libusb_release_interface(director.usb_dev, director.usb_interface_number);
+			libusb_close(director.usb_dev);
+			director.usb_dev = NULL;
+		}
+		free_tracked_kmem_allocs();
+	}
 
 	return ret;
 }
 
+#ifndef EXSUL_NO_DWARF
 /* dwarf_get_member_offset: read the DW_AT_data_member_location of a DWARF member DIE. */
 static Dwarf_Unsigned dwarf_get_member_offset(Dwarf_Debug dbg, Dwarf_Die member_die){
 	int ret = 0;
@@ -801,8 +876,9 @@ static Dwarf_Unsigned dwarf_get_member_offset(Dwarf_Debug dbg, Dwarf_Die member_
 	Dwarf_Unsigned exprlen = 0;
 	char *block = NULL;
 
-	if (dwarf_attr(member_die, DW_AT_data_member_location, &attr, &err) != DW_DLV_OK){
-		return ret;
+	ret = dwarf_attr(member_die, DW_AT_data_member_location, &attr, &err);
+	if(ret != DW_DLV_OK){
+		return 0;
 	}
 	if (dwarf_formudata(attr, &offset, &err) != DW_DLV_OK) {
 		if (dwarf_formexprloc(attr, &exprlen, &block, &err) == DW_DLV_OK && exprlen > 0 && block) {
@@ -893,6 +969,7 @@ static int dwarf_search_field_recursive(unsigned char *field_input_name, Dwarf_D
 /* dwarf_search_field: wrapper for 'dwarf_search_field_recursive' */
 int dwarf_search_field(unsigned char *field_input_name, Dwarf_Debug dbg, Dwarf_Die struct_die){
 	int ret = 0;
+
 	ret = dwarf_search_field_recursive(field_input_name, dbg, struct_die, 0);
 	return ret;
 }
@@ -993,7 +1070,6 @@ int dwarf_loader_parser(unsigned char *struct_to_search, unsigned char *field_to
 	Dwarf_Bool is_info = true;
 	Dwarf_Sig8 type_signature = {0};
 	Dwarf_Half header_cu_type = 0;
-
 	Dwarf_Die found = 0;
 	Dwarf_Die cu_die = 0;
 
@@ -1059,54 +1135,123 @@ int dwarf_loader_parser(unsigned char *struct_to_search, unsigned char *field_to
 	return ret;
 }
 
-/* parse_module_offset_table: fill every field of 'runtime_generated_structs' by doing the DWARF research lookup */
+static void dwarf_populate_layout(Dwarf_Debug dbg, Dwarf_Die die, struct runtime_struct *runtime_structs){
+	int ret = 0;
+	Dwarf_Half tag = 0;
+	Dwarf_Attribute size_attr = 0;
+	Dwarf_Unsigned struct_size = 0;
+	char *die_name = NULL;
+	struct struct_field *fields = NULL;
+	struct runtime_struct_layout *layout = NULL;
+
+	if(dwarf_tag(die, &tag, &director.err) != DW_DLV_OK || tag != DW_TAG_structure_type || dwarf_diename(die, &die_name, &director.err) != DW_DLV_OK || die_name == NULL){
+		return;
+	}
+	for(unsigned int i = 0; i < ARRAY_SIZE(runtime_structs->structs); i++){
+		layout = &runtime_structs->structs[i];
+		if(layout->struct_field_num == 0 || layout->struct_name == NULL || strcmp(die_name, layout->struct_name) != 0){
+			continue;
+		}
+		if(layout->struct_size <= 0){
+			if(dwarf_attr(die, DW_AT_byte_size, &size_attr, &director.err) != DW_DLV_OK){
+				return; /* a forward declaration; the full definition may follow */
+			}
+			ret = dwarf_formudata(size_attr, &struct_size, &director.err);
+			dwarf_dealloc(dbg, size_attr, DW_DLA_ATTR);
+			if(ret != DW_DLV_OK || struct_size > INT16_MAX){
+				return;
+			}
+			layout->struct_size = (unsigned short)struct_size;
+		}
+		fields = layout->fields;
+		for(unsigned int k = 0; k < layout->struct_field_num && fields[k].field_name != NULL; k++){
+			if(fields[k].field_offset != 0){
+				continue;
+			}
+			ret = dwarf_search_field(fields[k].field_name, dbg, die);
+			if(ret >= 0 && ret <= UINT16_MAX){
+				fields[k].field_offset = (unsigned short)ret;
+				#ifdef ENABLE_DBG_PRINT
+				printf("  - %s->%s offset: %d original struct size: %d\n", layout->struct_name, fields[k].field_name, fields[k].field_offset, layout->struct_size);
+				#endif
+			}
+		}
+		return;
+	}
+}
+#endif
+
+static bool dwarf_layouts_complete(struct runtime_struct *runtime_structs){
+	for(unsigned int i = 0; i < ARRAY_SIZE(runtime_structs->structs); i++){
+		if(runtime_structs->structs[i].struct_field_num != 0 &&
+		   runtime_structs->structs[i].struct_size <= 0){
+			return false;
+		}
+	}
+	return true;
+}
+
+#ifndef EXSUL_NO_DWARF
+static void dwarf_populate_cu_layouts(Dwarf_Debug dbg, Dwarf_Die cu_die, struct runtime_struct *runtime_structs){
+	int ret = 0;
+	Dwarf_Die cursor = 0;
+	Dwarf_Die sibling = 0;
+
+	if(dwarf_child(cu_die, &cursor, &director.err) != DW_DLV_OK){
+		return;
+	}
+	for(;;){
+		dwarf_populate_layout(dbg, cursor, runtime_structs);
+		ret = dwarf_siblingof_b(dbg, cursor, true, &sibling, &director.err);
+		dwarf_dealloc(dbg, cursor, DW_DLA_DIE);
+		if(ret != DW_DLV_OK){
+			break;
+		}
+		cursor = sibling;
+	}
+}
+
 int parse_module_offset_table(void){
 	int ret = 0;
-	u8 counter = 0;
+	Dwarf_Die cu_die = 0;
+	Dwarf_Bool is_info = true;
+	Dwarf_Half version = 0;
+	Dwarf_Half addr_size = 0;
+	Dwarf_Off abbrev_off = 0;
+	Dwarf_Unsigned next_cu = 0;
+	Dwarf_Half offset_size = 0;
+	Dwarf_Half extension_size = 0;
+	Dwarf_Half header_cu_type = 0;
+	Dwarf_Unsigned type_offset = 0;
+	Dwarf_Unsigned cu_header_len = 0;
+	Dwarf_Sig8 type_signature = {};
 	struct runtime_struct *runtime_structs = NULL;
-	struct struct_field *current_struct_fields = NULL;
-	struct runtime_struct_layout *runtime_struct_layout = NULL;
 
 	runtime_structs = &runtime_generated_structs;
-	if(runtime_structs == NULL){
-		#ifdef ENABLE_DBG_PRINT
-		printf("[!] no runtime struct data!\n");
-		#endif
+	if(director.dbg == NULL){
 		ret = -EINVAL;
 		return ret;
 	}
-
-	for (counter = 0; counter < ARRAY_SIZE(runtime_structs->structs); counter++) {
-		runtime_struct_layout = &runtime_structs->structs[counter];
-		if(runtime_struct_layout->struct_field_num == 0){
+	while(dwarf_next_cu_header_d(director.dbg, is_info, &cu_header_len, &version,
+				     &abbrev_off, &addr_size, &offset_size, &extension_size,
+				     &type_signature, &type_offset, &next_cu,
+				     &header_cu_type, &director.err) == DW_DLV_OK){
+		cu_die = 0;
+		ret = dwarf_siblingof_b(director.dbg, NULL, is_info, &cu_die, &director.err);
+		if(ret != DW_DLV_OK){
 			continue;
 		}
-		current_struct_fields = runtime_struct_layout->fields;
-		for (u8 k = 0; k < runtime_struct_layout->struct_field_num; k++) {
-			if(current_struct_fields[k].field_name == NULL){
-				break;
-			}
-			ret = dwarf_loader_parser(
-				runtime_struct_layout->struct_name,
-				current_struct_fields[k].field_name,
-				&current_struct_fields[k].field_offset,
-				&runtime_struct_layout->struct_size);
-			#ifdef ENABLE_DBG_PRINT
-			if(ret > 0 && director.global_conf.show_struct_offset == true){
-				printf("  - %s->%s offset: %d original struct size: %d\n",
-					runtime_struct_layout->struct_name,
-					current_struct_fields[k].field_name,
-					current_struct_fields[k].field_offset,
-					runtime_struct_layout->struct_size
-				);
-			}
-			#endif
+		dwarf_populate_cu_layouts(director.dbg, cu_die, runtime_structs);
+		dwarf_dealloc(director.dbg, cu_die, DW_DLA_DIE);
+		if(dwarf_layouts_complete(runtime_structs)){
+			break;
 		}
 	}
-
 	dwarf_finish(director.dbg, &director.err);
-	return ret;
+	director.dbg = NULL;
+	return 0;
 }
+#endif
 
 #ifdef ENABLE_DBG_PRINT
 /* mem_type_to_string: given the module section index, return the respective string name, used only for debugging purposes */
@@ -1176,7 +1321,7 @@ static char *get_modinfo(const struct load_info *info, const char *tag) {
 
 static int elf_validity_cache_copy(struct load_info *info, int flags) {
 	int ret = 0;
-	int i   = 0;
+	int i = 0;
 	int err = 0;
 	unsigned int num_mod_secs  = 0;
 	unsigned int mod_idx	   = 0;
@@ -1446,26 +1591,26 @@ static void __layout_sections(struct module *mod, struct load_info *info, bool i
 	const char *sname = NULL;
 
 	static const unsigned long masks[][2] = {
-	    {SHF_EXECINSTR | SHF_ALLOC, 0x00},
-	    {SHF_ALLOC, SHF_WRITE | 0x00},
-	    {SHF_RO_AFTER_INIT | SHF_ALLOC, 0x00},
-	    {SHF_WRITE | SHF_ALLOC, 0x00},
-	    {0x00 | SHF_ALLOC, 0}};
+		{SHF_EXECINSTR | SHF_ALLOC, 0x00},
+		{SHF_ALLOC, SHF_WRITE | 0x00},
+		{SHF_RO_AFTER_INIT | SHF_ALLOC, 0x00},
+		{SHF_WRITE | SHF_ALLOC, 0x00},
+		{0x00 | SHF_ALLOC, 0}};
 
 	static const int core_m_to_mem_type[] = {
-	    MOD_TEXT, MOD_RODATA, MOD_RO_AFTER_INIT, MOD_DATA, MOD_DATA,
+		MOD_TEXT, MOD_RODATA, MOD_RO_AFTER_INIT, MOD_DATA, MOD_DATA,
 	};
 
 	static const int init_m_to_mem_type[] = {
-	    MOD_INIT_TEXT, MOD_INIT_RODATA, MOD_INVALID,
-	    MOD_INIT_DATA, MOD_INIT_DATA,
+		MOD_INIT_TEXT, MOD_INIT_RODATA, MOD_INVALID,
+		MOD_INIT_DATA, MOD_INIT_DATA,
 	};
 
 	for (m = 0; m < ARRAY_SIZE(masks); ++m) {
 		type = is_init ? init_m_to_mem_type[m] : core_m_to_mem_type[m];
 
 		for (i = 0; i < info->hdr->e_shnum; ++i) {
-			s     = &info->sechdrs[i];
+			s = &info->sechdrs[i];
 			sname = info->secstrings + s->sh_name;
 
 			if(strstr(sname, "debug") != NULL){
@@ -1522,8 +1667,7 @@ static int module_memory_alloc(struct module *mod, enum mod_mem_type type) {
 	if(type == MOD_TEXT || type == MOD_INIT_TEXT){
 		mem_flags |= PROT_EXEC;
 	}
-	ptr = mmap(NULL, size, mem_flags, MAP_PRIVATE | MAP_ANON | MAP_32BIT, -1, 0x00);
-
+	ptr = mmap(NULL, size, mem_flags, MAP_PRIVATE | MAP_ANON | MAP_32BIT, -1, 0);
 	if (ptr == MAP_FAILED) {
 		ret = -ENOMEM;
 		return ret;
@@ -1536,8 +1680,9 @@ static int module_memory_alloc(struct module *mod, enum mod_mem_type type) {
 }
 
 static void module_memory_free(struct module *mod, enum mod_mem_type type, bool unload_codetags) {
-	void *ptr = mod->mem[type].base;
+	void *ptr = NULL;
 
+	ptr = mod->mem[type].base;
 	if (mod_mem_type_is_core_data(type)) {
 		return;
 	}
@@ -1676,7 +1821,6 @@ static struct module *layout_and_allocate(struct load_info *info, int flags) {
 
 	info->sechdrs[info->index.pcpu].sh_flags &= ~(unsigned long)SHF_ALLOC;
 	ndx = find_sec(info, ".data..ro_after_init");
-
 	if (ndx) {
 		#ifdef ENABLE_DBG_PRINT
 		printf("[*] section %s found!\n", ".data..ro_after_init");
@@ -1694,7 +1838,6 @@ static struct module *layout_and_allocate(struct load_info *info, int flags) {
 
 	layout_sections(info->mod, info);
 	layout_symtab(info->mod, info);
-
 	ret = move_module(info->mod, info);
 	if (ret) {
 		#ifdef ENABLE_DBG_PRINT
@@ -1714,9 +1857,10 @@ static int percpu_modalloc(struct module *mod, struct load_info *info) {
 	return ret;
 }
 
-static void *section_objs(const struct load_info *info, const char *name, size_t object_size, unsigned int *num) {
-	unsigned int sec = find_sec(info, name);
+static void *section_objs(const struct load_info *info, const char *name, int object_size, unsigned int *num) {
+	unsigned int sec = 0;
 
+	sec = find_sec(info, name);
 	/* Section 0 has sh_addr 0 and sh_size 0. */
 	*num = info->sechdrs[sec].sh_size / object_size;
 	return (void *)info->sechdrs[sec].sh_addr;
@@ -1753,6 +1897,7 @@ void *find_runtime_section(struct module *mod, struct load_info *info, unsigned 
 
 static int find_module_sections(struct module *mod, struct load_info *info) {
 	int ret = 0;
+
 	mod->kp = section_objs(info, "__param", sizeof(*mod->kp), &mod->num_kp);
 	mod->syms = section_objs(info, "__ksymtab", sizeof(*mod->syms), &mod->num_syms);
 	mod->crcs     = section_addr(info, "__kcrctab");
@@ -1790,11 +1935,11 @@ static int find_module_sections(struct module *mod, struct load_info *info) {
 
 #if defined(__x86_64__) || defined(_M_X64)
 static bool symbol_uses_plt32(struct load_info *info, unsigned int symbol_index){
+	int relocation_count = 0;
 	Elf(Shdr) *section = NULL;
 	Elf(Rela) *relocations = NULL;
-	unsigned int relocation_count = 0;
 
-	for (unsigned int i = 1; i < info->hdr->e_shnum; i++) {
+	for (int i = 1; i < info->hdr->e_shnum; i++) {
 		section = &info->sechdrs[i];
 		if(section->sh_type != SHT_RELA || section->sh_link != info->index.sym){
 			continue;
@@ -1817,19 +1962,17 @@ static bool symbol_uses_plt32(struct load_info *info, unsigned int symbol_index)
 static bool symbol_needs_plt32_trampoline(struct load_info *info,
 					 unsigned int symbol_index,
 					 const void *target){
-	Elf(Shdr) *section = NULL;
-	Elf(Shdr) *target_section = NULL;
-	Elf(Rela) *relocations = NULL;
-	unsigned int relocation_count = 0;
 	uint64_t location = 0;
 	int64_t displacement = 0;
 	unsigned int relocation_type = 0;
+	unsigned int relocation_count = 0;
+	Elf(Shdr) *section = NULL;
+	Elf(Rela) *relocations = NULL;
+	Elf(Shdr) *target_section = NULL;
 
 	for (unsigned int i = 1; i < info->hdr->e_shnum; i++) {
 		section = &info->sechdrs[i];
-		if(section->sh_type != SHT_RELA ||
-		   section->sh_link != info->index.sym ||
-		   section->sh_info >= info->hdr->e_shnum){
+		if(section->sh_type != SHT_RELA || section->sh_link != info->index.sym || section->sh_info >= info->hdr->e_shnum){
 			continue;
 		}
 
@@ -1847,14 +1990,12 @@ static bool symbol_needs_plt32_trampoline(struct load_info *info,
 			}
 
 			location = target_section->sh_addr + relocations[j].r_offset;
-			displacement = (int64_t)(uintptr_t)target +
-				       relocations[j].r_addend - (int64_t)location;
+			displacement = (int64_t)(uintptr_t)target + relocations[j].r_addend - (int64_t)location;
 			if(displacement != (int64_t)(int32_t)displacement){
 				return true;
 			}
 		}
 	}
-
 	return false;
 }
 #endif
@@ -1867,23 +2008,21 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 	bool target_is_native_stub = false;
 	long secbase = 0;
 	void *target = NULL;
-        void *dlopen_ctx = NULL;
         void *trampoline = NULL;
         unsigned char *name = NULL;
 	struct kernel_symbol *ksym = NULL;
 
 	Elf(Shdr) *symsec = (Elf(Shdr) *)&info->sechdrs[info->index.sym];
-	Elf(Sym) *sym	  = (void *)symsec->sh_addr;
+	Elf(Sym) *sym = (void *)symsec->sh_addr;
 
-	if(native_cb_entries == 0){
-		while(native_cb_entries < SYM_ENTRIES && sym_table[native_cb_entries].function_ptr != NULL){
-			native_cb_entries++;
+	if(director.native_cb_entries == 0){
+		while(director.native_cb_entries < SYM_ENTRIES && sym_table[director.native_cb_entries].function_ptr != NULL){
+			director.native_cb_entries++;
 		}
 	}
 
 	for (i = 1; i < symsec->sh_size / sizeof(Elf(Sym)); i++) {
 		name = (unsigned char *)(info->strtab + sym[i].st_name);
-
 		switch (sym[i].st_shndx) {
 		case SHN_COMMON:
 			if (!strncmp(name, "__gnu_lto", 9)) {
@@ -1908,14 +2047,13 @@ static int simplify_symbols(struct module *mod, struct load_info *info) {
 				}
 				if (strcmp(name, sym_table[j].function_name) == 0) {
 					target = sym_table[j].function_ptr;
-					target_is_native_stub = (unsigned int)j < native_cb_entries;
+					target_is_native_stub = (unsigned int)j < director.native_cb_entries;
 					break;
 				}
 			}
 			#ifdef __linux__
 			if (target == NULL) {
-				dlopen_ctx = dlopen(NULL, 0);
-				target	   = dlsym(dlopen_ctx, (char *)name);
+				target = dlsym(RTLD_DEFAULT, (char *)name);
 				if(target != NULL){
 					target_is_native_stub = true;
 				}
@@ -2223,9 +2361,7 @@ static int module_set_memory(const struct module *mod, enum mod_mem_type type) {
 		mprotect_perm = PROT_READ | PROT_WRITE | PROT_EXEC;
 		break;
 	default:
-		#ifdef ENABLE_DBG_PRINT
 		printf("[!] unknown memory type: %d\n", type);
-		#endif
 		return ret;
 	}
 
@@ -2236,6 +2372,9 @@ static int module_set_memory(const struct module *mod, enum mod_mem_type type) {
 	#endif
 
 	ret = mprotect(mod_mem->base, mod_mem->size, mprotect_perm);
+	if(ret < 0){
+		printf("[!] failed to mprotect: %d\n", ret);
+	}
 	return ret;
 }
 
@@ -2244,17 +2383,13 @@ int module_enable_rodata_ro(const struct module *mod, bool after_init) {
 
 	ret = module_set_memory(mod, MOD_RODATA);
 	if (ret) {
-		#ifdef ENABLE_DBG_PRINT
 		printf("[!] failed to set read-only .rodata permissions!\n");
-		#endif
 		return ret;
 	}
 
 	ret = module_set_memory(mod, MOD_INIT_RODATA);
 	if (ret) {
-		#ifdef ENABLE_DBG_PRINT
 		printf("[!] failed to set read-only .mod_init_rodata permissions!\n");
-		#endif
 		return ret;
 	}
 
@@ -2270,9 +2405,7 @@ int module_enable_data_nx(const struct module *mod) {
 	for_class_mod_mem_type(type, data) {
 		ret = module_set_memory(mod, type);
 		if (ret) {
-			#ifdef ENABLE_DBG_PRINT
 			printf("[!] failed to set memory in \'module_enable_data_nx\'\n");
-			#endif
 			return ret;
 		}
 	}
@@ -2285,9 +2418,7 @@ int module_enable_text_rox(const struct module *mod) {
 	for_class_mod_mem_type(type, text) {
 		ret = module_set_memory(mod, type);
 		if (ret) {
-			#ifdef ENABLE_DBG_PRINT
 			printf("[!] failed to set memory in \'module_enable_text_rox\'\n");
-			#endif
 			return ret;
 		}
 	}
@@ -2341,15 +2472,12 @@ static inline bool within_module_init(unsigned long addr, const struct module *m
 void trim_init_extable(struct module *mod) {
 	int num_entries_in_mod = 0;
 
-	while (mod->num_exentries &&
-	       within_module_init(ex_to_insn(&mod->extable[0]), mod)) {
+	while (mod->num_exentries && within_module_init(ex_to_insn(&mod->extable[0]), mod)) {
 		mod->extable++;
 		mod->num_exentries--;
 	}
 	num_entries_in_mod = mod->num_exentries - 1;
-	while (mod->num_exentries &&
-	       within_module_init(ex_to_insn(&mod->extable[num_entries_in_mod]),
-				  mod)) {
+	while (mod->num_exentries && within_module_init(ex_to_insn(&mod->extable[num_entries_in_mod]), mod)) {
 		mod->num_exentries--;
 		num_entries_in_mod = mod->num_exentries - 1;
 	}
@@ -2433,8 +2561,16 @@ static int call_final_function(struct module *mod, struct load_info *info, unsig
 
 /* update_kernel_version: update the kernel version by converting the vermagic string, it will be useful later for setting the function arguments */
 void update_kernel_version(unsigned char *vermagic){
-	char *separate_version = NULL;
+	int parsed = 0;
+	unsigned int major = 0;
+	unsigned int minor = 0;
+	unsigned int patch = 0;
+	unsigned int abi = 0;
 	unsigned char kernel_version_string_part[32] = {0};
+	director.kernel_major_version = 0;
+	director.kernel_minor_version = 0;
+	director.kernel_patch = 0;
+	director.kernel_abi_version = 0;
 
 	if(vermagic == NULL || strlen(vermagic) < 16){
 		goto end;
@@ -2444,20 +2580,17 @@ void update_kernel_version(unsigned char *vermagic){
 		goto end;
 	}
 
-	/* isolate the version.subversion part */
-	separate_version = strchr(kernel_version_string_part, '-');
-
-	if (separate_version != NULL) {
-		*separate_version = '\0';
-	}
-
-	/* final parsing */
-	if (sscanf(kernel_version_string_part, "%hhu.%hhu.%hhu", &director.kernel_major_version, &director.kernel_minor_version, &director.kernel_patch) != 3){
+	parsed = sscanf(kernel_version_string_part, "%u.%u.%u-%u", &major, &minor, &patch, &abi);
+	if(parsed < 3 || major > UINT8_MAX || minor > UINT8_MAX || patch > UINT8_MAX || abi > UINT16_MAX){
 		#ifdef ENABLE_DBG_PRINT
 		printf("[!] failed to parse kernel version!\n");
 		#endif
 		goto end;
 	}
+	director.kernel_major_version = major;
+	director.kernel_minor_version = minor;
+	director.kernel_patch = patch;
+	director.kernel_abi_version = parsed == 4 ? abi : 0;
 
 	end:
 }
@@ -2503,13 +2636,23 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		return ret;
 	}
 
-	fstat(fd, &file_stats);
+	if(fstat(fd, &file_stats) != 0){
+		ret = -errno;
+		close(fd);
+		return ret;
+	}
+	if(file_stats.st_size <= 0 || file_stats.st_size > UINT32_MAX){
+		close(fd);
+		ret = -EINVAL;
+		return ret;
+	}
 	file_size = file_stats.st_size;
 	if(file_size == 0){
 		#ifdef ENABLE_DBG_PRINT
 		printf("[!] file %s is empty!\n", file_name);
 		#endif
 		ret = -EINVAL;
+		close(fd);
 		return ret;
 	}
 
@@ -2519,10 +2662,10 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		#ifdef ENABLE_DBG_PRINT
 		printf("[!] error during mmap! aborting...\n");
 		#endif
-		if(tmp_mapped_file != NULL){
+		if(tmp_mapped_file != MAP_FAILED){
 			munmap(tmp_mapped_file, file_size);
 		}
-		if(mapped_file != NULL){
+		if(mapped_file != MAP_FAILED){
 			munmap(mapped_file, file_size);
 		}
 		close(fd);
@@ -2537,57 +2680,84 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 	munmap(tmp_mapped_file, file_size);
 
 	director.fd = fd;
-	/* skip completely the dwarf module parsing if the end user has already issued the offset configuration file */
-        if(director.offset_init_by_conf == true){
-		goto skip_dwarf;
-	}else{
-		ret = dwarf_init_b(director.fd, DW_DLC_READ, DW_GROUPNUMBER_ANY, NULL, NULL, &director.dbg, &director.err);
-		if(ret != DW_DLV_OK){
-			#ifdef ENABLE_DBG_PRINT
-			printf("[!] failed to initialize libdwarf!\n");
-			#endif
-			/*
-			 * instead of not loading the kernel object,
-			 * skip this phase, we may rely on other kernel objects loaded alongisde this module!
-			 */
-			goto skip_dwarf;
-		}
-	}
-	parse_module_offset_table();
-
-	skip_dwarf:
-	close(fd);
 	info->hdr = (Elf(Ehdr) *)mapped_file;
 	info->len = file_size;
 	elf_validity_cache_copy(info, 0);
 	early_mod_check(info, 0);
+	update_kernel_version(get_modinfo(info, "vermagic"));
+
+	/* Complete partial configuration files without replacing their offsets. */
+	if(director.offset_init_by_conf == true){
+		distro_apply_runtime_offsets(&runtime_generated_structs);
+	}
+	/* Reuse layouts resolved by an earlier module from the same kernel build. */
+	if(dwarf_layouts_complete(&runtime_generated_structs) && director.offset_init_by_conf == false){
+		goto skip_dwarf;
+	}else{
+		#ifdef EXSUL_NO_DWARF
+		ret = distro_apply_runtime_offsets(&runtime_generated_structs);
+		#ifdef ENABLE_DBG_PRINT
+		if(ret == 0){
+			printf("[*] using built-in distro offsets for %hhu.%hhu.%hhu-%hu\n",
+			       director.kernel_major_version, director.kernel_minor_version,
+			       director.kernel_patch, director.kernel_abi_version);
+		}else{
+			printf("[!] no distro offsets are available: %d\n", ret);
+		}
+		#endif
+		if(ret != 0){
+			close(fd);
+			return ret;
+		}
+		goto skip_dwarf;
+		#else
+		ret = dwarf_init_b(director.fd, DW_DLC_READ, DW_GROUPNUMBER_ANY, NULL, NULL, &director.dbg, &director.err);
+		if(ret != DW_DLV_OK){
+			ret = distro_apply_runtime_offsets(&runtime_generated_structs);
+			#ifdef ENABLE_DBG_PRINT
+			if(ret == 0){
+				printf("[*] using built-in distro offsets for %hhu.%hhu.%hhu-%hu\n",
+				       director.kernel_major_version, director.kernel_minor_version,
+				       director.kernel_patch, director.kernel_abi_version);
+			}else{
+				printf("[!] failed to initialize libdwarf and no distro offsets are available: %d\n", ret);
+			}
+			#endif
+			ret = 0;
+			goto skip_dwarf;
+		}
+		#endif
+	}
+	#ifndef EXSUL_NO_DWARF
+	parse_module_offset_table();
+	#endif
+
+	skip_dwarf:
+	close(fd);
 
 	#ifdef ENABLE_DBG_PRINT
 	printf("[*] name %s\n", get_modinfo(info, "name"));
 	printf("[*] vermagic %s\n", get_modinfo(info, "vermagic"));
 	#endif
 
-	/* save the kernel version values for later use */
-	update_kernel_version(get_modinfo(info, "vermagic"));
 	/* save the module name for later use */
 	save_kernel_module_name(get_modinfo(info, "name"));
-
 	mod = layout_and_allocate(info, 0);
 	if (mod == NULL) {
 		#ifdef ENABLE_DBG_PRINT
 		printf("[!] module struct is null!\n");
 		#endif
 		ret = -EINVAL;
-		return ret;
+		goto out_unmap;
 	}
 	module_allocated = true;
-	ret  = percpu_modalloc(mod, info);
+	ret = percpu_modalloc(mod, info);
 	if (ret) {
 		#ifdef ENABLE_DBG_PRINT
 		printf("[!] failed to allocate the percpu variable!\n");
 		#endif
 		ret = -EINVAL;
-		return ret;
+		goto out_unmap;
 	}
 	ret = find_module_sections(mod, info);
 	if (ret) {
@@ -2595,15 +2765,18 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		printf("[!] failed to detect module sections!\n");
 		#endif
 		ret = -EINVAL;
-		return ret;
+		goto out_unmap;
 	}
 	ret = simplify_symbols(mod, info);
-	if (ret < 0 && director.global_conf.strict_missing_syms == true) {
-		#ifdef ENABLE_DBG_PRINT
+	if (ret < 0) {
+		/* before this, there was a semi-unused struct called 'global_conf', it is now deprecated, I believe that in case of missing symbols, nothing must be done
+		 * because most of the time, a missing symbol can be found outside the module's main execution path
+		 */
+		#ifdef STRICT_MISSING_SYMBOLS
 		printf("[!] failed to simplify symbols!\n");
-		#endif
 		ret = -EINVAL;
-		return ret;
+		goto out_unmap;
+		#endif
 	}
 	ret = apply_relocations(mod, info);
 	if (ret < 0) {
@@ -2611,7 +2784,7 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		printf("[!] failed the relocations patch phase!\n");
 		#endif
 		ret = -EINVAL;
-		return ret;
+		goto out_unmap;
 	}
 	ret = post_relocation(mod, info);
 	if (ret < 0) {
@@ -2619,7 +2792,7 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		printf("[!] failed the post relocation phase!\n");
 		#endif
 		ret = -EINVAL;
-		return ret;
+		goto out_unmap;
 	}
 	ret = complete_formation(mod, info);
 	if (ret) {
@@ -2627,7 +2800,7 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		printf("[!] failed to set permissions for the module\'s segments\n");
 		#endif
 		ret = -EINVAL;
-		return ret;
+		goto out_unmap;
 	}
 	ret = do_init_module(mod);
 	if (ret) {
@@ -2635,11 +2808,12 @@ int module_init(unsigned char *file_name, unsigned char *function_name, struct l
 		printf("[!] failed to detect the module\'s probe function\n");
 		#endif
 		ret = -EINVAL;
-		return ret;
+		goto out_unmap;
 	}
 	free(director.info);
 	director.info = NULL;
 	director.loaded_lkm_num++;
+	out_unmap:
 	munmap(mapped_file, file_size);
 	mapped_file = NULL;
 	file_size = 0;
@@ -2674,7 +2848,11 @@ int initialize_director(struct module_controller *director, struct load_info **i
 	int ret = 0;
 
 	director->runtime_generated_structs = &runtime_generated_structs;
-        director->info = calloc(1, sizeof(struct load_info));
+        if(director->info == NULL){
+		director->info = calloc(1, sizeof(struct load_info));
+	}else{
+		memset(director->info, 0, sizeof(struct load_info));
+	}
 	if (director->info == NULL){
 		ret = -ENOMEM;
 		return ret;
@@ -2686,8 +2864,19 @@ int initialize_director(struct module_controller *director, struct load_info **i
 			return ret;
 		}
 	}
+	ret = peer_runtime_initialize();
+	if(ret != 0){
+		return ret;
+	}
 
 	/* initialize workqueues if necessary */
+	*info = director->info;
+	if(director->runtime_initialized){
+		return 0;
+	}
+	INIT_LIST_HEAD(&director->hci_dev_list);
+	INIT_LIST_HEAD(&director->hci_cb_list);
+	atomic_store(&director->finalizing, false);
 	if(system_wq == NULL){
 		workqueue_init(&director->system_wq, "system_wq");
 		system_wq = &director->system_wq;
@@ -2726,6 +2915,9 @@ int initialize_director(struct module_controller *director, struct load_info **i
 	/* set to '0' the scan and rx_dump parameters */
 	atomic_store(&director->scan_generation, 0);
 	atomic_store(&director->scan_result_epoch, 0);
+	atomic_store(&director->scan_complete_deadline, 0);
+	atomic_store(&director->scan_watchdog_deadline, 0);
+	atomic_store(&director->scan_print_deadline, 0);
 	atomic_store(&director->scan_in_progress, false);
 	atomic_store(&director->wifi_scan_thread_started, false);
 	atomic_store(&director->wifi_scan_thread_stop, false);
@@ -2736,6 +2928,11 @@ int initialize_director(struct module_controller *director, struct load_info **i
 	pthread_mutex_init(&director->timer_lock, NULL);
 	pthread_cond_init(&director->timer_cond, NULL);
 	director->timer_once  = PTHREAD_ONCE_INIT;
+	director->timer_stopping = false;
+	director->timer_thread = 0;
+	director->timer_head.first = NULL;
+	director->timer_executing = NULL;
+	director->runtime_initialized = true;
 
 	/* if enabled, initialize also the tcc scripting layer */
 	#ifdef TCC_SCRIPTING
@@ -2752,11 +2949,29 @@ int initialize_director(struct module_controller *director, struct load_info **i
 
 /* finalize_director: clean everything allocated in the main controller */
 void finalize_director(void){
+	struct allocation_list *allocation = NULL;
+	struct allocation_list *next = NULL;
+
+	if(atomic_exchange_explicit(&director.finalizing, true, memory_order_acq_rel)){
+		return;
+	}
+
+	stop_wifi_scan_thread();
 	wifi_connection_stop(director.ieee80211_local);
+	if(director.runtime_initialized){
+		timer_subsystem_shutdown();
+	}
+	if(director.ieee80211_local != NULL){
+		ieee80211_unregister_hw(director.ieee80211_local->ieee80211_hw);
+	}
+	/* Let the driver's existing disconnect unwind probe/post-init ownership.
+	 * Its URB cancellations still need the event thread and USB handle. */
+	usb_deregister(director.bound_usb_driver);
 	#ifdef ENABLE_FUZZING
 	/* delete the urb queue used for fuzzing, not always initialized */
 	fuzz_assign_urb_cb(NULL);
 	#endif
+	usb_assign_rx_observer(NULL);
 	#ifdef TCC_SCRIPTING
 	drv_shutdown_scripting();
 	#endif
@@ -2764,13 +2979,12 @@ void finalize_director(void){
 		free(director.info);
 		director.info = NULL;
 	}
-	if(director.scan_in_progress == true){
-		stop_wifi_scan_thread();
-	}
 	/* Stop the libusb event thread BEFORE freeing USB resources it accesses;
 	 * otherwise Thread 3 races on the freed usb_device_ptr block. */
 	atomic_store_explicit(&director.libusb_thread_stop, true, memory_order_release);
-	libusb_interrupt_event_handler(usb_libusb_context());
+	if(usb_libusb_context() != NULL){
+		libusb_interrupt_event_handler(usb_libusb_context());
+	}
 	if (director.libusb_event_thread != 0) {
 		pthread_join(director.libusb_event_thread, NULL);
 		director.libusb_event_thread = 0;
@@ -2799,21 +3013,59 @@ void finalize_director(void){
 	if(director.ieee80211_local != NULL){
 		ieee80211_free_hw(director.ieee80211_local->ieee80211_hw);
 	}
+	peer_runtime_destroy();
 	free_usb_interface_alloc(director.usb_interface);
-	if(director.usb_device_ptr != NULL){
-		free(director.usb_device_ptr);
-		director.usb_device_ptr = NULL;
-	}
+	free_usb_device_alloc();
 	if(director.rfkill != NULL){
 		free(director.rfkill);
 		director.rfkill = NULL;
 	}
-	free_tracked_urb_allocs();
-	free_tracked_skb_allocs();
 	free_tracked_kmem_allocs();
-	if(percpu_area != NULL){
-		munmap(percpu_area, 1024 * 1024 * 8);
-		percpu_area = NULL;
+	release_firmware(director.firmware_ptr);
+	free_cfg80211_wowlan(director.cfg80211_wowlan);
+	director.cfg80211_wowlan = NULL;
+	free(director.active_scan_req);
+	director.active_scan_req = NULL;
+	connection_free_retired();
+	if(director.connection_runtime_initialized){
+		pthread_cond_destroy(&director.connection_wake);
+		pthread_mutex_destroy(&director.connection_lock);
+		pthread_mutex_destroy(&director.connection_control_lock);
+		director.connection_runtime_initialized = false;
+	}
+	if(director.runtime_initialized){
+		pthread_cond_destroy(&director.timer_cond);
+		pthread_mutex_destroy(&director.timer_lock);
+		pthread_mutex_destroy(&director.urb_anchor_mutex);
+		pthread_cond_destroy(&director.usb_io_idle);
+		pthread_mutex_destroy(&director.usb_io_lock);
+		pthread_mutex_destroy(&director.skb_queue_lock);
+		pthread_mutex_destroy(&director.scan_cache_lock);
+		pthread_mutex_destroy(&director.wiphy_work_queue_mutex);
+		director.runtime_initialized = false;
+	}
+	if(atomic_load(&director.tasklet_sync_state) == 2){
+		pthread_cond_destroy(&director.tasklet_wake);
+		pthread_mutex_destroy(&director.tasklet_lock);
+		atomic_store(&director.tasklet_sync_state, 0);
+	}
+	cleanup_percpu(NULL);
+	/* Module code/data stays mapped until no callback can use it. Entries
+	 * marked MALLOC are borrowed native image segments, not heap pointers. */
+	allocation = director.module_allocation_list;
+	director.module_allocation_list = NULL;
+	director.mod = NULL;
+	while(allocation != NULL){
+		next = allocation->alloc_next;
+		if(allocation->alloc_type == ALLOCATION_TYPE_MMAP){
+			#ifdef __linux__
+			munmap(allocation->alloc_ptr, allocation->alloc_len);
+			#else
+			VirtualFree(allocation->alloc_ptr, 0, MEM_RELEASE);
+			#endif
+		}
+		free(allocation);
+		allocation = next;
 	}
 }
 
@@ -2826,6 +3078,10 @@ int collect_sizes(struct module_controller *director){
 	current_struct_size = get_struct_size("file");
 	if(current_struct_size != director->struct_sizes.file && current_struct_size > 0){
 		director->struct_sizes.file = current_struct_size;
+	}
+	current_struct_size = get_struct_size("inode");
+	if(current_struct_size != director->struct_sizes.inode && current_struct_size > 0){
+		director->struct_sizes.inode = current_struct_size;
 	}
 	current_struct_size = get_struct_size("wiphy");
 	if(current_struct_size != director->struct_sizes.wiphy && current_struct_size > 0){
@@ -2966,6 +3222,9 @@ int fast_drv_load(struct module_controller *director, char *module_name) {
 	ret = collect_sizes(director);
 	/* now call the main driver loading function */
 	ret = module_init(module_name, NULL, load_info);
+	if(ret == 0){
+		collect_sizes(director);
+	}
 	return ret;
 }
 
@@ -3015,9 +3274,13 @@ int fast_get_symbol_from_parts(unsigned char *sym_name_part_one, unsigned char *
 int fast_get_name(void *sym_addr, unsigned char **sym_name){
 	int ret = 0;
 
-	for (u16 i = 0; ; i++) {
-		if(sym_table[i + 1].function_name[0] == '\0'){
-			break;
+	if(sym_addr == NULL || sym_name == NULL){
+		return ret;
+	}
+	*sym_name = NULL;
+	for(u16 i = 0; i < SYM_ENTRIES; i++){
+		if(sym_table[i].function_ptr == NULL || sym_table[i].function_name[0] == '\0'){
+			continue;
 		}
 		if(sym_addr == sym_table[i].function_ptr){
 			if(sym_table[i].function_size != 0){
@@ -3164,6 +3427,8 @@ int fast_run_cfg80211_cb(enum fast_run_ops current_ops) {
 /* fast_run_ieee80211_cb: used in the standalone ELF dump, permits to invoke ieee80211 callbacks in a simpler way */
 int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 	int ret = 0;
+	int ssid_len = 0;
+	unsigned char *ssid = NULL;
 	struct ieee80211_ops *ops = NULL;
 	struct ieee80211_local *local = NULL;
 	struct ieee80211_hw *ieee80211_hw = NULL;
@@ -3205,20 +3470,35 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 		start = ops->start;
 		if(start != NULL){
 			ret = start(local->ieee80211_hw);
+			if(ret == 0){
+				director.mac80211_started = true;
+			}
 		}
 	}
 	if(current_op == IEEE80211_STOP){
 		ret = wifi_connection_stop(local);
 		if (ret)
 			return ret;
+		if(local->ieee80211_ap_vif != NULL){
+			ret = mac80211_ap_stop(local);
+			if(ret != 0){
+				return ret;
+			}
+		}
 		stop = ops->stop;
 		if(stop != NULL){
 			stop(local->ieee80211_hw, false);
+			director.mac80211_started = false;
 		}
 	}
 	if(current_op == IEEE80211_SUSPEND){
 		suspend = ops->suspend;
 		if(suspend != NULL){
+			ret = wifi_connection_wait_connected(30000);
+			if(ret != 0){
+				printf("[!] cannot enter WoWLAN before the Wi-Fi connection is ready: %d\n", ret);
+				return ret;
+			}
 			if(director.cfg80211_wowlan == NULL){
 				ret = build_wowlan_magic_pattern(local, &wowlan_pattern, wowlan_packet, sizeof(wowlan_packet));
 				if(ret != 0){
@@ -3264,6 +3544,9 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 					return ret;
 			}
 			ret = add_interface(local->ieee80211_hw, local->ieee80211_vif);
+			if(ret == 0){
+				director.mac80211_interfaces |= BIT(0);
+			}
 		}
 	}
 	if(current_op == IEEE80211_REMOVE_INTERFACE){
@@ -3278,6 +3561,7 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 				return ret;
 			}
 			remove_interface(local->ieee80211_hw, local->ieee80211_vif);
+			director.mac80211_interfaces &= ~BIT(0);
 		}
 	}
 	if(current_op == IEEE80211_CONFIG){
@@ -3308,51 +3592,13 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 		}
 	}
 	if(current_op == IEEE80211_START_AP){
-		start_ap = ops->start_ap;
-		/* initialize the AP interface */
-		if(local->ieee80211_ap_vif == NULL){
-			ieee80211_hw = local->ieee80211_hw;
-			local->ieee80211_ap_vif = calloc(1, director.struct_sizes.ieee80211_vif + ieee80211_hw->vif_data_size);
-			ieee80211_ap_vif = local->ieee80211_ap_vif;
-			ieee80211_ap_vif->type = NL80211_IFTYPE_AP;
-			memset(&ieee80211_ap_vif->bss_conf, 0, director.struct_sizes.ieee80211_bss_conf);
-			bss_conf = &ieee80211_ap_vif->bss_conf;
-			bss_conf->vif = ieee80211_ap_vif;
-			bss_conf->link_id = 0;
-			ether_addr_copy(bss_conf->addr, ieee80211_ap_vif->addr);
-			bss_conf->bssid = bss_conf->addr;
-			rcu_assign_pointer(ieee80211_ap_vif->link_conf[0], bss_conf);
-			ieee80211_ap_vif->valid_links  |= BIT(0);
-			ieee80211_ap_vif->active_links |= BIT(0);
-			/* register the interface */
-			add_interface = ops->add_interface;
-			ret = add_interface(local->ieee80211_hw, local->ieee80211_ap_vif);
-		}
-		if(start_ap != NULL && local->ieee80211_ap_vif != NULL){
-			if(bss_conf != NULL){
-				free(bss_conf);
-				bss_conf = NULL;
-			}
-			bss_conf = calloc(1, director.struct_sizes.ieee80211_bss_conf);
-			fill_start_ap_req(bss_conf);
-			ret = start_ap(local->ieee80211_hw, local->ieee80211_ap_vif, bss_conf);
-		}else{
-			goto ieee80211_vif_not_initialized;
-		}
+		ssid = director.ap_ssid != NULL ? director.ap_ssid : (const u8 *)"test_ap";
+		ssid_len = director.ap_ssid != NULL ? director.ap_ssid_len : strlen((const char *)ssid);
+
+		ret = mac80211_ap_start(local, ssid, ssid_len);
 	}
 	if(current_op == IEEE80211_STOP_AP){
-		stop_ap = ops->stop_ap;
-		if(stop_ap != NULL && local->ieee80211_ap_vif != NULL){
-			if(bss_conf != NULL){
-				free(bss_conf);
-				bss_conf = NULL;
-			}
-			bss_conf = calloc(1, director.struct_sizes.ieee80211_bss_conf);
-			fill_start_ap_req(bss_conf);
-			stop_ap(local->ieee80211_hw, local->ieee80211_ap_vif, bss_conf);
-		}else{
-			goto ieee80211_vif_not_initialized;
-		}
+		ret = mac80211_ap_stop(local);
 	}
 	if(current_op == IEEE80211_MONITOR){
 		add_interface = ops->add_interface;
@@ -3379,6 +3625,9 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 				ieee80211_mon_vif->active_links |= BIT(0);
 			}
 			ret = add_interface(local->ieee80211_hw, local->ieee80211_mon_vif);
+			if(ret == 0){
+				director.mac80211_interfaces |= BIT(2);
+			}
 		}
 	}
 	return ret;
@@ -3388,23 +3637,58 @@ int fast_run_ieee80211_cb(enum fast_run_ops current_op) {
 	return ret;
 }
 
+/* wireless_backend_ready: verify if the driver is working properly, had to add this due to an error during the init of the standalone ELF */
+static bool wireless_backend_ready(struct module_controller *controller){
+	if(controller == NULL){
+		return false;
+	}
+	if(controller->ieee80211_ops != NULL && controller->ieee80211_local != NULL){
+		return true;
+	}
+	return controller->cfg80211_ops != NULL && controller->wiphy != NULL && controller->net_device != NULL;
+}
+
+/* bluetooth_backend_ready: verify that the driver registered at least one HCI device */
+static bool bluetooth_backend_ready(struct module_controller *controller){
+	if(controller == NULL){
+		return false;
+	}
+	if(controller->hci_dev_list.next == NULL || controller->hci_dev_list.prev == NULL){
+		return false;
+	}
+	return !list_empty(&controller->hci_dev_list);
+}
+
 /* elf_initialize_driver: used inside the tcc scripts for the standalone.elf for initializing the driver, calls 'start', 'add_interface' and so on.. */
 int elf_initialize_driver(void){
 	int ret = 0;
 
 	/* decide if use 'ieee80211_ops' or 'cfg80211_ops' */
 	if(director.ieee80211_ops != NULL){
-		/* Start hardware before invoking callbacks which access channel state. */
-		fast_run_ieee80211_cb(IEEE80211_START);
-		/* invoke the 'add_interface' callback */
-		fast_run_ieee80211_cb(IEEE80211_ADD_INTERFACE);
+		if(!director.mac80211_started){
+			/* Start hardware before invoking callbacks which access channel state. */
+			ret = fast_run_ieee80211_cb(IEEE80211_START);
+			if(ret != 0){
+				return ret;
+			}
+		}
+		if(!(director.mac80211_interfaces & BIT(0))){
+			/* invoke the 'add_interface' callback */
+			ret = fast_run_ieee80211_cb(IEEE80211_ADD_INTERFACE);
+			if(ret != 0){
+				return ret;
+			}
+		}else{
+			return ret;
+		}
 		/* invoke the 'config' callback */
 		fast_run_ieee80211_cb(IEEE80211_CONFIG);
 		/* invoke the 'configure_filter' callback */
 		fast_run_ieee80211_cb(IEEE80211_CONFIGURE_FILTER);
 		/* invoke a preliminary 'hw_scan' */
 		fast_run_ieee80211_cb(IEEE80211_HW_SCAN);
-	}else{
+	}else if(director.cfg80211_ops != NULL && director.wiphy != NULL &&
+		 director.net_device != NULL){
 		/* invoke the 'ndo_validate_addr' callback */
 		fast_run_cfg80211_cb(NDO_VALIDATE_ADDR);
 		/* invoke the 'ndo_open' callback */
@@ -3413,6 +3697,9 @@ int elf_initialize_driver(void){
 		fast_run_cfg80211_cb(NDO_SET_RX_MODE);
 		/* invoke the 'scan' callback */
 		fast_run_cfg80211_cb(CFG80211_SCAN);
+	}else{
+		printf("[!] wireless backend was not registered by the driver!\n");
+		ret = -ENODEV;
 	}
 	return ret;
 }
@@ -3424,7 +3711,7 @@ struct so_context {
 };
 
 /* walk_shared_libraries: callback used for walking through the loaded libraries */
-int walk_shared_libraries(struct dl_phdr_info *info, size_t info_size, void *data) {
+int walk_shared_libraries(struct dl_phdr_info *info, int info_size, void *data) {
         int ret = 0;
 	uintptr_t min = 0;
 	uintptr_t max = 0;
@@ -3668,6 +3955,9 @@ int drv_cmd_load(struct module_controller *director, char *argv[], int num_args)
 
 	/* now call the main driver loading function */
 	ret = module_init(module_name, NULL, load_info);
+	if(ret == 0){
+		collect_sizes(director);
+	}
 	return ret;
 }
 
@@ -3748,14 +4038,9 @@ int drv_cmd_start(struct module_controller *director, char *argv[], int num_args
 		#endif
 		return ret;
 	}
-	/*
-	 * this is due to a limitation present in many usb Wi-Fi dongle: usually they follows the multi-state usb schema, this means that they will detach
-	 * and re-attach to the host system with the same or a different usb vid/pid pair, for avoiding any problem, add a tweak here where it is checked
-	 * if the usb device is connected to the host system or not, if not, invoke again the 'probe' function of the kernel driver loaded in memory.
-	 */
+	/* Multi-state USB devices can detach and reattach during initialization. */
 	ret = check_usb_presence();
 	if(ret < 0){
-		/* set a wait time of 5 seconds and then invoke again the 'init_cb' callback */
 		usleep(5000000);
 		ret = director->init_cb();
 		if(ret < 0){
@@ -3764,6 +4049,16 @@ int drv_cmd_start(struct module_controller *director, char *argv[], int num_args
 			#endif
 			return ret;
 		}
+	}
+	if(!wireless_backend_ready(director)){
+		if(!bluetooth_backend_ready(director)){
+			#ifdef ENABLE_DBG_PRINT
+			printf("[!] driver probe completed without registering a wireless or Bluetooth backend!\n");
+			#endif
+			ret = -ENODEV;
+			return ret;
+		}
+		return ret;
 	}
 
 	ret = elf_initialize_driver();
@@ -4113,6 +4408,9 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		start = ops->start;
 		if(start != NULL){
 			ret = start(local->ieee80211_hw);
+			if(ret == 0){
+				director.mac80211_started = true;
+			}
 			return ret;
 		}
 	}
@@ -4120,14 +4418,26 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		ret = wifi_connection_stop(local);
 		if (ret)
 			return ret;
+		if(local->ieee80211_ap_vif != NULL){
+			ret = mac80211_ap_stop(local);
+			if(ret != 0){
+				return ret;
+			}
+		}
 		stop = ops->stop;
 		if(stop != NULL){
 			stop(local->ieee80211_hw, false);
 		}
+		director.mac80211_started = false;
 	}
 	if(strcmp(ops_req, "suspend") == 0){
 		suspend = ops->suspend;
 		if(suspend != NULL){
+			ret = wifi_connection_wait_connected(30000);
+			if(ret != 0){
+				printf("[!] cannot enter WoWLAN before the Wi-Fi connection is ready: %d\n", ret);
+				return ret;
+			}
 			if(director.cfg80211_wowlan == NULL){
 				ret = build_wowlan_magic_pattern(local, &wowlan_pattern, wowlan_packet, sizeof(wowlan_packet));
 				if(ret != 0){
@@ -4205,6 +4515,9 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			}
 			ret = add_interface(local->ieee80211_hw, local->ieee80211_vif);
 		}
+		if(ret == 0 && add_interface != NULL){
+			director.mac80211_interfaces |= BIT(0);
+		}
 	}
 	if(strcmp(ops_req, "remove_interface") == 0){
 		ret = wifi_connection_stop(local);
@@ -4221,6 +4534,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			}
 			remove_interface(local->ieee80211_hw, local->ieee80211_vif);
 		}
+		director.mac80211_interfaces &= ~BIT(0);
 	}
 	if(strcmp(ops_req, "config") == 0){
 		/* the 'config' callback changes from Linux version 6 to version 7, so handle it in a separate function */
@@ -4240,9 +4554,12 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 		stop_wifi_scan_thread();
 		ret = wifi_auth_connection_start(local, argv[2], num_args >= 4 ? argv[3] : NULL);
 	}
+	/* disconnect from a connected Wi-Fi network */
 	if(strcmp(ops_req, "disconnect") == 0){
-		return wifi_connection_stop(local);
+		ret = wifi_connection_stop(local);
+		return ret;
 	}
+	/* enable the rx frame dump */
 	if(strcmp(ops_req, "rx") == 0){
 		enable = true;
 
@@ -4279,12 +4596,15 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			ret = prepare_multicast(local->ieee80211_hw, mc_list);
 		}
 	}
+	/* still needs to implement it */
 	if(strcmp(ops_req, "sta_add") == 0){
 
 	}
+	/* still needs to implement it */
 	if(strcmp(ops_req, "sta_remove") == 0){
 
 	}
+	/* start a Wi-Fi scan */
 	if(strcmp(ops_req, "scan") == 0 || strcmp(ops_req, "hw_scan") == 0){
 		hw_scan = ops->hw_scan;
 		cancel_hw_scan = ops->cancel_hw_scan;
@@ -4304,6 +4624,7 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			sw_scan_start(local->ieee80211_hw, local->ieee80211_vif, NULL);
 		}
 	}
+	/* cancel an ongoing Wi-Fi scan */
 	if(strcmp(ops_req, "cancel_scan") == 0){
 		cancel_hw_scan = ops->cancel_hw_scan;
 		if(cancel_hw_scan != NULL && local->ieee80211_vif != NULL){
@@ -4312,62 +4633,16 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			goto ieee80211_vif_not_initialized;
 		}
 	}
+	/* start access point mode */
 	if(strcmp(ops_req, "start_ap") == 0){
-		start_ap = ops->start_ap;
 		ap_ssid  = argv[2];
-		if(ap_ssid != NULL){
-			director.ap_ssid     = ap_ssid;
-			director.ap_ssid_len = strlen(ap_ssid);
-		}else{
-			director.ap_ssid     = "test_ap";
-			director.ap_ssid_len = sizeof("test_ap");
+		if(ap_ssid == NULL){
+			ap_ssid = (u8 *)"test_ap";
 		}
-		change_virtual_intf = cfg_ops->change_virtual_intf;
-		/* initialize the AP interface */
-		if(local->ieee80211_ap_vif == NULL){
-			ieee80211_hw = local->ieee80211_hw;
-			local->ieee80211_ap_vif = calloc(1, director.struct_sizes.ieee80211_vif + ieee80211_hw->vif_data_size);
-			ieee80211_ap_vif = local->ieee80211_ap_vif;
-			ieee80211_ap_vif->type = NL80211_IFTYPE_AP;
-			memset(&ieee80211_ap_vif->bss_conf, 0, director.struct_sizes.ieee80211_bss_conf);
-			bss_conf = &ieee80211_ap_vif->bss_conf;
-			bss_conf->vif = ieee80211_ap_vif;
-			bss_conf->link_id = 0;
-			memcpy(ieee80211_ap_vif->addr, (u8[]){0x72, 0x88, 0xcb, 0xbc, 0x05, 0x4c}, ETH_ALEN);
-			ether_addr_copy(bss_conf->addr, ieee80211_ap_vif->addr);
-			bss_conf->bssid = bss_conf->addr;
-			rcu_assign_pointer(ieee80211_ap_vif->link_conf[0], bss_conf);
-			ieee80211_ap_vif->valid_links  |= BIT(0);
-			ieee80211_ap_vif->active_links |= BIT(0);
-			vif_cfg = &ieee80211_ap_vif->cfg;
-			vif_cfg->assoc = true;
-			vif_cfg->idle = false;
-			strncpy(vif_cfg->ssid, director.ap_ssid, director.ap_ssid_len);
-			vif_cfg->ssid_len = director.ap_ssid_len;
-			ether_addr_copy(vif_cfg->ap_addr, ieee80211_ap_vif->addr);
-			/* register the interface */
-			add_interface = ops->add_interface;
-			ret = add_interface(local->ieee80211_hw, ieee80211_ap_vif);
-		}
-		if(start_ap != NULL && local->ieee80211_ap_vif != NULL){
-			ret = start_ap(local->ieee80211_hw, ieee80211_ap_vif, bss_conf);
-		}else{
-			goto ieee80211_vif_not_initialized;
-		}
+		ret = mac80211_ap_start(local, ap_ssid, strlen((const char *)ap_ssid));
 	}
 	if(strcmp(ops_req, "stop_ap") == 0){
-		stop_ap = ops->stop_ap;
-		if(stop_ap != NULL && local->ieee80211_ap_vif != NULL){
-			if(bss_conf != NULL){
-				free(bss_conf);
-				bss_conf = NULL;
-			}
-			bss_conf = calloc(1, director.struct_sizes.ieee80211_bss_conf);
-			fill_start_ap_req(bss_conf);
-			stop_ap(local->ieee80211_hw, local->ieee80211_ap_vif, bss_conf);
-		}else{
-			goto ieee80211_vif_not_initialized;
-		}
+		ret = mac80211_ap_stop(local);
 	}
 	/* monitor mode is a new virtual interface with the type == NL80211_IFTYPE_MONITOR */
 	if(strcmp(ops_req, "monitor") == 0){
@@ -4397,6 +4672,9 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 				ieee80211_mon_vif->active_links |= BIT(0);
 			}
 			ret = add_interface(local->ieee80211_hw, local->ieee80211_mon_vif);
+		}
+		if(ret == 0 && add_interface != NULL){
+			director.mac80211_interfaces |= BIT(2);
 		}
 	}
 	return ret;
@@ -4438,10 +4716,10 @@ int drv_cmd_ops(struct module_controller *__director, char *argv[], int num_args
 			net_device = director.net_device;
 			params.flags = 0;
 			params.use_4addr = 0;
-			if(net_device != NULL){
-				memcpy(params.macaddr, director.net_device, ETH_ALEN);
+			if(net_device != NULL && net_device->dev_addr != NULL && !is_zero_ether_addr(net_device->dev_addr) && !is_multicast_ether_addr(net_device->dev_addr)){
+				memcpy(params.macaddr, net_device->dev_addr, ETH_ALEN);
 			}else{
-				memset(params.macaddr, 0xFF, ETH_ALEN);
+				memset(params.macaddr, 0, ETH_ALEN);
 			}
 			wireless_dev = add_virtual_intf(wiphy, num_args >= 3 ? curr_intf : "wlan1", 0, intf_type, &params);
 			if(IS_ERR(wireless_dev)){
@@ -4738,6 +5016,7 @@ int drv_scripting_loop(void) {
 /* drv_shutdown_scripting: deinitialize the scripting engine */
 int drv_shutdown_scripting(void){
 	int ret = 0;
+	bool mutex_initialized = director.tcc_ctx != NULL;
 
 	if(director.tcc_ctx != NULL){
 		tcc_delete(director.tcc_ctx);
@@ -4755,6 +5034,9 @@ int drv_shutdown_scripting(void){
 	if(director.tcc_memarea != NULL){
 		free(director.tcc_memarea);
 		director.tcc_memarea = NULL;
+	}
+	if(mutex_initialized){
+		pthread_mutex_destroy(&director.tcc_mutex);
 	}
 	return ret;
 }
@@ -4781,12 +5063,12 @@ int invoke_tcc_scripting(unsigned char *c_string_data, int c_string_len){
 		return ret;
 	}
 
-	source = calloc((size_t)c_string_len + 1, sizeof(char));
+	source = calloc((int)c_string_len + 1, sizeof(char));
 	if(source == NULL){
 		ret = -ENOMEM;
 		return ret;
 	}
-	memcpy(source, c_string_data, (size_t)c_string_len);
+	memcpy(source, c_string_data, (int)c_string_len);
 
 	tcc_ctx = tcc_new();
 	if(tcc_ctx == NULL){
@@ -4841,12 +5123,17 @@ int invoke_tcc_scripting(unsigned char *c_string_data, int c_string_len){
 
 #ifdef __linux__
 /* elf_socket_recv_full: handler code for receiving the tcc scripting data throught the IPC socket */
-static int elf_socket_recv_full(int fd, char *buffer, size_t length){
+static int elf_socket_recv_full(int fd, char *buffer, int length){
 	int ret = 0;
 	int received = 0;
-	struct pollfd pfd = {};
+	u8 wake[16] = {};
+	struct pollfd pfd[2] = {};
 
 	while(received < length){
+		if(director.elf_shutdown_requested){
+			ret = -EINTR;
+			return ret;
+		}
 		ret = recv(fd, buffer + received, length - received, 0);
 		if(ret > 0){
 			received += ret;
@@ -4860,14 +5147,31 @@ static int elf_socket_recv_full(int fd, char *buffer, size_t length){
 			return ret;
 		}
 		if(errno == EINTR){
+			if(director.elf_shutdown_requested){
+				ret = -EINTR;
+				return ret;
+			}
 			continue;
 		}
 		if(errno == EAGAIN || errno == EWOULDBLOCK){
-			pfd.fd = fd;
-			pfd.events = POLLIN;
-			ret = poll(&pfd, 1, -1);
-			if(ret < 0 && errno != EINTR){
-				ret = -EIO;
+			pfd[0].fd = fd;
+			pfd[0].events = POLLIN;
+			pfd[1].fd = director.elf_signal_pipe[0];
+			pfd[1].events = POLLIN;
+			ret = poll(pfd, ARRAY_SIZE(pfd), -1);
+			if(ret < 0){
+				if(errno == EINTR && director.elf_shutdown_requested){
+					ret = -EINTR;
+					return ret;
+				}
+				if(errno != EINTR){
+					ret = -EIO;
+					return ret;
+				}
+			}
+			if(pfd[1].revents & POLLIN){
+				while(read(director.elf_signal_pipe[0], wake, sizeof(wake)) > 0){}
+				ret = -EINTR;
 				return ret;
 			}
 			continue;
@@ -4927,12 +5231,14 @@ int elf_entry_socket(struct module_controller *director){
 	int ret = 0;
 	int number_fds = 0;
 	int sock_client = 0;
+	int client_flags = 0;
 	int packet_len = 0;
 	u32 msg_len = 0;
+	u8 wake[16] = {};
 	struct exsul_protocol_hdr hdr = {};
 	char sock_buffer[sizeof(struct exsul_protocol_hdr) + BUFF_SIZE] = {};
 	struct sockaddr_un addr_server = {};
-	struct pollfd poll_fds[MAXIMUN_SOCKET_CONNECTIONS] = {};
+	struct pollfd poll_fds[MAXIMUN_SOCKET_CONNECTIONS + 1] = {};
 
 	director->socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if(director->socket_fd < 0){
@@ -4949,7 +5255,7 @@ int elf_entry_socket(struct module_controller *director){
 		printf("[!] failed to get socket flags!\n");
 		#endif
 		ret = -EINVAL;
-		return ret;
+		goto socket_close;
 	}
 
 	ret = fcntl(director->socket_fd, F_SETFL, director->socket_flags | O_NONBLOCK);
@@ -4984,15 +5290,21 @@ int elf_entry_socket(struct module_controller *director){
 	}
 
 	/* now if everything is okay, the server will be start polling for new connections */
-	memset(poll_fds, 0, sizeof(struct pollfd) * MAXIMUN_SOCKET_CONNECTIONS);
+	memset(poll_fds, 0, sizeof(poll_fds));
 	poll_fds[0].fd = director->socket_fd;
 	poll_fds[0].events = POLLIN;
+	poll_fds[1].fd = director->elf_signal_pipe[0];
+	poll_fds[1].events = POLLIN;
 
-	number_fds = 1;
-	while (true){
+	number_fds = 2;
+	while (!director->elf_shutdown_requested){
 		ret = poll(poll_fds, number_fds, -1);
 
 		if (ret < 0){
+			if(errno == EINTR && director->elf_shutdown_requested){
+				ret = 0;
+				break;
+			}
 			#ifdef ENABLE_DBG_PRINT
 			printf("[!] error while polling!\n");
 			#endif
@@ -5000,11 +5312,21 @@ int elf_entry_socket(struct module_controller *director){
 			goto socket_close;
 		}
 		for (int i = 0; i < number_fds; i++){
+			if(director->elf_shutdown_requested){
+				break;
+			}
 			if (poll_fds[i].revents & POLLIN){
-				if (poll_fds[i].fd == director->socket_fd){
+				if(poll_fds[i].fd == director->elf_signal_pipe[0]){
+					while(read(director->elf_signal_pipe[0], wake, sizeof(wake)) > 0){}
+					ret = 0;
+					break;
+				}else if (poll_fds[i].fd == director->socket_fd){
 					sock_client = accept(director->socket_fd, NULL, NULL);
 					if (sock_client > 0){
-						if (number_fds < MAXIMUN_SOCKET_CONNECTIONS){
+						client_flags = fcntl(sock_client, F_GETFL);
+						if(client_flags < 0 || fcntl(sock_client, F_SETFL, client_flags | O_NONBLOCK) < 0){
+							close(sock_client);
+						}else if (number_fds < ARRAY_SIZE(poll_fds)){
 							poll_fds[number_fds].fd = sock_client;
 							poll_fds[number_fds].events = POLLIN;
 							number_fds++;
@@ -5045,12 +5367,29 @@ int elf_entry_socket(struct module_controller *director){
 			}
 		}
 	}
+	for(int i = 0; i < number_fds; i++){
+		if(poll_fds[i].fd >= 0 && poll_fds[i].fd != director->socket_fd && poll_fds[i].fd != director->elf_signal_pipe[0]){
+			close(poll_fds[i].fd);
+			poll_fds[i].fd = -1;
+		}
+	}
 	close(director->socket_fd);
+	director->socket_fd = -1;
 	unlink(SOCKET_PATH);
 	return ret;
 
 	socket_close:
-	close(director->socket_fd);
+	for(int i = 0; i < number_fds; i++){
+		if(poll_fds[i].fd >= 0 && poll_fds[i].fd != director->socket_fd && poll_fds[i].fd != director->elf_signal_pipe[0]){
+			close(poll_fds[i].fd);
+			poll_fds[i].fd = -1;
+		}
+	}
+	if(director->socket_fd >= 0){
+		close(director->socket_fd);
+		director->socket_fd = -1;
+	}
+	unlink(SOCKET_PATH);
 	return ret;
 }
 
@@ -5060,12 +5399,19 @@ int elf_entry_stub(int argc, char *argv[]){
 	unsigned char *driver_init_name = NULL;
 
 	/* this part of code is similar to 'main' and 'initialize_director', we must re-allocate/re-initialize every object */
+	director.elf_shutdown_requested = 0;
+	ret = elf_install_sigint_handler();
+	if(ret != 0){
+		return ret;
+	}
 	signal(SIGSEGV, elf_crash_handler);
 	signal(SIGABRT, elf_crash_handler);
 	signal(SIGILL,  elf_crash_handler);
 
 	director.wifi_scan_thread = 0;
 	director.libusb_event_thread = 0;
+	atomic_store(&director.wifi_scan_thread_started, false);
+	atomic_store(&director.wifi_scan_thread_stop, false);
 	director.internal_cb_table = &sym_table;
 	director.envp = NULL;
 	director.info = NULL;
@@ -5083,13 +5429,60 @@ int elf_entry_stub(int argc, char *argv[]){
 	director.cfg80211_ops = NULL;
 	director.active_scan_req = NULL;
 	director.connection_fsm = NULL;
+	director.connection_retired = NULL;
 	director.connection_runtime_initialized = false;
+	director.peer_runtime = NULL;
+	director.mesh_retired_peers = NULL;
+	director.peer_retired_interfaces = NULL;
+	director.peer_sync_initialized = false;
+	INIT_LIST_HEAD(&director.hci_dev_list);
+	INIT_LIST_HEAD(&director.hci_cb_list);
+	director.module_allocation_list = NULL; /* snapshot heap links are not live */
+	director.bound_usb_driver = NULL;
+	director.socket_fd = -1;
+	atomic_store(&director.finalizing, false);
+	director.runtime_initialized = false;
+	director.mac80211_started = false;
+	director.mac80211_interfaces = 0;
+	director.ap_ssid = NULL;
+	director.ap_ssid_len = 0;
+	director.ap_channel = 0;
+	director.ap_started = false;
+	director.cfg80211_wowlan = NULL;
+	director.firmware_ptr = NULL;
+	director.usb_rx_observer_initialized = false;
 	memset(director.kmem_array, 0, sizeof(director.kmem_array));
+	percpu_area = NULL;
+	tls_current = NULL;
+	system_wq = NULL;
+	system_percpu_wq = NULL;
+	system_dfl_wq = NULL;
+	system_freezable_wq = NULL;
+	tasklet_subsystem_reset_runtime_state();
+	#ifdef ENABLE_FUZZING
+	director.fuzz_runtime_initialized = false;
+	director.fuzzing_mode_enabled = false;
+	director.fuzz_accept_valid_urb = NULL;
+	director.fuzz_urb_list = NULL;
+	director.fuzz_urb_tail = NULL;
+	director.fuzz_urb_count = 0;
+	director.fuzz_callback_refs = 0;
+	#endif
+	#ifdef TCC_SCRIPTING
+	director.tcc_ctx = NULL;
+	director.tcc_memarea = NULL;
+	memset(director.runtime_tcc_ctx, 0, sizeof(director.runtime_tcc_ctx));
+	director.runtime_tcc_ctx_count = 0;
+	#endif
+	ret = peer_runtime_initialize();
+	if(ret != 0){
+		goto end;
+	}
 
 	/* init libusb and create the main usb rx thread */
 	ret = usb_runtime_init();
 	if(ret != 0){
-		return ret;
+		goto end;
 	}
 	atomic_store(&director.libusb_thread_stop, false);
 	pthread_create(&director.libusb_event_thread, NULL, libusb_thread, NULL);
@@ -5109,7 +5502,6 @@ int elf_entry_stub(int argc, char *argv[]){
 	workqueue_init(&director.system_freezable_wq, "system_freezable_wq");
 	system_freezable_wq = &director.system_freezable_wq;
 
-	tasklet_subsystem_reset_runtime_state();
 	tasklet_subsystem_init(MAX_SPAWNED_TASKLETS);
 
         /* initialize usb i/o mutex */
@@ -5127,6 +5519,9 @@ int elf_entry_stub(int argc, char *argv[]){
 	pthread_mutex_init(&director.wiphy_work_queue_mutex, NULL);
 	atomic_store(&director.scan_generation, 0);
 	atomic_store(&director.scan_result_epoch, 0);
+	atomic_store(&director.scan_complete_deadline, 0);
+	atomic_store(&director.scan_watchdog_deadline, 0);
+	atomic_store(&director.scan_print_deadline, 0);
 	atomic_store(&director.scan_in_progress, false);
 	atomic_store(&director.wifi_scan_thread_started, false);
 	atomic_store(&director.wifi_scan_thread_stop, false);
@@ -5138,6 +5533,11 @@ int elf_entry_stub(int argc, char *argv[]){
 	pthread_mutex_init(&director.timer_lock, NULL);
 	pthread_cond_init(&director.timer_cond, NULL);
 	director.timer_once = PTHREAD_ONCE_INIT;
+	director.timer_thread = 0;
+	director.timer_head.first = NULL;
+	director.timer_executing = NULL;
+	director.timer_stopping = false;
+	director.runtime_initialized = true;
 
 	/* if enabled, initialize also the tcc scripting layer */
 	#ifdef TCC_SCRIPTING
@@ -5150,27 +5550,24 @@ int elf_entry_stub(int argc, char *argv[]){
 		goto end;
 	}
 	/* jump to the ipc server creation and poll */
-	elf_entry_socket(&director);
-
-	end:
-	if(director.rfkill != NULL){
-		free(director.rfkill);
+	ret = elf_entry_socket(&director);
+	/* detect CNTRL^C */
+	if(director.elf_shutdown_requested == true){
+		printf("[*] SIGINT received, deinitializing Exsul...\n");
+		ret = 0;
 	}
 
-	destroy_workqueue(&director.system_wq);
-	system_wq = NULL;
-	destroy_workqueue(&director.system_percpu_wq);
-	system_percpu_wq = NULL;
-	destroy_workqueue(&director.system_dfl_wq);
-	system_dfl_wq = NULL;
-	destroy_workqueue(&director.system_freezable_wq);
-	system_freezable_wq = NULL;
+	end:
+	finalize_director();
+	elf_close_signal_pipe();
 	exit(ret);
 }
 
 /* elf_generator_handler: main function for getting the standalone ELF file,
  * it dumps the loaded memory regions, creates a legit symbol table and set the entry point to the address of 'elf_entry_stub' */
 int elf_generator_handler(void){
+	bool have_tls = false;
+	bool tls_backing_found = false;
 	int ret = 0;
 	int counter = 0;
 	int pht_counter = 0;
@@ -5181,6 +5578,7 @@ int elf_generator_handler(void){
 	int sym_count = 0;
 	int dynamic_pht_idx = -1;
 	u32 phdrs = 0;
+	u32 program_header_count = 0;
 	u32 flags = 0;
 	u32 seg_prot = 0;
 	u64 vaddr = 0;
@@ -5198,6 +5596,7 @@ int elf_generator_handler(void){
 	u64 dynamic_filesz = 0;
 	u64 zero_val = 0;
 	u64 null_off = 0;
+	u64 tls_foff = 0;
 	u64 load_dynamic_foff = 0;
 	enum {
 		SEC_NULL	= 0,
@@ -5212,6 +5611,7 @@ int elf_generator_handler(void){
 	char shstrtab[] = "\0.shstrtab\0.strtab\0.symtab\0.dynamic\0";
 
 	Elf(Ehdr) header = {};
+	Elf(Phdr) tls_phdr = {};
 	Elf(Shdr) section_header = {};
 	Elf(Sym)  symbol_table = {};
 	Elf(Dyn) new_null = {};
@@ -5261,6 +5661,11 @@ int elf_generator_handler(void){
 
 	if(phdr_base != NULL && phdrs != 0){
 		for(u32 k = 0; k < phdrs; k++){
+			if(phdr_base[k].p_type == PT_TLS && phdr_base[k].p_memsz != 0){
+				tls_phdr = phdr_base[k];
+				have_tls = true;
+				continue;
+			}
 			if(phdr_base[k].p_memsz == 0 || (phdr_base[k].p_type != PT_DYNAMIC && phdr_base[k].p_type != PT_LOAD && phdr_base[k].p_type != PT_INTERP)){
 				continue;
 			}
@@ -5311,15 +5716,16 @@ int elf_generator_handler(void){
 		return ret;
 	}
 
-	Elf(Phdr) program_headers[counter + 1];
+	program_header_count = counter + 1 + (have_tls ? 1 : 0);
+	Elf(Phdr) program_headers[program_header_count];
 	Elf(Shdr) section_headers[SEC_COUNT];
 	Elf(Sym)  symbol_entries[sym_count + 1];
-	char      string_table[string_table_size];
+	char string_table[string_table_size] = {};
 
-	memset(program_headers, 0,	sizeof(program_headers));
-	memset(section_headers, 0,	sizeof(section_headers));
-	memset(symbol_entries, 0,	sizeof(symbol_entries));
-	memset(string_table, 0,		sizeof(string_table));
+	memset(program_headers, 0, sizeof(program_headers));
+	memset(section_headers, 0, sizeof(section_headers));
+	memset(symbol_entries, 0, sizeof(symbol_entries));
+	memset(string_table, 0,	sizeof(string_table));
 
 	for(int k = 0; k < sym_count; k++){
 		current_symbol_name_len = strlen(sym_table[k].function_name) + 1;
@@ -5336,7 +5742,7 @@ int elf_generator_handler(void){
 		name_off += current_symbol_name_len;
 	}
 
-	current_off = sizeof(Elf(Ehdr)) + ((counter + 1) * sizeof(Elf(Phdr)));
+	current_off = sizeof(Elf(Ehdr)) + (program_header_count * sizeof(Elf(Phdr)));
 
 	program_headers[0].p_type   = PT_LOAD;
 	program_headers[0].p_offset = 0;
@@ -5390,92 +5796,116 @@ int elf_generator_handler(void){
 		head = head->alloc_next;
 	}
 
+	/* The native executable uses local-exec TLS relocations.  Its PT_TLS
+	 * image already lives inside the copied PT_LOAD segment, so preserve the
+	 * original TLS sizes/alignment and translate only its file offset. */
+	if(have_tls == true){
+		for(int i = 1; i < pht_counter; i++){
+			if(program_headers[i].p_type != PT_LOAD ||
+			   tls_phdr.p_vaddr < program_headers[i].p_vaddr ||
+			   tls_phdr.p_vaddr >= program_headers[i].p_vaddr + program_headers[i].p_memsz){
+				continue;
+			}
+			tls_foff = program_headers[i].p_offset +
+				    (tls_phdr.p_vaddr - program_headers[i].p_vaddr);
+			tls_backing_found = true;
+			break;
+		}
+		if(!tls_backing_found){
+			close(elf_dump_fd);
+			ret = -EINVAL;
+			return ret;
+		}
+		tls_phdr.p_offset = tls_foff;
+		program_headers[pht_counter++] = tls_phdr;
+	}
+
 	if(dynamic_pht_idx >= 0){
 		dynamic_vaddr  = program_headers[dynamic_pht_idx].p_vaddr;
 		dynamic_foff   = program_headers[dynamic_pht_idx].p_offset;
 		dynamic_filesz = program_headers[dynamic_pht_idx].p_filesz;
 	}
 
-	shstrtab_off			= (((current_off) + ((8) - 1)) & ~((8) - 1));
-	strtab_off			= shstrtab_off  + sizeof(shstrtab);
-	symtab_off			= (((strtab_off + string_table_size) + ((8) - 1)) & ~((8) - 1));
-	shoff				= (((symtab_off + sym_table_size) + ((8) - 1)) & ~((8) - 1));
+	shstrtab_off = (((current_off) + ((8) - 1)) & ~((8) - 1));
+	strtab_off = shstrtab_off  + sizeof(shstrtab);
+	symtab_off = (((strtab_off + string_table_size) + ((8) - 1)) & ~((8) - 1));
+	shoff = (((symtab_off + sym_table_size) + ((8) - 1)) & ~((8) - 1));
 
-	header.e_ident[0]		= 0x7f;
-	header.e_ident[1]		= 'E';
-	header.e_ident[2]		= 'L';
-	header.e_ident[3]		= 'F';
-	header.e_ident[4]		= ELFCLASS64;
-	header.e_ident[5]		= ELFDATA2LSB;
-	header.e_ident[6]		= EV_CURRENT;
-	header.e_ident[7]		= ELFOSABI_SYSV;
+	header.e_ident[0] = 0x7f;
+	header.e_ident[1] = 'E';
+	header.e_ident[2] = 'L';
+	header.e_ident[3] = 'F';
+	header.e_ident[4] = ELFCLASS64;
+	header.e_ident[5] = ELFDATA2LSB;
+	header.e_ident[6] = EV_CURRENT;
+	header.e_ident[7] = ELFOSABI_SYSV;
 
-	header.e_machine		= EM_CURRENT_ARCH;
-	header.e_entry			= elf_entry_stub;
-	header.e_phnum			= counter + 1;
-	header.e_shoff			= shoff;
-	header.e_phoff			= sizeof(Elf(Ehdr));
-	header.e_shnum			= SEC_COUNT;
-	header.e_phentsize		= sizeof(Elf(Phdr));
-	header.e_shentsize		= sizeof(Elf(Shdr));
-	header.e_type			= ET_EXEC;
-	header.e_version		= EV_CURRENT;
-	header.e_shstrndx		= SEC_SHSTRTAB;
-	header.e_ehsize			= sizeof(Elf(Ehdr));
-	header.e_flags			= 0;
+	header.e_machine = EM_CURRENT_ARCH;
+	header.e_entry = elf_entry_stub;
+	header.e_phnum = program_header_count;
+	header.e_shoff = shoff;
+	header.e_phoff = sizeof(Elf(Ehdr));
+	header.e_shnum = SEC_COUNT;
+	header.e_phentsize = sizeof(Elf(Phdr));
+	header.e_shentsize = sizeof(Elf(Shdr));
+	header.e_type = ET_EXEC;
+	header.e_version = EV_CURRENT;
+	header.e_shstrndx = SEC_SHSTRTAB;
+	header.e_ehsize	= sizeof(Elf(Ehdr));
+	header.e_flags = 0;
 
 	memset(&section_header, 0, sizeof(section_header));
-	section_header.sh_name		= 1;
-	section_header.sh_type		= SHT_STRTAB;
-	section_header.sh_flags		= 0;
-	section_header.sh_addr		= 0;
-	section_header.sh_offset	= shstrtab_off;
-	section_header.sh_size		= sizeof(shstrtab);
-	section_header.sh_link		= 0;
-	section_header.sh_info		= 0;
-	section_header.sh_addralign	= 1;
-	section_header.sh_entsize	= 0;
+	section_header.sh_name = 1;
+	section_header.sh_type = SHT_STRTAB;
+	section_header.sh_flags	= 0;
+	section_header.sh_addr = 0;
+	section_header.sh_offset = shstrtab_off;
+	section_header.sh_size = sizeof(shstrtab);
+	section_header.sh_link = 0;
+	section_header.sh_info = 0;
+	section_header.sh_addralign = 1;
+	section_header.sh_entsize = 0;
 	section_headers[SEC_SHSTRTAB]	= section_header;
 
 	memset(&section_header, 0, sizeof(section_header));
-	section_header.sh_name		= 11;
-	section_header.sh_type		= SHT_STRTAB;
-	section_header.sh_flags		= 0;
-	section_header.sh_addr		= 0;
-	section_header.sh_offset	= strtab_off;
-	section_header.sh_size		= string_table_size;
-	section_header.sh_link		= 0;
-	section_header.sh_info		= 0;
-	section_header.sh_addralign	= 1;
-	section_header.sh_entsize	= 0;
-	section_headers[SEC_STRTAB]	= section_header;
+	section_header.sh_name = 11;
+	section_header.sh_type = SHT_STRTAB;
+	section_header.sh_flags = 0;
+	section_header.sh_addr = 0;
+	section_header.sh_offset = strtab_off;
+	section_header.sh_size = string_table_size;
+	section_header.sh_link = 0;
+	section_header.sh_info = 0;
+	section_header.sh_addralign = 1;
+	section_header.sh_entsize = 0;
+	section_headers[SEC_STRTAB] = section_header;
 
 	memset(&section_header, 0, sizeof(section_header));
-	section_header.sh_name		= 19;
-	section_header.sh_type		= SHT_SYMTAB;
-	section_header.sh_flags		= 0;
-	section_header.sh_addr		= 0;
-	section_header.sh_offset	= symtab_off;
-	section_header.sh_size		= sym_table_size;
-	section_header.sh_link		= SEC_STRTAB;
-	section_header.sh_info		= 1;
-	section_header.sh_addralign	= 8;
-	section_header.sh_entsize	= sizeof(Elf(Sym));
-	section_headers[SEC_SYMTAB]	= section_header;
+	section_header.sh_name = 19;
+	section_header.sh_type = SHT_SYMTAB;
+	section_header.sh_flags	= 0;
+	section_header.sh_addr = 0;
+	section_header.sh_offset = symtab_off;
+	section_header.sh_size = sym_table_size;
+	section_header.sh_link = SEC_STRTAB;
+	section_header.sh_info = 1;
+	section_header.sh_addralign = 8;
+	section_header.sh_entsize = sizeof(Elf(Sym));
+	section_headers[SEC_SYMTAB] = section_header;
 
 	if(dynamic_pht_idx >= 0){
 		memset(&section_header, 0, sizeof(section_header));
-		section_header.sh_name		= 27;
-		section_header.sh_type		= SHT_DYNAMIC;
-		section_header.sh_flags		= SHF_WRITE | SHF_ALLOC;
-		section_header.sh_addr		= dynamic_vaddr;
-		section_header.sh_offset	= dynamic_foff;
-		section_header.sh_size		= dynamic_filesz;
-		section_header.sh_link		= 0;
-		section_header.sh_info		= 0;
-		section_header.sh_addralign	= 8;
-		section_header.sh_entsize	= sizeof(Elf(Dyn));
-		section_headers[SEC_DYNAMIC]	= section_header;
+		section_header.sh_name = 27;
+		section_header.sh_type = SHT_DYNAMIC;
+		section_header.sh_flags = SHF_WRITE | SHF_ALLOC;
+		section_header.sh_addr = dynamic_vaddr;
+		section_header.sh_offset = dynamic_foff;
+		section_header.sh_size = dynamic_filesz;
+		section_header.sh_link = 0;
+		section_header.sh_info = 0;
+		section_header.sh_addralign = 8;
+		section_header.sh_entsize = sizeof(Elf(Dyn));
+		section_headers[SEC_DYNAMIC] = section_header;
 	}
 
 	lseek(elf_dump_fd, 0, SEEK_SET);
@@ -5501,12 +5931,11 @@ int elf_generator_handler(void){
 		}
 
 		lseek(elf_dump_fd, program_headers[pht_counter].p_offset, SEEK_SET);
-		if(write(elf_dump_fd, head->alloc_ptr, head->alloc_len) != (ssize_t)head->alloc_len){
+		if(write(elf_dump_fd, head->alloc_ptr, head->alloc_len) != (int)head->alloc_len){
 			close(elf_dump_fd);
 			ret = -EIO;
 			return ret;
 		}
-
 		pht_counter++;
 		head = head->alloc_next;
 	}
@@ -5537,8 +5966,8 @@ int elf_generator_handler(void){
 		null_off = (u64)(uintptr_t)dyn - dynamic_vaddr;
 		memset(&flags1_entry, 0, sizeof(flags1_entry));
 		memset(&new_null,     0, sizeof(new_null));
-		flags1_entry.d_tag        = DT_FLAGS_1;
-		flags1_entry.d_un.d_val   = DF_1_NOW;
+		flags1_entry.d_tag = DT_FLAGS_1;
+		flags1_entry.d_un.d_val = DF_1_NOW;
 		lseek(elf_dump_fd, (off_t)(load_dynamic_foff + null_off), SEEK_SET);
 		write(elf_dump_fd, &flags1_entry, sizeof(flags1_entry));
 		lseek(elf_dump_fd, (off_t)(load_dynamic_foff + null_off + sizeof(Elf(Dyn))), SEEK_SET);
@@ -5577,14 +6006,11 @@ int elf_generator_handler(void){
 	return ret;
 }
 #else
-/* Arbitrary module mappings cannot be represented reliably as PE sections because section RVAs are 32-bit.
- * Keep them in an overlay and restore them at their original addresses before invoking the driver. */
 #define PE_DUMP_VERSION                 1
 #define PE_STANDALONE_MARKER            0x45585045U
 
 static const u8 pe_dump_magic[8] = {'E', 'X', 'S', 'U', 'L', 'P', 'E', '1'};
 static const u8 pe_dump_footer_magic[8] = {'E', 'X', 'S', 'U', 'L', 'P', 'F', '1'};
-static volatile u32 pe_standalone_mode;
 
 #pragma pack(push, 1)
 struct pe_dump_header {
@@ -5643,29 +6069,34 @@ static int pe_write_at(HANDLE file, u64 offset, const void *buffer, u64 length){
 
 static int pe_read_at(HANDLE file, u64 offset, void *buffer, u64 length){
 	int ret = 0;
-        DWORD received = 0;
-        DWORD chunk = 0;
-        LARGE_INTEGER file_offset = {};
-        u8 *cursor = buffer;
+	DWORD chunk = 0;
+	DWORD received = 0;
+	LARGE_INTEGER file_offset = {};
+	u8 *cursor = NULL;
 
-        file_offset.QuadPart = offset;
-        if(!SetFilePointerEx(file, file_offset, NULL, FILE_BEGIN)){
-                ret = -EIO;
+	cursor = buffer;
+	file_offset.QuadPart = offset;
+	ret = SetFilePointerEx(file, file_offset, NULL, FILE_BEGIN);
+	if(ret == 0){
+		ret = -EIO;
 		return ret;
-        }
-        while(length != 0){
-                chunk = length > 0x40000000ULL ? 0x40000000UL : (DWORD)length;
-                if(!ReadFile(file, cursor, chunk, &received, NULL) || received != chunk){
-                        ret = -EIO;
+	}
+	while(length != 0){
+		chunk = length > 0x40000000ULL ? 0x40000000UL : (DWORD)length;
+		ret = ReadFile(file, cursor, chunk, &received, NULL);
+		if(ret == 0 || received != chunk){
+			ret = -EIO;
 			return ret;
-                }
-                cursor += received;
-                length -= received;
-        }
-        return ret;
+		}
+		cursor += received;
+		length -= received;
+	}
+	return ret;
 }
 
+/* pe_region_page_protection: set the page permission level for the Windows version, used during the mapping of the kernel driver */
 static DWORD pe_region_page_protection(u32 protection){
+
         if(protection & PROT_EXEC){
                 if(protection & PROT_WRITE){
                         return PAGE_EXECUTE_READWRITE;
@@ -5741,15 +6172,17 @@ static int pe_restore_dumped_regions(void){
                         ret = -EINVAL;
                         goto restore_fail;
                 }
-                mapped_region = VirtualAlloc((LPVOID)(uintptr_t)regions[i].address, (SIZE_T)regions[i].size,
+                mapped_region = VirtualAlloc((LPVOID)(uintptr_t)regions[i].address, (int)regions[i].size,
                                              MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
                 if(mapped_region != (LPVOID)(uintptr_t)regions[i].address){
                         if(mapped_region != NULL){
                                 VirtualFree(mapped_region, 0, MEM_RELEASE);
                         }
+			#ifdef ENABLE_DBG_PRINT
                         printf("[!] cannot restore PE region at %p (%llu bytes), error %lu\n",
                                (void *)(uintptr_t)regions[i].address, (unsigned long long)regions[i].size,
                                (unsigned long)GetLastError());
+			#endif
                         ret = -ENOMEM;
                         goto restore_fail;
                 }
@@ -5758,16 +6191,14 @@ static int pe_restore_dumped_regions(void){
                 if(ret != 0){
                         goto restore_fail;
                 }
-                if(!VirtualProtect(mapped_region, (SIZE_T)regions[i].size,
-                                   pe_region_page_protection(regions[i].protection), &old_protection)){
+                if(!VirtualProtect(mapped_region, (int)regions[i].size, pe_region_page_protection(regions[i].protection), &old_protection)){
                         ret = -EIO;
                         goto restore_fail;
                 }
                 if(regions[i].protection & PROT_EXEC){
-                        FlushInstructionCache(GetCurrentProcess(), mapped_region, (SIZE_T)regions[i].size);
+                        FlushInstructionCache(GetCurrentProcess(), mapped_region, (int)regions[i].size);
                 }
-                director.module_allocation_list = new_allocation(ALLOCATION_TYPE_MMAP, mapped_region,
-                        (int)regions[i].size, (u8)regions[i].protection, PT_LOAD, director.module_allocation_list);
+                director.module_allocation_list = new_allocation(ALLOCATION_TYPE_MMAP, mapped_region, regions[i].size, (u8)regions[i].protection, PT_LOAD, director.module_allocation_list);
         }
         goto out;
 
@@ -5812,16 +6243,39 @@ static int pe_entry_stub(void){
         director.ieee80211_ops = NULL;
         director.active_scan_req = NULL;
         director.connection_fsm = NULL;
+	director.connection_retired = NULL;
 	director.connection_runtime_initialized = false;
+	director.peer_runtime = NULL;
+	director.mesh_retired_peers = NULL;
+	director.peer_retired_interfaces = NULL;
+	director.peer_sync_initialized = false;
+	INIT_LIST_HEAD(&director.hci_dev_list);
+	INIT_LIST_HEAD(&director.hci_cb_list);
         director.libusb_event_thread = 0;
+	director.bound_usb_driver = NULL;
+	atomic_store(&director.finalizing, false);
+	director.runtime_initialized = false;
+	director.mac80211_started = false;
+	director.mac80211_interfaces = 0;
+	director.ap_ssid = NULL;
+	director.ap_ssid_len = 0;
+	director.ap_channel = 0;
+	director.ap_started = false;
+	director.cfg80211_wowlan = NULL;
+	director.firmware_ptr = NULL;
         memset(director.kmem_array, 0, sizeof(director.kmem_array));
 
         system_wq = NULL;
         system_percpu_wq = NULL;
         system_dfl_wq = NULL;
         system_freezable_wq = NULL;
+	ret = peer_runtime_initialize();
+	if(ret != 0){
+		return ret;
+	}
         ret = usb_runtime_init();
         if(ret != 0){
+		peer_runtime_destroy();
                 return ret;
         }
         atomic_store(&director.libusb_thread_stop, false);
@@ -5830,6 +6284,16 @@ static int pe_entry_stub(void){
         director.rfkill = calloc(1, sizeof(struct rfkill));
         if(director.rfkill == NULL){
                 ret = -ENOMEM;
+		atomic_store(&director.libusb_thread_stop, true);
+		if(usb_libusb_context() != NULL){
+			libusb_interrupt_event_handler(usb_libusb_context());
+		}
+		if(director.libusb_event_thread != 0){
+			pthread_join(director.libusb_event_thread, NULL);
+			director.libusb_event_thread = 0;
+		}
+		usb_runtime_exit();
+		peer_runtime_destroy();
 		return ret;
         }
         workqueue_init(&director.system_wq, "system_wq");
@@ -5851,6 +6315,9 @@ static int pe_entry_stub(void){
         pthread_mutex_init(&director.wiphy_work_queue_mutex, NULL);
         atomic_store(&director.scan_generation, 0);
         atomic_store(&director.scan_result_epoch, 0);
+	atomic_store(&director.scan_complete_deadline, 0);
+	atomic_store(&director.scan_watchdog_deadline, 0);
+	atomic_store(&director.scan_print_deadline, 0);
         atomic_store(&director.scan_in_progress, false);
 	atomic_store(&director.wifi_scan_thread_started, false);
 	atomic_store(&director.wifi_scan_thread_stop, false);
@@ -5860,6 +6327,11 @@ static int pe_entry_stub(void){
         pthread_mutex_init(&director.timer_lock, NULL);
         pthread_cond_init(&director.timer_cond, NULL);
         director.timer_once = PTHREAD_ONCE_INIT;
+	director.timer_thread = 0;
+	director.timer_head.first = NULL;
+	director.timer_executing = NULL;
+	director.timer_stopping = false;
+	director.runtime_initialized = true;
 
 	#ifdef TCC_SCRIPTING
         director.tcc_ctx = NULL;
@@ -5874,6 +6346,7 @@ static int pe_entry_stub(void){
 	}
 
 	end:
+	peer_runtime_destroy();
 	if(director.rfkill != NULL){
 		free(director.rfkill);
 	}
@@ -5929,13 +6402,17 @@ int pe_generator_handler(void){
         }
         dos_header = (IMAGE_DOS_HEADER *)base_addr;
         if(dos_header->e_magic != IMAGE_DOS_SIGNATURE){
+		#ifdef ENABLE_DBG_PRINT
                 printf("[!] current executable has no valid DOS header!\n");
+		#endif
                 ret = -EINVAL;
 		return ret;
         }
         nt_header = (IMAGE_NT_HEADERS64 *)(base_addr + dos_header->e_lfanew);
         if(nt_header->Signature != IMAGE_NT_SIGNATURE || nt_header->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC){
+		#ifdef ENABLE_DBG_PRINT
                 printf("[!] current executable has no valid PE32+ header!\n");
+		#endif
                 ret = -EINVAL;
 		return ret;
         }
@@ -5977,7 +6454,9 @@ int pe_generator_handler(void){
                 }
                 raw_section_size = pe_align_value(dump_size, dump_nt_header->OptionalHeader.FileAlignment);
                 if(raw_cursor > UINT32_MAX || raw_section_size > UINT32_MAX - raw_cursor){
+			#ifdef ENABLE_DBG_PRINT
                         printf("[!] rebuilt PE image exceeds the 32-bit raw file offset limit!\n");
+			#endif
                         ret = -EFBIG;
                         goto out;
                 }
@@ -6008,7 +6487,7 @@ int pe_generator_handler(void){
         memset(&dump_nt_header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG], 0, sizeof(IMAGE_DATA_DIRECTORY));
 
         fast_get_symbol("_driver_init", &director.driver_init_function);
-        pe_standalone_mode = PE_STANDALONE_MARKER;
+	director.pe_standalone_mode = PE_STANDALONE_MARKER;
         dump_file = CreateFileA("dumped_driver.exe", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         if(dump_file == INVALID_HANDLE_VALUE){
                 ret = -EIO;
@@ -6083,7 +6562,7 @@ int pe_generator_handler(void){
         }
 
 	out:
-        pe_standalone_mode = 0;
+	director.pe_standalone_mode = 0;
         if(dump_file != INVALID_HANDLE_VALUE){
                 CloseHandle(dump_file);
         }
@@ -6098,8 +6577,7 @@ int pe_generator_handler(void){
 #endif
 
 #ifdef __linux__
-/* crash_handler: returns a custom file format when it crash,
- * output file format is still wip, it should contains both the callback table and the offset table. */
+/* crash_handler: returns a custom file format when it crash, output file format is still wip, it should contains both the callback table and the offset table */
 void crash_handler(int sig){
 	int nptrs = 0;
 	int dump_fd = 0;
@@ -6108,7 +6586,7 @@ void crash_handler(int sig){
 	u8  section_number = 0;
 	time_t current_crash_time = 0;
 	struct tm tm = {};
-	u8 dumped_filename_buffer[128];
+	u8 dumped_filename_buffer[128] = {};
 	struct crashdump_section crash_sections[CRASH_SECTION_MAX];
 	char **backtrace_strings = NULL;
 	void *buffer[BACKTRACE_MAX_DEPTH];
@@ -6153,6 +6631,9 @@ void crash_handler(int sig){
 	}
 
 	dump_fd = open(dumped_filename_buffer, O_RDWR | O_CREAT, 0777);
+	if(dump_fd < 0){
+		goto out;
+	}
 	/* write the header: magic number, section numbers and the section table */
 	write(dump_fd, DUMP_MAGIC, sizeof(DUMP_MAGIC));
 	dump_fd_offset_count += sizeof(DUMP_MAGIC);
@@ -6185,7 +6666,7 @@ void crash_handler(int sig){
 	if(sig != SIGABRT){
 		finalize_director();
 	}
-
+	out:
 	elf_generator_handler();
 	exit(0);
 }
@@ -6229,22 +6710,25 @@ static void trim_inplace(unsigned char *line){
 
 /* find_struct_by_name: helper function used for searching a strut given it's name */
 static struct runtime_struct_layout *find_struct_by_name(struct runtime_struct *runtime_struct, unsigned char *name){
+	int ret = 0;
+
 	if(name == NULL || runtime_struct == NULL){
 		return NULL;
 	}
-
 	for (int i = 0; ; i++) {
 		if (runtime_struct->structs[i].struct_name == NULL){
 			break;
 		}
 
-		if (strcmp(runtime_struct->structs[i].struct_name, name) == 0){
+		ret = strcmp(runtime_struct->structs[i].struct_name, name);
+		if(ret == 0){
 			return &runtime_struct->structs[i];
 		}
 	}
 	return NULL;
 }
 
+/* find_field_by_name: return the field ptr from the field name */
 static struct struct_field *find_field_by_name(struct runtime_struct_layout *runtime_struct, unsigned char *name){
 	if (runtime_struct == NULL || name == NULL){
 		return NULL;
@@ -6261,16 +6745,21 @@ static struct struct_field *find_field_by_name(struct runtime_struct_layout *run
 /* handle_offset_config: parse the offset configuration and patch the offsets at runtime */
 int handle_offset_config(unsigned char *offset_config_name){
 	int ret = 0;
+	int len = 0;
 	int fd = 0;
 	int nread = 0;
 	int total = 0;
 	int file_size = 0;
 	unsigned char *cursor = NULL;
+	unsigned char *line_end = NULL;
+	unsigned char *separator = NULL;
+	unsigned char *line_start = NULL;
 	unsigned char *config_buffer = NULL;
 	struct runtime_struct_layout *current_layout = NULL;
 	char line[48] = {};
 	struct stat config_stats = {};
 
+	line_start = cursor;
 	fd = open(offset_config_name, O_RDONLY);
 	if(fd < 0){
 		ret = -EINVAL;
@@ -6278,16 +6767,14 @@ int handle_offset_config(unsigned char *offset_config_name){
 	}
 
 	fstat(fd, &config_stats);
-
 	file_size = config_stats.st_size;
-
 	if(file_size == 0){
 		ret = -EINVAL;
 		close(fd);
 		return ret;
 	}
 
-	config_buffer = malloc((size_t)file_size + 1);
+	config_buffer = malloc(file_size + 1);
 	if (config_buffer == NULL){
 		close(fd);
 		ret = -ENOMEM;
@@ -6313,10 +6800,10 @@ int handle_offset_config(unsigned char *offset_config_name){
 	cursor = config_buffer;
 
 	while (*cursor) {
-		unsigned char *line_start = cursor;
-		unsigned char *line_end = NULL;
-		unsigned char *separator = NULL;
-		size_t len = 0;
+		line_start = cursor;
+		line_end = NULL;
+		separator = NULL;
+		len = 0;
 
 		line_end = strchr(cursor, '\n');
 		if (line_end) {
@@ -6479,7 +6966,7 @@ int main(int argc, char *argv[], char *envp[]) {
 	signal(SIGILL,  crash_handler);
 
 	#ifdef _WIN64
-	if(pe_standalone_mode == PE_STANDALONE_MARKER){
+	if(director.pe_standalone_mode == PE_STANDALONE_MARKER){
 		ret = pe_entry_stub();
 		if(ret != 0){
 			return ret;
@@ -6499,7 +6986,7 @@ int main(int argc, char *argv[], char *envp[]) {
 	pthread_create(&director.libusb_event_thread, NULL, libusb_thread, NULL);
 
 	if(argc < 2){
-		printf("./%s <module_name> ... <function_name>!\n", argv[0]);
+		printf("%s <module_name> ... <function_name>!\n", argv[0]);
 		ret = -EINVAL;
 		return ret;
 	}
@@ -6544,7 +7031,7 @@ int main(int argc, char *argv[], char *envp[]) {
 			param_name  = strtok(argv[argv_idx], "=");
 			param_value = strtok(NULL, "=");
 			/* store the param name and its value for later use */
-			
+
 		}
 	}
 	/* add a fast loading option: if the user insert as argv 1 or more '.ko', load them in the order given */
@@ -6607,4 +7094,5 @@ int main(int argc, char *argv[], char *envp[]) {
 	return ret;
 }
 
+/* include the 'struct internal_cb_table' symbol table */
 #include <cb_table.h>

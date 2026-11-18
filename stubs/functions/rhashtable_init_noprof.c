@@ -27,9 +27,7 @@ int rhashtable_init_noprof(struct rhashtable *ht, const struct rhashtable_params
 	}
 
 	ht->p.min_size = max_t(u16, ht->p.min_size, HASH_MIN_SIZE);
-
 	size = rounded_hashtable_size(&ht->p);
-
 	ht->key_len = ht->p.key_len;
 	if (!params->hashfn) {
 		ht->p.hashfn = jhash;

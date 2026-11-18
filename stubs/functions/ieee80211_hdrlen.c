@@ -6,19 +6,22 @@ unsigned int ieee80211_hdrlen(__le16 fc){
 		goto out;
 	}
 	if (ieee80211_is_data(fc)) {
-		if (ieee80211_has_a4(fc))
+		if (ieee80211_has_a4(fc)){
 			hdrlen = 30;
+		}
 		if (ieee80211_is_data_qos(fc)) {
 			hdrlen += IEEE80211_QOS_CTL_LEN;
-			if (ieee80211_has_order(fc))
+			if (ieee80211_has_order(fc)){
 				hdrlen += IEEE80211_HT_CTL_LEN;
+			}
 		}
 		goto out;
 	}
 
 	if (ieee80211_is_mgmt(fc)) {
-		if (ieee80211_has_order(fc))
+		if (ieee80211_has_order(fc)){
 			hdrlen += IEEE80211_HT_CTL_LEN;
+		}
 		goto out;
 	}
 

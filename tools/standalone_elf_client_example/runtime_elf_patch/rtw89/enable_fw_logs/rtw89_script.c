@@ -190,11 +190,6 @@ typedef struct {
         int counter;
 } atomic_t;
 
-struct global_conf {
-	u8 show_struct_offset;
-	u8 strict_missing_syms;
-};
-
 struct fast_struct_size {
         u16 ieee80211_hw;
         u16 ieee80211_ops;
@@ -380,8 +375,6 @@ struct module_controller {
 	/* ipc client */
 	int client_flags;
 
-	/* global configuration struct, the field can be set at runtime via the 'set' command */
-	struct global_conf global_conf;
         struct module *mod;
         struct load_info *info;
         struct internal_cb_table *internal_cb_table;

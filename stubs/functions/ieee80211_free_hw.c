@@ -7,8 +7,13 @@ void ieee80211_free_hw(struct ieee80211_hw *hw){
 	if(local == NULL){
 		goto end;
 	}
-	if (wifi_connection_stop(local))
+	if (wifi_connection_stop(local)){
 		goto end;
+	}
+	if(local->workqueue != NULL){
+		destroy_workqueue(local->workqueue);
+		local->workqueue = NULL;
+	}
 	wiphy = local->wiphy;
 	if(wiphy == NULL){
 		goto free_local;
@@ -16,6 +21,7 @@ void ieee80211_free_hw(struct ieee80211_hw *hw){
 
 	sta_info_stop(local);
 	connection_free_retired();
+	peer_free_retired();
 	while (!list_empty(&local->interfaces)) {
 		sdata = list_first_entry(&local->interfaces, struct ieee80211_sub_if_data, list);
 		list_del_rcu(&sdata->list);
@@ -30,6 +36,10 @@ void ieee80211_free_hw(struct ieee80211_hw *hw){
 	skb_queue_purge(&local->skb_queue_unreliable);
 	kfree(local->int_scan_req);
 	local->int_scan_req = NULL;
+	kfree(local->monitor_chanreq);
+	local->monitor_chanreq = NULL;
+	kfree(local->dflt_chandef);
+	local->dflt_chandef = NULL;
 	kfree(local->ieee80211_vif);
 	local->ieee80211_vif = NULL;
 	kfree(local->ieee80211_ap_vif);
@@ -46,11 +56,15 @@ void ieee80211_free_hw(struct ieee80211_hw *hw){
 	}
 	wiphy_free(wiphy);
 	local->wiphy = NULL;
-free_local:
+	free_local:
 	if(director.ieee80211_ops == local->ieee80211_ops){
 		director.ieee80211_ops = NULL;
 	}
+	pthread_mutex_destroy(&local->iflist_mtx);
+	pthread_mutex_destroy(&local->wiphy_work_queue_mutex);
+	free(local->ieee80211_hw);
+	local->ieee80211_hw = NULL;
 	free(local);
 	director.ieee80211_local = NULL;
-end:
+	end:
 }

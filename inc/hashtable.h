@@ -656,3 +656,99 @@ static struct rhash_lock_head __rcu **rht_bucket_nested_insert(struct rhashtable
 	}
 	return &ntbl[hash].bucket;
 }
+
+static inline int __rhashtable_remove_fast_one(struct rhashtable *ht, struct bucket_table *tbl, struct rhash_head *obj, const struct rhashtable_params params, bool rhlist){
+	int ret = 0;
+	unsigned int hash = 0;
+	struct rhash_head *cur = NULL;
+	struct rhash_head *prev = NULL;
+	struct rhash_head *next = NULL;
+	struct rhash_lock_head **bkt = NULL;
+
+	hash = rht_head_hashfn(ht, tbl, obj, params);
+	bkt = rht_bucket_var(tbl, hash);
+
+	if (bkt == NULL){
+		ret = -ENOENT;
+		return ret;
+	}
+	cur = rht_ptr_exclusive(bkt);
+
+	while (!rht_is_a_nulls(cur)) {
+		if (cur == obj) {
+			next = cur->next;
+			if (prev){
+				prev->next = next;
+			}else{
+				*bkt = (struct rhash_lock_head *)(rht_is_a_nulls(next) ? NULL : next);
+			}
+			atomic_dec(&ht->nelems);
+			return ret;
+		}
+		prev = cur;
+		cur = cur->next;
+	}
+	ret = -ENOENT;
+	return ret;
+}
+
+/* Internal function, please use rhashtable_remove_fast() instead */
+static inline int __rhashtable_remove_fast(struct rhashtable *ht, struct rhash_head *obj, const struct rhashtable_params params, bool rhlist){
+	int ret = 0;
+	struct bucket_table *tbl = NULL;
+
+	tbl = rht_dereference_rcu(ht->tbl, ht);
+	/* Because we have already taken (and released) the bucket
+	 * lock in old_tbl, if we find that future_tbl is not yet
+	 * visible then that guarantees the entry to still be in
+	 * the old tbl if it exists.
+	 */
+	while ((ret = __rhashtable_remove_fast_one(ht, tbl, obj, params, rhlist)) && (tbl = rht_dereference_rcu(tbl->future_tbl, ht)))
+		;
+
+	return ret;
+}
+
+/*
+ * rhashtable_remove_fast - remove object from hash table
+ * @ht:		hash table
+ * @obj:	pointer to hash head inside object
+ * @params:	hash table parameters
+ *
+ * Since the hash chain is single linked, the removal operation needs to
+ * walk the bucket chain upon removal. The removal operation is thus
+ * considerable slow if the hash table is not correctly sized.
+ *
+ * Will automatically shrink the table if permitted when residency drops
+ * below 30%.
+ *
+ * Returns zero on success, -ENOENT if the entry could not be found.
+ */
+static inline int rhashtable_remove_fast(struct rhashtable *ht, struct rhash_head *obj, const struct rhashtable_params params){
+	int ret = 0;
+
+	ret = __rhashtable_remove_fast(ht, obj, params, false);
+	return ret;
+}
+
+/*
+ * rhltable_remove - remove object from hash list table
+ * @hlt:	hash list table
+ * @list:	pointer to hash list head inside object
+ * @params:	hash table parameters
+ *
+ * Since the hash chain is single linked, the removal operation needs to
+ * walk the bucket chain upon removal. The removal operation is thus
+ * considerably slower if the hash table is not correctly sized.
+ *
+ * Will automatically shrink the table if permitted when residency drops
+ * below 30%
+ *
+ * Returns zero on success, -ENOENT if the entry could not be found.
+ */
+static inline int rhltable_remove(struct rhltable *hlt, struct rhlist_head *list, const struct rhashtable_params params){
+	int ret = 0;
+
+	ret = __rhashtable_remove_fast(&hlt->ht, &list->rhead, params, true);
+	return ret;
+}

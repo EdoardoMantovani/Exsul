@@ -1,12 +1,14 @@
 void print_hex_dump(const char *level, const char *prefix_str, int prefix_type, int rowsize, int groupsize, const void *buf, size_t len, bool ascii){
-	const u8 *ptr = buf;
 	int linelen = 0;
-	int remaining = len;
+	int remaining = 0;
+	const u8 *ptr = NULL;
 	unsigned char linebuf[32 * 3 + 2 + 32 + 1];
 
-	if (rowsize != 16 && rowsize != 32)
+	ptr = buf;
+	remaining = len;
+	if (rowsize != 16 && rowsize != 32){
 		rowsize = 16;
-
+	}
 	for (int i = 0; i < len; i += rowsize) {
 		linelen = min(remaining, rowsize);
 		remaining -= rowsize;

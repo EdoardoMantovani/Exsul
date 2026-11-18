@@ -7,7 +7,6 @@ bool ieee80211_rx_data_set_sta(struct ieee80211_rx_data *rx, struct sta_info *st
 
 	rx->link_id = link_id;
 	rx->sta = sta;
-
 	if (sta != NULL) {
 		if (sta->sdata.local != NULL){
 			rx->local = sta->sdata.local;

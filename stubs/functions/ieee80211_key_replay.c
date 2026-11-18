@@ -2,7 +2,6 @@ void ieee80211_key_replay(struct ieee80211_key_conf *keyconf){
 	struct ieee80211_key *key = NULL;
 
 	key = container_of(keyconf, struct ieee80211_key, conf);
-
 	switch (key->conf.cipher) {
 	case WLAN_CIPHER_SUITE_CCMP:
 	case WLAN_CIPHER_SUITE_CCMP_256:

@@ -53,10 +53,11 @@ int usb_submit_urb(struct urb *urb, int mem_flags){
 	}
 
 	urb->hcpriv = transfer;
-	usb_transfer_active_add(transfer);
 	usb_get_urb(urb);
 	/* increase the 'use_count' field by 1, assume that the transfer will be successful */
 	atomic_fetch_add_explicit(&urb->use_count, 1, memory_order_relaxed);
+	/* Completion may run before libusb_submit_transfer() returns. */
+	usb_transfer_note_submit();
 	ret = libusb_submit_transfer(transfer);
 	if (ret != LIBUSB_SUCCESS) {
 		#ifdef ENABLE_DBG_PRINT
@@ -67,6 +68,7 @@ int usb_submit_urb(struct urb *urb, int mem_flags){
 		atomic_fetch_sub_explicit(&urb->use_count, 1, memory_order_relaxed);
 		usb_free_urb(urb);
 		usb_transfer_put(transfer);
+		usb_transfer_note_complete();
 		if (ret == LIBUSB_ERROR_NO_DEVICE){
 			atomic_store_explicit(&director.usb_device_lost, true,
 					      memory_order_release);
@@ -76,6 +78,5 @@ int usb_submit_urb(struct urb *urb, int mem_flags){
 		}
 		return ret;
 	}
-	usb_transfer_note_submit();
 	return ret;
 }

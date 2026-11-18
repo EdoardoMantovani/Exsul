@@ -158,6 +158,7 @@ ops hw_scan
 ops sw_scan
 ops cancel_scan
 ops connect <ssid> [password]
+ops disconnect
 ops rx [on|off]
 ops start_ap [ssid]
 ops stop_ap
@@ -185,6 +186,40 @@ ops rx off
 notice that there are some special commands like `ops rx` and `ops connect`, even if they aren't hardcoded in any mac80211/cfg80211 `_ops` struct, they
 are used for enabling/disabling the rx debugging patch and for connecting to a Wi-Fi network.
 
+The userspace mac80211 connection path currently targets open networks and WPA2-PSK
+with CCMP on 2.4/5 GHz, using legacy PHY rates. Scan before connecting. WPA2
+passphrases must contain 8–63 bytes; PMF must be optional or disabled. WPA3-only,
+PMF-required, TKIP-only, enterprise, and mandatory non-legacy PHY configurations
+are not supported by this path. The driver must support the required station,
+channel-context, TX-status, and hardware-key callbacks.
+
+Authentication and association retries are bounded and follow TX completion;
+missing TX status is reported separately from a missing AP response. The WPA2
+initial handshake also has a deadline. After a failed attempt, `ops connect` can
+start a fresh attempt; use `ops disconnect` to release an active connection before
+switching networks. Association/key installation does not provide host IP
+networking: a TAP/netdev data path and DHCP are not implemented here. Group/pairwise
+rekeying and WPA3/PMF remain outside the current connection implementation.
+
+Run the hardware-independent connection regressions with:
+
+```sh
+sh tools/tests/run_wifi_tests.sh
+```
+
+These tests require a C compiler and OpenSSL development libraries and use
+AddressSanitizer/UndefinedBehaviorSanitizer. They cover AP capability parsing,
+response/TX-status ordering, timeouts, the initial WPA2 handshake, duplicate M3
+handling, and disconnect cleanup. They do not replace testing against a real
+adapter and AP. Rebuild Exsul and regenerate any standalone ELF/PE after changing
+the connection code; existing generated executables do not pick up source edits.
+
+RX/USB buffers use the normal skb data/user references and URB krefs. There is no
+global registry or exit-time force-free sweep for these allocations; buffer owners
+must release them through the usual consume/free APIs. The USB transfer pool and
+active-transfer registry remain responsible for reuse and cancellation. Run their
+hardware-independent ownership tests with `sh tools/tests/run_rx_usb_tests.sh`.
+
 ## Offsets
 
 Exsul needs structure sizes and field offsets for properly running loaded kernel modules.
@@ -211,7 +246,7 @@ As an additional component of Exsul, various tools are present under `./tools`, 
 * generate_inat: used for generating the inat table under x86, not common to use
 * udev_rules: permits to set the udev rules under Linux for the rtw89 devices for using the dongles without having the root permissions, this permits Exsul to run completely in userspace
 * merge_kernel_api: permits to merge every C files under `/stub/` into a single, big file, notice that the `Build.pl` script does this in order to enhance the compilation time for Exsul
-* offset_generator:
+* offset_generator: in case a .ko with DWARF symbols is unavailable, use the big "offset file" obtained throught scraping the Ubuntu repositories
 * standalone_elf_client_example: see the standalone ELF section
 
 ## Debugging
@@ -250,4 +285,4 @@ registration path and related net stack behavior to be completed, in the next re
 
 ### Which architectures are supported ?
 
-For now only x86_64, in the future Exsul will be able to work also under arm32/arm64.
+For now only x86_64, in the (near) future Exsul will be able to work also under arm32/arm64.

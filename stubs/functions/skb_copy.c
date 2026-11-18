@@ -33,10 +33,6 @@ struct sk_buff *skb_copy(const struct sk_buff *skb, int gfp_mask){
 	skb_copy_header(copied_skb, skb);
 	copied_skb->cloned = 0;
 	copied_skb->nohdr = 0;
-	copied_skb->data = copied_skb->head + headroom;
-	skb_set_tail_offset(copied_skb, tail_off);
-	skb_set_end_offset(copied_skb, data_capacity);
-	atomic_store(&skb_shinfo(copied_skb)->dataref, 1);
 
 	return copied_skb;
 }

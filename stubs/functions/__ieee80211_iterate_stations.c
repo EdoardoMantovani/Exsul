@@ -5,10 +5,8 @@ struct ieee80211_sta *__ieee80211_iterate_stations(struct ieee80211_hw *hw, stru
 	struct ieee80211_local *local = NULL;
 	struct sta_info *sta = NULL;
 
-	(void)hw;
 	local = director.ieee80211_local;
 	fsm = connection_get();
-
 	if(local == NULL || local->sta_list.next == NULL || local->sta_list.prev == NULL){
 		goto fallback;
 	}
@@ -28,12 +26,11 @@ struct ieee80211_sta *__ieee80211_iterate_stations(struct ieee80211_hw *hw, stru
 		}
 	}
 
-fallback:
+	fallback:
 	if(!fsm_seen && fsm != NULL && fsm->sta != NULL){
 		if(return_next){
 			return fsm->sta;
 		}
 	}
-
 	return NULL;
 }

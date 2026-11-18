@@ -8,10 +8,8 @@ const struct element *cfg80211_find_vendor_elem(unsigned int oui, int oui_type, 
 	if (oui_type > 0xff){
 		return NULL;
 	}
-
 	elem = cfg80211_find_elem_match(WLAN_EID_VENDOR_SPECIFIC, ies, len, match, match_len, 0);
-
-	if (!elem || elem->datalen < 4){
+	if (elem == NULL || elem->datalen < 4){
 		return NULL;
 	}
 	return elem;

@@ -12,9 +12,7 @@ ssize_t memory_read_from_buffer(void *to, size_t count, loff_t *ppos, const void
 	if (count > available - pos){
 		count = available - pos;
 	}
-
 	memcpy(to, from + pos, count);
 	*ppos = pos + count;
-
 	return count;
 }

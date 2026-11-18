@@ -5,10 +5,8 @@ void cfg80211_cqm_rssi_notify(struct net_device *netdev, enum nl80211_cqm_rssi_t
 	if (rssi_event != NL80211_CQM_RSSI_THRESHOLD_EVENT_LOW && rssi_event != NL80211_CQM_RSSI_THRESHOLD_EVENT_HIGH){
 		goto end;
 	}
-
 	local = director.ieee80211_local;
 	cqm_config = &local->cqm_config;
-
 	if (cqm_config != NULL) {
 		cqm_config->last_rssi_event_value = rssi_level;
 		cqm_config->last_rssi_event_type = rssi_event;

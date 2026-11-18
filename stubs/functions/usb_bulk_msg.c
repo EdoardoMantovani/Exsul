@@ -14,9 +14,8 @@ int usb_bulk_msg(struct usb_device *usb_dev, unsigned int pipe, void *data, int 
 		timeout
 	);
 	#ifdef ENABLE_FUZZING
-	if(ret == LIBUSB_SUCCESS && actual_length != NULL && *actual_length > 0 &&
-	   usb_pipein(pipe)){
-		(void)fuzz_report_usb_rx(data, *actual_length);
+	if(ret == LIBUSB_SUCCESS && actual_length != NULL && *actual_length > 0 && usb_pipein(pipe)){
+		fuzz_report_usb_rx(data, *actual_length);
 	}
 	#endif
 	usb_unlock();

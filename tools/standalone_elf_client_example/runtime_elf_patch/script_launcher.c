@@ -15,7 +15,7 @@
 
 /* remember to change those parameters accordingly to the main Exsul source code. */
 #define MAX_CONNECTION  1
-#define BUFFER_SIZE     1024 * 128
+#define BUFFER_SIZE     1024 * 512
 #define SOCKET_PATH	"/tmp/exsul_socket"
 
 #define u8		uint8_t

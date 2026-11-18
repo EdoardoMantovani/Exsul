@@ -16,6 +16,12 @@
 #define MMAP(alloc_ptr, alloc_size, alloc_flags)	alloc_ptr = mmap(NULL, alloc_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);		\
 							new_allocation(ALLOCATION_TYPE_MMAP, alloc_ptr, alloc_size, alloc_flags, director.allocation_list);
 
+
+#define kfree_rcu(ptr, rhf)				kvfree_rcu_arg_2(ptr, rhf)
+#define kvfree_rcu(ptr, rhf)				kvfree_rcu_arg_2(ptr, rhf)
+
+#define kvfree_rcu_arg_2(ptr, rhf) 			kvfree_call_rcu(&(ptr)->rhf, (void *)(ptr))
+
 /* empty macro used for indicating to Build.pl to add a specific symbol to the cb_table */
 #define SYMBOL_EXPORT(sym)
 
@@ -901,6 +907,64 @@ out:										\
 		&pos->member != (head);					\
 		pos = list_entry_rcu(pos->member.next, typeof(*pos), member))
 
+
+#define hlist_entry(ptr, type, member) container_of(ptr,type,member)
+
+#define hlist_for_each(pos, head) \
+	for (pos = (head)->first; pos ; pos = pos->next)
+
+#define hlist_for_each_safe(pos, n, head) \
+	for (pos = (head)->first; pos && ({ n = pos->next; 1; }); \
+	     pos = n)
+
+#define hlist_entry_safe(ptr, type, member) \
+	({ typeof(ptr) ____ptr = (ptr); \
+	   ____ptr ? hlist_entry(____ptr, type, member) : NULL; \
+	})
+
+/*
+ * hlist_for_each_entry	- iterate over list of given type
+ * @pos:	the type * to use as a loop cursor.
+ * @head:	the head for your list.
+ * @member:	the name of the hlist_node within the struct.
+ */
+#define hlist_for_each_entry(pos, head, member)				\
+	for (pos = hlist_entry_safe((head)->first, typeof(*(pos)), member);\
+	     pos;							\
+	     pos = hlist_entry_safe((pos)->member.next, typeof(*(pos)), member))
+
+/*
+ * hlist_for_each_entry_continue - iterate over a hlist continuing after current point
+ * @pos:	the type * to use as a loop cursor.
+ * @member:	the name of the hlist_node within the struct.
+ */
+#define hlist_for_each_entry_continue(pos, member)			\
+	for (pos = hlist_entry_safe((pos)->member.next, typeof(*(pos)), member);\
+	     pos;							\
+	     pos = hlist_entry_safe((pos)->member.next, typeof(*(pos)), member))
+
+/*
+ * hlist_for_each_entry_from - iterate over a hlist continuing from current point
+ * @pos:	the type * to use as a loop cursor.
+ * @member:	the name of the hlist_node within the struct.
+ */
+#define hlist_for_each_entry_from(pos, member)				\
+	for (; pos;							\
+	     pos = hlist_entry_safe((pos)->member.next, typeof(*(pos)), member))
+
+/*
+ * hlist_for_each_entry_safe - iterate over list of given type safe against removal of list entry
+ * @pos:	the type * to use as a loop cursor.
+ * @n:		a &struct hlist_node to use as temporary storage
+ * @head:	the head for your list.
+ * @member:	the name of the hlist_node within the struct.
+ */
+#define hlist_for_each_entry_safe(pos, n, head, member) 		\
+	for (pos = hlist_entry_safe((head)->first, typeof(*pos), member);\
+	     pos && ({ n = pos->member.next; 1; });			\
+	     pos = hlist_entry_safe(n, typeof(*pos), member))
+
+
 #define rht_dereference(p, ht) \
 	rcu_dereference_protected(p, lockdep_rht_mutex_is_held(ht))
 
@@ -1316,8 +1380,9 @@ static inline int test_and_change_bit(int nr, unsigned long *addr){
 static inline const int generic_fls(unsigned int x){
 	int r = 32;
 
-	if (!x)
+	if (!x){
 		return 0;
+	}
 	if (!(x & 0xffff0000u)) {
 		x <<= 16;
 		r -= 16;
@@ -1344,12 +1409,12 @@ static inline const int generic_fls(unsigned int x){
 static inline unsigned int generic___fls(unsigned long word){
 	unsigned int num = BITS_PER_LONG - 1;
 
-#if BITS_PER_LONG == 64
+	#if BITS_PER_LONG == 64
 	if (!(word & (~0ul << 32))) {
 		num -= 32;
 		word <<= 32;
 	}
-#endif
+	#endif
 	if (!(word & (~0ul << (BITS_PER_LONG-16)))) {
 		num -= 16;
 		word <<= 16;
@@ -1562,11 +1627,15 @@ static inline void put_unaligned_le64(u64 val, void *p){
 }
 
 static inline int lockdep_rht_mutex_is_held(struct rhashtable *ht){
-	return 1;
+	int ret = true;
+
+	return ret;
 }
 
 static inline int lockdep_rht_bucket_is_held(const struct bucket_table *tbl, u32 hash){
-	return 1;
+	int ret = true;
+
+	return ret;
 }
 
 static inline bool strstarts(const char *str, const char *prefix){
@@ -1628,12 +1697,13 @@ static inline struct timespec timespec_add_ms(struct timespec t, unsigned long m
 
 static inline unsigned int __ffs(unsigned long word){
 	unsigned int num = 0;
-#if BITS_PER_LONG == 64
+
+	#if BITS_PER_LONG == 64
 	if ((word & 0xffffffff) == 0) {
 		num += 32;
 		word >>= 32;
 	}
-#endif
+	#endif
 	if ((word & 0xffff) == 0) {
 		num += 16;
 		word >>= 16;
@@ -1672,7 +1742,9 @@ static unsigned long read_word_at_a_time(const void *addr){
 }
 
 static inline unsigned long has_zero(unsigned long a, unsigned long *bits, const struct word_at_a_time *c){
-	unsigned long mask = ((a - c->one_bits) & ~a) & c->high_bits;
+	unsigned long mask = 0;
+
+	mask = ((a - c->one_bits) & ~a) & c->high_bits;
 	*bits = mask;
 	return mask;
 }
@@ -1690,8 +1762,8 @@ static unsigned long zero_bytemask(unsigned long bits);
 
 static ssize_t exsul_sized_strscpy(char *dest, const char *src, size_t count){
 	int ret = 0;
+	int max = 0;
 	long res = 0;
-	size_t max = 0;
 	const struct word_at_a_time constants = WORD_AT_A_TIME_CONSTANTS;
 
 	max = count;
@@ -1708,27 +1780,27 @@ static ssize_t exsul_sized_strscpy(char *dest, const char *src, size_t count){
         }
 
         while (max >= sizeof(unsigned long)) {
-                unsigned long c                         = 0;
-                unsigned long data                      = 0;
+                unsigned long c = 0;
+                unsigned long data = 0;
 
-                c                                       = read_word_at_a_time(src+res);
+                c  = read_word_at_a_time(src+res);
                 if (has_zero(c, &data, &constants)) {
-                        data                            = prep_zero_mask(c, data, &constants);
-                        data                            = create_zero_mask(data);
-                        *(unsigned long *)(dest+res)    = c & zero_bytemask(data);
+                        data = prep_zero_mask(c, data, &constants);
+                        data = create_zero_mask(data);
+                        *(unsigned long *)(dest + res) = c & zero_bytemask(data);
                         return res + find_zero(data);
                 }
-                *(unsigned long *)(dest+res)            = c;
-                res                                    += sizeof(unsigned long);
-                count                                  -= sizeof(unsigned long);
-                max                                    -= sizeof(unsigned long);
+                *(unsigned long *)(dest + res) = c;
+                res += sizeof(unsigned long);
+                count -= sizeof(unsigned long);
+                max -= sizeof(unsigned long);
         }
 
         while (count) {
-                char c                                  = 0;
+                char c = 0;
 
-                c                                       = src[res];
-                dest[res]                               = c;
+                c = src[res];
+                dest[res] = c;
 
                 if (! ( c ) ){
                         return res;
@@ -1739,7 +1811,7 @@ static ssize_t exsul_sized_strscpy(char *dest, const char *src, size_t count){
         }
 
         if (res){
-                dest[res-1]                             = '\0';
+                dest[res-1] = '\0';
         }
 
         ret = -E2BIG;
@@ -1768,12 +1840,13 @@ static inline int futex_wait_timeout(atomic_int *addr, int expected, struct time
 	WakeByAddressAll(addr);
 	return expected;
 	#else
-	return (int)syscall(SYS_futex, (int *)addr, FUTEX_WAIT, expected, rel_timeout, NULL, 0);
+	return syscall(SYS_futex, (int *)addr, FUTEX_WAIT, expected, rel_timeout, NULL, 0);
 	#endif
 }
 
 static bool is_a_number(unsigned char character){
 	bool ret = false;
+
 	if(character >= '0' && character <= '9'){
 		ret = true;
 	}
@@ -1851,6 +1924,8 @@ static struct allocation_list *add_memory_zone(struct allocation_list *current_a
 static void dump_memory_allocation_list(struct allocation_list *head){
 	int counter = 0;
 	int total_bytes_used = 0;
+
+	#ifdef ENABLE_DBG_PRINT
 	if(head != NULL){
 		while(head != NULL){
 			printf("memory area: %d\n", counter);
@@ -1863,6 +1938,7 @@ static void dump_memory_allocation_list(struct allocation_list *head){
 		}
 	}
 	printf("[*] actually used %d bytes\n", total_bytes_used);
+	#endif
 }
 
 /* high level function which adds an allocation node to the main context */

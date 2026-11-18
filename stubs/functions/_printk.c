@@ -2,7 +2,7 @@ int _printk(const char *fmt, ...){
 	int ret = 0;
 	va_list ap;
 
-	if(fmt[0] == '6' || fmt[1] == '6'){
+	if(fmt != NULL && fmt[0] == '\001' && fmt[1] >= '0' && fmt[1] <= '7'){
 		fmt += 2;
 	}
 	va_start(ap, fmt);

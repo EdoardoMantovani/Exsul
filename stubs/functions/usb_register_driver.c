@@ -21,6 +21,8 @@ int usb_register_driver(struct usb_driver *new_driver, struct module *owner, con
 		return ret;
 	}
 
+	director.bound_usb_driver = new_driver;
+
 	/*
 	 * Steps for running the usb driver:
 	 * 1) read the symbol '__mod_device_table__usb__' and get the usb pid/vid table
@@ -35,7 +37,6 @@ int usb_register_driver(struct usb_driver *new_driver, struct module *owner, con
 	}else{
 		director.usb_device_id = id;
 	}
-
 	usb_interface:
 	ret = detect_usb_device(id, &intf, &matched_id);
 	if(ret || intf == NULL || matched_id == NULL){

@@ -6,6 +6,5 @@ struct sk_buff *hci_cmd_sync(struct hci_dev *hdev, u16 opcode, u32 plen, const v
 	}
 
 	skb = __hci_cmd_sync(hdev, opcode, plen, param, timeout);
-
 	return skb;
 }

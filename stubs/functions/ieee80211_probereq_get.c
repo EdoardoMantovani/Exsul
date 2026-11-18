@@ -7,13 +7,12 @@ struct sk_buff *ieee80211_probereq_get(struct ieee80211_hw *hw, u8 *src_addr, u8
 
 	local = director.ieee80211_local;
 	ie_ssid_len = 2 + ssid_len;
-
-	skb = dev_alloc_skb(local->hw.extra_tx_headroom + sizeof(*hdr) + ie_ssid_len + tailroom);
+	skb = dev_alloc_skb(hw->extra_tx_headroom + sizeof(*hdr) + ie_ssid_len + tailroom);
 	if (skb == NULL){
 		return NULL;
 	}
 
-	skb_reserve(skb, local->hw.extra_tx_headroom);
+	skb_reserve(skb, hw->extra_tx_headroom);
 
 	hdr = skb_put_zero(skb, sizeof(*hdr));
 	hdr->frame_control = cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_PROBE_REQ);
@@ -28,6 +27,5 @@ struct sk_buff *ieee80211_probereq_get(struct ieee80211_hw *hw, u8 *src_addr, u8
 		memcpy(pos, ssid, ssid_len);
 	}
 	pos += ssid_len;
-
 	return skb;
 }

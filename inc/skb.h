@@ -771,10 +771,10 @@ struct ubuf_info {
  * the end of the header data, ie. at skb->end.
  */
 struct skb_shared_info {
-	__u8		flags; /* in older versions is called '__unused' */
-	__u8		meta_len;
-	__u8		nr_frags;
-	__u8		tx_flags;
+	__u8 flags; /* in older versions is called '__unused' */
+	__u8 meta_len;
+	__u8 nr_frags;
+	__u8 tx_flags;
 	unsigned short	gso_size;
 	/* Warning: this field is not always filled in (UFO)! */
 	unsigned short	gso_segs;
@@ -784,28 +784,28 @@ struct skb_shared_info {
 		struct xsk_tx_metadata_compl xsk_meta;
 	};
 
-	unsigned int	gso_type;
-	u32		tskey;
+	unsigned int gso_type;
+	u32 tskey;
 
 	/*
 	 * Warning : all fields before dataref are cleared in __alloc_skb()
 	 */
-	atomic_int	dataref;
+	atomic_int dataref;
 	union {
 		struct {
-			u32		xdp_frags_size;
-			u32		xdp_frags_truesize;
+			u32 xdp_frags_size;
+			u32 xdp_frags_truesize;
 		};
 
 		/*
 		 * Intermediate layers must ensure that destructor_arg
 		 * remains valid until skb destructor.
 		 */
-		void		*destructor_arg;
+		void *destructor_arg;
 	};
 
 	/* must be last field, see pskb_expand_head() */
-	skb_frag_t	frags[MAX_SKB_FRAGS];
+	skb_frag_t frags[MAX_SKB_FRAGS];
 };
 
 struct sk_buff_head {
@@ -954,7 +954,10 @@ static inline int __pskb_trim(struct sk_buff *skb, unsigned int len){
  *	buffer.
  */
 static inline int skb_shared(const struct sk_buff *skb){
-	return refcount_read(&skb->users) != 1;
+	int ret = 0;
+
+	ret = refcount_read(&skb->users) != 1;
+	return ret;
 }
 
 /*
@@ -980,7 +983,10 @@ static inline int skb_alloc_rx_flag(const struct sk_buff *skb){
  * @frag: skb fragment
  */
 static inline unsigned int skb_frag_size(const skb_frag_t *frag){
-	return frag->len;
+	int ret = 0;
+
+	ret = frag->len;
+	return ret;
 }
 
 /*
@@ -1015,7 +1021,10 @@ static inline void skb_frag_size_sub(skb_frag_t *frag, int delta){
  * @frag: the paged fragment
  */
 static inline unsigned int skb_frag_off(const skb_frag_t *frag){
-	return frag->offset;
+	int ret = 0;
+
+	ret = frag->offset;
+	return ret;
 }
 
 /*
@@ -1204,20 +1213,9 @@ static void skb_kfree_head(void *head, unsigned int end_offset){
 }
 
 static void skb_free_head(struct sk_buff *skb){
-	unsigned char *head = NULL;
-
-	head = skb->head;
-	/* for now don't implement this code */
-	#if 0
-	if (skb->head_frag) {
-		if (skb_pp_recycle(skb, head)){
-			return;
-		}
-		skb_free_frag(head);
-	} else {
-		skb_kfree_head(head, skb_end_offset(skb));
+	if(skb->head_frag == NULL){
+		free(skb->head);
 	}
-	#endif
 }
 
 /*
@@ -1253,8 +1251,9 @@ static inline struct sk_buff *skb_peek_next(struct sk_buff *skb, const struct sk
  *	volatile. Use with caution.
  */
 static inline struct sk_buff *skb_peek_tail(const struct sk_buff_head *list_){
-	struct sk_buff *skb = READ_ONCE(list_->prev);
+	struct sk_buff *skb = NULL;
 
+	skb = READ_ONCE(list_->prev);
 	if (skb == (struct sk_buff *)list_){
 		skb = NULL;
 	}
@@ -1361,7 +1360,10 @@ static inline bool skb_is_nonlinear(const struct sk_buff *skb){
 }
 
 static inline unsigned int skb_headlen(const struct sk_buff *skb){
-        return skb->len - skb->data_len;
+	int ret = 0;
+
+	ret = skb->len - skb->data_len;
+	return ret;
 }
 
 static inline void skb_list_del_init(struct sk_buff *skb){
@@ -1376,11 +1378,17 @@ static inline void skb_list_del_init(struct sk_buff *skb){
  *	Return the number of bytes of free space at the head of an &sk_buff.
  */
 static inline unsigned int skb_headroom(const struct sk_buff *skb){
-	return skb->data - skb->head;
+	int ret = 0;
+
+	ret = skb->data - skb->head;
+	return ret;
 }
 
 static inline int skb_checksum_start_offset(const struct sk_buff *skb){
-	return skb->csum_start - skb_headroom(skb);
+	int ret = 0;
+
+	ret = skb->csum_start - skb_headroom(skb);
+	return ret;
 }
 
 static inline unsigned char *skb_checksum_start(const struct sk_buff *skb){
@@ -1394,7 +1402,10 @@ static inline unsigned char *skb_checksum_start(const struct sk_buff *skb){
  *	Return the number of bytes of free space at the tail of an sk_buff
  */
 static inline int skb_tailroom(const struct sk_buff *skb){
-	return skb_is_nonlinear(skb) ? 0 : skb->end - skb->tail;
+	int ret = 0;
+
+	ret = skb_is_nonlinear(skb) ? 0 : skb->end - skb->tail;
+	return ret;
 }
 
 /*
@@ -1455,6 +1466,7 @@ static inline void __skb_queue_tail(struct sk_buff_head *list, struct sk_buff *n
 static inline void __skb_unlink(struct sk_buff *skb, struct sk_buff_head *list){
 	struct sk_buff *next = ((struct sk_buff_list *)skb)->next;
 	struct sk_buff *prev = ((struct sk_buff_list *)skb)->prev;
+
 	((struct sk_buff_list *)skb)->next = NULL;
 	((struct sk_buff_list *)skb)->prev = NULL;
 	WRITE_ONCE(((struct sk_buff_list *)next)->prev, prev);
@@ -1463,8 +1475,9 @@ static inline void __skb_unlink(struct sk_buff *skb, struct sk_buff_head *list){
 }
 
 static inline struct sk_buff *__skb_dequeue(struct sk_buff_head *list){
-	struct sk_buff *skb = list->next;
+	struct sk_buff *skb = NULL;
 
+	skb = list->next;
 	if (skb == (struct sk_buff *)list){
 		return NULL;
 	}
@@ -1473,8 +1486,9 @@ static inline struct sk_buff *__skb_dequeue(struct sk_buff_head *list){
 }
 
 static inline struct sk_buff *__skb_dequeue_tail(struct sk_buff_head *list){
-	struct sk_buff *skb = list->prev;
+	struct sk_buff *skb = NULL;
 
+	skb = list->prev;
 	if (skb == (struct sk_buff *)list){
 		return NULL;
 	}
@@ -1530,7 +1544,6 @@ static inline bool __sk_skb_reason_drop(struct sock *sk, struct sk_buff *skb, in
         if (unlikely(!skb_unref(skb))){
                 return false;
         }
-
         return true;
 }
 
@@ -1642,9 +1655,9 @@ static inline void __skb_ext_copy(struct sk_buff *dst, const struct sk_buff *src
 }
 
 static void __copy_skb_header(struct sk_buff *new, const struct sk_buff *old){
-	new->tstamp		= old->tstamp;
+	new->tstamp = old->tstamp;
 	/* We do not copy old->sk */
-	new->dev		= old->dev;
+	new->dev = old->dev;
 
 	/* Note : this field could be in the headers group.
 	 * It is not yet because we do not want to have a 16 bit hole
@@ -1671,19 +1684,19 @@ static void __copy_skb_header(struct sk_buff *new, const struct sk_buff *old){
 	CHECK_SKB_FIELD(inner_network_header);
 	CHECK_SKB_FIELD(inner_mac_header);
 	CHECK_SKB_FIELD(mark);
-#ifdef CONFIG_NETWORK_SECMARK
+	#ifdef CONFIG_NETWORK_SECMARK
 	CHECK_SKB_FIELD(secmark);
-#endif
-#ifdef CONFIG_NET_RX_BUSY_POLL
+	#endif
+	#ifdef CONFIG_NET_RX_BUSY_POLL
 	CHECK_SKB_FIELD(napi_id);
-#endif
+	#endif
 	CHECK_SKB_FIELD(alloc_cpu);
-#ifdef CONFIG_XPS
+	#ifdef CONFIG_XPS
 	CHECK_SKB_FIELD(sender_cpu);
-#endif
-#ifdef CONFIG_NET_SCHED
+	#endif
+	#ifdef CONFIG_NET_SCHED
 	CHECK_SKB_FIELD(tc_index);
-#endif
+	#endif
 }
 
 /*
@@ -1740,7 +1753,10 @@ static inline void skb_reset_inner_headers(struct sk_buff *skb){
 }
 
 static inline int skb_mac_header_was_set(const struct sk_buff *skb){
-	return skb->mac_header != 0;
+	int ret = 0;
+
+	ret = skb->mac_header != 0;
+	return ret;
 }
 
 static inline unsigned char *skb_transport_header(const struct sk_buff *skb){
@@ -1752,9 +1768,11 @@ static inline struct udphdr *udp_hdr(const struct sk_buff *skb){
 }
 
 static inline void __skb_queue_splice(const struct sk_buff_head *list, struct sk_buff *prev, struct sk_buff *next){
-	struct sk_buff *first = skb_list_next(list);
-	struct sk_buff *last = skb_list_prev(list);
+	struct sk_buff *first = NULL;
+	struct sk_buff *last = NULL;
 
+	first = skb_list_next(list);
+	last = skb_list_prev(list);
 	WRITE_ONCE(skb_list_prev(first), prev);
 	WRITE_ONCE(skb_list_next(prev), first);
 	WRITE_ONCE(skb_list_next(last), next);
@@ -1814,7 +1832,9 @@ static inline void skb_queue_purge(struct sk_buff_head *list){
 }
 
 static inline struct ubuf_info *skb_zcopy(struct sk_buff *skb){
-	bool is_zcopy = skb && skb_shinfo(skb)->flags & SKBFL_ZEROCOPY_ENABLE;
+	bool is_zcopy = false;
+
+	is_zcopy = skb && skb_shinfo(skb)->flags & SKBFL_ZEROCOPY_ENABLE;
 	return is_zcopy ? skb_uarg(skb) : NULL;
 }
 
@@ -1846,7 +1866,7 @@ static inline void skb_zcopy_init(struct sk_buff *skb, struct ubuf_info *uarg){
 }
 
 static inline void skb_zcopy_set(struct sk_buff *skb, struct ubuf_info *uarg, bool *have_ref){
-	if (skb && uarg && !skb_zcopy(skb)) {
+	if (skb != NULL && uarg != NULL && !skb_zcopy(skb)) {
 		if (unlikely(have_ref && *have_ref)){
 			*have_ref = false;
 		}else{
@@ -1858,6 +1878,7 @@ static inline void skb_zcopy_set(struct sk_buff *skb, struct ubuf_info *uarg, bo
 
 static int skb_zerocopy_clone(struct sk_buff *nskb, struct sk_buff *orig, int gfp_mask){
 	int ret = 0;
+
 	if (skb_zcopy(orig)) {
 		if (skb_zcopy(nskb)) {
 			if (skb_uarg(nskb) == skb_uarg(orig)){
@@ -1870,7 +1891,7 @@ static int skb_zerocopy_clone(struct sk_buff *nskb, struct sk_buff *orig, int gf
 		}
 		skb_zcopy_set(nskb, skb_uarg(orig), NULL);
 	}
-	return 0;
+	return ret;
 }
 
 /* Release a reference on a zerocopy structure */
@@ -1898,7 +1919,7 @@ static inline void skb_orphan(struct sk_buff *skb){
 		destructor = skb->destructor;
 		destructor(skb);
 		skb->destructor = NULL;
-		skb->sk		= NULL;
+		skb->sk	= NULL;
 	}
 }
 
@@ -1912,21 +1933,27 @@ static inline void skb_orphan(struct sk_buff *skb){
  *	page by calling the destructor.
  */
 static inline int skb_orphan_frags(struct sk_buff *skb, int gfp_mask){
+	int ret = 0;
+
 	if (likely(!skb_zcopy(skb))){
-		return 0;
+		return ret;
 	}
 	if (skb_shinfo(skb)->flags & SKBFL_DONT_ORPHAN){
-		return 0;
+		return ret;
 	}
-	return skb_copy_ubufs(skb, gfp_mask);
+	ret = skb_copy_ubufs(skb, gfp_mask);
+	return ret;
 }
 
 /* Frags must be orphaned, even if refcounted, if skb might loop to rx path */
 static inline int skb_orphan_frags_rx(struct sk_buff *skb, int gfp_mask){
+	int ret = 0;
+
 	if (likely(!skb_zcopy(skb))){
-		return 0;
+		return ret;
 	}
-	return skb_copy_ubufs(skb, gfp_mask);
+	ret = skb_copy_ubufs(skb, gfp_mask);
+	return ret;
 }
 
 /*
@@ -1996,7 +2023,6 @@ static inline void __finalize_skb_around(struct sk_buff *skb, void *data, unsign
 	struct skb_shared_info *shinfo = NULL;
 
 	size -= SKB_DATA_ALIGN(sizeof(struct skb_shared_info));
-
 	/* Assumes caller memset cleared SKB */
 	skb->truesize = SKB_TRUESIZE(size);
 	refcount_set(&skb->users, 1);
@@ -2015,8 +2041,9 @@ static inline void __finalize_skb_around(struct sk_buff *skb, void *data, unsign
 
 /* Caller must provide SKB that is memset cleared */
 static void __build_skb_around(struct sk_buff *skb, void *data, unsigned int frag_size){
-	unsigned int size = frag_size;
+	unsigned int size = 0;
 
+	size = frag_size;
 	/* frag_size == 0 is considered deprecated now. Callers
 	 * using slab buffer should use slab_build_skb() instead.
 	 */
@@ -2057,18 +2084,21 @@ static inline unsigned short csum_from32to16(unsigned int sum){
 
 static unsigned int do_csum(const unsigned char *buff, int len){
 	int odd = 0;
+	unsigned int w = 0;
+	unsigned int carry = 0;
 	unsigned int result = 0;
+	unsigned char *end = NULL;
 
 	if (len <= 0){
 		goto out;
 	}
 	odd = 1 & (unsigned long) buff;
 	if (odd) {
-#if __BYTE_ORDER == __LITTLE_ENDIAN
+		#if __BYTE_ORDER == __LITTLE_ENDIAN
 		result += (*buff << 8);
-#else
+		#else
 		result = *buff;
-#endif
+		#endif
 		len--;
 		buff++;
 	}
@@ -2079,10 +2109,10 @@ static unsigned int do_csum(const unsigned char *buff, int len){
 			buff += 2;
 		}
 		if (len >= 4) {
-			const unsigned char *end = buff + ((unsigned)len & ~3);
-			unsigned int carry = 0;
+			end = buff + ((unsigned)len & ~3);
+			carry = 0;
 			do {
-				unsigned int w = *(unsigned int *) buff;
+				w = *(unsigned int *) buff;
 				buff += 4;
 				result += carry;
 				result += w;
@@ -2097,15 +2127,16 @@ static unsigned int do_csum(const unsigned char *buff, int len){
 		}
 	}
 	if (len & 1)
-#if __BYTE_ORDER == __LITTLE_ENDIAN
+		#if __BYTE_ORDER == __LITTLE_ENDIAN
 		result += *buff;
-#else
+		#else
 		result += (*buff << 8);
-#endif
+		#endif
 	result = csum_from32to16(result);
-	if (odd)
+	if (odd){
 		result = ((result >> 8) & 0xff) | ((result & 0xff) << 8);
-out:
+	}
+	out:
 	return result;
 }
 
@@ -2119,13 +2150,14 @@ out:
  * Also ensure that inner checksum is in linear data area.
  */
 static inline __wsum lco_csum(struct sk_buff *skb){
-	unsigned char *csum_start = skb_checksum_start(skb);
-	unsigned char *l4_hdr = skb_transport_header(skb);
 	__wsum partial = 0;
+	unsigned char *l4_hdr = NULL;
+	unsigned char *csum_start = NULL;
 
+	csum_start = skb_checksum_start(skb);
+	l4_hdr = skb_transport_header(skb);
 	/* Start with complement of inner checksum adjustment */
-	partial = ~csum_unfold(*(__force __sum16 *)(csum_start +
-						    skb->csum_offset));
+	partial = ~csum_unfold(*(__force __sum16 *)(csum_start + skb->csum_offset));
 
 	/* Add in checksum of our headers (incl. outer checksum
 	 * adjustment filled in by caller) and return result.

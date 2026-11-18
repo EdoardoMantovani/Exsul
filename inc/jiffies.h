@@ -44,7 +44,6 @@ static unsigned long round_jiffies_common(unsigned long j, int cpu, bool force_u
 	j += cpu * 3;
 
 	rem = j % HZ;
-
 	/*
 	 * If the target jiffy is just after a whole second (which can happen
 	 * due to delays of the timer irq, long irq off times etc etc) then
@@ -72,6 +71,7 @@ static unsigned long round_jiffies_common(unsigned long j, int cpu, bool force_u
 }
 
 static inline unsigned long msecs_to_jiffies(const unsigned int m){
+
 	if (__builtin_constant_p(m)) {
 		if (m < 0){
 			return MAX_JIFFY_OFFSET;
@@ -82,22 +82,20 @@ static inline unsigned long msecs_to_jiffies(const unsigned int m){
 	}
 }
 
-/* timers related functions */
 static void *timer_thread_fn(void *arg){
 	long long fire_ns = 0;
 	long long elapsed_ns = 0;
-
-	struct timespec now = {};
 	struct timespec ts = {};
-        struct timer_list *first = NULL;
-        void (*fn)(struct timer_list *) = NULL;
+	struct timespec now = {};
 	struct hlist_node *next = NULL;
+	struct timer_list *first = NULL;
 	struct hlist_node **pprev = NULL;
+	void (*fn)(struct timer_list *) = NULL;
 
 	/* timer callbacks run driver code with GS-relative per-CPU accesses */
 	setup_percpu();
 	pthread_mutex_lock(&director.timer_lock);
-	for (;;) {
+	while (!director.timer_stopping) {
 		if (director.timer_head.first == NULL) {
 			pthread_cond_wait(&director.timer_cond, &director.timer_lock);
 			continue;
@@ -111,13 +109,16 @@ static void *timer_thread_fn(void *arg){
 			ts.tv_nsec -= 1000000000L;
 		}
 		pthread_cond_timedwait(&director.timer_cond, &director.timer_lock, &ts);
+		if(director.timer_stopping){
+			break;
+		}
 
 		clock_gettime(CLOCK_REALTIME, &now);
 		elapsed_ns = (now.tv_sec  - director.timer_base.tv_sec)  * 1000000000LL + (now.tv_nsec - director.timer_base.tv_nsec);
 		/* update jiffies */
 		director.jiffies = (u64)((unsigned long long)elapsed_ns / TIMER_NSEC_PER_JIFFY);
 
-		while (director.timer_head.first != NULL) {
+		while (!director.timer_stopping && director.timer_head.first != NULL) {
 			first = container_of(director.timer_head.first, struct timer_list, entry);
 			if ((long)(first->expires - (unsigned long)director.jiffies) > 0){
 				break;
@@ -143,12 +144,37 @@ static void *timer_thread_fn(void *arg){
 		}
 	}
 	pthread_mutex_unlock(&director.timer_lock);
+	cleanup_percpu(NULL);
 	return NULL;
 }
 
-/* the mechanics of timers are really similar to the workqueues, there is a global list
- * where timers are added and invoked at a specific time
- */
+static void timer_subsystem_shutdown(void){
+	struct hlist_node *next = NULL;
+	struct timer_list *timer = NULL;
+
+	pthread_mutex_lock(&director.timer_lock);
+	director.timer_stopping = true;
+	pthread_cond_broadcast(&director.timer_cond);
+	pthread_mutex_unlock(&director.timer_lock);
+	if(director.timer_thread != 0){
+		pthread_join(director.timer_thread, NULL);
+		director.timer_thread = 0;
+	}
+	/* Unlink while timer owners are still alive; disconnect may delete them. */
+	pthread_mutex_lock(&director.timer_lock);
+	while(director.timer_head.first != NULL){
+		timer = container_of(director.timer_head.first, struct timer_list, entry);
+		next = timer->entry.next;
+		director.timer_head.first = next;
+		if(next != NULL){
+			next->pprev = &director.timer_head.first;
+		}
+		timer->entry.next = NULL;
+		timer->entry.pprev = NULL;
+	}
+	pthread_mutex_unlock(&director.timer_lock);
+}
+
 static void timer_thread_init(void){
 	pthread_attr_t attr;
 
@@ -158,7 +184,7 @@ static void timer_thread_init(void){
 	pthread_attr_destroy(&attr);
 }
 
-/* delete expired timers and enqueue a (new) timer */
+/* __enqueue_timer: delete expired timers and enqueue a (new) timer */
 static void __enqueue_timer(struct timer_list *timer){
 	struct timer_list *t = NULL;
 	struct hlist_node **pprev = NULL;
@@ -176,7 +202,7 @@ static void __enqueue_timer(struct timer_list *timer){
 		curr  = curr->next;
 	}
 
-	timer->entry.next  = curr;
+	timer->entry.next = curr;
 	timer->entry.pprev = pprev;
 	if (curr != NULL){
 		curr->pprev = &timer->entry.next;

@@ -14,6 +14,5 @@ struct sk_buff *alloc_skb_for_msg(struct sk_buff *first){
 
 	__copy_skb_header(n, first);
 	n->destructor = NULL;
-
 	return n;
 }

@@ -19,7 +19,7 @@ struct sk_buff *ieee80211_nullfunc_get(struct ieee80211_hw *hw, struct ieee80211
 
 	local = director.ieee80211_local;
 	if (local != NULL){
-		extra_tx_headroom = local->hw.extra_tx_headroom;
+		extra_tx_headroom = hw->extra_tx_headroom;
 		sdata = connection_find_sdata(local, ieee80211_vif);
 		if (sdata == NULL){
 			sdata = local->sdata;

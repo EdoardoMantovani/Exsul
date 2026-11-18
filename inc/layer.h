@@ -53,10 +53,12 @@
 #include <unistd.h>
 #include <stdatomic.h>
 #include <netinet/ether.h>
+#ifndef EXSUL_NO_DWARF
 #include <dwarf.h>
+#include <libdwarf/libdwarf.h>
+#endif
 #include <sys/un.h>
 #include <sys/socket.h>
-#include <libdwarf/libdwarf.h>
 #ifdef ENABLE_UNWIND_DEBUGGING
 #include <libunwind.h>
 #endif
@@ -98,8 +100,10 @@
 #include <asm-generic/errno-base.h>
 #include <asm-generic/errno.h>
 #include <asm-generic/param.h>
+#ifndef EXSUL_NO_DWARF
 #include <dwarf.h>
 #include <libdwarf/libdwarf.h>
+#endif
 
 #include <libusb-1.0/libusb.h>
 
@@ -130,6 +134,9 @@ typedef volatile LONG	   pthread_once_t;
 typedef void (*pthread_once_fn)(void);
 
 #define PTHREAD_ONCE_INIT  0
+#ifndef SIGKILL
+#define SIGKILL 9
+#endif
 /* for windows also '_UL' and '_ULL' needs to be defined... */
 #ifdef __ASSEMBLY__
 #define _AC(X,Y)        X
@@ -147,7 +154,6 @@ typedef void (*pthread_once_fn)(void);
 #define ULL(x) (_ULL(x))
 #define BIT(nr) (UL(1) << (nr))
 #define BIT_ULL(nr) (ULL(1) << (nr))
-
 
 #define BIT_MASK(nr) (UL(1) << ((nr) % BITS_PER_LONG))
 #define BIT_WORD(nr) ((nr) / BITS_PER_LONG)
@@ -234,7 +240,7 @@ typedef _Atomic(unsigned int) atomic_uint;
 #define EXSUL_MAX_SCAN_RESULTS		128
 #define EXSUL_MAX_SCAN_SSID_LEN		32
 
-/* array size of the module memory allocated by the functions 'kmem_xxx' */
+/* fixed capacity for device-managed (devm_*) allocations only */
 #define MAX_KMEM_ARRAY_SIZE		36
 
 /* define the number of maximun lkm which can be loaded in memory for one istance of this application */
@@ -280,13 +286,20 @@ typedef _Atomic(unsigned int) atomic_uint;
 #define SOCKET_PATH			"/tmp/exsul_socket"
 
 /* size of the socket buffer sent from a client to the ipc server initialized by the standalone ELF */
-#define BUFF_SIZE			1024 * 32 * 4
+#define BUFF_SIZE			1024 * 512
 
 /* maximun socket connections that can be accepted by the standalone ELF */
 #define MAXIMUN_SOCKET_CONNECTIONS	2
 
 /* maximun scan interval (default to 10 seconds) */
 #define WIFI_SCAN_THREAD_INTERVAL       (10 * USEC_PER_SEC)
+
+#define USB_TRANSFER_POOL_SIZE 		128
+#define USB_TRANSFER_PREALLOC		64
+#define USB_ACTIVE_TRANSFER_MAX		2048
+#define USB_EVENT_WAIT_USEC		10000
+
+#define MAX_TCC_RUNTIME_CONTEXTS	4
 
 /* include here the errno.h header data */
 #define ERESTARTSYS             512
@@ -376,7 +389,7 @@ typedef _Atomic(unsigned int) atomic_uint;
 #define MAX_DRIVER_TO_USERSPACE_IO_SIZE	256
 #define MAX_USERSPACE_TO_DRIVER_IO_SIZE	256
 
-/* macro used for getting the current 'task_struct' */
+/* macro used for getting the current '__task_struct' */
 #define current (current_thread_info())
 
 /* macros used for waking up a task */
@@ -396,6 +409,8 @@ typedef _Atomic(unsigned int) atomic_uint;
 #define crc32_le_arch			crc32_le_base
 #define crc32_be_arch			crc32_be_base
 #define crc32c_arch			crc32c_base
+
+#define spinlock_t			pthread_mutex_t
 
 /* sections for the crashdump */
 enum {
@@ -776,9 +791,9 @@ struct swait_queue_head {
 	struct list_head	task_list;
 };
 
-/* custom task_struct, this can be possible to use because the kernel programming style uses those structs as opaque objects */
-struct task_struct {
-	pthread_t tid;			/* pthread id associated with the task_struct, this is used for the coordination between the pthread and the kthread_xx API */
+/* custom __task_struct, this can be possible to use because the kernel programming style uses those structs as opaque objects */
+struct __task_struct {
+	pthread_t tid;			/* pthread id associated with the __task_struct, this is used for the coordination between the pthread and the kthread_xx API */
 	pthread_mutex_t lock;		/* lock variable used for concurrency */
 	pthread_cond_t  cond;		/* condition variable used for the thread synchronization */
 
@@ -1137,6 +1152,8 @@ extern struct module_controller director;
 
 /* taken from 'https://github.com/m-labs/uclibc-lm32/blob/master/utils/mmap-windows.c' */
 static void *mmap(void *start, size_t length, int prot, int flags, int fd, off_t offset){
+	void *ret = NULL;
+
 	if (prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC)){
 		return MAP_FAILED;
 	}
@@ -1187,7 +1204,7 @@ static void *mmap(void *start, size_t length, int prot, int flags, int fd, off_t
 	if (flags & MAP_PRIVATE){
 		dwDesiredAccess |= FILE_MAP_COPY;
 	}
-	void *ret = MapViewOfFile(h, dwDesiredAccess, DWORD_HI(offset), DWORD_LO(offset), length);
+	ret = MapViewOfFile(h, dwDesiredAccess, DWORD_HI(offset), DWORD_LO(offset), length);
 	if (ret == NULL) {
 		CloseHandle(h);
 		ret = MAP_FAILED;
@@ -1197,26 +1214,26 @@ static void *mmap(void *start, size_t length, int prot, int flags, int fd, off_t
 
 static int munmap(void *addr, size_t length){
 	int ret = 0;
+
 	if (addr == NULL || addr == MAP_FAILED) {
 		ret = EINVAL;
 		return ret;
 	}
-
 	if (VirtualFree(addr, 0, MEM_RELEASE) == NULL) {
 		ret = EINVAL;
 		return ret;
 	}
-
 	return ret;
 }
 
 static inline int getrandom(void *buf, int len, int unused) {
 	int ret = 0;
+
 	if (BCryptGenRandom(NULL, (PUCHAR)buf, (ULONG)len, BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0) {
 		ret = -EINVAL;
 		return ret;
 	}
-	return (int)len;
+	return len;
 }
 
 static inline void usleep(unsigned long usec) {
@@ -1295,8 +1312,11 @@ struct pthread_start {
         void *arg;
 };
 
-static inline void pthread_mutex_init(pthread_mutex_t *mutex, void *unused) {
+static inline int pthread_mutex_init(pthread_mutex_t *mutex, void *unused) {
+	int ret = 0;
+
         InitializeSRWLock(mutex);
+	return ret;
 }
 
 static inline void pthread_mutex_lock(pthread_mutex_t *mutex) {
@@ -1318,8 +1338,9 @@ static inline void pthread_cond_signal(pthread_cond_t *cond) {
 static inline int pthread_cond_wait(pthread_cond_t  *cond, pthread_mutex_t *mutex) {
         int  ret = 0;
         BOOL ok  = false;
-        ok       = SleepConditionVariableSRW(cond, mutex, INFINITE, 0);
-        if (ok) {
+
+	ok = SleepConditionVariableSRW(cond, mutex, INFINITE, 0);
+        if (ok == true) {
                 ret = 0;
         } else {
                 ret = -1;
@@ -1332,7 +1353,7 @@ static inline int pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *
 	BOOL ok = false;
 
 	ok = SleepConditionVariableSRW(cond, mutex, timeout_ms, 0);
-	if (ok){
+	if (ok == true){
 		return ret;
 	}
 	return (GetLastError() == ERROR_TIMEOUT) ? 1 : -1;
@@ -1340,11 +1361,13 @@ static inline int pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *
 
 static int pthread_cond_destroy(pthread_cond_t *cond){
 	int ret = 0;
+
 	return ret;
 }
 
 static int pthread_mutex_destroy(pthread_mutex_t *mutex){
 	int ret = 0;
+
 	return ret;
 }
 
@@ -1356,7 +1379,6 @@ static int pthread_equal(pthread_t t1, pthread_t t2){
 	if (t1 == NULL || t2 == NULL){
 		return ret;
 	}
-
 	id1 = GetThreadId(t1);
 	id2 = GetThreadId(t2);
 	if (id1 == 0 || id2 == 0){
@@ -1367,28 +1389,29 @@ static int pthread_equal(pthread_t t1, pthread_t t2){
 
 static int pthread_condattr_init(pthread_condattr_t *attr){
 	int ret = 0;
+
 	if (attr == NULL) {
 		ret = -EINVAL;
 		return ret;
 	}
-
 	*attr = CLOCK_REALTIME;
 	return ret;
 }
 
 static int pthread_condattr_setclock(pthread_condattr_t *attr, int clock_id){
 	int ret = 0;
+
 	if (attr == NULL || clock_id != CLOCK_MONOTONIC) {
 		ret = -EINVAL;
 		return ret;
 	}
-
 	*attr = clock_id;
 	return ret;
 }
 
 static int pthread_condattr_destroy(pthread_condattr_t *attr){
 	int ret = 0;
+
 	if (attr == NULL) {
 		ret = -EINVAL;
 		return ret;
@@ -1399,33 +1422,33 @@ static int pthread_condattr_destroy(pthread_condattr_t *attr){
 
 static int pthread_cond_broadcast(pthread_cond_t *cond){
 	int ret = 0;
+
 	if (cond == NULL) {
 		ret = -EINVAL;
 		return ret;
 	}
-
 	WakeAllConditionVariable(cond);
 	return ret;
 }
 
 static int pthread_attr_init(pthread_attr_t *attr){
 	int ret = 0;
+
 	if (attr == NULL) {
 		ret = -EINVAL;
 		return ret;
 	}
-
 	*attr = CLOCK_REALTIME;
 	return ret;
 }
 
 static int pthread_attr_destroy(pthread_attr_t *attr){
 	int ret = 0;
+
 	if (attr == NULL) {
 		ret = EINVAL;
 		return ret;
 	}
-
 	*attr = 0;
 	return ret;
 }
@@ -1435,11 +1458,12 @@ static pthread_t pthread_self(void){
 }
 
 static unsigned int pthread_trampoline(void *p) {
-        unsigned int          ret        = 0;
-        struct pthread_start *s          = NULL;
-        void                 *return_val = NULL;
-        s                                = (struct pthread_start *)p;
-        return_val                       = s->fn(s->arg);
+        int ret = 0;
+	void *return_val = NULL;
+        struct pthread_start *s = NULL;
+
+        s = (struct pthread_start *)p;
+        return_val = s->fn(s->arg);
         HeapFree(GetProcessHeap(), 0, s);
         ret = (unsigned)(uintptr_t)return_val;
         return ret;
@@ -1452,10 +1476,10 @@ static BOOL CALLBACK pthread_once_trampoline(PINIT_ONCE once, PVOID param, PVOID
 }
 
 static inline int pthread_create(pthread_t *out, void *attr, void *(*start_routine)(void *), void *arg) {
-        int                   ret = 0;
-        unsigned int          tid = 0;
-        struct pthread_start *s   = NULL;
-        HANDLE                h;
+        int ret = 0;
+        unsigned int tid = 0;
+        struct pthread_start *s = NULL;
+        HANDLE h;
 
         s = (struct pthread_start *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*s));
         if (!s) {
@@ -1477,7 +1501,9 @@ static inline int pthread_create(pthread_t *out, void *attr, void *(*start_routi
 }
 
 static inline int pthread_once(pthread_once_t *once_control, pthread_once_fn init_routine){
-	BOOL ok = InitOnceExecuteOnce(once_control, pthread_once_trampoline, (PVOID)init_routine, NULL);
+	BOOL ok = false;
+
+	ok = InitOnceExecuteOnce(once_control, pthread_once_trampoline, (PVOID)init_routine, NULL);
 	return ok ? 0 : -1;
 }
 
@@ -1485,7 +1511,8 @@ static inline int pthread_join(HANDLE th, DWORD *exit_code_out) {
         int   ret  = 0;
         DWORD code = 0;
         DWORD wr   = 0;
-        wr         = WaitForSingleObject(th, INFINITE);
+
+        wr = WaitForSingleObject(th, INFINITE);
         if (wr != WAIT_OBJECT_0) {
                 ret = -1;
                 return ret;
@@ -1513,7 +1540,6 @@ static inline int pthread_cancel(pthread_t th){
         DWORD wr = 0;
 
         CancelSynchronousIo(th);
-
         QueueUserAPC(__pthread_cancel_apc, th, 0);
 
         wr = WaitForSingleObject(th, 50);
@@ -1538,8 +1564,8 @@ static int clock_gettime_realtime(struct timespec *ts) {
 	int ret = 0;
 	FILETIME ft;
 	ULARGE_INTEGER ui;
-	GetSystemTimePreciseAsFileTime(&ft);
 
+	GetSystemTimePreciseAsFileTime(&ft);
 	ui.LowPart  = ft.dwLowDateTime;
 	ui.HighPart = ft.dwHighDateTime;
 
@@ -1551,8 +1577,8 @@ static int clock_gettime_realtime(struct timespec *ts) {
 
 static int clock_gettime_monotonic(struct timespec *ts) {
 	int ret = 0;
-	LARGE_INTEGER freq;
 	int init = 0;
+	LARGE_INTEGER freq;
 	LARGE_INTEGER now;
 
 	if (!init) {
@@ -1666,9 +1692,11 @@ static inline void list_cut_before(struct list_head *list, struct list_head *hea
 }
 
 static inline void __list_splice(const struct list_head *list, struct list_head *prev, struct list_head *next){
-	struct list_head *first = list->next;
-	struct list_head *last = list->prev;
+	struct list_head *last = NULL;
+	struct list_head *first = NULL;
 
+	first = list->next;
+	last = list->prev;
 	first->prev = prev;
 	prev->next = first;
 
@@ -1684,6 +1712,7 @@ static inline void __list_splice(const struct list_head *list, struct list_head 
  * The list at @list is reinitialised
  */
 static inline void list_splice_init(struct list_head *list, struct list_head *head){
+
 	if (!list_empty(list)) {
 		__list_splice(list, head, head->next);
 		INIT_LIST_HEAD(list);
@@ -1722,9 +1751,11 @@ static inline bool __list_add_valid(struct list_head *new, struct list_head *pre
  */
 static inline bool __list_del_entry_valid(struct list_head *entry){
 	bool ret = true;
-	struct list_head *prev = entry->prev;
-	struct list_head *next = entry->next;
+	struct list_head *prev = NULL;
+	struct list_head *next = NULL;
 
+	prev = entry->prev;
+	next = entry->next;
 	if (likely(prev->next == entry && next->prev == entry)){
 		return ret;
 	}else{
@@ -1861,12 +1892,14 @@ static inline void list_replace(struct list_head *old, struct list_head *new){
  * the prev/next entries already!
  */
 static inline void __list_add_rcu(struct list_head *new, struct list_head *prev, struct list_head *next){
+
 	if (!__list_add_valid(new, prev, next)){
 		return;
 	}
 	new->next = next;
 	new->prev = prev;
 	next->prev = new;
+	WRITE_ONCE(prev->next, new);
 }
 
 /*
@@ -1938,9 +1971,71 @@ static inline void list_add_tail_rcu(struct list_head *new, struct list_head *he
 	__list_add_rcu(new, head->prev, head);
 }
 
-static inline void __refcount_add(int i, refcount_t *r, int *oldp){
-	int old = atomic_fetch_add_explicit(&r->refs, i, memory_order_relaxed);
+/*
+ * hlist_unhashed - Has node been removed from list and reinitialized?
+ * @h: Node to be checked
+ *
+ * Not that not all removal functions will leave a node in unhashed
+ * state.  For example, hlist_nulls_del_init_rcu() does leave the
+ * node in unhashed state, but hlist_nulls_del() does not.
+ */
+static inline int hlist_unhashed(const struct hlist_node *h){
+	return !h->pprev;
+}
 
+static inline void __hlist_del(struct hlist_node *n){
+	struct hlist_node *next = NULL;
+	struct hlist_node **pprev = NULL;
+
+	next = n->next;
+	pprev = n->pprev;
+	*pprev = next;
+	if (next){
+		next->pprev = pprev;
+	}
+}
+
+/*
+ * hlist_del - Delete the specified hlist_node from its list
+ * @n: Node to delete.
+ *
+ * Note that this function leaves the node in hashed state.  Use
+ * hlist_del_init() or similar instead to unhash @n.
+ */
+static inline void hlist_del(struct hlist_node *n){
+	__hlist_del(n);
+	n->next = LIST_POISON1;
+	n->pprev = LIST_POISON2;
+}
+
+/*
+ * hlist_del_rcu - deletes entry from hash list without re-initialization
+ * @n: the element to delete from the hash list.
+ *
+ * Note: list_unhashed() on entry does not return true after this,
+ * the entry is in an undefined state. It is useful for RCU based
+ * lockfree traversal.
+ *
+ * In particular, it means that we can not poison the forward
+ * pointers that may still be used for walking the hash list.
+ *
+ * The caller must take whatever precautions are necessary
+ * (such as holding appropriate locks) to avoid racing
+ * with another list-mutation primitive, such as hlist_add_head_rcu()
+ * or hlist_del_rcu(), running on this same list.
+ * However, it is perfectly legal to run concurrently with
+ * the _rcu list-traversal primitives, such as
+ * hlist_for_each_entry().
+ */
+static inline void hlist_del_rcu(struct hlist_node *n){
+	__hlist_del(n);
+	WRITE_ONCE(n->pprev, LIST_POISON2);
+}
+
+static inline void __refcount_add(int i, refcount_t *r, int *oldp){
+	int old = 0;
+
+	old = atomic_fetch_add_explicit(&r->refs, i, memory_order_relaxed);
 	if (oldp){
 		*oldp = old;
 	}
@@ -1958,7 +2053,6 @@ static inline void __refcount_dec(refcount_t *r, int *oldp){
         int old = 0;
 
         old = atomic_fetch_sub_explicit(&r->refs, 1, memory_order_release);
-
         if (oldp){
                 *oldp = old;
         }
@@ -1968,15 +2062,12 @@ static inline bool __refcount_sub_and_test(int i, refcount_t *r, int *oldp){
 	int old = 0;
 
 	old = atomic_fetch_sub_explicit(&r->refs, i, memory_order_release);
-
 	if (oldp){
 		*oldp = old;
 	}
-
 	if (old > 0 && old == i) {
 		return true;
 	}
-
 	return false;
 }
 
@@ -2024,6 +2115,7 @@ static inline void kref_get(struct kref *kref){
  */
 static inline int kref_put(struct kref *kref, void (*release)(struct kref *kref)){
 	int ret = false;
+
 	if (refcount_dec_and_test(&kref->refcount)) {
 		release(kref);
 		ret = true;
@@ -2134,17 +2226,20 @@ static inline void __rb_change_child(struct rb_node *old, struct rb_node *new, s
  * - old gets assigned new as a parent and 'color' as a color.
  */
 static inline void __rb_rotate_set_parents(struct rb_node *old, struct rb_node *new, struct rb_root *root, int color){
-	struct rb_node *rb_parent = rb_parent(old);
+	struct rb_node *rb_parent = NULL;
+
+	rb_parent = rb_parent(old);
 	new->__rb_parent_color = old->__rb_parent_color;
 	rb_set_parent_color(old, new, color);
 	__rb_change_child(old, new, rb_parent, root);
 }
 
 static inline void __rb_insert(struct rb_node *node, struct rb_root *root, void (*augment_rotate)(struct rb_node *old, struct rb_node *new)){
-	struct rb_node *rb_parent = rb_red_parent(node);
-	struct rb_node *gparent = NULL;
 	struct rb_node *tmp = NULL;
+	struct rb_node *gparent = NULL;
+	struct rb_node *rb_parent = NULL;
 
+	rb_parent = rb_red_parent(node);
 	while (true) {
 		/*
 		 * Loop invariant: node is red.
@@ -2293,14 +2388,17 @@ static void __kobject_del(struct kobject *kobj){
 /* kobject_cleanup - free kobject resources.
  * @kobj: object to cleanup */
 static void kobject_cleanup(struct kobject *kobj){
-	struct kobject *rb_parent = kobj->parent;
-	const struct kobj_type *t = kobj->ktype;
-	const char *name = kobj->name;
+	const char *name = NULL;
+	struct kobject *rb_parent = NULL;
+	const struct kobj_type *t = NULL;
 
+	t = kobj->ktype;
+	rb_parent = kobj->parent;
+	name = kobj->name;
 	/* remove from sysfs if the caller did not do it */
 	if (kobj->state_in_sysfs) {
 		__kobject_del(kobj);
-	} else {
+	}else{
 		/* avoid dropping the parent reference unnecessarily */
 		rb_parent = NULL;
 	}
@@ -2308,17 +2406,17 @@ static void kobject_cleanup(struct kobject *kobj){
 	if (t && t->release != NULL) {
 		t->release(kobj);
 	}
-
 	/* free name if we allocated it */
-	if (name) {
+	if (name != NULL) {
 		kfree_const(name);
 	}
-
 	kobject_put(rb_parent);
 }
 
 static void kobject_release(struct kref *kref){
-	struct kobject *kobj = container_of(kref, struct kobject, kref);
+	struct kobject *kobj = NULL;
+
+	kobj = container_of(kref, struct kobject, kref);
 	kobject_cleanup(kobj);
 }
 
@@ -2345,11 +2443,26 @@ static inline int spin_unlock(pthread_mutex_t *lock){
 	pthread_mutex_unlock(lock);
 }
 
+static inline void waitqueue_lock_init(int32_t *lock){
+	__atomic_store_n(lock, 0, __ATOMIC_RELEASE);
+}
+
+static inline void waitqueue_lock(int32_t *lock){
+	while(__atomic_exchange_n(lock, 1, __ATOMIC_ACQUIRE) != 0){
+		sched_yield();
+	}
+}
+
+static inline void waitqueue_unlock(int32_t *lock){
+	__atomic_store_n(lock, 0, __ATOMIC_RELEASE);
+}
+
 /* wq helpers */
 static inline struct timespec wq_now(struct workqueue_struct *wq){
         struct timespec now = {};
-        clock_gettime(wq->clock_id, &now);
-        return now;
+
+	clock_gettime(wq->clock_id, &now);
+	return now;
 }
 
 static inline bool queue_work(struct workqueue_struct *wq, struct work_struct *work){
@@ -2361,7 +2474,9 @@ static inline long work_encode(struct workqueue_struct *wq, long flags){
 }
 
 static inline struct workqueue_struct *work_wq(struct work_struct *work){
-	long v = atomic_load_explicit(&work->data, memory_order_relaxed);
+	long v = 0;
+
+	v = atomic_load_explicit(&work->data, memory_order_relaxed);
 	return (struct workqueue_struct *)(uintptr_t)(v & ~(long)WORK_STRUCT_FLAG_MASK);
 }
 
@@ -2378,17 +2493,21 @@ static inline bool wq_in_worker(struct workqueue_struct *wq){
 }
 
 static inline int timespec_cmp(const struct timespec *a, const struct timespec *b){
+	int ret = 0;
+
 	if (a->tv_sec != b->tv_sec){
-		return (a->tv_sec > b->tv_sec) - (a->tv_sec < b->tv_sec);
+		ret = (a->tv_sec > b->tv_sec) - (a->tv_sec < b->tv_sec);
+		return ret;
 	}
-	return (a->tv_nsec > b->tv_nsec) - (a->tv_nsec < b->tv_nsec);
+	ret = (a->tv_nsec > b->tv_nsec) - (a->tv_nsec < b->tv_nsec);
+	return ret;
 }
 
 static void delayed_list_insert_sorted(struct workqueue_struct *wq, struct delayed_work *dwork){
-	struct work_struct *w = NULL;
-	struct delayed_work *dw = NULL;
-	struct list_head *pos = NULL;
 	struct list_head *n = NULL;
+	struct work_struct *w = NULL;
+	struct list_head *pos = NULL;
+	struct delayed_work *dw = NULL;
 
 	list_for_each_safe(pos, n, &wq->delayed_list) {
 		w = container_of(pos, struct work_struct, entry);
@@ -2403,7 +2522,9 @@ static void delayed_list_insert_sorted(struct workqueue_struct *wq, struct delay
 
 /* taken from 'https://android.googlesource.com/platform/external/mtools/+/8c780b311a17226862cbfd6ae6fafda2f09d50d7/strtonum.c#35' */
 static unsigned long strtoul_with_range(const char *nptr, char **endptr, int base, unsigned long max) {
-	unsigned long l = strtoul(nptr, endptr, base);
+	unsigned long l = 0;
+
+	l = strtoul(nptr, endptr, base);
 	if(l > max) {
 		errno = ERANGE;
 		return max;
@@ -2414,8 +2535,8 @@ static unsigned long strtoul_with_range(const char *nptr, char **endptr, int bas
 static int try_consume_completion(struct completion *x){
 	int ret = 0;
 	int v = 0;
-	v = atomic_load_explicit(&x->done, memory_order_acquire);
 
+	v = atomic_load_explicit(&x->done, memory_order_acquire);
 	while (v > 0) {
 		if (atomic_compare_exchange_weak_explicit(&x->done, &v, v - 1, memory_order_acq_rel, memory_order_acquire)) {
 			ret = true;
@@ -2464,6 +2585,7 @@ static u64 read_uleb128(u8 *p, int len){
 #include <single_offset.h>
 #include <struct_offset.h>
 #include <mod_controller.h>
+#include <distro_struct_offsets.h>
 #include <controller_utils.h>
 #include <hashtable.h>
 #include <wq.h>

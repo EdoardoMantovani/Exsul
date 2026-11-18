@@ -14,11 +14,11 @@ int __hci_cmd_sync_status_sk(struct hci_dev *hdev, u16 opcode, u32 plen, const v
 		if (!event){
 			printf("[hdev] Opcode 0x%4.4x failed: %ld", opcode, PTR_ERR(skb));
 		}
-		return PTR_ERR(skb);
+		ret = PTR_ERR(skb);
+		return ret;
 	}
 
 	status = skb->data[0];
-
 	kfree_skb(skb);
 	return status;
 }

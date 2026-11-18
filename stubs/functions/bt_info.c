@@ -3,11 +3,8 @@ void bt_info(const char *format, ...){
 	va_list args;
 
 	va_start(args, format);
-
 	vaf.fmt = format;
 	vaf.va = &args;
-
 	pr_info("%pV", &vaf);
-
 	va_end(args);
 }

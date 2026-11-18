@@ -1,6 +1,7 @@
 void *memset16(uint16_t *s, uint16_t v, size_t count){
-	u16 *xs = s;
+	u16 *xs = NULL;
 
+	xs = s;
 	while (count--){
 		*xs++ = v;
 	}

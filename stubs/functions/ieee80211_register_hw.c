@@ -15,7 +15,6 @@ int ieee80211_register_hw(struct ieee80211_hw *hw) {
 	struct ieee80211_ops *ops = NULL;
 	struct ieee80211_local *local = NULL;
 	struct ieee80211_supported_band *sband = NULL;
-	struct ieee80211_conf *ieee80211_conf = NULL;
 	struct cfg80211_chan_def *dflt_chandef = NULL;
 	struct cfg80211_scan_request *int_scan_req = NULL;
 	const struct ieee80211_sband_iftype_data *iftd = NULL;
@@ -103,8 +102,7 @@ int ieee80211_register_hw(struct ieee80211_hw *hw) {
 			cfg80211_chandef_create(dflt_chandef, &sband->channels[i], NL80211_CHAN_NO_HT);
 			local->monitor_chanreq->oper = dflt_chandef;
 			if (local->emulate_chanctx) {
-				ieee80211_conf = &hw->conf;
-				ieee80211_conf->chandef = dflt_chandef;
+				ieee80211_local_set_hw_chandef(local, dflt_chandef);
 			}
 		}
 
@@ -149,7 +147,10 @@ int ieee80211_register_hw(struct ieee80211_hw *hw) {
 	wiphy->interface_modes |= BIT(NL80211_IFTYPE_MONITOR);
 	wiphy->software_iftypes |= BIT(NL80211_IFTYPE_MONITOR);
 
-	int_scan_req = calloc(1, director.struct_sizes.cfg80211_scan_request + director.struct_sizes.cfg80211_scan_request * channels);
+	if (director.struct_sizes.cfg80211_scan_request == 0){
+		return -EINVAL;
+	}
+	int_scan_req = calloc(1, director.struct_sizes.cfg80211_scan_request + sizeof(struct ieee80211_channel *) * channels);
 	local->int_scan_req = int_scan_req;
 	if (local->int_scan_req == NULL){
 		ret = -ENOMEM;
@@ -318,7 +319,9 @@ int ieee80211_register_hw(struct ieee80211_hw *hw) {
 	fail_flows:
 	ieee80211_led_exit(local);
 	destroy_workqueue(local->workqueue);
+	local->workqueue = NULL;
 	fail_workqueue:
 	kfree(int_scan_req);
+	local->int_scan_req = NULL;
 	return ret;
 }

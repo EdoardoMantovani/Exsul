@@ -9,8 +9,9 @@ enum tasklet_priority {
 	TASKLET_PRIO_HIGH,
 };
 
-static __thread void *percpu_area = NULL;
-static __thread struct task_struct *tls_current = NULL;
+extern __thread void *percpu_area;
+extern __thread struct __task_struct *tls_current;
+extern void *const_current_task;
 static __thread struct tasklet_struct *current_tasklet = NULL;
 
 /* private struct used for mantaining the state of the running tasklet */
@@ -144,6 +145,8 @@ static inline bool tasklet_test_and_clear_state(struct tasklet_struct *tasklet, 
 	return (__atomic_fetch_and(&tasklet->state, ~tasklet_state_bit(bit), __ATOMIC_ACQ_REL) & tasklet_state_bit(bit)) != 0;
 }
 
+static inline void percpu_set_current_task(void);
+
 static inline void setup_percpu(void){
 	#ifdef __linux__
 	if (percpu_area == NULL) {
@@ -154,9 +157,37 @@ static inline void setup_percpu(void){
 	}
 	if (percpu_area != NULL){
 		syscall(SYS_arch_prctl, ARCH_SET_GS, (unsigned long)percpu_area);
+		percpu_set_current_task();
 	}
 	#else
 	/* need to find a fix for Windows too, apparently it doesn't permit to manipulate the GS register safely */
+	#endif
+}
+
+static inline void percpu_set_current_task(void){
+	#ifdef __linux__
+	uintptr_t offset = (uintptr_t)&const_current_task;
+
+	if(percpu_area != NULL && tls_current != NULL && offset <= (1024 * 1024 * 8) - sizeof(void *)){
+		*(struct __task_struct **)((u8 *)percpu_area + offset) = tls_current;
+	}
+	#endif
+}
+
+/* Release this thread's existing TLS resources, without a thread registry. */
+static void cleanup_percpu(void *unused){
+	if(tls_current != NULL && tls_current->threadfn == NULL){
+		pthread_cond_destroy(&tls_current->cond);
+		pthread_mutex_destroy(&tls_current->lock);
+		free(tls_current);
+	}
+	tls_current = NULL;
+	#ifdef __linux__
+	if(percpu_area != NULL){
+		syscall(SYS_arch_prctl, ARCH_SET_GS, 0UL);
+		munmap(percpu_area, 1024 * 1024 * 8);
+		percpu_area = NULL;
+	}
 	#endif
 }
 
@@ -396,6 +427,7 @@ static void *tasklet_worker(void *arg){
 			tasklet_action_common(tasklet);
 		}
 	}
+	cleanup_percpu(NULL);
         return NULL;
 }
 
@@ -462,11 +494,12 @@ static void tasklet_subsystem_reset_runtime_state(void){
 }
 
 static void tasklet_subsystem_shutdown(void){
+	struct tasklet_runtime_state *state = NULL;
+	struct tasklet_runtime_state *next = NULL;
 	tasklet_sync_init();
 	pthread_mutex_lock(&director.tasklet_lock);
 	if (director.tasklet_initialized == false) {
-		pthread_mutex_unlock(&director.tasklet_lock);
-		goto end;
+		goto free_states;
 	}
 	director.tasklet_stopped = true;
 	pthread_cond_broadcast(&director.tasklet_wake);
@@ -486,7 +519,17 @@ static void tasklet_subsystem_shutdown(void){
 	director.tasklet_stopped = false;
 	tasklet_head_init(&director.tasklet_normal_priority);
 	tasklet_head_init(&director.tasklet_high_priority);
+	free_states:
+	state = director.tasklet_runtime_states;
+	director.tasklet_runtime_states = NULL;
 	pthread_mutex_unlock(&director.tasklet_lock);
+	while(state != NULL){
+		next = state->next;
+		pthread_cond_destroy(&state->wait_cond);
+		pthread_mutex_destroy(&state->wait_lock);
+		free(state);
+		state = next;
+	}
 	end:
 }
 
@@ -562,18 +605,19 @@ static void *worker_thread(void *arg){
 		}
 	}
 	pthread_mutex_unlock(&wq->lock);
+	cleanup_percpu(NULL);
 	return NULL;
 }
 
-static struct task_struct *current_thread_info(void){
-	struct task_struct *current_task = NULL;
+static struct __task_struct *current_thread_info(void){
+	struct __task_struct *current_task = NULL;
 	pthread_condattr_t current_condition_attr = {};
 
 	if (tls_current != NULL){
 		return tls_current;
 	}
 
-	current_task = (struct task_struct *)calloc(1, sizeof(struct task_struct));
+	current_task = (struct __task_struct *)calloc(1, sizeof(struct __task_struct));
 
 	if(current_task == NULL){
 		return NULL;
@@ -594,6 +638,7 @@ static struct task_struct *current_thread_info(void){
 	snprintf(current_task->name, sizeof(current_task->name), "main");
 
 	tls_current = current_task;
+	percpu_set_current_task();
 	return current_task;
 }
 
@@ -604,12 +649,14 @@ static inline bool wq_entry_is_linked(const struct wait_queue_entry *wq_entry){
 /* kthread_trampoline: main function used for invoking the kthread cb */
 static void *kthread_trampoline(void *arg){
 	int ret = 0;
-	struct task_struct *current_thread = NULL;
+	struct __task_struct *current_thread = NULL;
 
-	setup_percpu();
-	current_thread = (struct task_struct *)arg;
+	current_thread = (struct __task_struct *)arg;
 	tls_current = current_thread;
-
+	setup_percpu();
+	#ifndef _WIN64
+	pthread_cleanup_push(cleanup_percpu, NULL);
+	#endif
 	pthread_mutex_lock(&current_thread->lock);
 
 	/* wait until the 'current_thread' has the 'started' flag set and the 'should_stop' flag isn't set */
@@ -630,5 +677,8 @@ static void *kthread_trampoline(void *arg){
 	pthread_cond_broadcast(&current_thread->cond);
 	pthread_mutex_unlock(&current_thread->lock);
 
+	#ifndef _WIN64
+	pthread_cleanup_pop(1);
+	#endif
 	return NULL;
 }

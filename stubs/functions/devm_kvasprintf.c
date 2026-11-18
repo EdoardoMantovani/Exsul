@@ -12,6 +12,5 @@ char *devm_kvasprintf(struct device *dev, int gfp, const char *fmt, va_list ap){
 		return NULL;
 	}
 	vsnprintf(p, len+1, fmt, ap);
-
 	return p;
 }

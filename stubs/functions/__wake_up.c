@@ -5,7 +5,7 @@ int __wake_up(struct wait_queue_head *wq_head, unsigned int mode, int nr_exclusi
 	struct wait_queue_entry *pos = NULL;
 	struct wait_queue_entry *n = NULL;
 
-	spin_lock(&wq_head->lock);
+	waitqueue_lock(&wq_head->lock);
 
 	list_for_each_entry_safe(pos, n, &wq_head->head, entry) {
 		flags = pos->flags;
@@ -21,6 +21,6 @@ int __wake_up(struct wait_queue_head *wq_head, unsigned int mode, int nr_exclusi
 		}
 	}
 
-	spin_unlock(&wq_head->lock);
+	waitqueue_unlock(&wq_head->lock);
 	return wake_up_executed;
 }

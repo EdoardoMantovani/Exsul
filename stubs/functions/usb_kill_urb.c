@@ -1,6 +1,6 @@
 void usb_kill_urb(struct urb *urb) {
 	struct libusb_transfer *transfer = NULL;
-	if (!(urb != NULL && urb->dev != NULL && urb->ep != NULL)){
+	if (urb == NULL){
 		goto end;
 	}
 
@@ -23,4 +23,3 @@ void usb_kill_urb(struct urb *urb) {
 	atomic_fetch_sub_explicit(&urb->reject, 1, memory_order_release);
 	end:
 }
-
