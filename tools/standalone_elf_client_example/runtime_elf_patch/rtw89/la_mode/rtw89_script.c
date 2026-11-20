@@ -2967,7 +2967,7 @@ static void rtw89_la_print_adc_dma01(struct bb_la_mode_info *la_mode_info, u32 s
 
 	buf = &la_mode_info->la_string_i;
 	dma = &la_mode_info->la_dma_i;
-	#if 0
+
 	printf("[LA ADC Dump] format=DMA01_NRML_2s_12b samples=%u rate=%u MHz\n",
 	       samples, la_mode_info->la_smp_rate_log);
 	printf("[*] source A=ADC/path%u source B=ADC/path%u; values are signed 12-bit ADC codes\n",
@@ -2985,7 +2985,7 @@ static void rtw89_la_print_adc_dma01(struct bb_la_mode_info *la_mode_info, u32 s
 		s16 adc_b0 = rtw89_la_sign_extend_12(word >> 24);
 		s16 adc_b1 = rtw89_la_sign_extend_12(word >> 36);
 		u16 dbg = (word >> 48) & 0x0fff;
-
+		/* dump the sample number, adc data and then the debug header */
 		printf("%u,%d,%d,%d,%d,0x%03x,%u,%u,%u,%u",
 		       i, adc_a0, adc_a1, adc_b0, adc_b1, dbg,
 		       (unsigned int)((word >> 63) & 1),
@@ -2997,7 +2997,6 @@ static void rtw89_la_print_adc_dma01(struct bb_la_mode_info *la_mode_info, u32 s
 		}
 		printf("\n");
 	}
-	#endif
 }
 
 static void rtw89_la_buffer_print(struct bb_la_mode_info *la_mode_info){

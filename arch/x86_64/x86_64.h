@@ -76,7 +76,7 @@
 #define ASM_NOP8				_ASM_BYTES(BYTES_NOP8)
 
 #define __XEN_EMULATE_PREFIX			0x0f,0x0b,0x78,0x65,0x6e  /* ud2 ; .ascii "xen" */
-#define __KVM_EMULATE_PREFIX			0x0f,0x0b,0x6b,0x76,0x6d	/* ud2 ; .ascii "kvm" */
+#define __KVM_EMULATE_PREFIX			0x0f,0x0b,0x6b,0x76,0x6d  /* ud2 ; .ascii "kvm" */
 
 #ifndef OPTIMIZER_HIDE_VAR
 /* Make the optimizer believe the variable can be manipulated arbitrarily. */
@@ -149,7 +149,7 @@ extern u8 fineibt_caller_end[];
 #define SKL_TMPL_SIZE					((unsigned int)(skl_call_thunk_tail - skl_call_thunk_template))
 #define insn_decode_kernel(_insn, _ptr)			insn_decode((_insn), (_ptr), MAX_INSN_SIZE, INSN_MODE_KERN)
 
-/**
+/*
  * for_each_insn_prefix() -- Iterate prefixes in the instruction
  * @insn: Pointer to struct insn.
  * @prefix: Prefix byte.
@@ -418,7 +418,7 @@ struct insn {
 		struct insn_field immediate2;	/* for 64bit imm or seg16 */
 	};
 
-	int	emulate_prefix_size;
+	int emulate_prefix_size;
 	insn_attr_t attr;
 	unsigned char opnd_bytes;
 	unsigned char addr_bytes;
@@ -503,7 +503,9 @@ void set_bit(int nr, void *addr){
 #endif
 
 int module_frob_arch_sections(Elf(Ehdr) *hdr, Elf(Shdr) *sechdrs, char *secstrings, struct module *mod){
-	return 0;
+	int ret = 0;
+
+	return ret;
 }
 
 void alternatives_smp_module_add(struct module *mod, char *name, void *locks, void *locks_end, void *text, void *text_end) {
@@ -540,7 +542,7 @@ void __delay(unsigned long loops){
 }
 
 void arch__const_udelay(unsigned long xloops){
-	int d0;
+	int d0 = 0;
 
 	xloops *= 4;
 	__asm__("mull %%edx"
@@ -552,13 +554,13 @@ void arch__const_udelay(unsigned long xloops){
 }
 
 void *x86_64_make_trampoline(void *target_stub, bool abi_bridge, bool return_thunk){
-	unsigned char *current_stub = NULL;
 	unsigned int offset = 0;
 	#ifdef _WIN64
 	const unsigned int trampoline_size = abi_bridge && !return_thunk ? 160 : 16;
 	#else
 	const unsigned int trampoline_size = abi_bridge ? 128 : 16;
 	#endif
+	unsigned char *current_stub = NULL;
 
 	if(director.trampoline_area == NULL){
 		director.trampoline_area = mmap(NULL,
@@ -590,77 +592,75 @@ void *x86_64_make_trampoline(void *target_stub, bool abi_bridge, bool return_thu
 	if(return_thunk){
 		current_stub[0] = 0xC3;
 		memset(current_stub + 1, 0x90, trampoline_size - 1);
-		__builtin___clear_cache((char *)current_stub,
-					(char *)current_stub + trampoline_size);
+		__builtin___clear_cache((char *)current_stub, (char *)current_stub + trampoline_size);
 		return current_stub;
 	}
 	#ifdef _WIN64
 	if(abi_bridge){
-	/* Linux modules use SysV while native Windows stubs use Microsoft x64. */
-	current_stub[offset++] = 0x49; /* mov r10, rdx */
-	current_stub[offset++] = 0x89;
-	current_stub[offset++] = 0xD2;
-	current_stub[offset++] = 0x49; /* mov r11, rcx */
-	current_stub[offset++] = 0x89;
-	current_stub[offset++] = 0xCB;
-	current_stub[offset++] = 0x48; /* sub rsp, 0x78 */
-	current_stub[offset++] = 0x83;
-	current_stub[offset++] = 0xEC;
-	current_stub[offset++] = 0x78;
-	current_stub[offset++] = 0x4C; /* mov [rsp + 0x20], r8 */
-	current_stub[offset++] = 0x89;
-	current_stub[offset++] = 0x44;
-	current_stub[offset++] = 0x24;
-	current_stub[offset++] = 0x20;
-	current_stub[offset++] = 0x4C; /* mov [rsp + 0x28], r9 */
-	current_stub[offset++] = 0x89;
-	current_stub[offset++] = 0x4C;
-	current_stub[offset++] = 0x24;
-	current_stub[offset++] = 0x28;
-
-	/* Copy SysV stack arguments 7..12 into Microsoft argument slots 7..12. */
-	for (unsigned int arg = 0; arg < 6; arg++) {
-		unsigned int source = 0x80 + arg * 8;
-		unsigned int destination = 0x30 + arg * 8;
-
-		current_stub[offset++] = 0x48; /* mov rax, [rsp + source] */
-		current_stub[offset++] = 0x8B;
-		current_stub[offset++] = 0x84;
-		current_stub[offset++] = 0x24;
-		*(u32 *)(current_stub + offset) = source;
-		offset += sizeof(u32);
-		current_stub[offset++] = 0x48; /* mov [rsp + destination], rax */
+		/* Linux modules use SysV while native Windows stubs use Microsoft x64. */
+		current_stub[offset++] = 0x49; /* mov r10, rdx */
+		current_stub[offset++] = 0x89;
+		current_stub[offset++] = 0xD2;
+		current_stub[offset++] = 0x49; /* mov r11, rcx */
+		current_stub[offset++] = 0x89;
+		current_stub[offset++] = 0xCB;
+		current_stub[offset++] = 0x48; /* sub rsp, 0x78 */
+		current_stub[offset++] = 0x83;
+		current_stub[offset++] = 0xEC;
+		current_stub[offset++] = 0x78;
+		current_stub[offset++] = 0x4C; /* mov [rsp + 0x20], r8 */
 		current_stub[offset++] = 0x89;
 		current_stub[offset++] = 0x44;
 		current_stub[offset++] = 0x24;
-		current_stub[offset++] = destination;
-	}
+		current_stub[offset++] = 0x20;
+		current_stub[offset++] = 0x4C; /* mov [rsp + 0x28], r9 */
+		current_stub[offset++] = 0x89;
+		current_stub[offset++] = 0x4C;
+		current_stub[offset++] = 0x24;
+		current_stub[offset++] = 0x28;
 
-	current_stub[offset++] = 0x48; /* mov rcx, rdi */
-	current_stub[offset++] = 0x89;
-	current_stub[offset++] = 0xF9;
-	current_stub[offset++] = 0x48; /* mov rdx, rsi */
-	current_stub[offset++] = 0x89;
-	current_stub[offset++] = 0xF2;
-	current_stub[offset++] = 0x4D; /* mov r8, r10 */
-	current_stub[offset++] = 0x89;
-	current_stub[offset++] = 0xD0;
-	current_stub[offset++] = 0x4D; /* mov r9, r11 */
-	current_stub[offset++] = 0x89;
-	current_stub[offset++] = 0xD9;
-	current_stub[offset++] = 0x48; /* movabs rax, target_stub */
-	current_stub[offset++] = 0xB8;
-	*(u64 *)(current_stub + offset) = (u64)(uintptr_t)target_stub;
-	offset += sizeof(u64);
-	current_stub[offset++] = 0xFF; /* call rax */
-	current_stub[offset++] = 0xD0;
-	current_stub[offset++] = 0x48; /* add rsp, 0x78 */
-	current_stub[offset++] = 0x83;
-	current_stub[offset++] = 0xC4;
-	current_stub[offset++] = 0x78;
-	current_stub[offset++] = 0xC3; /* ret */
-		__builtin___clear_cache((char *)current_stub,
-					(char *)current_stub + trampoline_size);
+		/* Copy SysV stack arguments 7..12 into Microsoft argument slots 7..12. */
+		for (unsigned int arg = 0; arg < 6; arg++) {
+			unsigned int source = 0x80 + arg * 8;
+			unsigned int destination = 0x30 + arg * 8;
+
+			current_stub[offset++] = 0x48; /* mov rax, [rsp + source] */
+			current_stub[offset++] = 0x8B;
+			current_stub[offset++] = 0x84;
+			current_stub[offset++] = 0x24;
+			*(u32 *)(current_stub + offset) = source;
+			offset += sizeof(u32);
+			current_stub[offset++] = 0x48; /* mov [rsp + destination], rax */
+			current_stub[offset++] = 0x89;
+			current_stub[offset++] = 0x44;
+			current_stub[offset++] = 0x24;
+			current_stub[offset++] = destination;
+		}
+
+		current_stub[offset++] = 0x48; /* mov rcx, rdi */
+		current_stub[offset++] = 0x89;
+		current_stub[offset++] = 0xF9;
+		current_stub[offset++] = 0x48; /* mov rdx, rsi */
+		current_stub[offset++] = 0x89;
+		current_stub[offset++] = 0xF2;
+		current_stub[offset++] = 0x4D; /* mov r8, r10 */
+		current_stub[offset++] = 0x89;
+		current_stub[offset++] = 0xD0;
+		current_stub[offset++] = 0x4D; /* mov r9, r11 */
+		current_stub[offset++] = 0x89;
+		current_stub[offset++] = 0xD9;
+		current_stub[offset++] = 0x48; /* movabs rax, target_stub */
+		current_stub[offset++] = 0xB8;
+		*(u64 *)(current_stub + offset) = (u64)(uintptr_t)target_stub;
+		offset += sizeof(u64);
+		current_stub[offset++] = 0xFF; /* call rax */
+		current_stub[offset++] = 0xD0;
+		current_stub[offset++] = 0x48; /* add rsp, 0x78 */
+		current_stub[offset++] = 0x83;
+		current_stub[offset++] = 0xC4;
+		current_stub[offset++] = 0x78;
+		current_stub[offset++] = 0xC3; /* ret */
+		__builtin___clear_cache((char *)current_stub, (char *)current_stub + trampoline_size);
 		return current_stub;
 	}
 	#endif
@@ -731,8 +731,7 @@ void *x86_64_make_trampoline(void *target_stub, bool abi_bridge, bool return_thu
 	current_stub[13] = 0x90;
 	current_stub[14] = 0x90;
 	current_stub[15] = 0x90;
-	__builtin___clear_cache((char *)current_stub,
-				(char *)current_stub + trampoline_size);
+	__builtin___clear_cache((char *)current_stub, (char *)current_stub + trampoline_size);
 	return current_stub;
 }
 
@@ -746,7 +745,6 @@ insn_attr_t inat_get_escape_attribute(insn_byte_t opcode, int lpfx_id, insn_attr
 	const insn_attr_t *table = NULL;
 
 	n = inat_escape_id(esc_attr);
-
 	table = inat_escape_tables[n][0];
 	if (!table){
 		return ret;

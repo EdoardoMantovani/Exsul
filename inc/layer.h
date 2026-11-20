@@ -412,6 +412,18 @@ typedef _Atomic(unsigned int) atomic_uint;
 
 #define spinlock_t			pthread_mutex_t
 
+/*
+ * The values are arbitrary as long as they can't be confused with
+ * a pointer, but small integers make for the smallest compare
+ * instructions.
+ */
+#define SWAP_WORDS_64 (swap_r_func_t)0
+#define SWAP_WORDS_32 (swap_r_func_t)1
+#define SWAP_BYTES    (swap_r_func_t)2
+#define SWAP_WRAPPER  (swap_r_func_t)3
+
+#define _CMP_WRAPPER			((cmp_r_func_t)0L)
+
 /* sections for the crashdump */
 enum {
 	CRASH_SECTION_SYMBOL_TABLE,
@@ -2578,8 +2590,28 @@ static u64 read_uleb128(u8 *p, int len){
 		}
 		shift += 7;
 	}
-
 	return v;
+}
+
+static void __sort_r(void *base, size_t num, size_t size, int (*cmp_func)(const void *, const void *, const void *), void (*swap_func)(void *, void *, int), const void *priv, bool may_schedule){
+	unsigned char tmp = 0;
+	unsigned char *p = NULL;
+
+	p = base;
+	for(size_t i = 1; i < num; i++){
+		for(size_t j = i; j > 0 &&
+			cmp_func(p + (j - 1) * size, p + j * size, priv) > 0; j--){
+			if(swap_func != NULL){
+				swap_func(p + (j - 1) * size, p + j * size, size);
+			}else{
+				for(size_t k = 0; k < size; k++){
+					tmp = p[(j - 1) * size + k];
+					p[(j - 1) * size + k] = p[j * size + k];
+					p[j * size + k] = tmp;
+				}
+			}
+		}
+	}
 }
 
 #include <single_offset.h>
