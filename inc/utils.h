@@ -299,6 +299,18 @@ container_of(callback_timer, typeof(*var), timer_fieldname)
 #define le64_to_cpu __le64_to_cpu
 #endif
 
+#ifndef cpu_to_be16
+#define cpu_to_be16 __cpu_to_be16
+#endif
+
+#ifndef cpu_to_be32
+#define cpu_to_be32 __cpu_to_be32
+#endif
+
+#ifndef cpu_to_be64
+#define cpu_to_be64 __cpu_to_be64
+#endif
+
 /*
  * do_div - returns 2 values: calculate remainder and update new dividend
  * @n: uint64_t dividend (will be updated)
@@ -1624,6 +1636,18 @@ static inline void put_unaligned_le32(u32 val, void *p){
 
 static inline void put_unaligned_le64(u64 val, void *p){
 	__put_unaligned_t(__le64, cpu_to_le64(val), p);
+}
+
+static inline void put_unaligned_be16(u16 val, void *p){
+	__put_unaligned_t(__be16, cpu_to_be16(val), p);
+}
+
+static inline void put_unaligned_be32(u32 val, void *p){
+	__put_unaligned_t(__be32, cpu_to_be32(val), p);
+}
+
+static inline void put_unaligned_be64(u64 val, void *p){
+	__put_unaligned_t(__be64, cpu_to_be64(val), p);
 }
 
 static inline int lockdep_rht_mutex_is_held(struct rhashtable *ht){

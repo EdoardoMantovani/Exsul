@@ -700,6 +700,16 @@ enum skb_drop_reason {
 	SKB_DROP_REASON_SUBSYS_MASK = 0xffff0000,
 };
 
+struct tso_t {
+	int	next_frag_idx;
+	int	size;
+	void	*data;
+	u16	ip_id;
+	u8	tlen; /* transport header len */
+	bool	ipv6;
+	u32	tcp_seq;
+};
+
 typedef struct skb_frag {
 	netmem_ref netmem;
 	unsigned int len;
@@ -819,6 +829,18 @@ struct sk_buff_head {
 
 static inline void __net_timestamp(struct sk_buff *skb){
 	skb->tstamp_type = SKB_CLOCK_REALTIME;
+}
+
+static inline int skb_network_offset(const struct sk_buff *skb){
+	return (skb->head + skb->network_header) - skb->data;
+}
+
+static inline void *skb_frag_address(const skb_frag_t *frag){
+	return (unsigned char *)(uintptr_t)frag->netmem + frag->offset;
+}
+
+static inline int skb_transport_offset(const struct sk_buff *skb){
+	return (skb->head + skb->transport_header) - skb->data;
 }
 
 /* disable the PHY timestamp */

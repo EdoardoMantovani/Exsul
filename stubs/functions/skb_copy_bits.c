@@ -2,8 +2,8 @@ int skb_copy_bits(const struct sk_buff *skb, int offset, void *to, int len){
 	int ret = 0;
 	int copy = 0;
 	int headlen = 0;
-	headlen = skb->len - skb->data_len;
 
+	headlen = skb->len - skb->data_len;
 	if (offset < 0 || len < 0 || offset + len > skb->len){
 		ret = -EFAULT;
 		return ret;

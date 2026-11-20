@@ -95,6 +95,21 @@
 #define NETIF_F_HW_HSR_FWD	__NETIF_F(HW_HSR_FWD)
 #define NETIF_F_HW_HSR_DUP	__NETIF_F(HW_HSR_DUP)
 
+
+#define VLAN_HLEN	4		/* The additional bytes required by VLAN
+					 * (in addition to the Ethernet header)
+					 */
+#define VLAN_ETH_HLEN	18		/* Total octets in header.	 */
+#define VLAN_ETH_ZLEN	64		/* Min. octets in frame sans FCS */
+
+/*
+ * According to 802.3ac, the packet can be 4 bytes longer. --Klika Jan
+ */
+#define VLAN_ETH_DATA_LEN	1500	/* Max. octets in payload	 */
+#define VLAN_ETH_FRAME_LEN	1518	/* Max. octets in frame sans FCS */
+
+#define VLAN_MAX_DEPTH		8 /* Max. number of nested VLAN tags parsed */
+
 /* List of IP checksum features. Note that NETIF_F_HW_CSUM should not be
  * set in features when NETIF_F_IP_CSUM or NETIF_F_IPV6_CSUM are set--
  * this would be contradictory
@@ -240,6 +255,11 @@ enum netdev_reg_state {
 	NETREG_DUMMY,		/* dummy device for NAPI poll */
 };
 
+struct vlan_type_depth {
+	__be16 type;
+	u16 depth;
+};
+
 struct netdev_notifier_info {
 	struct net_device *dev;
 	void *extack;
@@ -358,6 +378,24 @@ struct netdev_hw_addr {
 	int synced;
 	struct rcu_head	rcu_head;
 };
+
+static inline struct tcphdr *tcp_hdr(const struct sk_buff *skb){
+	return (struct tcphdr *)(skb->head + skb->transport_header);
+}
+
+static inline unsigned int __tcp_hdrlen(const struct tcphdr *th){
+	int ret = 0;
+
+	ret = th->doff * 4;
+	return (unsigned int)ret;
+}
+
+static inline unsigned int tcp_hdrlen(const struct sk_buff *skb){
+	int ret = 0;
+
+	ret = __tcp_hdrlen(tcp_hdr(skb));
+	return (unsigned int)ret;
+}
 
 /*
  * eth_random_addr - Generate software assigned random Ethernet address
@@ -580,6 +618,66 @@ static int netif_receive_skb_internal(struct sk_buff *skb){
 	}
 	ret = __netif_receive_skb(skb);
 	return ret;
+}
+
+static struct vlan_type_depth __vlan_get_protocol_offset(const struct sk_buff *skb, __be16 type, int mac_offset){
+	int ret = 0;
+	unsigned int vlan_depth = 0;
+	unsigned int parse_depth = 0;
+	struct vlan_type_depth result = {};
+
+	parse_depth = 8;
+	vlan_depth = skb->mac_len;
+	if(type != htons(ETH_P_8021Q) && type != htons(ETH_P_8021AD)){
+		result.type = type;
+		result.depth = vlan_depth;
+		return result;
+	}
+
+	if(vlan_depth){
+		if(vlan_depth < VLAN_HLEN){
+			return result;
+		}
+		vlan_depth -= VLAN_HLEN;
+	}else{
+		vlan_depth = ETH_HLEN;
+	}
+
+	do{
+		ret = skb_copy_bits(skb, mac_offset + vlan_depth + 2, &type, sizeof(type));
+		if(ret || !--parse_depth){
+			return result;
+		}
+
+		vlan_depth += VLAN_HLEN;
+	}while(type == htons(ETH_P_8021Q) || type == htons(ETH_P_8021AD));
+	result.type = type;
+	result.depth = vlan_depth;
+	return result;
+}
+
+static inline __be16 __vlan_get_protocol(const struct sk_buff *skb, __be16 type, int *depth){
+	int ret = 0;
+	struct vlan_type_depth result = {};
+
+	result = __vlan_get_protocol_offset(skb, type, 0);
+
+	if(depth && result.type){
+		*depth = result.depth;
+	}
+
+	return result.type;
+}
+
+/*
+ * vlan_get_protocol - get protocol EtherType.
+ * @skb: skbuff to query
+ *
+ * Returns: the EtherType of the packet, regardless of whether it is
+ * vlan encapsulated (normal or hardware accelerated) or not.
+ */
+static inline __be16 vlan_get_protocol(const struct sk_buff *skb){
+	return __vlan_get_protocol(skb, skb->protocol, NULL);
 }
 
 static int call_netdevice_notifiers(unsigned long state, struct net_device *dev){

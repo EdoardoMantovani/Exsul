@@ -1,10 +1,10 @@
 int scnprintf(char *buf, size_t size, const char *fmt, ...){
+	int ret = 0;
 	va_list args;
-	int i;
 
 	va_start(args, fmt);
-	i = vscnprintf(buf, size, fmt, args);
+	ret = vscnprintf(buf, size, fmt, args);
 	va_end(args);
 
-	return i;
+	return ret;
 }

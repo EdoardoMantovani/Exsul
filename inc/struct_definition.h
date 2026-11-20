@@ -54,6 +54,7 @@ struct file_operations;
 
 struct netdev_hw_addr_list;
 
+struct tso_t;
 struct sk_buff;
 struct sk_buff_head;
 struct skb_seq_state;

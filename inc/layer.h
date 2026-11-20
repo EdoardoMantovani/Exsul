@@ -28,6 +28,9 @@
 #include <linux/udp.h>
 #include <linux/in.h>
 #include <linux/in6.h>
+#include <linux/ip.h>
+#include <linux/ipv6.h>
+#include <linux/tcp.h>
 #include <linux/const.h>
 #include <linux/if_ether.h>
 #include <linux/wireless.h>
