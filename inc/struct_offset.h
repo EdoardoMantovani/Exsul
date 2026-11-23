@@ -1814,49 +1814,73 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[26] = {
 				.struct_size = 0,
 				.struct_name = "pci_dev",
-				.struct_field_num = 11,
+				.struct_field_num = 17,
 				.fields = {
 					[0] = {
-						.field_name = "class",
+						.field_name = "bus",
 						.field_offset = 0,
 					},
 					[1] = {
-						.field_name = "dev",
+						.field_name = "cfg_size",
 						.field_offset = 0,
 					},
 					[2] = {
-						.field_name = "device",
+						.field_name = "class",
 						.field_offset = 0,
 					},
 					[3] = {
-						.field_name = "irq",
+						.field_name = "dev",
 						.field_offset = 0,
 					},
 					[4] = {
-						.field_name = "pcie_cap",
+						.field_name = "devfn",
 						.field_offset = 0,
 					},
 					[5] = {
-						.field_name = "pcie_flags_reg",
+						.field_name = "device",
 						.field_offset = 0,
 					},
 					[6] = {
-						.field_name = "resource",
+						.field_name = "irq",
 						.field_offset = 0,
 					},
 					[7] = {
-						.field_name = "revision",
+						.field_name = "ops",
 						.field_offset = 0,
 					},
 					[8] = {
-						.field_name = "subsystem_device",
+						.field_name = "pcie_cap",
 						.field_offset = 0,
 					},
 					[9] = {
-						.field_name = "subsystem_vendor",
+						.field_name = "pcie_flags_reg",
 						.field_offset = 0,
 					},
 					[10] = {
+						.field_name = "pm_cap",
+						.field_offset = 0,
+					},
+					[11] = {
+						.field_name = "pme_support",
+						.field_offset = 0,
+					},
+					[12] = {
+						.field_name = "resource",
+						.field_offset = 0,
+					},
+					[13] = {
+						.field_name = "revision",
+						.field_offset = 0,
+					},
+					[14] = {
+						.field_name = "subsystem_device",
+						.field_offset = 0,
+					},
+					[15] = {
+						.field_name = "subsystem_vendor",
+						.field_offset = 0,
+					},
+					[16] = {
 						.field_name = "vendor",
 						.field_offset = 0,
 					},
@@ -1884,10 +1908,18 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[28] = {
 				.struct_size = 0,
 				.struct_name = "pci_ops",
-				.struct_field_num = 1,
+				.struct_field_num = 3,
 				.fields = {
 					[0] = {
 						.field_name = "map_bus",
+						.field_offset = 0,
+					},
+					[1] = {
+						.field_name = "read",
+						.field_offset = 0,
+					},
+					[2] = {
+						.field_name = "write",
 						.field_offset = 0,
 					},
 				},

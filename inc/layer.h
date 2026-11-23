@@ -92,6 +92,9 @@
 #include <linux/types.h>
 #include <linux/stddef.h>
 #include <linux/in6.h>
+#include <linux/ip.h>
+#include <linux/ipv6.h>
+#include <linux/tcp.h>
 #include <linux/udp.h>
 #include <linux/elf-em.h>
 #include <linux/if_ether.h>

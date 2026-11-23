@@ -25,6 +25,29 @@
 /* empty macro used for indicating to Build.pl to add a specific symbol to the cb_table */
 #define SYMBOL_EXPORT(sym)
 
+#define __FIELD_PREP(mask, val, pfx)					\
+	({								\
+		((typeof(mask))(val) << __bf_shf(mask)) & (mask);	\
+	})
+
+#define __FIELD_GET(mask, reg, pfx)					\
+	({								\
+		(typeof(mask))(((reg) & (mask)) >> __bf_shf(mask));	\
+	})
+
+/*
+ * FIELD_GET() - extract a bitfield element
+ * @_mask: shifted mask defining the field's length and position
+ * @_reg:  value of entire bitfield
+ *
+ * FIELD_GET() extracts the field specified by @_mask from the
+ * bitfield passed in as @_reg by masking and shifting it down.
+ */
+#define FIELD_GET(_mask, _reg)						\
+	({								\
+		__FIELD_GET(_mask, _reg, "FIELD_GET: ");		\
+	})
+
 /*
  * DECLARE_FLEX_ARRAY() - Declare a flexible array usable in a union
  *
@@ -77,6 +100,7 @@
 #define __cmp_once(op, type, x, y) __cmp_once_unique(op, type, x, y, __UNIQUE_ID(x_), __UNIQUE_ID(y_))
 
 #define offsetof(TYPE, MEMBER)	__builtin_offsetof(TYPE, MEMBER)
+#define __bf_shf		__builtin_ctzll
 
 #define __put_unaligned_t(type, val, ptr) do {                                          \
         struct { type x; } __packed * __put_pptr = (typeof(__put_pptr))(ptr);           \
@@ -587,6 +611,7 @@ do {									\
 #define PAGE_ALIGN(addr)        ALIGN(addr, sysconf(_SC_PAGE_SIZE))
 #endif
 #define ALIGN(x, a)             __ALIGN_KERNEL((x), (a))
+#define ALIGN_DOWN(x, a)	__ALIGN_KERNEL((x) - ((a) - 1), (a))
 #define SH_ENTSIZE_TYPE_BITS    4
 #define SH_ENTSIZE_TYPE_SHIFT   (BITS_PER_LONG - SH_ENTSIZE_TYPE_BITS)
 #define SH_ENTSIZE_TYPE_MASK    ((1ULL << SH_ENTSIZE_TYPE_BITS) - 1ULL)

@@ -85,6 +85,25 @@
 #define PCIBIOS_SET_FAILED		0x88
 #define PCIBIOS_BUFFER_TOO_SMALL	0x89
 
+/*
+ * Wrappers for all PCI configuration access functions.  They just check
+ * alignment, do locking and call the low-level functions pointed to
+ * by pci_dev->ops.
+ */
+#define PCI_byte_BAD 0
+#define PCI_word_BAD (pos & 1)
+#define PCI_dword_BAD (pos & 3)
+
+/*
+ * Reading from a device that doesn't respond typically returns ~0.  A
+ * successful read from a device may also return ~0, so you need additional
+ * information to reliably identify errors.
+ */
+#define PCI_ERROR_RESPONSE		(~0ULL)
+#define PCI_SET_ERROR_RESPONSE(val)	(*(val) = ((typeof(*(val))) PCI_ERROR_RESPONSE))
+#define PCI_POSSIBLE_ERROR(val)		((val) == ((typeof(val)) PCI_ERROR_RESPONSE))
+
+#define __bf_shf __builtin_ctzll
 #define READ_PCI_VALUE(_name, _value)                                      	\
 	do {                                                                 	\
 		snprintf(path, sizeof(path),					\
@@ -94,6 +113,143 @@
 			return ret;                                             \
 		}                                                              	\
 	} while(0)
+
+/* Standard Capability finder */
+/*
+ * PCI_FIND_NEXT_CAP - Find a PCI standard capability
+ * @read_cfg: Function pointer for reading PCI config space
+ * @start: Starting position to begin search
+ * @cap: Capability ID to find
+ * @prev_ptr: Pointer to store position of preceding capability (optional)
+ * @args: Arguments to pass to read_cfg function
+ *
+ * Search the capability list in PCI config space to find @cap. If
+ * found, update *prev_ptr with the position of the preceding capability
+ * (if prev_ptr != NULL)
+ * Implements TTL (time-to-live) protection against infinite loops.
+ *
+ * Return: Position of the capability if found, 0 otherwise.
+ */
+#define PCI_FIND_NEXT_CAP(read_cfg, start, cap, prev_ptr, args...)	\
+({									\
+	int __ttl = PCI_FIND_CAP_TTL;					\
+	u8 __id,  __found_pos = 0;					\
+	u8 __prev_pos = (start);					\
+	u8 __pos = (start);						\
+	u16 __ent;							\
+									\
+	read_cfg##_byte(args, __pos, &__pos);				\
+									\
+	while (__ttl--) {						\
+		if (__pos < PCI_STD_HEADER_SIZEOF)			\
+			break;						\
+									\
+		__pos = ALIGN_DOWN(__pos, 4);				\
+		read_cfg##_word(args, __pos, &__ent);			\
+									\
+		__id = FIELD_GET(PCI_CAP_ID_MASK, __ent);		\
+		if (__id == 0xff)					\
+			break;						\
+									\
+		if (__id == (cap)) {					\
+			__found_pos = __pos;				\
+			if (prev_ptr != NULL)				\
+				*(u8 *)prev_ptr = __prev_pos;		\
+			break;						\
+		}							\
+									\
+		__prev_pos = __pos;					\
+		__pos = FIELD_GET(PCI_CAP_LIST_NEXT_MASK, __ent);	\
+	}								\
+	__found_pos;							\
+})
+
+/* Extended Capability finder */
+/*
+ * PCI_FIND_NEXT_EXT_CAP - Find a PCI extended capability
+ * @read_cfg: Function pointer for reading PCI config space
+ * @start: Starting position to begin search (0 for initial search)
+ * @cap: Extended capability ID to find
+ * @prev_ptr: Pointer to store position of preceding capability (optional)
+ * @args: Arguments to pass to read_cfg function
+ *
+ * Search the extended capability list in PCI config space to find @cap.
+ * If found, update *prev_ptr with the position of the preceding capability
+ * (if prev_ptr != NULL)
+ * Implements TTL protection against infinite loops using a calculated
+ * maximum search count.
+ *
+ * Return: Position of the capability if found, 0 otherwise.
+ */
+#define PCI_FIND_NEXT_EXT_CAP(read_cfg, start, cap, prev_ptr, args...)	\
+({									\
+	u16 __pos = (start) ?: PCI_CFG_SPACE_SIZE;			\
+	u16 __found_pos = 0;						\
+	u16 __prev_pos;							\
+	int __ttl, __ret;						\
+	u32 __header;							\
+									\
+	__prev_pos = __pos;						\
+	__ttl = (PCI_CFG_SPACE_EXP_SIZE - PCI_CFG_SPACE_SIZE) / 8;	\
+	while (__ttl-- > 0 && __pos >= PCI_CFG_SPACE_SIZE) {		\
+		__ret = read_cfg##_dword(args, __pos, &__header);	\
+		if (__ret != PCIBIOS_SUCCESSFUL)			\
+			break;						\
+									\
+		if (__header == 0)					\
+			break;						\
+									\
+		if (PCI_EXT_CAP_ID(__header) == (cap) && __pos != start) {\
+			__found_pos = __pos;				\
+			if (prev_ptr != NULL)				\
+				*(u16 *)prev_ptr = __prev_pos;		\
+			break;						\
+		}							\
+									\
+		__prev_pos = __pos;					\
+		__pos = PCI_EXT_CAP_NEXT(__header);			\
+	}								\
+	__found_pos;							\
+})
+
+#define PCI_OP_READ(size, type, len) \
+static int pci_bus_read_config_##size(struct pci_bus *bus, unsigned int devfn, int pos, type *value){	\
+	int ret = 0;											\
+	u32 data = 0;											\
+	struct pci_ops *pci_ops = NULL;									\
+	int (*read)(struct pci_bus *bus, unsigned int devfn, int where, int size, u32 *val) = NULL;	\
+													\
+	if (PCI_##size##_BAD){										\
+		return PCIBIOS_BAD_REGISTER_NUMBER;							\
+	}												\
+	pci_ops = bus->ops;										\
+	read = pci_ops->read;										\
+	ret = read(bus, devfn, pos, len, &data);							\
+	if (ret){											\
+		PCI_SET_ERROR_RESPONSE(value);								\
+	}else{												\
+		*value = (type)data;									\
+	}												\
+	return ret;											\
+}
+
+#define PCI_OP_WRITE(size, type, len) \
+static int pci_bus_write_config_##size(struct pci_bus *bus, unsigned int devfn, int pos, type value){	\
+	int ret = 0;											\
+	struct pci_ops *pci_ops = NULL;									\
+	int (*write)(struct pci_bus *bus, unsigned int devfn, int where, int size, u32 val) = NULL;	\
+													\
+	if (PCI_##size##_BAD){										\
+		return PCIBIOS_BAD_REGISTER_NUMBER;							\
+	}												\
+	pci_ops = bus->ops;										\
+	write = pci_ops->write;										\
+	ret = write(bus, devfn, pos, len, value);							\
+	return ret;											\
+}
+
+#define PCI_CAP_ID_MASK		0x00ff	/* Capability ID mask */
+#define PCI_CAP_LIST_NEXT_MASK	0xff00	/* Next Capability Pointer mask */
 
 /* port here the header 'pci_regs.h' */
 #ifndef LINUX_PCI_REGS_H
@@ -1271,11 +1427,28 @@
 #define IORESOURCE_AUTO		0x40000000
 #define IORESOURCE_BUSY		0x80000000	/* Driver has marked this resource busy */
 
+
+#define PCI_D0		((pci_power_t __force) 0)
+#define PCI_D1		((pci_power_t __force) 1)
+#define PCI_D2		((pci_power_t __force) 2)
+#define PCI_D3hot	((pci_power_t __force) 3)
+#define PCI_D3cold	((pci_power_t __force) 4)
+#define PCI_UNKNOWN	((pci_power_t __force) 5)
+#define PCI_POWER_ERROR	((pci_power_t __force) -1)
+
 #define PCI_MAX_BARS	6
 #define PCI_MAX_IRQS	32
 #define PCI_CONFIG_SIZE	4096
 #define PCI_DMA_ALIGN   4096
 #define PCI_DMA_BASE    0x10000000
+
+/* Number of possible devfns: 0.0 to 1f.7 inclusive */
+#define MAX_NR_DEVFNS 256
+#define PCI_MAX_NR_DEVS	32
+#define MAX_NR_LANES 16
+#define PCI_FIND_CAP_TTL 48
+#define PCI_VSEC_ID_INTEL_TBT 0x1234	/* Thunderbolt */
+#define PCIE_LINK_RETRAIN_TIMEOUT_MS 1000
 
 #if defined(_WIN64) || defined(__x86_64__) || defined(__aarch64__) || defined(_M_ARM64)
 typedef u64 dma_addr_t;
@@ -1285,7 +1458,38 @@ typedef u32 dma_addr_t;
 typedef u32 phys_addr_t;
 #endif
 
+typedef int pci_power_t;
 typedef phys_addr_t resource_size_t;
+typedef phys_addr_t resource_size_t;
+typedef unsigned int pcie_reset_state_t;
+typedef unsigned int pci_channel_state_t;
+
+enum {
+	/* I/O channel is in normal state */
+	pci_channel_io_normal = (__force pci_channel_state_t) 1,
+
+	/* I/O to channel is blocked */
+	pci_channel_io_frozen = (__force pci_channel_state_t) 2,
+
+	/* PCI card is dead */
+	pci_channel_io_perm_failure = (__force pci_channel_state_t) 3,
+};
+
+enum pcie_reset_state {
+	/* Reset is NOT asserted (Use to deassert reset) */
+	pcie_deassert_reset = (__force pcie_reset_state_t) 1,
+
+	/* Use #PERST to reset PCIe device */
+	pcie_warm_reset = (__force pcie_reset_state_t) 2,
+
+	/* Use PCIe Hot Reset to reset device */
+	pcie_hot_reset = (__force pcie_reset_state_t) 3
+};
+
+enum pci_search_direction {
+	PCI_SEARCH_FORWARD,
+	PCI_SEARCH_REVERSE,
+};
 
 /*
  * struct pci_device_id - PCI device ID structure
@@ -1378,6 +1582,88 @@ struct exsul_vfio {
 	pthread_mutex_t lock;
 	bool lock_initialized;
 };
+
+/*
+ * resource_set_size - Calculate resource end address from size and start
+ * @res: Resource descriptor
+ * @size: Size of the resource
+ *
+ * Calculate the end address for @res based on @size.
+ *
+ * Note: The start address of @res must be set when calling this function.
+ * Prefer resource_set_range() if setting both the start address and @size.
+ */
+static inline void resource_set_size(struct resource *res, resource_size_t size){
+	res->end = res->start + size - 1;
+}
+
+/*
+ * resource_set_range - Set resource start and end addresses
+ * @res: Resource descriptor
+ * @start: Start address for the resource
+ * @size: Size of the resource
+ *
+ * Set @res start address and calculate the end address based on @size.
+ */
+static inline void resource_set_range(struct resource *res, resource_size_t start, resource_size_t size){
+	res->start = start;
+	resource_set_size(res, size);
+}
+
+static inline resource_size_t resource_size(const struct resource *res){
+	return res->end - res->start + 1;
+}
+
+static inline unsigned long resource_type(const struct resource *res){
+	return res->flags & IORESOURCE_TYPE_BITS;
+}
+
+static inline unsigned long resource_ext_type(const struct resource *res){
+	return res->flags & IORESOURCE_EXT_TYPE_BITS;
+}
+
+/*
+ * For checking if @r1 completely contains @r2 for resources that have real
+ * addresses but are not yet crafted into the resource tree. Normally
+ * resource_contains() should be used instead of this function as it checks
+ * also IORESOURCE_UNSET flag.
+ */
+static inline bool __resource_contains_unbound(const struct resource *r1, const struct resource *r2){
+	if (resource_type(r1) != resource_type(r2)){
+		return false;
+	}
+	return r1->start <= r2->start && r1->end >= r2->end;
+}
+/* True iff r1 completely contains r2 */
+static inline bool resource_contains(const struct resource *r1, const struct resource *r2){
+	if (r1->flags & IORESOURCE_UNSET || r2->flags & IORESOURCE_UNSET){
+		return false;
+	}
+	return __resource_contains_unbound(r1, r2);
+}
+
+/* True if any part of r1 overlaps r2 */
+static inline bool resource_overlaps(const struct resource *r1, const struct resource *r2){
+       return r1->start <= r2->end && r1->end >= r2->start;
+}
+
+static inline bool resource_intersection(const struct resource *r1, const struct resource *r2, struct resource *r){
+	if (!resource_overlaps(r1, r2)){
+		return false;
+	}
+	r->start = max(r1->start, r2->start);
+	r->end = min(r1->end, r2->end);
+	return true;
+}
+
+static inline bool resource_union(const struct resource *r1, const struct resource *r2, struct resource *r){
+	if (!resource_overlaps(r1, r2)){
+		return false;
+	}
+	r->start = min(r1->start, r2->start);
+	r->end = max(r1->end, r2->end);
+	return true;
+}
 
 static int read_hex_file(const char *path, u32 *value){
 	int ret = 0;
@@ -2396,6 +2682,43 @@ static int pci_prepare_device(struct pci_dev *pci_dev, const char *bdf){
 		pci_resource->flags = IORESOURCE_MEM;
 	}
 	return ret;
+}
+
+PCI_OP_READ(byte, u8, 1)
+PCI_OP_READ(word, u16, 2)
+PCI_OP_READ(dword, u32, 4)
+PCI_OP_WRITE(byte, u8, 1)
+PCI_OP_WRITE(word, u16, 2)
+PCI_OP_WRITE(dword, u32, 4)
+
+static u8 __pci_find_next_ht_cap(struct pci_dev *pci_dev, u8 pos, int ht_cap){
+	int ret = 0;
+	int rc = 0;
+	u8 cap = 0;
+	u8 mask = 0;
+
+	if (ht_cap == HT_CAPTYPE_SLAVE || ht_cap == HT_CAPTYPE_HOST){
+		mask = HT_3BIT_CAP_MASK;
+	}else{
+		mask = HT_5BIT_CAP_MASK;
+	}
+	pos = PCI_FIND_NEXT_CAP(pci_bus_read_config, pos, PCI_CAP_ID_HT, NULL, pci_dev->bus, pci_dev->devfn);
+	while (pos) {
+		rc = pci_read_config_byte(pci_dev, pos + 3, &cap);
+		if (rc != PCIBIOS_SUCCESSFUL){
+			return ret;
+		}
+		if ((cap & mask) == ht_cap){
+			ret = pos;
+			return ret;
+		}
+		pos = PCI_FIND_NEXT_CAP(pci_bus_read_config, pos + PCI_CAP_LIST_NEXT, PCI_CAP_ID_HT, NULL, pci_dev->bus, pci_dev->devfn);
+	}
+	return ret;
+}
+
+static struct pci_dev *__pci_get_subsys(unsigned int vendor, unsigned int device, unsigned int ss_vendor, unsigned int ss_device, struct pci_dev *from, enum pci_search_direction dir){
+	return NULL;
 }
 
 static inline u8 readb(const volatile void __iomem *address){

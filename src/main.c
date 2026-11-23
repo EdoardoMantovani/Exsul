@@ -2847,8 +2847,10 @@ int workqueue_init(struct workqueue_struct *wq, const char *name) {
 int initialize_director(struct module_controller *director, struct load_info **info) {
 	int ret = 0;
 
+	#ifndef _WIN64
 	/* get the page size of the current host */
 	director->page_size = sysconf(_SC_PAGESIZE);
+	#endif
 	director->runtime_generated_structs = &runtime_generated_structs;
         if(director->info == NULL){
 		director->info = calloc(1, sizeof(struct load_info));
