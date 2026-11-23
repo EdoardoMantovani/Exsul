@@ -470,6 +470,7 @@ int kstrtouint(const char *s, unsigned int base, unsigned int *res);
 int futex_wait(atomic_int *addr, int expected);
 int filp_close(struct file *file, void *id);
 u32 ieee80211_calc_rx_airtime(struct ieee80211_hw *hw, struct ieee80211_rx_status *status, int len);
+void *pci_iomap_range(struct pci_dev *pci_dev, int bar, unsigned long offset, unsigned long maxlen);
 void pci_lock_rescan_remove(void);
 char *iwe_stream_add_point(struct iw_request_info *info, char *stream, char *ends, void *iwe, char *extra);
 void kfree(void *addr);
@@ -748,6 +749,7 @@ struct sk_buff *__hci_cmd_sync(struct hci_dev *hdev, u16 opcode, u32 plen, const
 int bt_to_errno(__u16 code);
 void ieee80211_emulate_remove_chanctx(struct ieee80211_hw *hw, struct ieee80211_chanctx_conf *ctx);
 void __fortify_panic(const u8 reason, const size_t avail, const size_t size);
+void __iomem *pci_iomap(struct pci_dev *pci_dev, int bar, unsigned long maxlen);
 int memcmp(const void *cs, const void *ct, size_t count);
 struct net_device *alloc_netdev_mqs(int sizeof_priv, char *name, unsigned char name_assign_type, void (*setup)(struct net_device *), unsigned int txqs, unsigned int rxqs);
 void ieee80211_stop_queues(struct ieee80211_hw *hw);
