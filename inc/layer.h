@@ -395,6 +395,41 @@ typedef _Atomic(unsigned int) atomic_uint;
 #define MAX_DRIVER_TO_USERSPACE_IO_SIZE	256
 #define MAX_USERSPACE_TO_DRIVER_IO_SIZE	256
 
+#define SZ_1M				0x00100000
+#define SZ_2M				0x00200000
+#define SZ_3M				0x00300000
+#define SZ_4M				0x00400000
+#define SZ_6M				0x00600000
+#define SZ_8M				0x00800000
+#define SZ_12M				0x00c00000
+#define SZ_16M				0x01000000
+#define SZ_18M				0x01200000
+#define SZ_24M				0x01800000
+#define SZ_32M				0x02000000
+#define SZ_64M				0x04000000
+#define SZ_128M				0x08000000
+#define SZ_256M				0x10000000
+#define SZ_512M				0x20000000
+#define SZ_1G				0x40000000
+#define SZ_2G				0x80000000
+#define SZ_4G				_AC(0x100000000, ULL)
+#define SZ_8G				_AC(0x200000000, ULL)
+#define SZ_16G				_AC(0x400000000, ULL)
+#define SZ_32G				_AC(0x800000000, ULL)
+#define SZ_64G				_AC(0x1000000000, ULL)
+#define SZ_128G				_AC(0x2000000000, ULL)
+#define SZ_256G				_AC(0x4000000000, ULL)
+#define SZ_512G				_AC(0x8000000000, ULL)
+
+#define SZ_1T				_AC(0x10000000000, ULL)
+#define SZ_2T				_AC(0x20000000000, ULL)
+#define SZ_4T				_AC(0x40000000000, ULL)
+#define SZ_8T				_AC(0x80000000000, ULL)
+#define SZ_16T				_AC(0x100000000000, ULL)
+#define SZ_32T				_AC(0x200000000000, ULL)
+#define SZ_64T				_AC(0x400000000000, ULL)
+#define SZ_128T				_AC(0x800000000000, ULL)
+
 /* macro used for getting the current '__task_struct' */
 #define current (current_thread_info())
 
@@ -1170,6 +1205,21 @@ struct device_driver {
 
 struct module_controller;
 extern struct module_controller director;
+/* put here the typedefs for the pcie layer */
+#if defined(_WIN64) || defined(__x86_64__) || defined(__aarch64__) || defined(_M_ARM64)
+typedef u64 dma_addr_t;
+typedef u64 phys_addr_t;
+typedef u64 pci_bus_addr_t;
+#else
+typedef u32 dma_addr_t;
+typedef u32 phys_addr_t;
+typedef u32 pci_bus_addr_t;
+#endif
+typedef int pci_power_t;
+typedef phys_addr_t resource_size_t;
+typedef phys_addr_t resource_size_t;
+typedef unsigned int pcie_reset_state_t;
+typedef unsigned int pci_channel_state_t;
 #include <prototypes.h>
 
 /* defines pthread functions for Windows below */

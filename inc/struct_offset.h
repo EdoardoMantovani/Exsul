@@ -1814,7 +1814,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[26] = {
 				.struct_size = 0,
 				.struct_name = "pci_dev",
-				.struct_field_num = 20,
+				.struct_field_num = 21,
 				.fields = {
 					[0] = {
 						.field_name = "bus",
@@ -1873,26 +1873,30 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[14] = {
-						.field_name = "resource",
+						.field_name = "rebar_cap",
 						.field_offset = 0,
 					},
 					[15] = {
-						.field_name = "revision",
+						.field_name = "resource",
 						.field_offset = 0,
 					},
 					[16] = {
-						.field_name = "rom_base_reg",
+						.field_name = "revision",
 						.field_offset = 0,
 					},
 					[17] = {
-						.field_name = "subsystem_device",
+						.field_name = "rom_base_reg",
 						.field_offset = 0,
 					},
 					[18] = {
-						.field_name = "subsystem_vendor",
+						.field_name = "subsystem_device",
 						.field_offset = 0,
 					},
 					[19] = {
+						.field_name = "subsystem_vendor",
+						.field_offset = 0,
+					},
+					[20] = {
 						.field_name = "vendor",
 						.field_offset = 0,
 					},

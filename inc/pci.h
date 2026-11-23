@@ -1500,21 +1500,7 @@ static int pci_bus_write_config_##size(struct pci_bus *bus, unsigned int devfn, 
 #define PCI_VSEC_ID_INTEL_TBT 0x1234	/* Thunderbolt */
 #define PCIE_LINK_RETRAIN_TIMEOUT_MS 1000
 
-#if defined(_WIN64) || defined(__x86_64__) || defined(__aarch64__) || defined(_M_ARM64)
-typedef u64 dma_addr_t;
-typedef u64 phys_addr_t;
-typedef u64 pci_bus_addr_t;
-#else
-typedef u32 dma_addr_t;
-typedef u32 phys_addr_t;
-typedef u32 pci_bus_addr_t;
-#endif
-
-typedef int pci_power_t;
-typedef phys_addr_t resource_size_t;
-typedef phys_addr_t resource_size_t;
-typedef unsigned int pcie_reset_state_t;
-typedef unsigned int pci_channel_state_t;
+#define PCI_REBAR_MIN_SIZE ((resource_size_t)SZ_1M)
 
 enum {
 	/* I/O channel is in normal state */
@@ -2805,6 +2791,42 @@ static int pci_prepare_device(struct pci_dev *pci_dev, const char *bdf){
 		pci_resource = &pci_dev->resource[bar];
 		pci_resource->flags = IORESOURCE_MEM;
 	}
+	return ret;
+}
+
+/*
+ * pci_rebar_find_pos - find position of resize control reg for BAR
+ * @pdev: PCI device
+ * @bar: BAR to find
+ *
+ * Helper to find the position of the control register for a BAR.
+ *
+ * Return:
+ * * %-ENOTSUPP if resizable BARs are not supported at all,
+ * * %-ENOENT if no control register for the BAR could be found.
+ */
+static int pci_rebar_find_pos(struct pci_dev *pci_dev, int bar){
+	int ret = 0;
+	int pos = 0;
+	int nbars = 0;
+	int bar_idx = 0;
+	u32 ctrl = 0;
+
+	pos = pci_dev->rebar_cap;
+	if (pos == 0){
+		ret = -ENOTSUPP;
+		return ret;
+	}
+	pci_read_config_dword(pci_dev, pos + PCI_REBAR_CTRL, &ctrl);
+	nbars = FIELD_GET(PCI_REBAR_CTRL_NBAR_MASK, ctrl);
+	for (int i = 0; i < nbars; i++, pos += 8) {
+		pci_read_config_dword(pci_dev, pos + PCI_REBAR_CTRL, &ctrl);
+		bar_idx = FIELD_GET(PCI_REBAR_CTRL_BAR_IDX, ctrl);
+		if (bar_idx == bar){
+			return pos;
+		}
+	}
+	ret = -ENOENT;
 	return ret;
 }
 
