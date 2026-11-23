@@ -1,4 +1,5 @@
-/* contains usb related stuff */
+/* Made by Edoardo Mantovani, 2026
+ * this header contains usb-related stuff */
 
 /* macro for translating a pipe (used only in the linux kernel) into an endpoint (used in libusb) */
 #define usb_pipeendpoint(pipe)  (((pipe) >> 15) & 0xf)

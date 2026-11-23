@@ -2,7 +2,7 @@
 
 # Made by Edoardo Mantovani, 2026
 # Exsul build script
-# version 2.5.0 (30 october 2026)
+# version 2.6.0 (23 november 2026)
 
 use strict;
 use warnings;
@@ -91,6 +91,8 @@ my $enable_tcc_fuzzing = undef;
 my $clean = undef;
 my $help = undef;
 my $no_dwarf = undef;
+my $pcie_support = undef;
+my $pcie_dbg = undef;
 my @windows_runtime_dlls = ();
 
 my $exsul_sz = 0;
@@ -123,7 +125,6 @@ my @gcc_params = (
 	"-DENABLE_UNWIND_DEBUGGING",
 	"-O2",
 	"-w",
-	"-g",
 	"-funwind-tables",
 	"-fasynchronous-unwind-tables",
 	"-fno-omit-frame-pointer",
@@ -199,6 +200,10 @@ my %struct_whitelist = (
 	"cfg80211_sched_scan"	=> "cfg80211_sched_scan_request", 
 	"cfg80211_chan_def"	=> "cfg80211_chan_def",
 	"ieee80211_chan_conf"   => "ieee80211_chanctx_conf",
+	"pci_dev"		=> "pci_dev",
+	"pci_driver"		=> "pci_driver",
+	"pci_bus"		=> "pci_bus",
+	"pci_ops"		=> "pci_ops",
 );
 my %fixed_only_structs = (
 	"ieee80211_sta"      => 1,
@@ -946,6 +951,62 @@ my %field_ctype = (
 		"rx_chains_dynamic"			=> "u8",
 		"radar_enabled"				=> "bool",
 	},
+	pci_dev => {
+		"bus"					=> "struct pci_bus *",
+		"sysdata"				=> "void *",
+		"devfn"					=> "unsigned int",
+		"vendor"				=> "unsigned short",
+		"device"				=> "unsigned short",
+		"subsystem_vendor"			=> "unsigned short",
+		"subsystem_device"			=> "unsigned short",
+		"class"					=> "unsigned int",
+		"revision"				=> "u8",
+		"hdr_type"				=> "u8",
+		"devcap"				=> "u32",
+		"rebar_cap"				=> "u16",
+		"pcie_cap"				=> "u8",
+		"msi_cap"				=> "u8",
+		"msix_cap"				=> "u8",
+		"pcie_mpss"				=> "u8",
+		"rom_base_reg"				=> "u8",
+		"pin"					=> "u8",
+		"pcie_flags_reg"			=> "u16",
+		"dma_alias_mask"			=> "unsigned long *",
+		"driver"				=> "struct pci_driver *",
+		"dma_mask"				=> "u64",
+		"pm_cap"				=> "u8",
+		"msi_addr_mask"				=> "u64",
+		"irq"					=> "unsigned int",
+		"resource"				=> "struct resource",
+	},
+	pci_driver => {
+		"name"					=> "const char *",
+		"id_table"				=> "struct pci_device_id *",
+		"probe"					=> "void *",
+		"remove"				=> "void *",
+		"suspend"				=> "void *",
+		"resume"				=> "void *",
+		"shutdown"				=> "void *",
+	},
+	pci_bus => {
+		"parent"				=> "struct pci_bus *",
+		"self"					=> "struct pci_dev *",
+		"resource"				=> "struct resource *",
+		"ops"					=> "struct pci_ops *",
+		"sysdata"				=> "void *",
+		"name"					=> "char",
+		"number"				=> "unsigned char",
+		"primary"				=> "unsigned char",
+		"max_bus_speed"				=> "unsigned char",
+		"cur_bus_speed"				=> "unsigned char",
+	},
+	pci_ops => {
+		"add_bus"				=> "void *",
+		"remove_bus"				=> "void *",
+		"map_bus"				=> "void *",
+		"read"					=> "void *",
+		"write"					=> "void *",
+	},
 );
 
 my %inline_array_field = (
@@ -1001,6 +1062,13 @@ my %inline_array_field = (
 	net_device => {
 		"_tx"				=> 1,
 	},
+	pci_dev => {
+		"resource"			=> 1,
+	},
+	pci_bus => {
+		"name"				=> 1,
+		"resource"			=> 1,
+	},
 );
 
 chomp($ls);
@@ -1034,6 +1102,8 @@ GetOptions(
 	"fuzzer"	  => \$enable_tcc_fuzzing,
 	"clean"           => \$clean,
 	"no-dwarf"        => \$no_dwarf,
+	"pci"	  	  => \$pcie_support,
+	"pci-dbg"	  => \$pcie_dbg,
 	"help"            => \$help,
 );
 
@@ -1052,6 +1122,8 @@ if($help){
 	print("--fuzzer -> enable fuzzing on the TCC interface\n");
 	print("--clean -> clear every compilation file\n");
 	print("--no-dwarf -> use only the built-in distro structure offsets\n");
+	print("--pci -> enable the support for the pcie bus, vfio required (still sperimental!)\n");
+	print("--pci-dbg -> enable the advanced debugging for the pcie userspace subsystem\n");
 	print("--help -> display this help text\n");
 	exit(0);
 }
@@ -1073,6 +1145,11 @@ if($dbg){
 if($no_dwarf){
 	push(@gcc_params, "-DEXSUL_NO_DWARF");
 	@gcc_final_linkings = grep { $_ ne "-ldwarf" } @gcc_final_linkings;
+}
+
+# enable the support for the PCIe bus (will permit to run different Wi-Fi PCIe drivers like iwlwifi ecc.. very cool!!)
+if($pcie_support){
+	push(@gcc_params, "-DEXSUL_PCI_SUPPORT");
 }
 
 # enable the fuzzing mode

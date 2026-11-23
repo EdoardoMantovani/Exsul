@@ -12,7 +12,7 @@ struct runtime_struct_layout {
 
 struct runtime_struct {
 	int compilation_time_generated_structs;
-	struct runtime_struct_layout structs[36 + 1];
+	struct runtime_struct_layout structs[40 + 1];
 };
 
 OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
@@ -239,21 +239,29 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[5] = {
 				.struct_size = 0,
 				.struct_name = "device",
-				.struct_field_num = 4,
+				.struct_field_num = 6,
 				.fields = {
 					[0] = {
-						.field_name = "dma_mask",
+						.field_name = "coherent_dma_mask",
 						.field_offset = 0,
 					},
 					[1] = {
-						.field_name = "driver",
+						.field_name = "dma_mask",
 						.field_offset = 0,
 					},
 					[2] = {
-						.field_name = "init_name",
+						.field_name = "driver",
 						.field_offset = 0,
 					},
 					[3] = {
+						.field_name = "driver_override",
+						.field_offset = 0,
+					},
+					[4] = {
+						.field_name = "init_name",
+						.field_offset = 0,
+					},
+					[5] = {
 						.field_name = "kobj",
 						.field_offset = 0,
 					},
@@ -1794,6 +1802,98 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			},
 			[25] = {
 				.struct_size = 0,
+				.struct_name = "pci_bus",
+				.struct_field_num = 1,
+				.fields = {
+					[0] = {
+						.field_name = "ops",
+						.field_offset = 0,
+					},
+				},
+			},
+			[26] = {
+				.struct_size = 0,
+				.struct_name = "pci_dev",
+				.struct_field_num = 11,
+				.fields = {
+					[0] = {
+						.field_name = "class",
+						.field_offset = 0,
+					},
+					[1] = {
+						.field_name = "dev",
+						.field_offset = 0,
+					},
+					[2] = {
+						.field_name = "device",
+						.field_offset = 0,
+					},
+					[3] = {
+						.field_name = "irq",
+						.field_offset = 0,
+					},
+					[4] = {
+						.field_name = "pcie_cap",
+						.field_offset = 0,
+					},
+					[5] = {
+						.field_name = "pcie_flags_reg",
+						.field_offset = 0,
+					},
+					[6] = {
+						.field_name = "resource",
+						.field_offset = 0,
+					},
+					[7] = {
+						.field_name = "revision",
+						.field_offset = 0,
+					},
+					[8] = {
+						.field_name = "subsystem_device",
+						.field_offset = 0,
+					},
+					[9] = {
+						.field_name = "subsystem_vendor",
+						.field_offset = 0,
+					},
+					[10] = {
+						.field_name = "vendor",
+						.field_offset = 0,
+					},
+				},
+			},
+			[27] = {
+				.struct_size = 0,
+				.struct_name = "pci_driver",
+				.struct_field_num = 3,
+				.fields = {
+					[0] = {
+						.field_name = "id_table",
+						.field_offset = 0,
+					},
+					[1] = {
+						.field_name = "probe",
+						.field_offset = 0,
+					},
+					[2] = {
+						.field_name = "remove",
+						.field_offset = 0,
+					},
+				},
+			},
+			[28] = {
+				.struct_size = 0,
+				.struct_name = "pci_ops",
+				.struct_field_num = 1,
+				.fields = {
+					[0] = {
+						.field_name = "map_bus",
+						.field_offset = 0,
+					},
+				},
+			},
+			[29] = {
+				.struct_size = 0,
 				.struct_name = "rate_info",
 				.struct_field_num = 14,
 				.fields = {
@@ -1855,7 +1955,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[26] = {
+			[30] = {
 				.struct_size = 0,
 				.struct_name = "sk_buff",
 				.struct_field_num = 54,
@@ -2078,7 +2178,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[27] = {
+			[31] = {
 				.struct_size = 0,
 				.struct_name = "sk_buff_head",
 				.struct_field_num = 3,
@@ -2097,7 +2197,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[28] = {
+			[32] = {
 				.struct_size = 0,
 				.struct_name = "skb_shared_info",
 				.struct_field_num = 3,
@@ -2116,7 +2216,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[29] = {
+			[33] = {
 				.struct_size = 0,
 				.struct_name = "sock",
 				.struct_field_num = 2,
@@ -2131,7 +2231,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[30] = {
+			[34] = {
 				.struct_size = 0,
 				.struct_name = "urb",
 				.struct_field_num = 17,
@@ -2206,7 +2306,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[31] = {
+			[35] = {
 				.struct_size = 0,
 				.struct_name = "usb_device",
 				.struct_field_num = 8,
@@ -2245,7 +2345,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[32] = {
+			[36] = {
 				.struct_size = 0,
 				.struct_name = "usb_driver",
 				.struct_field_num = 4,
@@ -2268,7 +2368,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[33] = {
+			[37] = {
 				.struct_size = 0,
 				.struct_name = "usb_interface",
 				.struct_field_num = 5,
@@ -2295,7 +2395,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[34] = {
+			[38] = {
 				.struct_size = 0,
 				.struct_name = "wiphy",
 				.struct_field_num = 34,
@@ -2438,7 +2538,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 				},
 			},
-			[35] = {
+			[39] = {
 				.struct_size = 0,
 				.struct_name = "wireless_dev",
 				.struct_field_num = 1,

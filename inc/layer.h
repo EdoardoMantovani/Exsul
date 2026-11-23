@@ -425,7 +425,7 @@ typedef _Atomic(unsigned int) atomic_uint;
 #define SWAP_BYTES    (swap_r_func_t)2
 #define SWAP_WRAPPER  (swap_r_func_t)3
 
-#define _CMP_WRAPPER			((cmp_r_func_t)0L)
+#define _CMP_WRAPPER  ((cmp_r_func_t)0L)
 
 /* sections for the crashdump */
 enum {
@@ -579,6 +579,13 @@ enum {
 	TASKLET_STATE_KILL,	/* Tasklet is killed */
 };
 
+enum dma_data_direction {
+	DMA_BIDIRECTIONAL = 0,
+	DMA_TO_DEVICE = 1,
+	DMA_FROM_DEVICE = 2,
+	DMA_NONE = 3,
+};
+
 enum mod_mem_type {
         MOD_TEXT                = 0,
         MOD_DATA                = 1,
@@ -626,6 +633,17 @@ enum irqreturn {
 	IRQ_HANDLED		= (1 << 0),
 	IRQ_WAKE_THREAD		= (1 << 1),
 };
+
+/* Flags for eventfd.  */
+enum {
+	EFD_SEMAPHORE = 00000001,
+	#define EFD_SEMAPHORE EFD_SEMAPHORE
+	EFD_CLOEXEC = 02000000,
+	#define EFD_CLOEXEC EFD_CLOEXEC
+	EFD_NONBLOCK = 00004000
+	#define EFD_NONBLOCK EFD_NONBLOCK
+};
+
 
 /* callbacks used in the 'work_struct' */
 typedef void (*work_func_t)(struct work_struct *work);
@@ -795,10 +813,10 @@ struct iw_request_info {
 
 /* a single wait-queue entry structure: */
 struct wait_queue_entry {
-	unsigned int		flags;
-	void			*private;
-	wait_queue_func_t	func;
-	struct list_head	entry;
+	unsigned int flags;
+	void *private;
+	wait_queue_func_t func;
+	struct list_head entry;
 };
 
 struct swait_queue_head {
@@ -906,7 +924,7 @@ struct workqueue_struct {
 
 	pthread_mutex_t lock;
 	pthread_cond_t  cond;
-	clockid_t       clock_id;
+	clockid_t clock_id;
 
 	struct list_head work_list;
 	struct list_head delayed_list;
@@ -941,26 +959,26 @@ struct workqueue_struct {
  * @autosleep_enabled: Autosleep is active, so update @prevent_sleep_time.
  */
 struct wakeup_source {
-	const char 		*name;
-	int			id;
-	struct list_head	entry;
-	u32			lock;
-	struct wake_irq		*wakeirq;
-	struct timer_list	timer;
-	unsigned long		timer_expires;
+	const char *name;
+	int id;
+	struct list_head entry;
+	u32 lock;
+	struct wake_irq	*wakeirq;
+	struct timer_list timer;
+	unsigned long timer_expires;
 	ktime_t total_time;
 	ktime_t max_time;
 	ktime_t last_time;
 	ktime_t start_prevent_time;
 	ktime_t prevent_sleep_time;
-	unsigned long		event_count;
-	unsigned long		active_count;
-	unsigned long		relax_count;
-	unsigned long		expire_count;
-	unsigned long		wakeup_count;
-	struct device		*dev;
-	bool			active:1;
-	bool			autosleep_enabled:1;
+	unsigned long event_count;
+	unsigned long active_count;
+	unsigned long relax_count;
+	unsigned long expire_count;
+	unsigned long wakeup_count;
+	struct device *dev;
+	bool active:1;
+	bool autosleep_enabled:1;
 };
 
 /* Tasklets --- multithreaded analogue of BHs.
@@ -1074,9 +1092,9 @@ struct kernel_param_ops {
 };
 
 struct seq_operations {
-	void * (*start) (struct seq_file *m, int *pos);
+	void *(*start) (struct seq_file *m, int *pos);
 	void (*stop) (struct seq_file *m, void *v);
-	void * (*next) (struct seq_file *m, void *v, int *pos);
+	void *(*next) (struct seq_file *m, void *v, int *pos);
 	int (*show) (struct seq_file *m, void *v);
 };
 
@@ -1123,17 +1141,17 @@ struct internal_cb_table {
 
 /* the 'device_driver' struct is defined inside the virtual struct generator at runtime, this is used just for 'usb_driver' */
 struct device_driver {
-	const char		*name;
-	const struct bus_type	*bus;
+	const char *name;
+	const struct bus_type *bus;
 
-	struct module		*owner;
-	const char		*mod_name;	/* used for built-in modules */
+	struct module *owner;
+	const char *mod_name;	/* used for built-in modules */
 
 	bool suppress_bind_attrs;	/* disables bind/unbind via sysfs */
 	enum probe_type probe_type;
 
-	const struct of_device_id	*of_match_table;
-	const struct acpi_device_id	*acpi_match_table;
+	const struct of_device_id *of_match_table;
+	const struct acpi_device_id *acpi_match_table;
 
 	int (*probe) (struct device *dev);
 	void (*sync_state)(struct device *dev);
@@ -2627,6 +2645,7 @@ static void __sort_r(void *base, size_t num, size_t size, int (*cmp_func)(const 
 #include <jiffies.h>
 #include <crc.h>
 #include <usb.h>
+#include <pci.h>
 #include <bits.h>
 #include <skb.h>
 #include <net.h>

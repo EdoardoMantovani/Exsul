@@ -1,13 +1,15 @@
-int pcie_capability_clear_and_set_word_unlocked(struct pci_dev *dev, int pos, u16 clear, u16 set){
+int pcie_capability_clear_and_set_word_unlocked(struct pci_dev *pci_dev, int pos, u16 clear, u16 set){
 	int ret = 0;
 	u16 val = 0;
 
-	ret = pcie_capability_read_word(dev, pos, &val);
+	#ifdef EXSUL_PCI_SUPPORT
+	ret = pcie_capability_read_word(pci_dev, pos, &val);
 	if (ret){
 		return ret;
 	}
 	val &= ~clear;
 	val |= set;
-	ret = pcie_capability_write_word(dev, pos, val);
+	ret = pcie_capability_write_word(pci_dev, pos, val);
+	#endif
 	return ret;
 }

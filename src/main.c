@@ -2847,6 +2847,8 @@ int workqueue_init(struct workqueue_struct *wq, const char *name) {
 int initialize_director(struct module_controller *director, struct load_info **info) {
 	int ret = 0;
 
+	/* get the page size of the current host */
+	director->page_size = sysconf(_SC_PAGESIZE);
 	director->runtime_generated_structs = &runtime_generated_structs;
         if(director->info == NULL){
 		director->info = calloc(1, sizeof(struct load_info));
@@ -3186,6 +3188,10 @@ int collect_sizes(struct module_controller *director){
 	current_struct_size = get_struct_size("ieee80211_chanctx_conf");
 	if(current_struct_size != director->struct_sizes.ieee80211_chanctx_conf && current_struct_size > 0){
 		director->struct_sizes.ieee80211_chanctx_conf = current_struct_size;
+	}
+	current_struct_size = get_struct_size("pci_dev");
+	if(current_struct_size != director->struct_sizes.pci_dev && current_struct_size > 0){
+		director->struct_sizes.pci_dev = current_struct_size;
 	}
 	/* fallback method for 'skb_shared_info' */
         if(director->struct_sizes.skb_shared_info == 0){

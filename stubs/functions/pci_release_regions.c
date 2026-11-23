@@ -1,3 +1,3 @@
-void pci_release_regions(struct pci_dev *pdev){
+void pci_release_regions(struct pci_dev *pci_dev){
 
 }

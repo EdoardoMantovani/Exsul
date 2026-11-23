@@ -40,9 +40,7 @@ struct rfkill;
 struct device;
 struct hci_cb;
 struct hci_dev;
-struct pci_dev;
 struct usb_device;
-struct pci_driver;
 struct net_device;
 
 struct l2cap_conn;
@@ -96,3 +94,9 @@ struct ieee80211_supported_band;
 struct ieee80211_vif_chanctx_switch;
 
 struct serdev_device_driver;
+
+struct pci_bus;
+struct pci_ops;
+struct pci_dev;
+struct pci_driver;
+

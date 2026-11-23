@@ -27,6 +27,7 @@ struct fast_struct_size {
         u16 hci_dev;
 	u16 cfg80211_chan_def;
 	u16 ieee80211_chanctx_conf;
+	u16 pci_dev;
 };
 
 struct exsul_scan_result {
@@ -58,6 +59,8 @@ struct module_controller {
 	u8 kernel_minor_version;
 	u8 kernel_patch;
 	u16 kernel_abi_version;
+	/* necessary for PCIe related task, it is the output of sysconf(_SC_PAGESIZE) */
+	u16 page_size;
 	/* mantain the count of the loaded modules in the current address space */
 	int modules_loaded;
 	/* mantain a track of the current memory used for everything, in bytes */
@@ -179,6 +182,13 @@ struct module_controller {
         u8 loaded_lkm_num;
 	/* track every memory region mapped in the actual memory, it doesn't matter much the original module they belongs to */
 	struct allocation_list *module_allocation_list;
+
+	#ifdef EXSUL_PCI_SUPPORT
+	struct exsul_vfio *vfio;
+	struct pci_driver *bound_pci_driver;
+	struct pci_dev *pci_device;
+	struct pci_device_id *pci_device_id;
+	#endif
 
 	#ifdef ENABLE_FUZZING
 	/* set to true when in fuzzing mode, hooks the USB bus I/O functions for redirecting/parsing the device interface */
