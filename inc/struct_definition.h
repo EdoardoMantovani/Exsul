@@ -95,8 +95,9 @@ struct ieee80211_vif_chanctx_switch;
 
 struct serdev_device_driver;
 
+struct resource;
 struct pci_bus;
 struct pci_ops;
 struct pci_dev;
 struct pci_driver;
-
+struct pci_bus_region;

@@ -1427,6 +1427,56 @@ static int pci_bus_write_config_##size(struct pci_bus *bus, unsigned int devfn, 
 #define IORESOURCE_AUTO		0x40000000
 #define IORESOURCE_BUSY		0x80000000	/* Driver has marked this resource busy */
 
+/* PnP IRQ specific bits (IORESOURCE_BITS) */
+#define IORESOURCE_IRQ_HIGHEDGE		(1<<0)
+#define IORESOURCE_IRQ_LOWEDGE		(1<<1)
+#define IORESOURCE_IRQ_HIGHLEVEL	(1<<2)
+#define IORESOURCE_IRQ_LOWLEVEL		(1<<3)
+#define IORESOURCE_IRQ_SHAREABLE	(1<<4)
+#define IORESOURCE_IRQ_OPTIONAL		(1<<5)
+#define IORESOURCE_IRQ_WAKECAPABLE	(1<<6)
+
+/* PnP DMA specific bits (IORESOURCE_BITS) */
+#define IORESOURCE_DMA_TYPE_MASK	(3<<0)
+#define IORESOURCE_DMA_8BIT		(0<<0)
+#define IORESOURCE_DMA_8AND16BIT	(1<<0)
+#define IORESOURCE_DMA_16BIT		(2<<0)
+
+#define IORESOURCE_DMA_MASTER		(1<<2)
+#define IORESOURCE_DMA_BYTE		(1<<3)
+#define IORESOURCE_DMA_WORD		(1<<4)
+
+#define IORESOURCE_DMA_SPEED_MASK	(3<<6)
+#define IORESOURCE_DMA_COMPATIBLE	(0<<6)
+#define IORESOURCE_DMA_TYPEA		(1<<6)
+#define IORESOURCE_DMA_TYPEB		(2<<6)
+#define IORESOURCE_DMA_TYPEF		(3<<6)
+
+/* PnP memory I/O specific bits (IORESOURCE_BITS) */
+#define IORESOURCE_MEM_WRITEABLE	(1<<0)	/* dup: IORESOURCE_READONLY */
+#define IORESOURCE_MEM_CACHEABLE	(1<<1)	/* dup: IORESOURCE_CACHEABLE */
+#define IORESOURCE_MEM_RANGELENGTH	(1<<2)	/* dup: IORESOURCE_RANGELENGTH */
+#define IORESOURCE_MEM_TYPE_MASK	(3<<3)
+#define IORESOURCE_MEM_8BIT		(0<<3)
+#define IORESOURCE_MEM_16BIT		(1<<3)
+#define IORESOURCE_MEM_8AND16BIT	(2<<3)
+#define IORESOURCE_MEM_32BIT		(3<<3)
+#define IORESOURCE_MEM_SHADOWABLE	(1<<5)	/* dup: IORESOURCE_SHADOWABLE */
+#define IORESOURCE_MEM_EXPANSIONROM	(1<<6)
+#define IORESOURCE_MEM_NONPOSTED	(1<<7)
+
+/* PnP I/O specific bits (IORESOURCE_BITS) */
+#define IORESOURCE_IO_16BIT_ADDR	(1<<0)
+#define IORESOURCE_IO_FIXED		(1<<1)
+#define IORESOURCE_IO_SPARSE		(1<<2)
+
+/* PCI ROM control bits (IORESOURCE_BITS) */
+#define IORESOURCE_ROM_ENABLE		(1<<0)	/* ROM is enabled, same as PCI_ROM_ADDRESS_ENABLE */
+#define IORESOURCE_ROM_SHADOW		(1<<1)	/* Use RAM image, not ROM BAR */
+
+/* PCI control bits.  Shares IORESOURCE_BITS with above PCI ROM.  */
+#define IORESOURCE_PCI_FIXED		(1<<4)	/* Do not move resource */
+#define IORESOURCE_PCI_EA_BEI		(1<<5)	/* BAR Equivalent Indicator */
 
 #define PCI_D0		((pci_power_t __force) 0)
 #define PCI_D1		((pci_power_t __force) 1)
@@ -1453,9 +1503,11 @@ static int pci_bus_write_config_##size(struct pci_bus *bus, unsigned int devfn, 
 #if defined(_WIN64) || defined(__x86_64__) || defined(__aarch64__) || defined(_M_ARM64)
 typedef u64 dma_addr_t;
 typedef u64 phys_addr_t;
+typedef u64 pci_bus_addr_t;
 #else
 typedef u32 dma_addr_t;
 typedef u32 phys_addr_t;
+typedef u32 pci_bus_addr_t;
 #endif
 
 typedef int pci_power_t;
@@ -1489,6 +1541,78 @@ enum pcie_reset_state {
 enum pci_search_direction {
 	PCI_SEARCH_FORWARD,
 	PCI_SEARCH_REVERSE,
+};
+
+/* File state for mmap()s on /proc/bus/pci/X/Y */
+enum pci_mmap_state {
+	pci_mmap_io,
+	pci_mmap_mem
+};
+
+/* For PCI devices, the region numbers are assigned this way: */
+enum {
+	/* #0-5: standard PCI resources */
+	PCI_STD_RESOURCES,
+	PCI_STD_RESOURCE_END = PCI_STD_RESOURCES + PCI_STD_NUM_BARS - 1,
+
+	/* #6: expansion ROM resource */
+	PCI_ROM_RESOURCE,
+
+	/* Device-specific resources */
+	#ifdef CONFIG_PCI_IOV
+	PCI_IOV_RESOURCES,
+	PCI_IOV_RESOURCE_END = PCI_IOV_RESOURCES + PCI_SRIOV_NUM_BARS - 1,
+	#endif
+
+	/* PCI-to-PCI (P2P) bridge windows */
+	#define PCI_BRIDGE_IO_WINDOW		(PCI_BRIDGE_RESOURCES + 0)
+	#define PCI_BRIDGE_MEM_WINDOW		(PCI_BRIDGE_RESOURCES + 1)
+	#define PCI_BRIDGE_PREF_MEM_WINDOW	(PCI_BRIDGE_RESOURCES + 2)
+
+	/* CardBus bridge windows */
+	#define PCI_CB_BRIDGE_IO_0_WINDOW	(PCI_BRIDGE_RESOURCES + 0)
+	#define PCI_CB_BRIDGE_IO_1_WINDOW	(PCI_BRIDGE_RESOURCES + 1)
+	#define PCI_CB_BRIDGE_MEM_0_WINDOW	(PCI_BRIDGE_RESOURCES + 2)
+	#define PCI_CB_BRIDGE_MEM_1_WINDOW	(PCI_BRIDGE_RESOURCES + 3)
+
+	/* Total number of bridge resources for P2P and CardBus */
+	#define PCI_P2P_BRIDGE_RESOURCE_NUM	3
+	#define PCI_BRIDGE_RESOURCE_NUM		4
+
+	/* Resources assigned to buses behind the bridge */
+	PCI_BRIDGE_RESOURCES,
+	PCI_BRIDGE_RESOURCE_END = PCI_BRIDGE_RESOURCES +
+				  PCI_BRIDGE_RESOURCE_NUM - 1,
+
+	/* Total resources associated with a PCI device */
+	PCI_NUM_RESOURCES,
+
+	/* Preserve this for compatibility */
+	DEVICE_COUNT_RESOURCE = PCI_NUM_RESOURCES,
+};
+
+/*
+ * enum pci_interrupt_pin - PCI INTx interrupt values
+ * @PCI_INTERRUPT_UNKNOWN: Unknown or unassigned interrupt
+ * @PCI_INTERRUPT_INTA: PCI INTA pin
+ * @PCI_INTERRUPT_INTB: PCI INTB pin
+ * @PCI_INTERRUPT_INTC: PCI INTC pin
+ * @PCI_INTERRUPT_INTD: PCI INTD pin
+ *
+ * Corresponds to values for legacy PCI INTx interrupts, as can be found in the
+ * PCI_INTERRUPT_PIN register.
+ */
+enum pci_interrupt_pin {
+	PCI_INTERRUPT_UNKNOWN,
+	PCI_INTERRUPT_INTA,
+	PCI_INTERRUPT_INTB,
+	PCI_INTERRUPT_INTC,
+	PCI_INTERRUPT_INTD,
+};
+
+struct pci_bus_region {
+	pci_bus_addr_t	start;
+	pci_bus_addr_t	end;
 };
 
 /*
@@ -2719,6 +2843,45 @@ static u8 __pci_find_next_ht_cap(struct pci_dev *pci_dev, u8 pos, int ht_cap){
 
 static struct pci_dev *__pci_get_subsys(unsigned int vendor, unsigned int device, unsigned int ss_vendor, unsigned int ss_device, struct pci_dev *from, enum pci_search_direction dir){
 	return NULL;
+}
+
+static void __pci_set_master(struct pci_dev *pci_dev, bool enable){
+	u16 cmd = 0;
+	u16 old_cmd = 0;
+
+	pci_read_config_word(pci_dev, PCI_COMMAND, &old_cmd);
+	if (enable == true){
+		cmd = old_cmd | PCI_COMMAND_MASTER;
+	}else{
+		cmd = old_cmd & ~PCI_COMMAND_MASTER;
+	}
+	if (cmd != old_cmd) {
+		pci_write_config_word(pci_dev, PCI_COMMAND, cmd);
+	}
+	pci_dev->is_busmaster = enable;
+}
+
+/*
+ * pcibios_set_master - enable PCI bus-mastering for device dev
+ * @dev: the PCI device to enable
+ *
+ * Enables PCI bus-mastering for the device.  This is the default
+ * implementation.  Architecture specific implementations can override
+ * this if necessary.
+ */
+static void pcibios_set_master(struct pci_dev *pci_dev){
+	u8 lat = 0;
+	int pcibios_max_latency = 255;
+
+	pci_read_config_byte(pci_dev, PCI_LATENCY_TIMER, &lat);
+	if (lat < 16){
+		lat = (64 <= pcibios_max_latency) ? 64 : pcibios_max_latency;
+	}else if (lat > pcibios_max_latency){
+		lat = pcibios_max_latency;
+	}else{
+		return;
+	}
+	pci_write_config_byte(pci_dev, PCI_LATENCY_TIMER, lat);
 }
 
 static inline u8 readb(const volatile void __iomem *address){

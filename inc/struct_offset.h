@@ -1814,7 +1814,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[26] = {
 				.struct_size = 0,
 				.struct_name = "pci_dev",
-				.struct_field_num = 17,
+				.struct_field_num = 20,
 				.fields = {
 					[0] = {
 						.field_name = "bus",
@@ -1841,46 +1841,58 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[6] = {
-						.field_name = "irq",
+						.field_name = "driver",
 						.field_offset = 0,
 					},
 					[7] = {
-						.field_name = "ops",
+						.field_name = "irq",
 						.field_offset = 0,
 					},
 					[8] = {
-						.field_name = "pcie_cap",
+						.field_name = "is_busmaster",
 						.field_offset = 0,
 					},
 					[9] = {
-						.field_name = "pcie_flags_reg",
+						.field_name = "ops",
 						.field_offset = 0,
 					},
 					[10] = {
-						.field_name = "pm_cap",
+						.field_name = "pcie_cap",
 						.field_offset = 0,
 					},
 					[11] = {
-						.field_name = "pme_support",
+						.field_name = "pcie_flags_reg",
 						.field_offset = 0,
 					},
 					[12] = {
-						.field_name = "resource",
+						.field_name = "pm_cap",
 						.field_offset = 0,
 					},
 					[13] = {
-						.field_name = "revision",
+						.field_name = "pme_support",
 						.field_offset = 0,
 					},
 					[14] = {
-						.field_name = "subsystem_device",
+						.field_name = "resource",
 						.field_offset = 0,
 					},
 					[15] = {
-						.field_name = "subsystem_vendor",
+						.field_name = "revision",
 						.field_offset = 0,
 					},
 					[16] = {
+						.field_name = "rom_base_reg",
+						.field_offset = 0,
+					},
+					[17] = {
+						.field_name = "subsystem_device",
+						.field_offset = 0,
+					},
+					[18] = {
+						.field_name = "subsystem_vendor",
+						.field_offset = 0,
+					},
+					[19] = {
 						.field_name = "vendor",
 						.field_offset = 0,
 					},

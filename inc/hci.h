@@ -1565,7 +1565,6 @@ static struct sk_buff *hci_cmd_sync_alloc(struct hci_dev *hdev, u16 opcode, u32 
 	if (skb == NULL){
 		return NULL;
 	}
-
 	hdr = skb_put(skb, HCI_COMMAND_HDR_SIZE);
 	hdr->opcode = cpu_to_le16(opcode);
 	hdr->plen = plen;
@@ -1573,7 +1572,6 @@ static struct sk_buff *hci_cmd_sync_alloc(struct hci_dev *hdev, u16 opcode, u32 
 	if (plen){
 		skb_put_data(skb, param, plen);
 	}
-
 	cb = (struct bt_skb_cb *)skb->cb;
 	cb->pkt_type = HCI_COMMAND_PKT;
 	cb->hci.opcode = opcode;
@@ -1617,7 +1615,6 @@ static int hci_send_frame(struct hci_dev *hdev, struct sk_buff *skb){
 	#endif
 
 	skb_orphan(skb);
-
 	if (!test_bit(HCI_RUNNING, &hdev->flags)) {
 		kfree_skb(skb);
 		ret = -EINVAL;
@@ -1644,7 +1641,6 @@ static void hci_cmd_sync_add(struct hci_request *req, u16 opcode, u32 plen, cons
 	struct bt_skb_cb *bt_skb_cb = NULL;
 
 	hdev = req->hdev;
-
 	if (req->err){
 		return;
 	}
