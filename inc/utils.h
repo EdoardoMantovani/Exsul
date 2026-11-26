@@ -1366,29 +1366,37 @@ static inline bool check_data_corruption(bool v){
 
 #ifdef ARCH_INDEPENDENT_BITOPS
 /* functions taken from 'https://github.com/chris1111/AppleIntelE1000e/blob/0604bc4bdfb1a12be7af6b7fe2ce5b9ad8582310/kcompat.h#L423-L440C2' */
-static inline int test_bit(int nr, const volatile unsigned long addr) {
-	return (addr & (1<<nr)) != 0;
+static inline int test_bit(int nr, const volatile unsigned long *addr) {
+	const volatile unsigned long *p = addr + BIT_WORD(nr);
+
+	return (__atomic_load_n(p, __ATOMIC_RELAXED) & BIT_MASK(nr)) != 0;
 }
 
-static inline void set_bit(int nr, volatile unsigned long addr) {
-	addr |= (1 << nr);
+static inline void set_bit(int nr, volatile unsigned long *addr) {
+	volatile unsigned long *p = addr + BIT_WORD(nr);
+
+	__atomic_fetch_or(p, BIT_MASK(nr), __ATOMIC_SEQ_CST);
 }
 
-static inline void clear_bit(int nr, volatile unsigned long addr) {
-	addr &= ~(1 << nr);
+static inline void clear_bit(int nr, volatile unsigned long *addr) {
+	volatile unsigned long *p = addr + BIT_WORD(nr);
+
+	__atomic_fetch_and(p, ~BIT_MASK(nr), __ATOMIC_SEQ_CST);
 }
 
 /*
  * change_bit - Toggle a bit in memory
  */
 static inline void change_bit(int nr, unsigned long *addr){
-	*addr ^= BIT_MASK(nr);
+	unsigned long *p = addr + BIT_WORD(nr);
+
+	__atomic_fetch_xor(p, BIT_MASK(nr), __ATOMIC_SEQ_CST);
 }
 
-static inline int test_and_set_bit(int nr, volatile unsigned long addr) {
-	int rc = test_bit(nr, addr);
-	set_bit(nr,addr);
-	return rc;
+static inline int test_and_set_bit(int nr, volatile unsigned long *addr) {
+	volatile unsigned long *p = addr + BIT_WORD(nr);
+
+	return (__atomic_fetch_or(p, BIT_MASK(nr), __ATOMIC_SEQ_CST) & BIT_MASK(nr)) != 0;
 }
 
 /*
@@ -1396,9 +1404,9 @@ static inline int test_and_set_bit(int nr, volatile unsigned long addr) {
  */
 static inline int test_and_clear_bit(int nr, unsigned long *addr){
 	unsigned long mask = BIT_MASK(nr);
-	unsigned long old = *addr;
+	unsigned long *p = addr + BIT_WORD(nr);
+	unsigned long old = __atomic_fetch_and(p, ~mask, __ATOMIC_SEQ_CST);
 
-	*addr = old & ~mask;
 	return (old & mask) != 0;
 }
 
@@ -1407,9 +1415,9 @@ static inline int test_and_clear_bit(int nr, unsigned long *addr){
  */
 static inline int test_and_change_bit(int nr, unsigned long *addr){
 	unsigned long mask = BIT_MASK(nr);
-	unsigned long old = *addr;
+	unsigned long *p = addr + BIT_WORD(nr);
+	unsigned long old = __atomic_fetch_xor(p, mask, __ATOMIC_SEQ_CST);
 
-	*addr = old ^ mask;
 	return (old & mask) != 0;
 }
 #endif

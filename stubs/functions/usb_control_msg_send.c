@@ -4,7 +4,6 @@ int usb_control_msg_send(struct usb_device *dev, __u8 endpoint, __u8 request, __
 	u8 *data = NULL;
 
 	data = kmemdup_noprof(driver_data, size, memflags);
-
 	usb_lock();
 	ret = libusb_control_transfer(
 		director.usb_dev,
@@ -22,7 +21,6 @@ int usb_control_msg_send(struct usb_device *dev, __u8 endpoint, __u8 request, __
 	}
 	#endif
 	usb_unlock();
-
 	kfree(data);
 	return ret;
 }

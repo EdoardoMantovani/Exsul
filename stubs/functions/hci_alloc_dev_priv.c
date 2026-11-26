@@ -31,7 +31,7 @@ struct hci_dev *hci_alloc_dev_priv(int sizeof_priv){
 
 	hdev->advmon_allowlist_duration = 300;
 	hdev->advmon_no_filter_duration = 500;
-	hdev->enable_advmon_interleave_scan = 0x00;	/* Default to disable */
+	hdev->enable_advmon_interleave_scan = 0x00; /* Default to disable */
 
 	hdev->sniff_max_interval = 800;
 	hdev->sniff_min_interval = 80;
@@ -106,20 +106,15 @@ struct hci_dev *hci_alloc_dev_priv(int sizeof_priv){
 	INIT_LIST_HEAD(&hdev->local_codecs);
 
 	INIT_LIST_HEAD(&conn_hash->list);
+	INIT_LIST_HEAD(&hdev->list);
 
-	/* still TODO */
-	#if 0
 	INIT_WORK(&hdev->rx_work, hci_rx_work);
 	INIT_WORK(&hdev->cmd_work, hci_cmd_work);
 	INIT_WORK(&hdev->tx_work, hci_tx_work);
 	INIT_WORK(&hdev->power_on, hci_power_on);
 	INIT_WORK(&hdev->error_reset, hci_error_reset);
-	#endif
 	hci_cmd_sync_init(hdev);
-
-	#if 0
 	INIT_DELAYED_WORK(&hdev->power_off, hci_power_off);
-	#endif
 
 	skb_queue_head_init(&hdev->rx_q);
 	skb_queue_head_init(&hdev->cmd_q);
@@ -127,11 +122,8 @@ struct hci_dev *hci_alloc_dev_priv(int sizeof_priv){
 	hci_devcd_setup(hdev);
 
 	__init_waitqueue_head(&hdev->req_wait_q, "read_wait_q", NULL);
-	#if 0
 	INIT_DELAYED_WORK(&hdev->cmd_timer, hci_cmd_timeout);
 	INIT_DELAYED_WORK(&hdev->ncmd_timer, hci_ncmd_timeout);
-	#endif
 	discovery_init(hdev);
-
 	return hdev;
 }

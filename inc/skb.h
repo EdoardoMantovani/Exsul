@@ -1726,36 +1726,33 @@ static void __copy_skb_header(struct sk_buff *new, const struct sk_buff *old){
  * __copy_skb_header above instead.
  */
 static struct sk_buff *__skb_clone(struct sk_buff *n, struct sk_buff *skb){
-	#define C(x) n->x = skb->x
-
 	skb_list_next(n) = NULL;
 	skb_list_prev(n) = NULL;
 	n->sk = NULL;
 	__copy_skb_header(n, skb);
 
-	C(len);
-	C(data_len);
-	C(mac_len);
+	n->len = skb->len;
+	n->data_len = skb->data_len;
+	n->mac_len = skb->mac_len;
 	n->hdr_len = skb->nohdr ? skb_headroom(skb) : skb->hdr_len;
 	n->cloned = 1;
 	n->nohdr = 0;
 	n->peeked = 0;
-	C(pfmemalloc);
-	C(pp_recycle);
+	n->pfmemalloc = skb->pfmemalloc;
+	n->pp_recycle = skb->pp_recycle;
 	n->destructor = NULL;
-	C(tail);
-	C(end);
-	C(head);
-	C(head_frag);
-	C(data);
-	C(truesize);
+	n->tail = skb->tail;
+	n->end = skb->end;
+	n->head = skb->head;
+	n->head_frag = skb->head_frag;
+	n->data = skb->data;
+	n->truesize = skb->truesize;
 	refcount_set(&n->users, 1);
 
 	atomic_fetch_add_explicit(&(skb_shinfo(skb)->dataref), 1, memory_order_release);
 	skb->cloned = 1;
 
 	return n;
-	#undef C
 }
 
 static inline void skb_set_inner_protocol(struct sk_buff *skb, __be16 protocol){

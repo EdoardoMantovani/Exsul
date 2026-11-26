@@ -7,7 +7,7 @@ struct runtime_struct_layout {
 	short struct_size;
 	unsigned char *struct_name;
 	unsigned short struct_field_num;
-	struct struct_field fields[128];
+	struct struct_field fields[192];
 };
 
 struct runtime_struct {
@@ -239,7 +239,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[5] = {
 				.struct_size = 0,
 				.struct_name = "device",
-				.struct_field_num = 6,
+				.struct_field_num = 7,
 				.fields = {
 					[0] = {
 						.field_name = "coherent_dma_mask",
@@ -254,7 +254,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[3] = {
-						.field_name = "driver_override",
+						.field_name = "driver_data",
 						.field_offset = 0,
 					},
 					[4] = {
@@ -263,6 +263,10 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 					},
 					[5] = {
 						.field_name = "kobj",
+						.field_offset = 0,
+					},
+					[6] = {
+						.field_name = "parent",
 						.field_offset = 0,
 					},
 				},
@@ -358,7 +362,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[10] = {
 				.struct_size = 0,
 				.struct_name = "hci_dev",
-				.struct_field_num = 126,
+				.struct_field_num = 124,
 				.fields = {
 					[0] = {
 						.field_name = "accept_list",
@@ -369,43 +373,43 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[2] = {
-						.field_name = "adv_instance_expire",
-						.field_offset = 0,
-					},
-					[3] = {
 						.field_name = "adv_instance_timeout",
 						.field_offset = 0,
 					},
-					[4] = {
+					[3] = {
 						.field_name = "adv_instances",
 						.field_offset = 0,
 					},
-					[5] = {
+					[4] = {
 						.field_name = "adv_tx_power",
 						.field_offset = 0,
 					},
-					[6] = {
+					[5] = {
 						.field_name = "advmon_allowlist_duration",
 						.field_offset = 0,
 					},
-					[7] = {
+					[6] = {
 						.field_name = "advmon_no_filter_duration",
 						.field_offset = 0,
 					},
-					[8] = {
+					[7] = {
 						.field_name = "auth_payload_timeout",
 						.field_offset = 0,
 					},
-					[9] = {
+					[8] = {
 						.field_name = "blocked_keys",
 						.field_offset = 0,
 					},
-					[10] = {
+					[9] = {
 						.field_name = "classify_pkt_type",
 						.field_offset = 0,
 					},
-					[11] = {
+					[10] = {
 						.field_name = "close",
+						.field_offset = 0,
+					},
+					[11] = {
+						.field_name = "cmd_cnt",
 						.field_offset = 0,
 					},
 					[12] = {
@@ -413,454 +417,446 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[13] = {
-						.field_name = "cmd_sync_cancel_work",
-						.field_offset = 0,
-					},
-					[14] = {
 						.field_name = "cmd_sync_work",
 						.field_offset = 0,
 					},
-					[15] = {
+					[14] = {
 						.field_name = "cmd_sync_work_list",
 						.field_offset = 0,
 					},
-					[16] = {
+					[15] = {
 						.field_name = "cmd_sync_work_lock",
 						.field_offset = 0,
 					},
-					[17] = {
+					[16] = {
 						.field_name = "cmd_timer",
 						.field_offset = 0,
 					},
-					[18] = {
+					[17] = {
 						.field_name = "cmd_work",
 						.field_offset = 0,
 					},
-					[19] = {
+					[18] = {
 						.field_name = "conn_flags",
 						.field_offset = 0,
 					},
-					[20] = {
+					[19] = {
 						.field_name = "conn_hash",
 						.field_offset = 0,
 					},
-					[21] = {
+					[20] = {
 						.field_name = "conn_info_max_age",
 						.field_offset = 0,
 					},
-					[22] = {
+					[21] = {
 						.field_name = "conn_info_min_age",
 						.field_offset = 0,
 					},
-					[23] = {
+					[22] = {
 						.field_name = "cur_adv_instance",
 						.field_offset = 0,
 					},
-					[24] = {
+					[23] = {
 						.field_name = "def_le_autoconnect_timeout",
 						.field_offset = 0,
 					},
-					[25] = {
+					[24] = {
 						.field_name = "def_multi_adv_rotation_duration",
 						.field_offset = 0,
 					},
-					[26] = {
+					[25] = {
 						.field_name = "def_page_scan_int",
 						.field_offset = 0,
 					},
-					[27] = {
+					[26] = {
 						.field_name = "def_page_scan_type",
 						.field_offset = 0,
 					},
-					[28] = {
+					[27] = {
 						.field_name = "def_page_scan_window",
 						.field_offset = 0,
 					},
-					[29] = {
+					[28] = {
 						.field_name = "dev",
 						.field_offset = 0,
 					},
-					[30] = {
+					[29] = {
 						.field_name = "dev_flags",
 						.field_offset = 0,
 					},
-					[31] = {
+					[30] = {
 						.field_name = "discov_interleaved_timeout",
 						.field_offset = 0,
 					},
-					[32] = {
+					[31] = {
 						.field_name = "discovery",
 						.field_offset = 0,
 					},
-					[33] = {
+					[32] = {
 						.field_name = "dump",
 						.field_offset = 0,
 					},
-					[34] = {
+					[33] = {
 						.field_name = "enable_advmon_interleave_scan",
 						.field_offset = 0,
 					},
-					[35] = {
+					[34] = {
 						.field_name = "error_reset",
 						.field_offset = 0,
 					},
-					[36] = {
+					[35] = {
 						.field_name = "esco_type",
 						.field_offset = 0,
 					},
-					[37] = {
+					[36] = {
 						.field_name = "flags",
 						.field_offset = 0,
 					},
-					[38] = {
+					[37] = {
 						.field_name = "fw_info",
 						.field_offset = 0,
 					},
-					[39] = {
+					[38] = {
 						.field_name = "hci_drv",
 						.field_offset = 0,
 					},
-					[40] = {
+					[39] = {
 						.field_name = "hw_info",
 						.field_offset = 0,
 					},
-					[41] = {
+					[40] = {
 						.field_name = "identity_resolving_keys",
 						.field_offset = 0,
 					},
-					[42] = {
+					[41] = {
 						.field_name = "inq_tx_power",
 						.field_offset = 0,
 					},
-					[43] = {
-						.field_name = "interleave_scan",
-						.field_offset = 0,
-					},
-					[44] = {
+					[42] = {
 						.field_name = "io_capability",
 						.field_offset = 0,
 					},
-					[45] = {
+					[43] = {
 						.field_name = "le_accept_list",
 						.field_offset = 0,
 					},
-					[46] = {
+					[44] = {
 						.field_name = "le_adv_channel_map",
 						.field_offset = 0,
 					},
-					[47] = {
+					[45] = {
 						.field_name = "le_adv_max_interval",
 						.field_offset = 0,
 					},
-					[48] = {
+					[46] = {
 						.field_name = "le_adv_min_interval",
 						.field_offset = 0,
 					},
-					[49] = {
+					[47] = {
 						.field_name = "le_conn_latency",
 						.field_offset = 0,
 					},
-					[50] = {
+					[48] = {
 						.field_name = "le_conn_max_interval",
 						.field_offset = 0,
 					},
-					[51] = {
+					[49] = {
 						.field_name = "le_conn_min_interval",
 						.field_offset = 0,
 					},
-					[52] = {
+					[50] = {
 						.field_name = "le_conn_params",
 						.field_offset = 0,
 					},
-					[53] = {
+					[51] = {
 						.field_name = "le_def_tx_len",
 						.field_offset = 0,
 					},
-					[54] = {
+					[52] = {
 						.field_name = "le_def_tx_time",
 						.field_offset = 0,
 					},
-					[55] = {
+					[53] = {
 						.field_name = "le_max_key_size",
 						.field_offset = 0,
 					},
-					[56] = {
+					[54] = {
 						.field_name = "le_max_rx_len",
 						.field_offset = 0,
 					},
-					[57] = {
+					[55] = {
 						.field_name = "le_max_rx_time",
 						.field_offset = 0,
 					},
-					[58] = {
+					[56] = {
 						.field_name = "le_max_tx_len",
 						.field_offset = 0,
 					},
-					[59] = {
+					[57] = {
 						.field_name = "le_max_tx_time",
 						.field_offset = 0,
 					},
-					[60] = {
+					[58] = {
 						.field_name = "le_min_key_size",
 						.field_offset = 0,
 					},
-					[61] = {
+					[59] = {
 						.field_name = "le_num_of_adv_sets",
 						.field_offset = 0,
 					},
-					[62] = {
+					[60] = {
 						.field_name = "le_resolv_list",
 						.field_offset = 0,
 					},
-					[63] = {
+					[61] = {
 						.field_name = "le_rx_def_phys",
 						.field_offset = 0,
 					},
-					[64] = {
-						.field_name = "le_scan_disable",
-						.field_offset = 0,
-					},
-					[65] = {
+					[62] = {
 						.field_name = "le_scan_int_adv_monitor",
 						.field_offset = 0,
 					},
-					[66] = {
+					[63] = {
 						.field_name = "le_scan_int_connect",
 						.field_offset = 0,
 					},
-					[67] = {
+					[64] = {
 						.field_name = "le_scan_int_discovery",
 						.field_offset = 0,
 					},
-					[68] = {
+					[65] = {
 						.field_name = "le_scan_int_suspend",
 						.field_offset = 0,
 					},
-					[69] = {
+					[66] = {
 						.field_name = "le_scan_interval",
 						.field_offset = 0,
 					},
-					[70] = {
+					[67] = {
 						.field_name = "le_scan_window",
 						.field_offset = 0,
 					},
-					[71] = {
+					[68] = {
 						.field_name = "le_scan_window_adv_monitor",
 						.field_offset = 0,
 					},
-					[72] = {
+					[69] = {
 						.field_name = "le_scan_window_connect",
 						.field_offset = 0,
 					},
-					[73] = {
+					[70] = {
 						.field_name = "le_scan_window_discovery",
 						.field_offset = 0,
 					},
-					[74] = {
+					[71] = {
 						.field_name = "le_scan_window_suspend",
 						.field_offset = 0,
 					},
-					[75] = {
+					[72] = {
 						.field_name = "le_supv_timeout",
 						.field_offset = 0,
 					},
-					[76] = {
+					[73] = {
 						.field_name = "le_tx_def_phys",
 						.field_offset = 0,
 					},
-					[77] = {
+					[74] = {
 						.field_name = "link_keys",
 						.field_offset = 0,
 					},
-					[78] = {
+					[75] = {
 						.field_name = "link_mode",
 						.field_offset = 0,
 					},
-					[79] = {
+					[76] = {
 						.field_name = "list",
 						.field_offset = 0,
 					},
-					[80] = {
+					[77] = {
 						.field_name = "local_codecs",
 						.field_offset = 0,
 					},
-					[81] = {
+					[78] = {
 						.field_name = "lock",
 						.field_offset = 0,
 					},
-					[82] = {
+					[79] = {
 						.field_name = "long_term_keys",
 						.field_offset = 0,
 					},
-					[83] = {
+					[80] = {
 						.field_name = "manufacturer",
 						.field_offset = 0,
 					},
-					[84] = {
+					[81] = {
 						.field_name = "max_le_tx_power",
 						.field_offset = 0,
 					},
-					[85] = {
+					[82] = {
 						.field_name = "mesh_pending",
 						.field_offset = 0,
 					},
-					[86] = {
+					[83] = {
 						.field_name = "mgmt_pending",
 						.field_offset = 0,
 					},
-					[87] = {
+					[84] = {
 						.field_name = "mgmt_pending_lock",
 						.field_offset = 0,
 					},
-					[88] = {
+					[85] = {
 						.field_name = "min_enc_key_size",
 						.field_offset = 0,
 					},
-					[89] = {
+					[86] = {
 						.field_name = "min_le_tx_power",
 						.field_offset = 0,
 					},
-					[90] = {
+					[87] = {
 						.field_name = "monitored_devices",
 						.field_offset = 0,
 					},
-					[91] = {
+					[88] = {
 						.field_name = "name",
 						.field_offset = 0,
 					},
-					[92] = {
+					[89] = {
 						.field_name = "ncmd_timer",
 						.field_offset = 0,
 					},
-					[93] = {
+					[90] = {
 						.field_name = "num_iac",
 						.field_offset = 0,
 					},
-					[94] = {
+					[91] = {
 						.field_name = "open",
 						.field_offset = 0,
 					},
-					[95] = {
+					[92] = {
 						.field_name = "pend_le_conns",
 						.field_offset = 0,
 					},
-					[96] = {
+					[93] = {
 						.field_name = "pend_le_reports",
 						.field_offset = 0,
 					},
-					[97] = {
+					[94] = {
 						.field_name = "pkt_type",
 						.field_offset = 0,
 					},
-					[98] = {
+					[95] = {
+						.field_name = "post_init",
+						.field_offset = 0,
+					},
+					[96] = {
 						.field_name = "power_off",
 						.field_offset = 0,
 					},
-					[99] = {
+					[97] = {
 						.field_name = "power_on",
 						.field_offset = 0,
 					},
-					[100] = {
+					[98] = {
 						.field_name = "promisc",
 						.field_offset = 0,
 					},
-					[101] = {
+					[99] = {
 						.field_name = "quirk_flags",
 						.field_offset = 0,
 					},
-					[102] = {
+					[100] = {
 						.field_name = "raw_q",
 						.field_offset = 0,
 					},
-					[103] = {
-						.field_name = "reenable_adv_work",
-						.field_offset = 0,
-					},
-					[104] = {
+					[101] = {
 						.field_name = "reject_list",
 						.field_offset = 0,
 					},
-					[105] = {
+					[102] = {
 						.field_name = "remote_oob_data",
 						.field_offset = 0,
 					},
-					[106] = {
+					[103] = {
 						.field_name = "req_lock",
 						.field_offset = 0,
 					},
-					[107] = {
+					[104] = {
 						.field_name = "req_result",
 						.field_offset = 0,
 					},
-					[108] = {
+					[105] = {
 						.field_name = "req_rsp",
 						.field_offset = 0,
 					},
-					[109] = {
+					[106] = {
 						.field_name = "req_skb",
 						.field_offset = 0,
 					},
-					[110] = {
+					[107] = {
 						.field_name = "req_status",
 						.field_offset = 0,
 					},
-					[111] = {
+					[108] = {
 						.field_name = "req_wait_q",
 						.field_offset = 0,
 					},
-					[112] = {
+					[109] = {
 						.field_name = "req_workqueue",
 						.field_offset = 0,
 					},
-					[113] = {
+					[110] = {
 						.field_name = "rpa_timeout",
 						.field_offset = 0,
 					},
-					[114] = {
+					[111] = {
 						.field_name = "rx_q",
 						.field_offset = 0,
 					},
-					[115] = {
+					[112] = {
 						.field_name = "rx_work",
 						.field_offset = 0,
 					},
-					[116] = {
+					[113] = {
 						.field_name = "send",
 						.field_offset = 0,
 					},
-					[117] = {
+					[114] = {
 						.field_name = "sent_cmd",
 						.field_offset = 0,
 					},
-					[118] = {
+					[115] = {
 						.field_name = "setup",
 						.field_offset = 0,
 					},
-					[119] = {
+					[116] = {
+						.field_name = "shutdown",
+						.field_offset = 0,
+					},
+					[117] = {
 						.field_name = "sniff_max_interval",
 						.field_offset = 0,
 					},
-					[120] = {
+					[118] = {
 						.field_name = "sniff_min_interval",
 						.field_offset = 0,
 					},
-					[121] = {
+					[119] = {
 						.field_name = "tx_work",
 						.field_offset = 0,
 					},
-					[122] = {
+					[120] = {
 						.field_name = "unregister_lock",
 						.field_offset = 0,
 					},
-					[123] = {
+					[121] = {
 						.field_name = "uuids",
 						.field_offset = 0,
 					},
-					[124] = {
+					[122] = {
 						.field_name = "wakeup",
 						.field_offset = 0,
 					},
-					[125] = {
+					[123] = {
 						.field_name = "workqueue",
 						.field_offset = 0,
 					},
@@ -1814,90 +1810,154 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[26] = {
 				.struct_size = 0,
 				.struct_name = "pci_dev",
-				.struct_field_num = 21,
+				.struct_field_num = 37,
 				.fields = {
 					[0] = {
-						.field_name = "bus",
+						.field_name = "ats_cap",
 						.field_offset = 0,
 					},
 					[1] = {
-						.field_name = "cfg_size",
+						.field_name = "ats_enabled",
 						.field_offset = 0,
 					},
 					[2] = {
-						.field_name = "class",
+						.field_name = "ats_stu",
 						.field_offset = 0,
 					},
 					[3] = {
-						.field_name = "dev",
+						.field_name = "bus",
 						.field_offset = 0,
 					},
 					[4] = {
-						.field_name = "devfn",
+						.field_name = "cfg_size",
 						.field_offset = 0,
 					},
 					[5] = {
-						.field_name = "device",
+						.field_name = "class",
 						.field_offset = 0,
 					},
 					[6] = {
-						.field_name = "driver",
+						.field_name = "dev",
 						.field_offset = 0,
 					},
 					[7] = {
-						.field_name = "irq",
+						.field_name = "devfn",
 						.field_offset = 0,
 					},
 					[8] = {
-						.field_name = "is_busmaster",
+						.field_name = "device",
 						.field_offset = 0,
 					},
 					[9] = {
-						.field_name = "ops",
+						.field_name = "driver",
 						.field_offset = 0,
 					},
 					[10] = {
-						.field_name = "pcie_cap",
+						.field_name = "eetlp_prefix_max",
 						.field_offset = 0,
 					},
 					[11] = {
-						.field_name = "pcie_flags_reg",
+						.field_name = "irq",
 						.field_offset = 0,
 					},
 					[12] = {
-						.field_name = "pm_cap",
+						.field_name = "is_busmaster",
 						.field_offset = 0,
 					},
 					[13] = {
-						.field_name = "pme_support",
+						.field_name = "is_virtfn",
 						.field_offset = 0,
 					},
 					[14] = {
-						.field_name = "rebar_cap",
+						.field_name = "ops",
 						.field_offset = 0,
 					},
 					[15] = {
-						.field_name = "resource",
+						.field_name = "pasid_cap",
 						.field_offset = 0,
 					},
 					[16] = {
-						.field_name = "revision",
+						.field_name = "pasid_enabled",
 						.field_offset = 0,
 					},
 					[17] = {
-						.field_name = "rom_base_reg",
+						.field_name = "pasid_features",
 						.field_offset = 0,
 					},
 					[18] = {
-						.field_name = "subsystem_device",
+						.field_name = "pasid_no_tlp",
 						.field_offset = 0,
 					},
 					[19] = {
-						.field_name = "subsystem_vendor",
+						.field_name = "pcie_cap",
 						.field_offset = 0,
 					},
 					[20] = {
+						.field_name = "pcie_flags_reg",
+						.field_offset = 0,
+					},
+					[21] = {
+						.field_name = "physfn",
+						.field_offset = 0,
+					},
+					[22] = {
+						.field_name = "pinned",
+						.field_offset = 0,
+					},
+					[23] = {
+						.field_name = "pm_cap",
+						.field_offset = 0,
+					},
+					[24] = {
+						.field_name = "pme_poll",
+						.field_offset = 0,
+					},
+					[25] = {
+						.field_name = "pme_support",
+						.field_offset = 0,
+					},
+					[26] = {
+						.field_name = "pri_cap",
+						.field_offset = 0,
+					},
+					[27] = {
+						.field_name = "pri_enabled",
+						.field_offset = 0,
+					},
+					[28] = {
+						.field_name = "rebar_cap",
+						.field_offset = 0,
+					},
+					[29] = {
+						.field_name = "resource",
+						.field_offset = 0,
+					},
+					[30] = {
+						.field_name = "revision",
+						.field_offset = 0,
+					},
+					[31] = {
+						.field_name = "rom_base_reg",
+						.field_offset = 0,
+					},
+					[32] = {
+						.field_name = "subsystem_device",
+						.field_offset = 0,
+					},
+					[33] = {
+						.field_name = "subsystem_vendor",
+						.field_offset = 0,
+					},
+					[34] = {
+						.field_name = "untrusted",
+						.field_offset = 0,
+					},
+					[35] = {
 						.field_name = "vendor",
+						.field_offset = 0,
+					},
+					[36] = {
+						.field_name = "wakeup_prepared",
 						.field_offset = 0,
 					},
 				},
@@ -2161,67 +2221,67 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[38] = {
-						.field_name = "priority",
+						.field_name = "pp_recycle",
 						.field_offset = 0,
 					},
 					[39] = {
-						.field_name = "protocol",
+						.field_name = "priority",
 						.field_offset = 0,
 					},
 					[40] = {
-						.field_name = "queue_mapping",
+						.field_name = "protocol",
 						.field_offset = 0,
 					},
 					[41] = {
-						.field_name = "reserved_tailroom",
+						.field_name = "queue_mapping",
 						.field_offset = 0,
 					},
 					[42] = {
-						.field_name = "sk",
+						.field_name = "reserved_tailroom",
 						.field_offset = 0,
 					},
 					[43] = {
-						.field_name = "slow_gro",
+						.field_name = "sk",
 						.field_offset = 0,
 					},
 					[44] = {
-						.field_name = "tail",
+						.field_name = "slow_gro",
 						.field_offset = 0,
 					},
 					[45] = {
-						.field_name = "transport_header",
+						.field_name = "tail",
 						.field_offset = 0,
 					},
 					[46] = {
-						.field_name = "truesize",
+						.field_name = "transport_header",
 						.field_offset = 0,
 					},
 					[47] = {
-						.field_name = "tstamp",
+						.field_name = "truesize",
 						.field_offset = 0,
 					},
 					[48] = {
-						.field_name = "tstamp_type",
+						.field_name = "tstamp",
 						.field_offset = 0,
 					},
 					[49] = {
-						.field_name = "unreadable",
+						.field_name = "tstamp_type",
 						.field_offset = 0,
 					},
 					[50] = {
-						.field_name = "users",
+						.field_name = "unreadable",
 						.field_offset = 0,
 					},
 					[51] = {
-						.field_name = "wifi_acked",
+						.field_name = "users",
 						.field_offset = 0,
 					},
 					[52] = {
-						.field_name = "wifi_acked_valid",
+						.field_name = "wifi_acked",
 						.field_offset = 0,
 					},
 					[53] = {
-						.field_name = "x",
+						.field_name = "wifi_acked_valid",
 						.field_offset = 0,
 					},
 				},
@@ -2282,7 +2342,7 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[34] = {
 				.struct_size = 0,
 				.struct_name = "urb",
-				.struct_field_num = 17,
+				.struct_field_num = 21,
 				.fields = {
 					[0] = {
 						.field_name = "actual_length",
@@ -2309,46 +2369,62 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 						.field_offset = 0,
 					},
 					[6] = {
-						.field_name = "hcpriv",
+						.field_name = "error_count",
 						.field_offset = 0,
 					},
 					[7] = {
-						.field_name = "kref",
+						.field_name = "hcpriv",
 						.field_offset = 0,
 					},
 					[8] = {
-						.field_name = "pipe",
+						.field_name = "iso_frame_desc",
 						.field_offset = 0,
 					},
 					[9] = {
-						.field_name = "reject",
+						.field_name = "kref",
 						.field_offset = 0,
 					},
 					[10] = {
-						.field_name = "status",
+						.field_name = "number_of_packets",
 						.field_offset = 0,
 					},
 					[11] = {
-						.field_name = "transfer_buffer",
+						.field_name = "pipe",
 						.field_offset = 0,
 					},
 					[12] = {
-						.field_name = "transfer_buffer_length",
+						.field_name = "reject",
 						.field_offset = 0,
 					},
 					[13] = {
-						.field_name = "transfer_dma",
+						.field_name = "setup_packet",
 						.field_offset = 0,
 					},
 					[14] = {
-						.field_name = "transfer_flags",
+						.field_name = "status",
 						.field_offset = 0,
 					},
 					[15] = {
-						.field_name = "urb_list",
+						.field_name = "transfer_buffer",
 						.field_offset = 0,
 					},
 					[16] = {
+						.field_name = "transfer_buffer_length",
+						.field_offset = 0,
+					},
+					[17] = {
+						.field_name = "transfer_dma",
+						.field_offset = 0,
+					},
+					[18] = {
+						.field_name = "transfer_flags",
+						.field_offset = 0,
+					},
+					[19] = {
+						.field_name = "urb_list",
+						.field_offset = 0,
+					},
+					[20] = {
 						.field_name = "use_count",
 						.field_offset = 0,
 					},
@@ -2396,21 +2472,25 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[36] = {
 				.struct_size = 0,
 				.struct_name = "usb_driver",
-				.struct_field_num = 4,
+				.struct_field_num = 5,
 				.fields = {
 					[0] = {
 						.field_name = "disconnect",
 						.field_offset = 0,
 					},
 					[1] = {
-						.field_name = "id_table",
+						.field_name = "driver",
 						.field_offset = 0,
 					},
 					[2] = {
-						.field_name = "name",
+						.field_name = "id_table",
 						.field_offset = 0,
 					},
 					[3] = {
+						.field_name = "name",
+						.field_offset = 0,
+					},
+					[4] = {
 						.field_name = "probe",
 						.field_offset = 0,
 					},
@@ -2419,26 +2499,38 @@ OFFSET_TABLE_SECTION static struct runtime_struct runtime_generated_structs = {
 			[37] = {
 				.struct_size = 0,
 				.struct_name = "usb_interface",
-				.struct_field_num = 5,
+				.struct_field_num = 8,
 				.fields = {
 					[0] = {
 						.field_name = "altsetting",
 						.field_offset = 0,
 					},
 					[1] = {
-						.field_name = "cur_altsetting",
+						.field_name = "condition",
 						.field_offset = 0,
 					},
 					[2] = {
-						.field_name = "dev",
+						.field_name = "cur_altsetting",
 						.field_offset = 0,
 					},
 					[3] = {
-						.field_name = "num_altsetting",
+						.field_name = "dev",
 						.field_offset = 0,
 					},
 					[4] = {
+						.field_name = "num_altsetting",
+						.field_offset = 0,
+					},
+					[5] = {
 						.field_name = "reset_ws",
+						.field_offset = 0,
+					},
+					[6] = {
+						.field_name = "wireless_status",
+						.field_offset = 0,
+					},
+					[7] = {
+						.field_name = "wireless_status_work",
 						.field_offset = 0,
 					},
 				},

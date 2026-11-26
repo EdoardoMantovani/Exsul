@@ -9,4 +9,5 @@ bool hci_discovery_active(struct hci_dev *hdev){
 		default:
 			return false;
 	}
+	return false;
 }

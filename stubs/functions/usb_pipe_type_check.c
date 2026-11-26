@@ -2,7 +2,10 @@ int usb_pipe_type_check(struct usb_device *dev, unsigned int pipe){
 	int ret = 0;
 	const struct usb_host_endpoint *ep = NULL;
 	const int pipetypes[4] = {
-		PIPE_CONTROL, PIPE_ISOCHRONOUS, PIPE_BULK, PIPE_INTERRUPT
+		PIPE_CONTROL,
+		PIPE_ISOCHRONOUS,
+		PIPE_BULK,
+		PIPE_INTERRUPT
 	};
 
 	ep = usb_pipe_endpoint(dev, pipe);

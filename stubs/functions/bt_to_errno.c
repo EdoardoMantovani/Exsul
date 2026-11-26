@@ -1,66 +1,92 @@
 int bt_to_errno(__u16 code){
+	int ret = 0;
+
 	switch (code) {
 	case 0:
-		return 0;
+		return ret;
 	case 0x01:
-		return EBADRQC;
+		ret = EBADRQC;
+		return ret;
 	case 0x02:
-		return ENOTCONN;
+		ret = ENOTCONN;
+		return ret;
 	case 0x03:
-		return EIO;
+		ret = EIO;
+		return ret;
 	case 0x04:
 	case 0x3c:
-		return EHOSTDOWN;
+		ret = EHOSTDOWN;
+		return ret;
 	case 0x05:
-		return EACCES;
+		ret = EACCES;
+		return ret;
 	case 0x06:
-		return EBADE;
+		ret = EBADE;
+		return ret;
 	case 0x07:
-		return ENOMEM;
+		ret = ENOMEM;
+		return ret;
 	case 0x08:
-		return ETIMEDOUT;
+		ret = ETIMEDOUT;
+		return ret;
 	case 0x09:
-		return EMLINK;
+		ret = EMLINK;
+		return ret;
 	case 0x0a:
-		return EMLINK;
+		ret = EMLINK;
+		return ret;
 	case 0x0b:
-		return EALREADY;
+		ret = EALREADY;
+		return ret;
 	case 0x0c:
-		return EBUSY;
+		ret = EBUSY;
+		return ret;
 	case 0x0d:
 	case 0x0e:
 	case 0x0f:
-		return ECONNREFUSED;
+		ret = ECONNREFUSED;
+		return ret;
 	case 0x10:
-		return ETIMEDOUT;
+		ret = ETIMEDOUT;
+		return ret;
 	case 0x11:
 	case 0x27:
 	case 0x29:
 	case 0x20:
-		return EOPNOTSUPP;
+		ret = EOPNOTSUPP;
+		return ret;
 	case 0x12:
-		return EINVAL;
+		ret = EINVAL;
+		return ret;
 	case 0x13:
 	case 0x14:
 	case 0x15:
-		return ECONNRESET;
+		ret = ECONNRESET;
+		return ret;
 	case 0x16:
-		return ECONNABORTED;
+		ret = ECONNABORTED;
+		return ret;
 	case 0x17:
-		return ELOOP;
+		ret = ELOOP;
+		return ret;
 	case 0x18:
-		return EACCES;
+		ret = EACCES;
+		return ret;
 	case 0x1a:
-		return EPROTONOSUPPORT;
+		ret = EPROTONOSUPPORT;
+		return ret;
 	case 0x1b:
-		return ECONNREFUSED;
+		ret = ECONNREFUSED;
+		return ret;
 	case 0x19:
 	case 0x1e:
 	case 0x23:
 	case 0x24:
 	case 0x25:
-		return EPROTO;
+		ret = EPROTO;
+		return ret;
 	default:
-		return ENOSYS;
+		ret = ENOSYS;
+		return ret;
 	}
 }

@@ -1,7 +1,7 @@
 int usb_register_driver(struct usb_driver *new_driver, struct module *owner, const char *mod_name){
 	int ret = 0;
 	unsigned char *probe_name = NULL;
-	struct usb_device_id *id = NULL;
+	struct usb_device_id *id  = NULL;
 	struct usb_interface *intf = NULL;
 	const struct usb_device_id *matched_id = NULL;
 

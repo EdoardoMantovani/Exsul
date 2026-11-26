@@ -1,25 +1,26 @@
 struct usb_host_interface *usb_find_alt_setting(struct usb_host_config *config, unsigned int iface_num, unsigned int alt_num){
-	struct usb_interface_cache *intf_cache = NULL;
+	int ret = 0;
+	struct usb_interface *intf = NULL;
 
 	if (config == NULL){
 		return NULL;
 	}
-
 	for (int i = 0; i < config->desc.bNumInterfaces; i++) {
-		if (config->intf_cache[i]->altsetting[0].desc.bInterfaceNumber == iface_num) {
-			intf_cache = config->intf_cache[i];
+		if (config->interface[i] != NULL && config->interface[i]->altsetting[0].desc.bInterfaceNumber == iface_num) {
+			intf = config->interface[i];
 			break;
 		}
 	}
-	if (intf_cache == NULL){
+	if (intf == NULL){
 		return NULL;
 	}
-	for (int i = 0; i < intf_cache->num_altsetting; i++){
-		if (intf_cache->altsetting[i].desc.bAlternateSetting == alt_num){
-			return &intf_cache->altsetting[i];
+	for (int i = 0; i < intf->num_altsetting; i++){
+		if (intf->altsetting[i].desc.bAlternateSetting == alt_num){
+			return &intf->altsetting[i];
 		}
 	}
-
-	printf("[!] Did not find alt setting %u for intf %u, " "config %u\n", alt_num, iface_num, config->desc.bConfigurationValue);
+	#ifdef ENABLE_DBG_PRINT
+	printf("[!] alt setting %u for intf %u not found!\n", alt_num, iface_num);
+	#endif
 	return NULL;
 }

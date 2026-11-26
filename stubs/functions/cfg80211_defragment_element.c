@@ -4,7 +4,7 @@ ssize_t cfg80211_defragment_element(const struct element *elem, const u8 *ies, s
 	u8 elem_datalen = 0;
 	const struct element *next = NULL;
 
-	if (!elem){
+	if (elem == NULL){
 		ret = -EINVAL;
 		return ret;
 	}
@@ -14,7 +14,7 @@ ssize_t cfg80211_defragment_element(const struct element *elem, const u8 *ies, s
 	if (elem->id == WLAN_EID_EXTENSION) {
 		copied = elem->datalen - 1;
 
-		if (data) {
+		if (data != NULL) {
 			if (copied > data_len){
 				ret = -ENOSPC;
 				return ret;
@@ -24,7 +24,7 @@ ssize_t cfg80211_defragment_element(const struct element *elem, const u8 *ies, s
 	}else{
 		copied = elem->datalen;
 
-		if (data) {
+		if (data != NULL) {
 			if (copied > data_len){
 				ret = -ENOSPC;
 				return ret;
@@ -37,10 +37,7 @@ ssize_t cfg80211_defragment_element(const struct element *elem, const u8 *ies, s
 	if (elem_datalen < 255){
 		return copied;
 	}
-	for (elem = next;
-	     elem->data < ies + ieslen &&
-		elem->data + elem->datalen <= ies + ieslen;
-	     elem = next) {
+	for (elem = next; elem->data < ies + ieslen && elem->data + elem->datalen <= ies + ieslen; elem = next) {
 		/* elem might be invalid after the memmove */
 		next = (void *)(elem->data + elem->datalen);
 
@@ -49,7 +46,7 @@ ssize_t cfg80211_defragment_element(const struct element *elem, const u8 *ies, s
 		}
 		elem_datalen = elem->datalen;
 
-		if (data) {
+		if (data != NULL) {
 			if (copied + elem_datalen > data_len){
 				ret = -ENOSPC;
 				return ret;

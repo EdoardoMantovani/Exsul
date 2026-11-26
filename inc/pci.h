@@ -1601,6 +1601,11 @@ struct pci_bus_region {
 	pci_bus_addr_t	end;
 };
 
+struct pci_pme_device {
+	struct list_head list;
+	struct pci_dev *dev;
+};
+
 /*
  * struct pci_device_id - PCI device ID structure
  * @vendor:		Vendor ID to match (or PCI_ANY_ID)
@@ -2309,6 +2314,13 @@ static inline bool pci_is_pcie(struct pci_dev *pci_dev){
 	return pci_pcie_cap(pci_dev);
 }
 
+static inline struct pci_dev *pci_physfn(struct pci_dev *pci_dev){
+	if (pci_dev->is_virtfn){
+		pci_dev = pci_dev->physfn;
+	}
+	return pci_dev;
+}
+
 /*
  * pcie_caps_reg - get the PCIe Capabilities Register
  * @dev: PCI device
@@ -2904,6 +2916,42 @@ static void pcibios_set_master(struct pci_dev *pci_dev){
 		return;
 	}
 	pci_write_config_byte(pci_dev, PCI_LATENCY_TIMER, lat);
+}
+
+static void __pci_pme_active(struct pci_dev *pci_dev, bool enable){
+	u16 pmcsr = 0;
+
+	if (pci_dev->pme_support == true){
+		return;
+	}
+	pci_read_config_word(pci_dev, pci_dev->pm_cap + PCI_PM_CTRL, &pmcsr);
+	/* Clear PME_Status by writing 1 to it and enable PME# */
+	pmcsr |= PCI_PM_CTRL_PME_STATUS | PCI_PM_CTRL_PME_ENABLE;
+	if (enable == false){
+		pmcsr &= ~PCI_PM_CTRL_PME_ENABLE;
+	}
+	pci_write_config_word(pci_dev, pci_dev->pm_cap + PCI_PM_CTRL, pmcsr);
+}
+
+/*
+ * pci_pme_restore - Restore PME configuration after config space restore.
+ * @dev: PCI device to update.
+ */
+static void pci_pme_restore(struct pci_dev *pci_dev){
+	u16 pmcsr = 0;
+
+	if (pci_dev->pme_support == false){
+		return;
+	}
+	pci_read_config_word(pci_dev, pci_dev->pm_cap + PCI_PM_CTRL, &pmcsr);
+	if (pci_dev->wakeup_prepared) {
+		pmcsr |= PCI_PM_CTRL_PME_ENABLE;
+		pmcsr &= ~PCI_PM_CTRL_PME_STATUS;
+	}else{
+		pmcsr &= ~PCI_PM_CTRL_PME_ENABLE;
+		pmcsr |= PCI_PM_CTRL_PME_STATUS;
+	}
+	pci_write_config_word(pci_dev, pci_dev->pm_cap + PCI_PM_CTRL, pmcsr);
 }
 
 static inline u8 readb(const volatile void __iomem *address){

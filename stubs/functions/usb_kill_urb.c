@@ -1,25 +1,25 @@
-void usb_kill_urb(struct urb *urb) {
+void usb_kill_urb(struct urb *urb){
+	int ret = 0;
 	struct libusb_transfer *transfer = NULL;
-	if (urb == NULL){
-		goto end;
-	}
 
+	if(urb == NULL){
+		return;
+	}
 	atomic_fetch_add_explicit(&urb->reject, 1, memory_order_release);
-	/*
-	 * this needs a careful analysis: the field hcpriv seems to be used only in the 'atmel' usb Wi-Fi driver,
-	 * which isn't important at all imo, but what if in the future it will be used also by others ?
-	 * probably I will have to add a field in the main context struct.
-	 */
+	if(director.usb_completion_initialized == true){
+		pthread_mutex_lock(&director.usb_completion_lock);
+	}
 	transfer = (struct libusb_transfer *)urb->hcpriv;
-	if (transfer){
-		libusb_cancel_transfer(transfer);
+	if(transfer != NULL){
+		ret = libusb_cancel_transfer(transfer);
 	}
-
-	#ifdef __linux__
-	while (atomic_load_explicit(&urb->use_count, memory_order_acquire) > 0){
-		sched_yield();
+	if(director.usb_completion_initialized == true && !pthread_equal(pthread_self(), director.libusb_event_thread)){
+		while(atomic_load_explicit(&urb->use_count, memory_order_acquire) != 0){
+			pthread_cond_wait(&director.usb_completion_cond, &director.usb_completion_lock);
+		}
 	}
-	#endif
+	if(director.usb_completion_initialized == true){
+		pthread_mutex_unlock(&director.usb_completion_lock);
+	}
 	atomic_fetch_sub_explicit(&urb->reject, 1, memory_order_release);
-	end:
 }

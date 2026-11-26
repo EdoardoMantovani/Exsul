@@ -6163,6 +6163,36 @@ static const unsigned char device_struct_size_valid[] = {
     [LINUX_KERNEL_7_3_0_11] = 1,
 };
 
+static const unsigned short device_coherent_dma_mask_offsets[] = {
+    [LINUX_KERNEL_7_0_0_38] = 608,
+    [LINUX_KERNEL_7_0_0_43] = 608,
+};
+
+static const unsigned char device_coherent_dma_mask_offset_valid[] = {
+    [LINUX_KERNEL_7_0_0_38] = 1,
+    [LINUX_KERNEL_7_0_0_43] = 1,
+};
+
+static const unsigned short device_driver_data_offsets[] = {
+    [LINUX_KERNEL_7_0_0_38] = 120,
+    [LINUX_KERNEL_7_0_0_43] = 120,
+};
+
+static const unsigned char device_driver_data_offset_valid[] = {
+    [LINUX_KERNEL_7_0_0_38] = 1,
+    [LINUX_KERNEL_7_0_0_43] = 1,
+};
+
+static const unsigned short device_parent_offsets[] = {
+    [LINUX_KERNEL_7_0_0_38] = 64,
+    [LINUX_KERNEL_7_0_0_43] = 64,
+};
+
+static const unsigned char device_parent_offset_valid[] = {
+    [LINUX_KERNEL_7_0_0_38] = 1,
+    [LINUX_KERNEL_7_0_0_43] = 1,
+};
+
 static const unsigned short device_bus_offsets[] = {
     [LINUX_KERNEL_5_15_0_25] = 96,
     [LINUX_KERNEL_5_15_0_177] = 96,
@@ -59345,6 +59375,44 @@ static const unsigned char urb_transfer_buffer_length_offset_valid[] = {
     [LINUX_KERNEL_6_17_0_29] = 1,
     [LINUX_KERNEL_6_17_0_35] = 1,
     [LINUX_KERNEL_6_17_0_38] = 1,
+    [LINUX_KERNEL_7_0_0_14] = 1,
+    [LINUX_KERNEL_7_0_0_15] = 1,
+    [LINUX_KERNEL_7_0_0_22] = 1,
+    [LINUX_KERNEL_7_0_0_27] = 1,
+    [LINUX_KERNEL_7_0_0_28] = 1,
+    [LINUX_KERNEL_7_0_0_29] = 1,
+    [LINUX_KERNEL_7_0_0_31] = 1,
+    [LINUX_KERNEL_7_0_0_34] = 1,
+    [LINUX_KERNEL_7_0_0_38] = 1,
+    [LINUX_KERNEL_7_0_0_39] = 1,
+    [LINUX_KERNEL_7_0_0_42] = 1,
+    [LINUX_KERNEL_7_0_0_43] = 1,
+    [LINUX_KERNEL_7_0_0_44] = 1,
+    [LINUX_KERNEL_7_3_0_9] = 1,
+    [LINUX_KERNEL_7_3_0_10] = 1,
+    [LINUX_KERNEL_7_3_0_11] = 1,
+};
+
+static const unsigned short urb_setup_packet_offsets[] = {
+    [LINUX_KERNEL_7_0_0_14] = 144,
+    [LINUX_KERNEL_7_0_0_15] = 144,
+    [LINUX_KERNEL_7_0_0_22] = 144,
+    [LINUX_KERNEL_7_0_0_27] = 144,
+    [LINUX_KERNEL_7_0_0_28] = 144,
+    [LINUX_KERNEL_7_0_0_29] = 144,
+    [LINUX_KERNEL_7_0_0_31] = 144,
+    [LINUX_KERNEL_7_0_0_34] = 144,
+    [LINUX_KERNEL_7_0_0_38] = 144,
+    [LINUX_KERNEL_7_0_0_39] = 144,
+    [LINUX_KERNEL_7_0_0_42] = 144,
+    [LINUX_KERNEL_7_0_0_43] = 144,
+    [LINUX_KERNEL_7_0_0_44] = 144,
+    [LINUX_KERNEL_7_3_0_9] = 144,
+    [LINUX_KERNEL_7_3_0_10] = 144,
+    [LINUX_KERNEL_7_3_0_11] = 144,
+};
+
+static const unsigned char urb_setup_packet_offset_valid[] = {
     [LINUX_KERNEL_7_0_0_14] = 1,
     [LINUX_KERNEL_7_0_0_15] = 1,
     [LINUX_KERNEL_7_0_0_22] = 1,

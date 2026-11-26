@@ -113,6 +113,7 @@ struct module_controller {
         /* data gathered when the usb device is attached to the host system */
 	u8 usb_multi_state;
         u8 usb_interface_number;
+	u32 usb_claimed_interfaces;
         u8 usb_endpoint_num;
         struct libusb_endpoint_descriptor usb_ep[USB_MAX_ENDPOINT_NUM];
         struct libusb_device_descriptor usb_dev_desc;
@@ -144,6 +145,9 @@ struct module_controller {
 	u16 usb_transfer_pool_count;
 	u16 usb_active_transfer_count;
 	atomic_uint usb_pending_transfers;
+	pthread_mutex_t usb_completion_lock;
+	pthread_cond_t usb_completion_cond;
+	bool usb_completion_initialized;
 
 	/* locks for usb i/o operations */
 	pthread_mutex_t usb_io_lock;
@@ -323,6 +327,19 @@ struct module_controller {
 	struct timer_list *timer_executing;
 
 	/* hci specific data */
+	struct hci_dev *hci_dev;
 	struct list_head hci_dev_list;
 	struct list_head hci_cb_list;
+	char hci_name[16];
+	int hci_setup_status;
+	bool hci_stopping;
+	bool hci_setup_complete;
+	bool hci_raw_initialized;
+	bool hci_state_initialized;
+	pthread_mutex_t hci_raw_lock;
+	pthread_cond_t hci_raw_cond;
+	pthread_mutex_t hci_state_lock;
+	pthread_cond_t hci_state_cond;
+	pthread_mutex_t bit_wait_lock;
+	pthread_cond_t bit_wait_cond;
 };

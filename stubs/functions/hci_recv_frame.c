@@ -1,5 +1,7 @@
 int hci_recv_frame(struct hci_dev *hdev, struct sk_buff *skb){
 	int ret = 0;
+	__u8 type = 0;
+	__u16 handle = 0;
 	u8 dev_pkt_type = 0;
 	struct bt_skb_cb *bt_cb = NULL;
 
@@ -15,32 +17,30 @@ int hci_recv_frame(struct hci_dev *hdev, struct sk_buff *skb){
 		bt_cb->pkt_type = dev_pkt_type;
 	}
 	switch (bt_cb->pkt_type) {
-	case HCI_EVENT_PKT:
+		case HCI_EVENT_PKT:
 		break;
-	case HCI_ACLDATA_PKT:
-		/* Detect if ISO packet has been sent as ACL */
-		if (hci_conn_num(hdev, CIS_LINK) || hci_conn_num(hdev, BIS_LINK) || hci_conn_num(hdev, PA_LINK)) {
-			__u16 handle = __le16_to_cpu(hci_acl_hdr(skb)->handle);
-			__u8 type;
+		case HCI_ACLDATA_PKT:
+			/* Detect if ISO packet has been sent as ACL */
+			if (hci_conn_num(hdev, CIS_LINK) || hci_conn_num(hdev, BIS_LINK) || hci_conn_num(hdev, PA_LINK)) {
+				handle = __le16_to_cpu(hci_acl_hdr(skb)->handle);
 
-			type = hci_conn_lookup_type(hdev, hci_handle(handle));
-			if (type == CIS_LINK || type == BIS_LINK || type == PA_LINK){
-				bt_cb->pkt_type = HCI_ISODATA_PKT;
+				type = hci_conn_lookup_type(hdev, hci_handle(handle));
+				if (type == CIS_LINK || type == BIS_LINK || type == PA_LINK){
+					bt_cb->pkt_type = HCI_ISODATA_PKT;
+				}
 			}
-		}
 		break;
-	case HCI_SCODATA_PKT:
+		case HCI_SCODATA_PKT:
 		break;
-	case HCI_ISODATA_PKT:
+		case HCI_ISODATA_PKT:
 		break;
-	case HCI_DRV_PKT:
+		case HCI_DRV_PKT:
 		break;
-	default:
-		kfree_skb(skb);
-		ret = -EINVAL;
-		return ret;
+		default:
+			kfree_skb(skb);
+			ret = -EINVAL;
+			return ret;
 	}
-
 	/* Incoming skb */
 	bt_cb->incoming = 1;
 	/* Time stamp */

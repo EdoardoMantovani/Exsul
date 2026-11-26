@@ -680,6 +680,22 @@ static inline __be16 vlan_get_protocol(const struct sk_buff *skb){
 	return __vlan_get_protocol(skb, skb->protocol, NULL);
 }
 
+/* Grab socket reference count. This operation is valid only
+ * when sk is ALREADY grabbed f.e. it is found in hash table
+ * or a list and the lookup is made under lock preventing hash table
+ * modifications.
+ */
+static __always_inline void sock_hold(struct sock *sk){
+	refcount_inc(&sk->sk_refcnt);
+}
+
+/* Ungrab socket in the context, which assumes that socket refcnt
+ * cannot hit zero, f.e. it is true in context of any socketcall.
+ */
+static __always_inline void __sock_put(struct sock *sk){
+	refcount_dec(&sk->sk_refcnt);
+}
+
 static int call_netdevice_notifiers(unsigned long state, struct net_device *dev){
 	int ret = 0;
 	int (*notifier_call)(struct notifier_block *nb, unsigned long action, void *data) = NULL;

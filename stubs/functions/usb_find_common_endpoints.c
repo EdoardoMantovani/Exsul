@@ -21,7 +21,6 @@ int usb_find_common_endpoints(struct usb_host_interface *alt, struct usb_endpoin
 			return ret;
 		}
 	}
-
 	ret = -EINVAL;
 	return ret;
 }

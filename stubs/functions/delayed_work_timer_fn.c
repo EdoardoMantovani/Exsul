@@ -1,21 +1,18 @@
 void delayed_work_timer_fn(struct workqueue_struct *wq){
-        struct timespec now = {};
+	struct timespec now = {};
+	struct work_struct *work = NULL;
+	struct delayed_work *dwork = NULL;
 
-        now = wq_now(wq);
-        while (!list_empty(&wq->delayed_list)) {
-                struct delayed_work *dwork = NULL;
-                struct work_struct *work = NULL;
+	now = wq_now(wq);
+	while (!list_empty(&wq->delayed_list)) {
+		work = list_first_entry(&wq->delayed_list, struct work_struct, entry);
+		dwork = container_of(work, struct delayed_work, work);
 
-                work = list_first_entry(&wq->delayed_list, struct work_struct, entry);
-                dwork = container_of(work, struct delayed_work, work);
-
-                if (timespec_cmp(&dwork->expires, &now) > 0){
-                        break;
-                }
-
-                list_del_init(&work->entry);
-
-                atomic_store_explicit(&work->data, work_encode(wq, WORK_STRUCT_PENDING), memory_order_relaxed);
-                list_add_tail(&work->entry, &wq->work_list);
-        }
+		if (timespec_cmp(&dwork->expires, &now) > 0){
+			break;
+		}
+		list_del_init(&work->entry);
+		atomic_store_explicit(&work->data, work_encode(wq, WORK_STRUCT_PENDING), memory_order_relaxed);
+		list_add_tail(&work->entry, &wq->work_list);
+	}
 }

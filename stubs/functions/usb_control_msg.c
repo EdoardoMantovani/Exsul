@@ -19,5 +19,6 @@ int usb_control_msg(struct usb_device *dev, unsigned int pipe, __u8 request, __u
 	}
 	#endif
 	usb_unlock();
+
 	return ret;
 }

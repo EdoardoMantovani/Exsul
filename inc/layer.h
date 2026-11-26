@@ -240,7 +240,7 @@ typedef _Atomic(unsigned int) atomic_uint;
 #define MAX_DEBUGFS_SIZE		128
 
 /* defines the maximun number of usb devices which can be present in the current kernel module */
-#define MAX_USB_DEV_LIST		36
+#define MAX_USB_DEV_LIST		48
 
 /* diagnostic scan cache used by the userspace mac80211 translation */
 #define EXSUL_MAX_SCAN_RESULTS		128
@@ -682,6 +682,103 @@ enum {
 	#define EFD_NONBLOCK EFD_NONBLOCK
 };
 
+enum dmi_device_type {
+	DMI_DEV_TYPE_ANY = 0,
+	DMI_DEV_TYPE_OTHER,
+	DMI_DEV_TYPE_UNKNOWN,
+	DMI_DEV_TYPE_VIDEO,
+	DMI_DEV_TYPE_SCSI,
+	DMI_DEV_TYPE_ETHERNET,
+	DMI_DEV_TYPE_TOKENRING,
+	DMI_DEV_TYPE_SOUND,
+	DMI_DEV_TYPE_PATA,
+	DMI_DEV_TYPE_SATA,
+	DMI_DEV_TYPE_SAS,
+	DMI_DEV_TYPE_IPMI = -1,
+	DMI_DEV_TYPE_OEM_STRING = -2,
+	DMI_DEV_TYPE_DEV_ONBOARD = -3,
+	DMI_DEV_TYPE_DEV_SLOT = -4,
+};
+
+enum dmi_entry_type {
+	DMI_ENTRY_BIOS = 0,
+	DMI_ENTRY_SYSTEM,
+	DMI_ENTRY_BASEBOARD,
+	DMI_ENTRY_CHASSIS,
+	DMI_ENTRY_PROCESSOR,
+	DMI_ENTRY_MEM_CONTROLLER,
+	DMI_ENTRY_MEM_MODULE,
+	DMI_ENTRY_CACHE,
+	DMI_ENTRY_PORT_CONNECTOR,
+	DMI_ENTRY_SYSTEM_SLOT,
+	DMI_ENTRY_ONBOARD_DEVICE,
+	DMI_ENTRY_OEMSTRINGS,
+	DMI_ENTRY_SYSCONF,
+	DMI_ENTRY_BIOS_LANG,
+	DMI_ENTRY_GROUP_ASSOC,
+	DMI_ENTRY_SYSTEM_EVENT_LOG,
+	DMI_ENTRY_PHYS_MEM_ARRAY,
+	DMI_ENTRY_MEM_DEVICE,
+	DMI_ENTRY_32_MEM_ERROR,
+	DMI_ENTRY_MEM_ARRAY_MAPPED_ADDR,
+	DMI_ENTRY_MEM_DEV_MAPPED_ADDR,
+	DMI_ENTRY_BUILTIN_POINTING_DEV,
+	DMI_ENTRY_PORTABLE_BATTERY,
+	DMI_ENTRY_SYSTEM_RESET,
+	DMI_ENTRY_HW_SECURITY,
+	DMI_ENTRY_SYSTEM_POWER_CONTROLS,
+	DMI_ENTRY_VOLTAGE_PROBE,
+	DMI_ENTRY_COOLING_DEV,
+	DMI_ENTRY_TEMP_PROBE,
+	DMI_ENTRY_ELECTRICAL_CURRENT_PROBE,
+	DMI_ENTRY_OOB_REMOTE_ACCESS,
+	DMI_ENTRY_BIS_ENTRY,
+	DMI_ENTRY_SYSTEM_BOOT,
+	DMI_ENTRY_64_MEM_ERROR,
+	DMI_ENTRY_MGMT_DEV,
+	DMI_ENTRY_MGMT_DEV_COMPONENT,
+	DMI_ENTRY_MGMT_DEV_THRES,
+	DMI_ENTRY_MEM_CHANNEL,
+	DMI_ENTRY_IPMI_DEV,
+	DMI_ENTRY_SYS_POWER_SUPPLY,
+	DMI_ENTRY_ADDITIONAL,
+	DMI_ENTRY_ONBOARD_DEV_EXT,
+	DMI_ENTRY_MGMT_CONTROLLER_HOST,
+	DMI_ENTRY_TPM_DEVICE,
+	DMI_ENTRY_PROCESSOR_ADDITIONAL,
+	DMI_ENTRY_FIRMWARE_INVENTORY,
+	DMI_ENTRY_STRING_PROPERTY,
+	DMI_ENTRY_INACTIVE = 126,
+	DMI_ENTRY_END_OF_TABLE = 127,
+};
+
+enum dmi_field {
+	DMI_NONE,
+	DMI_BIOS_VENDOR,
+	DMI_BIOS_VERSION,
+	DMI_BIOS_DATE,
+	DMI_BIOS_RELEASE,
+	DMI_EC_FIRMWARE_RELEASE,
+	DMI_SYS_VENDOR,
+	DMI_PRODUCT_NAME,
+	DMI_PRODUCT_VERSION,
+	DMI_PRODUCT_SERIAL,
+	DMI_PRODUCT_UUID,
+	DMI_PRODUCT_SKU,
+	DMI_PRODUCT_FAMILY,
+	DMI_BOARD_VENDOR,
+	DMI_BOARD_NAME,
+	DMI_BOARD_VERSION,
+	DMI_BOARD_SERIAL,
+	DMI_BOARD_ASSET_TAG,
+	DMI_CHASSIS_VENDOR,
+	DMI_CHASSIS_TYPE,
+	DMI_CHASSIS_VERSION,
+	DMI_CHASSIS_SERIAL,
+	DMI_CHASSIS_ASSET_TAG,
+	DMI_STRING_MAX,
+	DMI_OEM_STRING,	/* special case - will not be in dmi_ident */
+};
 
 /* callbacks used in the 'work_struct' */
 typedef void (*work_func_t)(struct work_struct *work);
@@ -1203,6 +1300,27 @@ struct device_driver {
 	/* ... */
 };
 
+/* even if the DMI informations cannot be accessed from the userspace without any root permissions, I want to still have an API which support them */
+struct dmi_strmatch {
+	unsigned char slot:7;
+	unsigned char exact_match:1;
+	char substr[79];
+};
+
+struct dmi_system_id {
+	int (*callback)(const struct dmi_system_id *);
+	const char *ident;
+	struct dmi_strmatch matches[4];
+	void *driver_data;
+};
+
+struct dmi_device {
+	struct list_head list;
+	int type;
+	const char *name;
+	void *device_data;	/* Type specific data */
+};
+
 struct module_controller;
 extern struct module_controller director;
 /* put here the typedefs for the pcie layer */
@@ -1220,6 +1338,12 @@ typedef phys_addr_t resource_size_t;
 typedef phys_addr_t resource_size_t;
 typedef unsigned int pcie_reset_state_t;
 typedef unsigned int pci_channel_state_t;
+struct wait_bit_key {
+	unsigned long *flags;
+	int bit_nr;
+	unsigned long timeout;
+};
+typedef int wait_bit_action_f(struct wait_bit_key *key, int mode);
 #include <prototypes.h>
 
 /* defines pthread functions for Windows below */
@@ -1401,24 +1525,36 @@ struct pthread_start {
 static inline int pthread_mutex_init(pthread_mutex_t *mutex, void *unused) {
 	int ret = 0;
 
-        InitializeSRWLock(mutex);
+	InitializeSRWLock(mutex);
 	return ret;
 }
 
-static inline void pthread_mutex_lock(pthread_mutex_t *mutex) {
-        AcquireSRWLockExclusive(mutex);
+static inline int pthread_mutex_lock(pthread_mutex_t *mutex) {
+	int ret = 0;
+
+	AcquireSRWLockExclusive(mutex);
+	return ret;
 }
 
-static inline void pthread_mutex_unlock(pthread_mutex_t *mutex) {
-        ReleaseSRWLockExclusive(mutex);
+static inline int pthread_mutex_unlock(pthread_mutex_t *mutex) {
+	int ret = 0;
+
+	ReleaseSRWLockExclusive(mutex);
+	return ret;
 }
 
-static inline void pthread_cond_init(pthread_cond_t *cond, void *unused) {
-        InitializeConditionVariable(cond);
+static inline int pthread_cond_init(pthread_cond_t *cond, void *unused) {
+	int ret = 0;
+
+	InitializeConditionVariable(cond);
+	return ret;
 }
 
-static inline void pthread_cond_signal(pthread_cond_t *cond) {
-        WakeConditionVariable(cond);
+static inline int pthread_cond_signal(pthread_cond_t *cond) {
+	int ret = 0;
+
+	WakeConditionVariable(cond);
+	return ret;
 }
 
 static inline int pthread_cond_wait(pthread_cond_t  *cond, pthread_mutex_t *mutex) {
@@ -2686,6 +2822,53 @@ static void __sort_r(void *base, size_t num, size_t size, int (*cmp_func)(const 
 			}
 		}
 	}
+}
+
+/*
+ *	dmi_matches - check if dmi_system_id structure matches system DMI data
+ *	@dmi: pointer to the dmi_system_id structure to check
+ */
+static bool dmi_matches(const struct dmi_system_id *dmi){
+	int s = 0;
+	const struct dmi_device *valid = NULL;
+
+	for (int i = 0; i < ARRAY_SIZE(dmi->matches); i++) {
+		s = dmi->matches[i].slot;
+		if (s == DMI_NONE){
+			break;
+		}
+		if (s == DMI_OEM_STRING) {
+			/* DMI_OEM_STRING must be exact match */
+			valid = dmi_find_device(DMI_DEV_TYPE_OEM_STRING, dmi->matches[i].substr, NULL);
+			if (valid){
+				continue;
+			}
+		}
+		#if 0
+		else if (dmi_ident[s]){
+			if (dmi->matches[i].exact_match) {
+				if (!strcmp(dmi_ident[s], dmi->matches[i].substr)){
+					continue;
+				}
+			}else{
+				if (strstr(dmi_ident[s], dmi->matches[i].substr)){
+					continue;
+				}
+			}
+		}
+		#endif
+		/* No match */
+		return false;
+	}
+	return true;
+}
+
+/*
+ *	dmi_is_end_of_table - check for end-of-table marker
+ *	@dmi: pointer to the dmi_system_id structure to check
+ */
+static bool dmi_is_end_of_table(const struct dmi_system_id *dmi){
+	return dmi->matches[0].slot == DMI_NONE;
 }
 
 #include <single_offset.h>

@@ -300,6 +300,7 @@ my %field_ctype = (
 		"destructor_arg"			=> "void *",
 	},
 	urb => {
+		"hcpriv"				=> "void *",
 		"status"				=> "int",
 		"interval"				=> "int",
 		"use_count"				=> "atomic_int",
@@ -584,6 +585,11 @@ my %field_ctype = (
 		"list"					=> "struct list_head",
 		"name"					=> "const char *",
 		"flags"					=> "unsigned long",
+		"dev_flags"				=> "unsigned long",
+		"quirk_flags"				=> "unsigned long",
+		"dev"					=> "struct device",
+		"workqueue"				=> "struct workqueue_struct *",
+		"req_workqueue"			=> "struct workqueue_struct *",
 		"id"					=> "__u16",
 		"bus"					=> "__u8",
 		"bdaddr"				=> "bdaddr_t",
@@ -633,6 +639,17 @@ my %field_ctype = (
 		"le_tx_def_phys"			=> "__u8",
 		"le_rx_def_phys"			=> "__u8",
 		"cmd_sync_work_list"			=> "struct list_head",
+		"cmd_sync_work"			=> "struct work_struct",
+		"cmd_sync_work_lock"			=> "struct mutex",
+		"unregister_lock"			=> "struct mutex",
+		"rx_work"				=> "struct work_struct",
+		"cmd_work"				=> "struct work_struct",
+		"tx_work"				=> "struct work_struct",
+		"power_on"				=> "struct work_struct",
+		"error_reset"				=> "struct work_struct",
+		"req_skb"				=> "struct sk_buff *",
+		"req_rsp"				=> "struct sk_buff *",
+		"sent_cmd"				=> "struct sk_buff *",
 		"rx_q"					=> "struct sk_buff_head",
 		"raw_q"					=> "struct sk_buff_head",
 		"cmd_q"					=> "struct sk_buff_head",
@@ -1031,6 +1048,20 @@ my %inline_array_field = (
 	sk_buff => {
 		"cb"				=> 1,
 	},
+	urb => {
+		"iso_frame_desc"		=> 1,
+	},
+	hci_dev => {
+		"dev_flags"			=> 1,
+		"quirk_flags"			=> 1,
+	},
+	ieee80211_hw => {
+		"flags"				=> 1,
+	},
+	usb_device => {
+		"ep_in"				=> 1,
+		"ep_out"			=> 1,
+	},
 	ieee80211_sub_if_data => {
 		"vif"				=> 1,
 	},
@@ -1198,6 +1229,7 @@ if(!($windows_support) && $compiler && !($compiler =~ "ming")){
 
 # "--clean" code
 if($clean){
+	print("[*] starting to clean the build files!..\n");
 	`$rm $build/*.o 2>/dev/null`;
 	`$rm $bin/$final_program* 2>/dev/null`;
 	`$rm -rf out_* 2>/dev/null`;
@@ -1215,6 +1247,7 @@ if($clean){
 	}else{
 		`$rm required_offsets.json 2>/dev/null`;
 	}
+	print("[*] cleaned everything!\n");
 	exit(0);
 }
 
@@ -1486,7 +1519,7 @@ sub emit_runtime_struct_header {
 	print OFFSETS "	short struct_size;\n";
 	print OFFSETS "	unsigned char *struct_name;\n";
 	print OFFSETS "	unsigned short struct_field_num;\n";
-	print OFFSETS "	struct struct_field fields[128];\n";
+	print OFFSETS "	struct struct_field fields[192];\n";
 	print OFFSETS "};\n\n";
 	print OFFSETS "struct runtime_struct {\n";
 	print OFFSETS "	int compilation_time_generated_structs;\n";

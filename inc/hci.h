@@ -10,6 +10,26 @@
 #define hci_skb_event(skb)		bt_cb((skb))->hci.req_event
 #define hci_skb_sk(skb)			bt_cb((skb))->hci.sk
 
+static int hci_init_work(void *address, work_func_t function);
+static int hci_init_delayed_work(void *address, work_func_t function);
+static void hci_rx_work(struct work_struct *work);
+static void hci_cmd_work(struct work_struct *work);
+static void hci_tx_work(struct work_struct *work);
+static void hci_power_on(struct work_struct *work);
+static void hci_error_reset(struct work_struct *work);
+static void hci_power_off(struct work_struct *work);
+static void hci_cmd_timeout(struct work_struct *work);
+static void hci_ncmd_timeout(struct work_struct *work);
+static void hci_cmd_sync_work(struct work_struct *work);
+
+#ifndef INIT_WORK
+#define INIT_WORK(work, function) hci_init_work((void *)(work), (function))
+#endif
+
+#ifndef INIT_DELAYED_WORK
+#define INIT_DELAYED_WORK(work, function) hci_init_delayed_work((void *)(work), (function))
+#endif
+
 /* Command opcode pack/unpack */
 #define hci_opcode_pack(ogf, ocf)	((__u16) ((ocf & 0x03ff)|(ogf << 10)))
 #define hci_opcode_ogf(op)		(op >> 10)
@@ -41,6 +61,121 @@
 #define hci_set_quirk(hdev, nr)			set_bit((nr), (hdev)->quirk_flags)
 #define hci_clear_quirk(hdev, nr)		clear_bit((nr), (hdev)->quirk_flags)
 #define hci_test_quirk(hdev, nr)		test_bit((nr), (hdev)->quirk_flags)
+
+#define HCI_RAW_QUEUE_MAX 256
+
+static int hci_runtime_init(struct module_controller *controller){
+	int ret = 0;
+
+	if(controller == NULL || controller->hci_state_initialized == true){
+		return ret;
+	}
+	ret = pthread_mutex_init(&controller->hci_state_lock, NULL);
+	if(ret != 0){
+		return -ret;
+	}
+	ret = pthread_cond_init(&controller->hci_state_cond, NULL);
+	if(ret != 0){
+		pthread_mutex_destroy(&controller->hci_state_lock);
+		return -ret;
+	}
+	ret = pthread_mutex_init(&controller->hci_raw_lock, NULL);
+	if(ret != 0){
+		pthread_cond_destroy(&controller->hci_state_cond);
+		pthread_mutex_destroy(&controller->hci_state_lock);
+		return -ret;
+	}
+	ret = pthread_cond_init(&controller->hci_raw_cond, NULL);
+	if(ret != 0){
+		pthread_mutex_destroy(&controller->hci_raw_lock);
+		pthread_cond_destroy(&controller->hci_state_cond);
+		pthread_mutex_destroy(&controller->hci_state_lock);
+		return -ret;
+	}
+	ret = pthread_mutex_init(&controller->bit_wait_lock, NULL);
+	if(ret != 0){
+		pthread_cond_destroy(&controller->hci_raw_cond);
+		pthread_mutex_destroy(&controller->hci_raw_lock);
+		pthread_cond_destroy(&controller->hci_state_cond);
+		pthread_mutex_destroy(&controller->hci_state_lock);
+		return -ret;
+	}
+	ret = pthread_cond_init(&controller->bit_wait_cond, NULL);
+	if(ret != 0){
+		pthread_mutex_destroy(&controller->bit_wait_lock);
+		pthread_cond_destroy(&controller->hci_raw_cond);
+		pthread_mutex_destroy(&controller->hci_raw_lock);
+		pthread_cond_destroy(&controller->hci_state_cond);
+		pthread_mutex_destroy(&controller->hci_state_lock);
+		return -ret;
+	}
+	INIT_LIST_HEAD(&controller->hci_dev_list);
+	INIT_LIST_HEAD(&controller->hci_cb_list);
+	controller->hci_dev = NULL;
+	controller->hci_stopping = false;
+	controller->hci_setup_complete = false;
+	controller->hci_setup_status = -EINPROGRESS;
+	controller->hci_state_initialized = true;
+	controller->hci_raw_initialized = true;
+	return ret;
+}
+
+static void hci_runtime_destroy(struct module_controller *controller){
+	int ret = 0;
+
+	if(controller == NULL || controller->hci_state_initialized == false){
+		return;
+	}
+	pthread_cond_destroy(&controller->bit_wait_cond);
+	pthread_mutex_destroy(&controller->bit_wait_lock);
+	pthread_cond_destroy(&controller->hci_raw_cond);
+	pthread_mutex_destroy(&controller->hci_raw_lock);
+	pthread_cond_destroy(&controller->hci_state_cond);
+	pthread_mutex_destroy(&controller->hci_state_lock);
+	controller->hci_raw_initialized = false;
+	controller->hci_state_initialized = false;
+}
+
+static void hci_publish_state(struct hci_dev *hdev, int status){
+	int ret = 0;
+
+	if(director.hci_state_initialized == false){
+		return;
+	}
+	pthread_mutex_lock(&director.hci_state_lock);
+	director.hci_dev = hdev;
+	director.hci_setup_status = status;
+	director.hci_setup_complete = true;
+	pthread_cond_broadcast(&director.hci_state_cond);
+	pthread_mutex_unlock(&director.hci_state_lock);
+}
+
+static int hci_wait_ready(unsigned int timeout_ms){
+	int ret = 0;
+	struct timespec timeout = {};
+
+	if(director.hci_state_initialized == false){
+		return -ENODEV;
+	}
+	clock_gettime(CLOCK_REALTIME, &timeout);
+	timeout.tv_sec += timeout_ms / 1000;
+	timeout.tv_nsec += (timeout_ms % 1000) * 1000000ULL;
+	if(timeout.tv_nsec >= NSEC_PER_SEC){
+		timeout.tv_sec++;
+		timeout.tv_nsec -= NSEC_PER_SEC;
+	}
+	pthread_mutex_lock(&director.hci_state_lock);
+	while(director.hci_setup_complete == false && director.hci_stopping == false){
+		ret = pthread_cond_timedwait(&director.hci_state_cond, &director.hci_state_lock, &timeout);
+		if(ret == ETIMEDOUT){
+			pthread_mutex_unlock(&director.hci_state_lock);
+			return -ETIMEDOUT;
+		}
+	}
+	ret = director.hci_setup_status;
+	pthread_mutex_unlock(&director.hci_state_lock);
+	return ret;
+}
 
 /* HCI timeouts */
 #define HCI_DISCONN_TIMEOUT		msecs_to_jiffies(2000)	/* 2 seconds */
@@ -719,9 +854,6 @@ typedef void (*notify_change_t)(struct hci_dev *hdev, int state);
 typedef int (*hci_cmd_sync_work_func_t)(struct hci_dev *hdev, void *data);
 typedef void (*hci_cmd_sync_work_destroy_t)(struct hci_dev *hdev, void *data, int err);
 
-typedef int (*hci_cmd_sync_work_func_t)(struct hci_dev *hdev, void *data);
-typedef void (*hci_cmd_sync_work_destroy_t)(struct hci_dev *hdev, void *data, int err);
-
 /* BD Address */
 typedef struct {
 	__u8 b[6];
@@ -932,9 +1064,6 @@ struct hci_devcoredump {
 	dmp_hdr_t		dmp_hdr;
 	notify_change_t		notify_change;
 };
-
-#define HCI_DEVCD_MAX_DEVICES 32
-static struct hci_dev *hci_devcd_devices[HCI_DEVCD_MAX_DEVICES];
 
 /* -----  HCI Commands ---- */
 #define HCI_OP_NOP				0x0000
@@ -1236,25 +1365,23 @@ static void hci_devcd_notify(struct hci_dev *hdev, int state){
 }
 
 static void hci_devcd_rx(struct work_struct *work){
+	int ret = 0;
+	int old_state = 0;
+	u32 dump_size = 0;
+	struct sk_buff *skb = NULL;
 	struct hci_dev *hdev = NULL;
 	struct hci_devcoredump *dump = NULL;
 	struct hci_devcoredump_skb_cb *cb = NULL;
 	struct hci_devcoredump_skb_pattern *pattern = NULL;
-	struct sk_buff *skb = NULL;
-	u32 dump_size = 0;
-	int old_state = 0;
-	int i = 0;
 
-	for (i = 0; i < HCI_DEVCD_MAX_DEVICES; i++){
-		if (hci_devcd_devices[i] != NULL && &hci_devcd(hci_devcd_devices[i])->dump_rx == work){
-			hdev = hci_devcd_devices[i];
-			break;
-		}
-	}
+	hdev = director.hci_dev;
 	if (hdev == NULL){
 		return;
 	}
 	dump = hci_devcd(hdev);
+	if(&dump->dump_rx != work){
+		return;
+	}
 
 	while ((skb = skb_dequeue(&dump->dump_q)) != NULL){
 		cb = (struct hci_devcoredump_skb_cb *)skb->cb;
@@ -1328,12 +1455,6 @@ static void hci_devcd_setup(struct hci_dev *hdev){
 	work->func = hci_devcd_rx;
 	skb_queue_head_init(&dump->dump_q);
 	dump->state = HCI_DEVCOREDUMP_IDLE;
-	for (int i = 0; i < HCI_DEVCD_MAX_DEVICES; i++){
-		if (hci_devcd_devices[i] == NULL){
-			hci_devcd_devices[i] = hdev;
-			break;
-		}
-	}
 }
 
 static int hci_devcd_queue(struct hci_dev *hdev, struct sk_buff *skb){
@@ -1366,12 +1487,6 @@ static void hci_devcd_shutdown(struct hci_dev *hdev){
 	dump->supported = false;
 	cancel_work_sync(&dump->dump_rx);
 	hci_devcd_reset(hdev);
-	for (int i = 0; i < HCI_DEVCD_MAX_DEVICES; i++){
-		if (hci_devcd_devices[i] == hdev){
-			hci_devcd_devices[i] = NULL;
-			break;
-		}
-	}
 }
 
 static inline struct hci_event_hdr *hci_event_hdr(const struct sk_buff *skb){
@@ -1403,11 +1518,10 @@ static void *hci_cmd_data(struct sk_buff *skb, __u16 opcode){
 	if (hdr->opcode != cpu_to_le16(opcode)){
 		return NULL;
 	}
-
 	return skb->data + HCI_COMMAND_HDR_SIZE;
 }
 
-/* Get data from the previously sent command */
+/* hci_sent_cmd_data: get data from the previously sent command */
 static void *hci_sent_cmd_data(struct hci_dev *hdev, __u16 opcode){
 	void *data = NULL;
 
@@ -1420,7 +1534,29 @@ static void *hci_sent_cmd_data(struct hci_dev *hdev, __u16 opcode){
 	return data;
 }
 
-/* Send ACL data */
+static void hci_deliver_raw(struct hci_dev *hdev, struct sk_buff *skb){
+	int ret = 0;
+	struct sk_buff *old = NULL;
+
+	if(hdev == NULL || skb == NULL){
+		kfree_skb(skb);
+		return;
+	}
+	if(director.hci_raw_initialized == false || director.hci_stopping == true){
+		kfree_skb(skb);
+		return;
+	}
+	pthread_mutex_lock(&director.hci_raw_lock);
+	while(skb_queue_len(&hdev->raw_q) >= HCI_RAW_QUEUE_MAX){
+		old = skb_dequeue(&hdev->raw_q);
+		kfree_skb(old);
+	}
+	skb_queue_tail(&hdev->raw_q, skb);
+	pthread_cond_broadcast(&director.hci_raw_cond);
+	pthread_mutex_unlock(&director.hci_raw_lock);
+}
+
+/* hci_add_acl_hdr: send ACL data */
 static void hci_add_acl_hdr(struct sk_buff *skb, __u16 handle, __u16 flags){
 	int len = 0;
 	struct hci_acl_hdr *hdr = NULL;
@@ -1439,7 +1575,7 @@ static u8 hci_dev_classify_pkt_type(struct hci_dev *hdev, struct sk_buff *skb){
 
 	if (hdev->classify_pkt_type != NULL){
 		classify_pkt_type = hdev->classify_pkt_type;
-		classify_pkt_type(hdev, skb);
+		return classify_pkt_type(hdev, skb);
 	}
 	cb = (struct bt_skb_cb *)skb->cb;
 	return cb->pkt_type;
@@ -1575,23 +1711,44 @@ static struct sk_buff *hci_cmd_sync_alloc(struct hci_dev *hdev, u16 opcode, u32 
 	cb = (struct bt_skb_cb *)skb->cb;
 	cb->pkt_type = HCI_COMMAND_PKT;
 	cb->hci.opcode = opcode;
+	if(sk != NULL){
+		cb->hci.sk = sk;
+		refcount_inc(&sk->sk_refcnt);
+	}
 	return skb;
 }
 
+static void hci_cmd_sync_work(struct work_struct *work){
+	int ret = 0;
+	struct hci_dev *hdev = NULL;
+	struct hci_cmd_sync_work_entry *entry = NULL;
+
+	hdev = director.hci_dev;
+	if(hdev == NULL){
+		return;
+	}
+	while(true){
+		mutex_lock(&hdev->cmd_sync_work_lock);
+		if(list_empty(&hdev->cmd_sync_work_list)){
+			mutex_unlock(&hdev->cmd_sync_work_lock);
+			break;
+		}
+		entry = list_first_entry(&hdev->cmd_sync_work_list, struct hci_cmd_sync_work_entry, list);
+		list_del_init(&entry->list);
+		mutex_unlock(&hdev->cmd_sync_work_lock);
+		ret = entry->func == NULL ? -EINVAL : entry->func(hdev, entry->data);
+		if(entry->destroy != NULL){
+			entry->destroy(hdev, entry->data, ret);
+		}
+		free(entry);
+	}
+}
+
 static void hci_cmd_sync_init(struct hci_dev *hdev){
-	/* still TODO */
-	#if 0
 	INIT_WORK(&hdev->cmd_sync_work, hci_cmd_sync_work);
 	INIT_LIST_HEAD(&hdev->cmd_sync_work_list);
-	mutex_init(&hdev->cmd_sync_work_lock);
-	mutex_init(&hdev->unregister_lock);
-
-	INIT_WORK(&hdev->cmd_sync_cancel_work, hci_cmd_sync_cancel_work);
-	INIT_WORK(&hdev->reenable_adv_work, reenable_adv);
-	INIT_DELAYED_WORK(&hdev->le_scan_disable, le_scan_disable);
-	INIT_DELAYED_WORK(&hdev->adv_instance_expire, adv_timeout_expire);
-	INIT_DELAYED_WORK(&hdev->interleave_scan, interleave_scan_work);
-	#endif
+	mutex_init(&hdev->cmd_sync_work_lock, "cmd_sync_work_lock", NULL);
+	mutex_init(&hdev->unregister_lock, "unregister_lock", NULL);
 }
 
 /* hci_send_frame: final function at the hci level which calls 'hci_send' and invoke the USB dongle vendor function for sending the frame (encapsulated through sk_buff) */
@@ -1616,6 +1773,7 @@ static int hci_send_frame(struct hci_dev *hdev, struct sk_buff *skb){
 
 	skb_orphan(skb);
 	if (!test_bit(HCI_RUNNING, &hdev->flags)) {
+		printf("[!] hci_send_frame: HCI device is not running\n");
 		kfree_skb(skb);
 		ret = -EINVAL;
 		return ret;
@@ -1661,30 +1819,52 @@ static void hci_cmd_sync_add(struct hci_request *req, u16 opcode, u32 plen, cons
 }
 
 static void hci_cmd_sync_complete(struct hci_dev *hdev, u8 result, u16 opcode, struct sk_buff *skb){
+	int ret = 0;
 	struct sock *sk = NULL;
-	struct bt_skb_cb *bt_skb_cb = NULL;
+	struct sk_buff *request = NULL;
+	struct bt_skb_cb *request_cb = NULL;
 
-	if (hdev->req_status != HCI_REQ_PEND){
+	if(hdev == NULL || hdev->req_status != HCI_REQ_PEND){
 		return;
+	}
+	request = hdev->req_skb;
+	if(request != NULL){
+		request_cb = (struct bt_skb_cb *)request->cb;
+		sk = request_cb->hci.sk;
+		request_cb->hci.sk = NULL;
 	}
 	hdev->req_result = result;
 	hdev->req_status = HCI_REQ_DONE;
-
-	/* Free the request command so it is not used as response */
 	kfree_skb(hdev->req_skb);
 	hdev->req_skb = NULL;
-
-	if (skb != NULL) {
-		bt_skb_cb = (struct bt_skb_cb *)skb->cb;
-		sk = bt_skb_cb->hci.sk;
-
-		/* Drop sk reference if set */
-		if (sk != NULL){
-			sock_put(sk);
-		}
+	if(sk != NULL){
+		sock_put(sk);
+	}
+	if(skb != NULL){
 		hdev->req_rsp = skb_get(skb);
 	}
 	wake_up_interruptible(&hdev->req_wait_q);
+}
+
+static void hci_drop_request(struct hci_dev *hdev){
+	int ret = 0;
+	struct sk_buff *request = NULL;
+	struct bt_skb_cb *cb = NULL;
+
+	if(hdev == NULL){
+		return;
+	}
+	request = hdev->req_skb;
+	if(request == NULL){
+		return;
+	}
+	cb = (struct bt_skb_cb *)request->cb;
+	if(cb->hci.sk != NULL){
+		sock_put(cb->hci.sk);
+		cb->hci.sk = NULL;
+	}
+	kfree_skb(hdev->req_skb);
+	hdev->req_skb = NULL;
 }
 
 static int hci_req_sync_run(struct hci_request *req){
@@ -1735,4 +1915,320 @@ static struct hci_cmd_sync_work_entry *_hci_cmd_sync_lookup_entry(struct hci_dev
 		return entry;
 	}
 	return NULL;
+}
+
+/* hci_rx_work: workqueue used for getting the incoming HCI message from the firmware */
+static void hci_rx_work(struct work_struct *work){
+	int ret = 0;
+	bool matched = false;
+	u8 event = 0;
+	u8 status = 0;
+	u8 ncmd = 0;
+	u16 opcode = 0;
+	struct sk_buff *skb = NULL;
+	struct hci_dev *hdev = NULL;
+	struct sk_buff *request = NULL;
+	struct bt_skb_cb *packet_cb = NULL;
+	struct bt_skb_cb *request_cb = NULL;
+	hci_req_complete_t complete = NULL;
+	hci_req_complete_skb_t complete_skb = NULL;
+
+	hdev = director.hci_dev;
+	if(hdev == NULL){
+		return;
+	}
+	while((skb = skb_dequeue(&hdev->rx_q)) != NULL){
+		packet_cb = (struct bt_skb_cb *)skb->cb;
+		if(packet_cb->pkt_type == HCI_DRV_PKT){
+			ret = hci_drv_process_cmd(hdev, skb);
+			kfree_skb(skb);
+			continue;
+		}
+		if(packet_cb->pkt_type != HCI_EVENT_PKT){
+			hci_deliver_raw(hdev, skb);
+			continue;
+		}
+		if(skb->len < HCI_EVENT_HDR_SIZE || skb->len < HCI_EVENT_HDR_SIZE + skb->data[1]){
+			kfree_skb(skb);
+			continue;
+		}
+		event = skb->data[0];
+		request = hdev->req_skb;
+		request_cb = request == NULL ? NULL : (struct bt_skb_cb *)request->cb;
+		status = 0;
+		opcode = 0;
+		matched = false;
+		if(event == 0x0e){
+			if(skb->len < 5){
+				kfree_skb(skb);
+				continue;
+			}
+			ncmd = skb->data[2];
+			opcode = get_unaligned_le16(skb->data + 3);
+			if(skb->len > 5){
+				status = skb->data[5];
+			}
+			atomic_store(&hdev->cmd_cnt, ncmd);
+			if(ncmd != 0 && !skb_queue_empty(&hdev->cmd_q)){
+				queue_work(hdev->workqueue, &hdev->cmd_work);
+			}
+			if(request_cb != NULL && request_cb->hci.opcode == opcode && request_cb->hci.req_event == 0){
+				skb_pull(skb, 5);
+				matched = true;
+			}
+		}else if(event == 0x0f){
+			if(skb->len < 6){
+				kfree_skb(skb);
+				continue;
+			}
+			status = skb->data[2];
+			ncmd = skb->data[3];
+			opcode = get_unaligned_le16(skb->data + 4);
+			atomic_store(&hdev->cmd_cnt, ncmd);
+			if(ncmd != 0 && !skb_queue_empty(&hdev->cmd_q)){
+				queue_work(hdev->workqueue, &hdev->cmd_work);
+			}
+			if(request_cb != NULL && request_cb->hci.opcode == opcode && (status != 0 || request_cb->hci.req_event == 0)){
+				skb_pull(skb, 6);
+				matched = true;
+			}
+		}else if(request_cb != NULL && request_cb->hci.req_event == event){
+			opcode = request_cb->hci.opcode;
+			skb_pull(skb, HCI_EVENT_HDR_SIZE);
+			matched = true;
+		}
+		if(matched == false){
+			hci_deliver_raw(hdev, skb);
+			continue;
+		}
+		cancel_delayed_work(&hdev->cmd_timer);
+		if(request_cb->hci.req_flags & HCI_REQ_SKB){
+			complete_skb = request_cb->hci.req_complete_skb;
+			if(complete_skb != NULL){
+				complete_skb(hdev, status, opcode, skb);
+			}
+		}else{
+			complete = request_cb->hci.req_complete;
+			if(complete != NULL){
+				complete(hdev, status, opcode);
+			}
+		}
+		kfree_skb(hdev->sent_cmd);
+		hdev->sent_cmd = NULL;
+		kfree_skb(skb);
+	}
+}
+
+/* hci_cmd_work: workqueue used for transmitting an HCI message to the firmware */
+static void hci_cmd_work(struct work_struct *work){
+	int ret = 0;
+	u16 opcode = 0;
+	u8 req_flags = 0;
+	struct sk_buff *skb = NULL;
+	struct hci_dev *hdev = NULL;
+	struct bt_skb_cb *cb = NULL;
+	hci_req_complete_t complete = NULL;
+	hci_req_complete_skb_t complete_skb = NULL;
+
+	hdev = director.hci_dev;
+	if(hdev == NULL){
+		return;
+	}
+	if(atomic_load(&hdev->cmd_cnt) <= 0){
+		return;
+	}
+	skb = skb_dequeue(&hdev->cmd_q);
+	if(skb != NULL){
+		atomic_fetch_sub(&hdev->cmd_cnt, 1);
+		cb = (struct bt_skb_cb *)skb->cb;
+		req_flags = cb->hci.req_flags;
+		opcode = cb->hci.opcode;
+		complete = cb->hci.req_complete;
+		complete_skb = cb->hci.req_complete_skb;
+		kfree_skb(hdev->sent_cmd);
+		hdev->sent_cmd = skb_get(skb);
+		if(req_flags & HCI_REQ_START){
+			kfree_skb(hdev->req_skb);
+			hdev->req_skb = skb_get(skb);
+		}
+		ret = hci_send_frame(hdev, skb);
+		if(ret < 0){
+			if(req_flags & HCI_REQ_SKB){
+				if(complete_skb != NULL){
+					complete_skb(hdev, 0x1f, opcode, NULL);
+				}
+			}else{
+				if(complete != NULL){
+					complete(hdev, 0x1f, opcode);
+				}
+			}
+			kfree_skb(hdev->sent_cmd);
+			hdev->sent_cmd = NULL;
+			atomic_fetch_add(&hdev->cmd_cnt, 1);
+			return;
+		}
+		if(req_flags & HCI_REQ_START){
+			mod_delayed_work_on(0, hdev->workqueue, &hdev->cmd_timer, jiffies_to_msecs(HCI_CMD_TIMEOUT));
+		}
+	}
+}
+
+static void hci_tx_work(struct work_struct *work){
+	int ret = 0;
+	struct hci_dev *hdev = NULL;
+
+	hdev = director.hci_dev;
+	if(hdev == NULL){
+		return;
+	}
+	ret = test_bit(HCI_RUNNING, &hdev->flags);
+}
+
+static void hci_power_on(struct work_struct *work){
+	int ret = 0;
+	struct hci_dev *hdev = NULL;
+	int (*open)(struct hci_dev *) = NULL;
+	int (*close)(struct hci_dev *) = NULL;
+	int (*setup)(struct hci_dev *) = NULL;
+	int (*post_init)(struct hci_dev *) = NULL;
+
+	hdev = director.hci_dev;
+	if(hdev == NULL){
+		return;
+	}
+	if(test_bit(HCI_RUNNING, &hdev->flags)){
+		return;
+	}
+	open = hdev->open;
+	close = hdev->close;
+	setup = hdev->setup;
+	post_init = hdev->post_init;
+	if(open == NULL){
+		return;
+	}
+
+	set_bit(HCI_INIT, &hdev->flags);
+	ret = open(hdev);
+	if(ret){
+		goto error;
+	}
+	set_bit(HCI_RUNNING, &hdev->flags);
+	atomic_store(&hdev->cmd_cnt, 1);
+	if(setup != NULL){
+		ret = setup(hdev);
+		if(ret){
+			goto close;
+		}
+	}
+	if(post_init != NULL){
+		ret = post_init(hdev);
+		if(ret){
+			goto close;
+		}
+	}
+	clear_bit(HCI_INIT, &hdev->flags);
+	set_bit(HCI_UP, &hdev->flags);
+	hci_publish_state(hdev, 0);
+	return;
+
+	close:
+	if(close != NULL){
+		close(hdev);
+	}
+	clear_bit(HCI_RUNNING, &hdev->flags);
+	clear_bit(HCI_UP, &hdev->flags);
+	error:
+	clear_bit(HCI_INIT, &hdev->flags);
+	hci_publish_state(hdev, ret == 0 ? -EIO : ret);
+}
+
+/* hci_error_reset: workqueue used for reset the driver in case of an error */
+static void hci_error_reset(struct work_struct *work){
+	int ret = 0;
+	struct hci_dev *hdev = NULL;
+	int (*close)(struct hci_dev *) = NULL;
+
+	hdev = director.hci_dev;
+	if(hdev == NULL){
+		return;
+	}
+	close = hdev->close;
+	hci_cmd_sync_cancel(hdev, EIO);
+	if(test_and_clear_bit(HCI_RUNNING, &hdev->flags) && close != NULL){
+		ret = close(hdev);
+	}
+	clear_bit(HCI_UP, &hdev->flags);
+	queue_work(hdev->req_workqueue, &hdev->power_on);
+}
+
+/* hci_power_off: workqueue used for powering off the device */
+static void hci_power_off(struct work_struct *work){
+	int ret = 0;
+	struct hci_dev *hdev = NULL;
+	int (*close)(struct hci_dev *) = NULL;
+
+	hdev = director.hci_dev;
+	if(hdev == NULL){
+		return;
+	}
+	close = hdev->close;
+	hci_cmd_sync_cancel(hdev, ENETDOWN);
+	if(test_and_clear_bit(HCI_RUNNING, &hdev->flags) && close != NULL){
+		ret = close(hdev);
+	}
+	clear_bit(HCI_UP, &hdev->flags);
+}
+
+static void hci_cmd_timeout(struct work_struct *work){
+	int ret = 0;
+	struct hci_dev *hdev = NULL;
+
+	hdev = director.hci_dev;
+	if(hdev == NULL){
+		return;
+	}
+	hci_cmd_sync_cancel(hdev, ETIMEDOUT);
+	ret = queue_work(hdev->workqueue, &hdev->error_reset);
+}
+
+static void hci_ncmd_timeout(struct work_struct *work){
+	int ret = 0;
+	struct hci_dev *hdev = NULL;
+
+	hdev = director.hci_dev;
+	if(hdev == NULL){
+		return;
+	}
+	atomic_store(&hdev->cmd_cnt, 1);
+	ret = queue_work(hdev->workqueue, &hdev->cmd_work);
+}
+
+static int hci_init_work(void *address, work_func_t function){
+	int ret = 0;
+	struct work_struct *work = NULL;
+
+	if(address == NULL || function == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+	work = address;
+	atomic_store(&work->data, 0);
+	INIT_LIST_HEAD(&work->entry);
+	work->func = function;
+	return ret;
+}
+
+static int hci_init_delayed_work(void *address, work_func_t function){
+	int ret = 0;
+	struct delayed_work *work = NULL;
+
+	if(address == NULL){
+		ret = -EINVAL;
+		return ret;
+	}
+	work = address;
+	ret = hci_init_work(&work->work, function);
+	work->expires.tv_sec = 0;
+	work->expires.tv_nsec = 0;
+	return ret;
 }

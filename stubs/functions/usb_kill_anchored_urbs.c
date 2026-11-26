@@ -1,16 +1,20 @@
 void usb_kill_anchored_urbs(struct usb_anchor *anchor){
-	int surely_empty = 0;
-	struct urb *victim = NULL;
+	int ret = 0;
+	struct urb *urb = NULL;
 
-	do {
-		while (!list_empty(&anchor->urb_list)) {
-			victim = list_entry(anchor->urb_list.prev, struct urb, anchor_list);
-			/* make sure the URB isn't freed before we kill it */
-			usb_get_urb(victim);
-			/* this will unanchor the URB */
-			usb_kill_urb(victim);
-			usb_put_urb(victim);
+	if(anchor == NULL){
+		return;
+	}
+	while(true){
+		pthread_mutex_lock(&director.urb_anchor_mutex);
+		if(list_empty(&anchor->urb_list)){
+			pthread_mutex_unlock(&director.urb_anchor_mutex);
+			break;
 		}
-		surely_empty = usb_anchor_check_wakeup(anchor);
-	}while (!surely_empty);
+		urb = list_last_entry(&anchor->urb_list, struct urb, anchor_list);
+		usb_get_urb(urb);
+		pthread_mutex_unlock(&director.urb_anchor_mutex);
+		usb_kill_urb(urb);
+		usb_put_urb(urb);
+	}
 }

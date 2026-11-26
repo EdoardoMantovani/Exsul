@@ -13,6 +13,24 @@
 #define usb_pipeint(pipe)       (usb_pipetype((pipe)) == PIPE_INTERRUPT)
 #define usb_pipecontrol(pipe)   (usb_pipetype((pipe)) == PIPE_CONTROL)
 #define usb_pipebulk(pipe)      (usb_pipetype((pipe)) == PIPE_BULK)
+#define usb_sndctrlpipe(dev, endpoint)	\
+	((PIPE_CONTROL << 30) | __create_pipe(dev, endpoint))
+#define usb_rcvctrlpipe(dev, endpoint)	\
+	((PIPE_CONTROL << 30) | __create_pipe(dev, endpoint) | USB_DIR_IN)
+#define usb_sndisocpipe(dev, endpoint)	\
+	((PIPE_ISOCHRONOUS << 30) | __create_pipe(dev, endpoint))
+#define usb_rcvisocpipe(dev, endpoint)	\
+	((PIPE_ISOCHRONOUS << 30) | __create_pipe(dev, endpoint) | USB_DIR_IN)
+#define usb_sndbulkpipe(dev, endpoint)	\
+	((PIPE_BULK << 30) | __create_pipe(dev, endpoint))
+#define usb_rcvbulkpipe(dev, endpoint)	\
+	((PIPE_BULK << 30) | __create_pipe(dev, endpoint) | USB_DIR_IN)
+#define usb_sndintpipe(dev, endpoint)	\
+	((PIPE_INTERRUPT << 30) | __create_pipe(dev, endpoint))
+#define usb_rcvintpipe(dev, endpoint)	\
+	((PIPE_INTERRUPT << 30) | __create_pipe(dev, endpoint) | USB_DIR_IN)
+
+#define interface_to_usbdev(intf) ((struct usb_device *)director.usb_device_ptr)
 
 /* Hard limit */
 #define USB_MAXENDPOINTS	30
@@ -52,8 +70,21 @@ enum usb_interface_condition {
 	USB_INTERFACE_UNBINDING,
 };
 
+enum usb_wireless_status {
+	USB_WIRELESS_STATUS_NA,
+	USB_WIRELESS_STATUS_DISCONNECTED,
+	USB_WIRELESS_STATUS_CONNECTED,
+};
+
 struct usb_device;
 
+#define USB_DEVICE_ID_MATCH_VENDOR		0x0001
+#define USB_DEVICE_ID_MATCH_PRODUCT		0x0002
+#define USB_DEVICE_ID_MATCH_DEV_LO		0x0004
+#define USB_DEVICE_ID_MATCH_DEV_HI		0x0008
+#define USB_DEVICE_ID_MATCH_DEV_CLASS		0x0010
+#define USB_DEVICE_ID_MATCH_DEV_SUBCLASS	0x0020
+#define USB_DEVICE_ID_MATCH_DEV_PROTOCOL	0x0040
 #define USB_DEVICE_ID_MATCH_INT_CLASS		0x0080
 #define USB_DEVICE_ID_MATCH_INT_SUBCLASS	0x0100
 #define USB_DEVICE_ID_MATCH_INT_PROTOCOL	0x0200
@@ -116,9 +147,9 @@ struct usb_host_endpoint {
 	struct usb_ss_ep_comp_descriptor	ss_ep_comp;
 	struct usb_ssp_isoc_ep_comp_descriptor	ssp_isoc_ep_comp;
 	struct usb_eusb2_isoc_ep_comp_descriptor eusb2_isoc_ep_comp;
-	struct list_head			urb_list;
-	void					*hcpriv;
-	struct ep_device			*ep_dev;	/* For sysfs info */
+	struct list_head urb_list;
+	void *hcpriv;
+	struct ep_device *ep_dev;	/* For sysfs info */
 
 	unsigned char *extra;   /* Extra descriptors */
 	int extralen;
@@ -213,6 +244,14 @@ struct urb {
 	/* ... */
 };
 
+struct usb_submit {
+	struct urb *urb;
+	unsigned char *owned_buffer;
+	bool isoc;
+	bool control;
+	bool pooled_transfer;
+};
+
 /*
  * struct usb_host_config - representation of a device's configuration
  * @desc: the device's configuration descriptor.
@@ -278,7 +317,114 @@ struct usbdrv_wrap {
 typedef void (LINUX_ABI *usb_complete_t)(struct urb *);
 
 static int usb_anchor_check_wakeup(struct usb_anchor *anchor){
-	return anchor->suspend_wakeups == 0 && list_empty(&anchor->urb_list);
+	int ret = 0;
+
+	if(anchor->suspend_wakeups == 0 && list_empty(&anchor->urb_list)){
+		ret = true;
+	}
+	return ret;
+}
+
+static bool usb_id_terminator(const struct usb_device_id *id){
+	int ret = 0;
+
+	if(id == NULL){
+		return true;
+	}
+	ret = id->match_flags == 0 && id->idVendor == 0 &&
+	      id->idProduct == 0 && id->bcdDevice_lo == 0 &&
+	      id->bcdDevice_hi == 0 && id->bDeviceClass == 0 &&
+	      id->bDeviceSubClass == 0 && id->bDeviceProtocol == 0 &&
+	      id->bInterfaceClass == 0 && id->bInterfaceSubClass == 0 &&
+	      id->bInterfaceProtocol == 0 && id->bInterfaceNumber == 0 &&
+	      id->driver_info == 0;
+	return ret;
+}
+
+static bool __usb_match_id(const struct usb_device_descriptor *descriptor, const struct usb_interface_descriptor *interface_descriptor, const struct usb_device_id *id){
+	int ret = 0;
+	u16 bcd = 0;
+	u16 vendor = 0;
+	u16 product = 0;
+
+	if(descriptor == NULL || id == NULL || usb_id_terminator(id)){
+		return false;
+	}
+	bcd = le16_to_cpu(descriptor->bcdDevice);
+	vendor = le16_to_cpu(descriptor->idVendor);
+	product = le16_to_cpu(descriptor->idProduct);
+	if((id->match_flags & USB_DEVICE_ID_MATCH_VENDOR) && id->idVendor != vendor){
+		return false;
+	}
+	if((id->match_flags & USB_DEVICE_ID_MATCH_PRODUCT) && id->idProduct != product){
+		return false;
+	}
+	if((id->match_flags & USB_DEVICE_ID_MATCH_DEV_LO) && bcd < id->bcdDevice_lo){
+		return false;
+	}
+	if((id->match_flags & USB_DEVICE_ID_MATCH_DEV_HI) && bcd > id->bcdDevice_hi){
+		return false;
+	}
+	if((id->match_flags & USB_DEVICE_ID_MATCH_DEV_CLASS) && id->bDeviceClass != descriptor->bDeviceClass){
+		return false;
+	}
+	if((id->match_flags & USB_DEVICE_ID_MATCH_DEV_SUBCLASS) && id->bDeviceSubClass != descriptor->bDeviceSubClass){
+		return false;
+	}
+	if((id->match_flags & USB_DEVICE_ID_MATCH_DEV_PROTOCOL) && id->bDeviceProtocol != descriptor->bDeviceProtocol){
+		return false;
+	}
+
+	if(id->match_flags & (USB_DEVICE_ID_MATCH_INT_CLASS | USB_DEVICE_ID_MATCH_INT_SUBCLASS | USB_DEVICE_ID_MATCH_INT_PROTOCOL | USB_DEVICE_ID_MATCH_INT_NUMBER)){
+		if(interface_descriptor == NULL){
+			return false;
+		}
+		if((id->match_flags & USB_DEVICE_ID_MATCH_INT_CLASS) && id->bInterfaceClass != interface_descriptor->bInterfaceClass){
+			return false;
+		}
+		if((id->match_flags & USB_DEVICE_ID_MATCH_INT_SUBCLASS) && id->bInterfaceSubClass != interface_descriptor->bInterfaceSubClass){
+			return false;
+		}
+		if((id->match_flags & USB_DEVICE_ID_MATCH_INT_PROTOCOL) && id->bInterfaceProtocol != interface_descriptor->bInterfaceProtocol){
+			return false;
+		}
+		if((id->match_flags & USB_DEVICE_ID_MATCH_INT_NUMBER) && id->bInterfaceNumber != interface_descriptor->bInterfaceNumber){
+			return false;
+		}
+	}
+	ret = true;
+	return ret;
+}
+
+/* usb_match_device: usb kernel function used in 'usb_device_match_id', returns 0 if no match, 1 if match */
+static int usb_match_device(struct usb_device *dev, const struct usb_device_id *id){
+	int ret = 0;
+
+	if ((id->match_flags & USB_DEVICE_ID_MATCH_VENDOR) && id->idVendor != le16_to_cpu(dev->descriptor.idVendor)){
+		return ret;
+	}
+	if ((id->match_flags & USB_DEVICE_ID_MATCH_PRODUCT) && id->idProduct != le16_to_cpu(dev->descriptor.idProduct)){
+		return ret;
+	}
+	/* No need to test id->bcdDevice_lo != 0, since 0 is never
+	   greater than any unsigned number. */
+	if ((id->match_flags & USB_DEVICE_ID_MATCH_DEV_LO) && (id->bcdDevice_lo > le16_to_cpu(dev->descriptor.bcdDevice))){
+		return ret;
+	}
+	if ((id->match_flags & USB_DEVICE_ID_MATCH_DEV_HI) && (id->bcdDevice_hi < le16_to_cpu(dev->descriptor.bcdDevice))){
+		return ret;
+	}
+	if ((id->match_flags & USB_DEVICE_ID_MATCH_DEV_CLASS) && (id->bDeviceClass != dev->descriptor.bDeviceClass)){
+		return ret;
+	}
+	if ((id->match_flags & USB_DEVICE_ID_MATCH_DEV_SUBCLASS) && (id->bDeviceSubClass != dev->descriptor.bDeviceSubClass)){
+		return ret;
+	}
+	if ((id->match_flags & USB_DEVICE_ID_MATCH_DEV_PROTOCOL) && (id->bDeviceProtocol != dev->descriptor.bDeviceProtocol)){
+		return ret;
+	}
+	ret = true;
+	return ret;
 }
 
 /* convert_usb_pipe_to_ep: convert a kernel pipe into an usb endpoint for using it with libusb */
@@ -291,12 +437,75 @@ static unsigned char convert_usb_pipe_to_ep(unsigned int pipe){
 	return epaddr;
 }
 
+static inline unsigned int __create_pipe(struct usb_device *usb_device, unsigned int endpoint){
+	int ret = 0;
+
+	ret = endpoint << 15;
+	return ret;
+}
+
 /* usb_pipe_endpoint: given he usb pipe, retuns the endpoint */
 static inline struct usb_host_endpoint *usb_pipe_endpoint(struct usb_device *dev, unsigned int pipe){
 	struct usb_host_endpoint **eps = NULL;
 
 	eps = usb_pipein(pipe) ? dev->ep_in : dev->ep_out;
 	return eps[usb_pipeendpoint(pipe)];
+}
+
+static inline void usb_set_intfdata(struct usb_interface *intf, void *data){
+	int ret = 0;
+	struct device *dev = NULL;
+
+	if(intf != NULL){
+		dev = &intf->dev;
+		dev->driver_data = data;
+	}
+}
+
+static inline void *usb_get_intfdata(struct usb_interface *intf){
+	int ret = 0;
+	struct device *dev = NULL;
+
+	if(intf == NULL){
+		return NULL;
+	}
+	dev = &intf->dev;
+	return dev->driver_data;
+}
+
+static void usb_uncache_endpoints(struct usb_device *udev, struct usb_host_interface *alt){
+	int ret = 0;
+	u8 endpoint = 0;
+
+	if(udev == NULL || alt == NULL){
+		return;
+	}
+	for(u8 i = 0; i < alt->desc.bNumEndpoints; i++){
+		endpoint = usb_endpoint_num(&alt->endpoint[i].desc);
+		if(usb_endpoint_dir_in(&alt->endpoint[i].desc)){
+			udev->ep_in[endpoint] = NULL;
+		}else{
+			udev->ep_out[endpoint] = NULL;
+		}
+	}
+}
+
+static void usb_cache_endpoints(struct usb_device *udev, struct usb_host_interface *alt){
+	int ret = 0;
+	u8 endpoint = 0;
+
+	if(udev == NULL || alt == NULL){
+		return;
+	}
+	for(u8 i = 0; i < alt->desc.bNumEndpoints; i++){
+		endpoint = usb_endpoint_num(&alt->endpoint[i].desc);
+		INIT_LIST_HEAD(&alt->endpoint[i].urb_list);
+		if(usb_endpoint_dir_in(&alt->endpoint[i].desc)){
+			udev->ep_in[endpoint] = &alt->endpoint[i];
+		}else{
+			udev->ep_out[endpoint] = &alt->endpoint[i];
+		}
+	}
 }
 
 /* check_usb_presence: control if the usb dongle associated with the loaded kernel driver is still attached to the host system */
@@ -367,8 +576,8 @@ static bool match_endpoint(struct usb_endpoint_descriptor *epd,
 
 /* urb_destroy: from the kref object, destroy the associated urb transfer by freeing its data */
 static void urb_destroy(struct kref *kref){
-	struct urb *urb = NULL;
 	void *__mptr = NULL;
+	struct urb *urb = NULL;
 
 	__mptr = (void *)(kref);
 	/* for avoiding problems, unroll the 'container_of' macro */
@@ -554,12 +763,71 @@ static void usb_transfer_put(struct libusb_transfer *transfer){
 	end:
 }
 
+/* usb_transfer_get_isoc: allocate an isochronous urb, used for HCI tasks */
+static struct libusb_transfer *usb_transfer_get_isoc(int packets){
+	int ret = 0;
+	struct libusb_transfer *transfer = NULL;
+
+	if(packets <= 0){
+		return NULL;
+	}
+	transfer = libusb_alloc_transfer(packets);
+	if(transfer == NULL){
+		return NULL;
+	}
+	pthread_mutex_lock(&director.usb_transfer_pool_lock);
+	if(director.usb_active_transfer_count == USB_ACTIVE_TRANSFER_MAX){
+		pthread_mutex_unlock(&director.usb_transfer_pool_lock);
+		libusb_free_transfer(transfer);
+		return NULL;
+	}
+	director.usb_active_transfers[director.usb_active_transfer_count++] = transfer;
+	pthread_mutex_unlock(&director.usb_transfer_pool_lock);
+	return transfer;
+}
+
+static void usb_transfer_discard(struct libusb_transfer *transfer){
+	int ret = 0;
+
+	if(transfer == NULL){
+		return;
+	}
+	pthread_mutex_lock(&director.usb_transfer_pool_lock);
+	usb_transfer_active_remove_locked(transfer);
+	pthread_mutex_unlock(&director.usb_transfer_pool_lock);
+	libusb_free_transfer(transfer);
+}
+
+static void usb_release_submit(struct libusb_transfer *transfer, struct usb_submit *submit){
+	int ret = 0;
+
+	if(submit != NULL){
+		free(submit->owned_buffer);
+		submit->owned_buffer = NULL;
+	}
+	if(submit != NULL && submit->pooled_transfer){
+		usb_transfer_put(transfer);
+	}else{
+		usb_transfer_discard(transfer);
+	}
+	if(submit != NULL){
+		free(submit);
+	}
+}
+
 static inline void usb_transfer_note_submit(void){
 	atomic_fetch_add_explicit(&director.usb_pending_transfers, 1, memory_order_relaxed);
 }
 
 static inline void usb_transfer_note_complete(void){
+	int ret = 0;
+
 	atomic_fetch_sub_explicit(&director.usb_pending_transfers, 1, memory_order_release);
+	if(director.usb_completion_initialized == true){
+		pthread_mutex_lock(&director.usb_completion_lock);
+		pthread_cond_broadcast(&director.usb_completion_cond);
+		pthread_mutex_unlock(&director.usb_completion_lock);
+	}
 }
 
 static void usb_report_rx(void *data, int len){
@@ -599,10 +867,24 @@ static int usb_runtime_init(void){
 	int ret = 0;
 
 	director.usb_ctx = NULL;
+	director.usb_claimed_interfaces = 0;
+	ret = pthread_mutex_init(&director.usb_completion_lock, NULL);
+	if(ret != 0){
+		return -ret;
+	}
+	ret = pthread_cond_init(&director.usb_completion_cond, NULL);
+	if(ret != 0){
+		pthread_mutex_destroy(&director.usb_completion_lock);
+		return -ret;
+	}
+	director.usb_completion_initialized = true;
 	atomic_store_explicit(&director.usb_device_lost, false, memory_order_release);
 	ret = libusb_init(&director.usb_ctx);
 	if (ret != LIBUSB_SUCCESS){
 		director.usb_ctx = NULL;
+		pthread_cond_destroy(&director.usb_completion_cond);
+		pthread_mutex_destroy(&director.usb_completion_lock);
+		director.usb_completion_initialized = false;
 		return -EIO;
 	}
 
@@ -626,7 +908,12 @@ static void usb_runtime_exit(void){
 		libusb_handle_events_timeout(usb_libusb_context(), &tv);
 	}
 	if (dev != NULL){
-		libusb_release_interface(dev, director.usb_interface_number);
+		for(u8 i = 0; i < USB_MAXINTERFACES; i++){
+			if(director.usb_claimed_interfaces & BIT(i)){
+				libusb_release_interface(dev, i);
+			}
+		}
+		director.usb_claimed_interfaces = 0;
 		libusb_close(dev);
 	}
 	usb_transfer_pool_flush();
@@ -635,87 +922,95 @@ static void usb_runtime_exit(void){
 	pthread_mutex_destroy(&director.usb_transfer_pool_lock);
 	end:
 	usb_rx_observer_destroy();
+	if(director.usb_completion_initialized == true){
+		pthread_cond_destroy(&director.usb_completion_cond);
+		pthread_mutex_destroy(&director.usb_completion_lock);
+		director.usb_completion_initialized = false;
+	}
 }
 
 /* libusb_urb_callback: main libusb callback used as a thin layer between the userspace and the kernelspace */
 static void libusb_urb_callback(struct libusb_transfer *transfer){
+	int ret = 0;
+	int actual = 0;
+	void *rx_data = NULL;
 	struct urb *urb = NULL;
-	usb_complete_t usb_completion_cb = NULL;
+	struct usb_submit *submit = NULL;
+	usb_complete_t complete = NULL;
 
-	if (transfer == NULL){
-		goto end;
+	if(transfer == NULL){
+		return;
 	}
-
-	/* get the urb pointer from the 'transfer' data */
-	urb = (struct urb *)transfer->user_data;
-	if (urb == NULL){
-		usb_transfer_put(transfer);
+	submit = transfer->user_data;
+	if(submit == NULL || submit->urb == NULL){
+		usb_release_submit(transfer, submit);
 		usb_transfer_note_complete();
-		goto end;
+		return;
 	}
-
-	/* convert the libusb error into the equivalent Linux kernel error */
-	switch (transfer->status) {
-		case LIBUSB_TRANSFER_COMPLETED:
-			urb->status = 0;
+	urb = submit->urb;
+	switch(transfer->status){
+	case LIBUSB_TRANSFER_COMPLETED:
+		urb->status = 0;
 		break;
-		case LIBUSB_TRANSFER_ERROR:
-			urb->status = -EIO;
+	case LIBUSB_TRANSFER_TIMED_OUT:
+		urb->status = -ETIMEDOUT;
 		break;
-		case LIBUSB_TRANSFER_TIMED_OUT:
-			urb->status = -ETIMEDOUT;
+	case LIBUSB_TRANSFER_CANCELLED:
+		urb->status = -ENOENT;
 		break;
-		case LIBUSB_TRANSFER_CANCELLED:
-			urb->status = -ENOENT;
+	case LIBUSB_TRANSFER_STALL:
+		urb->status = -EPIPE;
 		break;
-		case LIBUSB_TRANSFER_STALL:
-			urb->status = -EPIPE;
+	case LIBUSB_TRANSFER_NO_DEVICE:
+		urb->status = -ENODEV;
+		atomic_store_explicit(&director.usb_device_lost, true, memory_order_release);
 		break;
-		case LIBUSB_TRANSFER_NO_DEVICE:
-			urb->status = -ENODEV;
-			atomic_store_explicit(&director.usb_device_lost, true,
-					      memory_order_release);
+	case LIBUSB_TRANSFER_OVERFLOW:
+		urb->status = -EOVERFLOW;
 		break;
-		case LIBUSB_TRANSFER_OVERFLOW:
-			urb->status = -EOVERFLOW;
-		break;
-		default:
-			urb->status = -EIO;
+	default:
+		urb->status = -EIO;
 		break;
 	}
-
-	urb->actual_length = transfer->actual_length;
-	if(transfer->status == LIBUSB_TRANSFER_COMPLETED &&
-	   transfer->actual_length > 0 &&
-	   (transfer->endpoint & LIBUSB_ENDPOINT_IN)){
-		usb_report_rx(transfer->buffer, transfer->actual_length);
+	if(submit->isoc == true){
+		urb->error_count = 0;
+		for(int i = 0; i < transfer->num_iso_packets; i++){
+			urb->iso_frame_desc[i].actual_length = transfer->iso_packet_desc[i].actual_length;
+			urb->iso_frame_desc[i].status = transfer->iso_packet_desc[i].status == LIBUSB_TRANSFER_COMPLETED ? 0 : -EIO;
+			actual += transfer->iso_packet_desc[i].actual_length;
+			urb->error_count += urb->iso_frame_desc[i].status != 0;
+		}
+		urb->actual_length = actual;
+		rx_data = urb->transfer_buffer;
+	}else if(submit->control == true){
+		urb->actual_length = transfer->actual_length;
+		rx_data = libusb_control_transfer_get_data(transfer);
+		if(urb->status == 0 && usb_pipein(urb->pipe) && urb->transfer_buffer != NULL){
+			actual = min_t(int, transfer->actual_length, urb->transfer_buffer_length);
+			memcpy(urb->transfer_buffer, rx_data, actual);
+		}
+	}else{
+		urb->actual_length = transfer->actual_length;
+		rx_data = transfer->buffer;
 	}
+	if(urb->status == 0 && urb->actual_length > 0 && usb_pipein(urb->pipe)){
+		usb_report_rx(rx_data, urb->actual_length);
 		#ifdef ENABLE_FUZZING
-		if(transfer->status == LIBUSB_TRANSFER_COMPLETED &&
-		   transfer->actual_length > 0 &&
-		   (transfer->endpoint & LIBUSB_ENDPOINT_IN)){
-			fuzz_report_usb_rx(transfer->buffer, transfer->actual_length);
-	        }
-        #endif
-
-	urb->hcpriv = NULL;
-
-	/* Linux removes a completed URB from its anchor before invoking the driver. */
-	usb_unanchor_urb(urb);
-
-	usb_completion_cb = (usb_complete_t)(urb->complete);
-	if (usb_completion_cb != NULL){
-		usb_completion_cb(urb);
+		fuzz_report_usb_rx(rx_data, urb->actual_length);
+		#endif
 	}
-
-	usb_transfer_put(transfer);
-	/* kill_urb must also wait for the driver's completion callback. */
+	if(urb->hcpriv == transfer){
+		urb->hcpriv = NULL;
+	}
+	usb_unanchor_urb(urb);
+	complete = (usb_complete_t)urb->complete;
+	if(complete != NULL){
+		complete(urb);
+	}
 	atomic_fetch_sub_explicit(&urb->use_count, 1, memory_order_release);
-	/* Drop the reference acquired by usb_submit_urb(). */
 	usb_free_urb(urb);
+	usb_release_submit(transfer, submit);
 	usb_transfer_note_complete();
-
-	end:
 }
 
 /* libusb_thread: handle async events */

@@ -28,7 +28,9 @@ int usb_unlink_urb(struct urb *urb){
 		if (ret == 0){
 			ret = -EINPROGRESS;
 		}else if (ret != -EIDRM && ret != -EBUSY){
-			printf("[!] hcd_unlink_urb %p fail %d\n", urb, ret);
+			#ifdef ENABLE_DBG_PRINT
+			printf("[!] hcd_unlink_urb %p fail with return code: %d\n", urb, ret);
+			#endif
 		}
 		usb_put_dev(udev);
 	}

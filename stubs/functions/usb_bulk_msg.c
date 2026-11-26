@@ -3,7 +3,6 @@ int usb_bulk_msg(struct usb_device *usb_dev, unsigned int pipe, void *data, int 
 	u8 ep = 0;
 
 	ep = convert_usb_pipe_to_ep(pipe);
-
 	usb_lock();
 	ret = libusb_bulk_transfer(
 		director.usb_dev,

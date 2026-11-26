@@ -1,12 +1,12 @@
 void unregister_netdev(void *dev){
-	struct net_device *netdev = dev;
-	void (*ndo_uninit)(struct net_device *dev) = NULL;
+	struct net_device *netdev = NULL;
 	struct net_device_ops *ops = NULL;
+	void (*ndo_uninit)(struct net_device *dev) = NULL;
 
+	netdev = dev;
 	if(netdev == NULL){
 		return;
 	}
-
 	call_netdevice_notifiers(NETDEV_GOING_DOWN, netdev);
 	call_netdevice_notifiers(NETDEV_DOWN, netdev);
 	netdev->reg_state = NETREG_UNREGISTERING;

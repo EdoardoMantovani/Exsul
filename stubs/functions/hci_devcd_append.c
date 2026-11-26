@@ -11,7 +11,6 @@ int hci_devcd_append(struct hci_dev *hdev, struct sk_buff *skb){
 		ret = -EOPNOTSUPP;
 		return ret;
 	}
-
 	skb_cb = (struct hci_devcoredump_skb_cb *)skb->cb;
 	skb_cb->pkt_type = HCI_DEVCOREDUMP_PKT_SKB;
 	ret = hci_devcd_queue(hdev, skb);

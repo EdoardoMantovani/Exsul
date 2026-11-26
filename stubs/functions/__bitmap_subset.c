@@ -1,6 +1,8 @@
 bool __bitmap_subset(unsigned long *bitmap1, unsigned long *bitmap2, unsigned int bits){
-	unsigned int k, lim = bits/BITS_PER_LONG;
+	unsigned int k = 0;
+	unsigned int lim = 0;
 
+	lim = bits/BITS_PER_LONG;
 	for (k = 0; k < lim; ++k){
 		if (bitmap1[k] & ~bitmap2[k]){
 			return false;

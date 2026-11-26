@@ -8,7 +8,6 @@ int hci_devcd_append_pattern(struct hci_dev *hdev, u8 pattern, u32 len){
 		ret = -EOPNOTSUPP;
 		return ret;
 	}
-
 	skb = alloc_skb(sizeof(p), GFP_ATOMIC);
 	if (skb == NULL){
 		ret = -ENOMEM;

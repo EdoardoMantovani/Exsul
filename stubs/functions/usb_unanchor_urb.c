@@ -9,7 +9,6 @@ void usb_unanchor_urb(struct urb *urb){
 	if (anchor == NULL){
 		return;
 	}
-
 	pthread_mutex_lock(&director.urb_anchor_mutex);
 	/*
 	 * At this point, we could be competing with another thread which

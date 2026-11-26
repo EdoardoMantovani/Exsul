@@ -1,4 +1,5 @@
 void cfg80211_chandef_create(struct cfg80211_chan_def *chandef, struct ieee80211_channel *chan, enum nl80211_channel_type chan_type){
+
 	if (chan == NULL){
 		goto end;
 	}

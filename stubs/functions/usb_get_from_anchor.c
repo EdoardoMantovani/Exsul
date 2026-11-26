@@ -1,20 +1,18 @@
 struct urb *usb_get_from_anchor(struct usb_anchor *anchor){
-	struct urb *victim = NULL;
+	int ret = 0;
+	struct urb *urb = NULL;
 
-	if (!list_empty(&anchor->urb_list)) {
-		victim = list_entry(anchor->urb_list.next, struct urb, anchor_list);
-		usb_get_urb(victim);
-		/* inline '__usb_unanchor_urb' here */
-                victim->anchor = NULL;
-                list_del(&victim->anchor_list);
-                usb_put_urb(victim);
-                #if 0
-                if (usb_anchor_check_wakeup(anchor)){
-                        wake_up(&anchor->wait);
-                }
-                #endif
-	}else{
-		victim = NULL;
+	if(anchor == NULL){
+		return NULL;
 	}
-	return victim;
+	pthread_mutex_lock(&director.urb_anchor_mutex);
+	if(!list_empty(&anchor->urb_list)){
+		urb = list_first_entry(&anchor->urb_list, struct urb, anchor_list);
+		usb_get_urb(urb);
+		urb->anchor = NULL;
+		list_del_init(&urb->anchor_list);
+		usb_put_urb(urb);
+	}
+	pthread_mutex_unlock(&director.urb_anchor_mutex);
+	return urb;
 }

@@ -6,7 +6,7 @@ int request_firmware(const struct firmware **firmware_p, const char *name, void 
 	struct stat st = {};
 	struct firmware *fw = NULL;
 	unsigned char *buf = NULL;
-	unsigned char fw_path[48];
+	unsigned char fw_path[PATH_MAX];
 
         if (firmware_p == NULL || name == NULL){
 		ret = -EINVAL;
@@ -15,6 +15,9 @@ int request_firmware(const struct firmware **firmware_p, const char *name, void 
 	*firmware_p = NULL;
 	/* for now this is a temp fix, seems that the standard snprintf crash, so I had to reimplement it in my src/main.c */
 	ret = snprintf(fw_path, sizeof(fw_path), "%s%s", DEFAULT_FW_PATH, name);
+	if(ret < 0 || ret >= sizeof(fw_path)){
+		return -ENAMETOOLONG;
+	}
 	fd = open(fw_path, O_RDONLY);
 	if (fd < 0){
 		ret = -errno;

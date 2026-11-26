@@ -1,7 +1,8 @@
 void udp6_set_csum(bool nocheck, struct sk_buff *skb, struct in6_addr *saddr, struct in6_addr *daddr, int len){
-	struct udphdr *uh = udp_hdr(skb);
+	struct udphdr *uh = NULL;
 
-	if (nocheck){
+	uh = udp_hdr(skb);
+	if (nocheck == true){
 		uh->check = 0;
 	}else if (skb_is_gso(skb)){
 		uh->check = ~udp_v6_check(len, saddr, daddr, 0);

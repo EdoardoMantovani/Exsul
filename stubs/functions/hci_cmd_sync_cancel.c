@@ -1,7 +1,10 @@
 void hci_cmd_sync_cancel(struct hci_dev *hdev, int err){
-	if (hdev->req_status == HCI_REQ_PEND) {
+	int ret = 0;
+
+	if(hdev != NULL && hdev->req_status == HCI_REQ_PEND){
 		hdev->req_result = err;
 		hdev->req_status = HCI_REQ_CANCELED;
-		queue_work(hdev->workqueue, &hdev->cmd_sync_cancel_work);
+		cancel_delayed_work(&hdev->cmd_timer);
+		wake_up_interruptible(&hdev->req_wait_q);
 	}
 }

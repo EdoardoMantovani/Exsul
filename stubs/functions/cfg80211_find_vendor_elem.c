@@ -4,7 +4,6 @@ const struct element *cfg80211_find_vendor_elem(unsigned int oui, int oui_type, 
 	u8 match[] = { oui >> 16, oui >> 8, oui, oui_type };
 
 	match_len = (oui_type < 0) ? 3 : sizeof(match);
-
 	if (oui_type > 0xff){
 		return NULL;
 	}
